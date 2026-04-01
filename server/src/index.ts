@@ -712,6 +712,22 @@ async function startServer() {
               sendEvent('tools', { tools: toolExecutor.getTools() })
               break
 
+            case 'validate_user':
+              {
+                const userId = message.userId as string
+                const username = message.username as string
+
+                sessionManager.getOrCreateUser(userId, username).then(user => {
+                  wsData.userId = user.id
+                  console.log(`User validated: ${user.id} (${user.username})`)
+                  ws.send(JSON.stringify({ type: 'user_validated', userId: user.id, username: user.username }))
+                }).catch(err => {
+                  console.error('Failed to validate user:', err)
+                  ws.send(JSON.stringify({ type: 'user_invalid' }))
+                })
+              }
+              break
+
             default:
               sendEvent('error', { message: `Unknown message type: ${message.type}` })
           }

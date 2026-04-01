@@ -34,7 +34,7 @@ export class SessionManager {
   async getOrCreateUser(userId: string, username?: string): Promise<{ id: string; username: string }> {
     let user = await this.userRepo.findById(userId)
     if (!user) {
-      user = await this.userRepo.findOrCreate(username || `user_${userId}`)
+      user = await this.userRepo.create(username || `user_${userId.slice(0, 8)}`)
     }
     return { id: user.id, username: user.username }
   }

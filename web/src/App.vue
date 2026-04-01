@@ -92,7 +92,15 @@ function connectWebSocket() {
     isConnected.value = true
     error.value = ''
     if (isLoggedIn.value && userId.value) {
-      loadSessions()
+      validateUser()
+    } else {
+      const savedUser = loadUserFromStorage()
+      if (savedUser) {
+        userId.value = savedUser.userId
+        loginUsername.value = savedUser.username
+        userUsername.value = savedUser.username
+        validateUser()
+      }
     }
   }
 
@@ -142,6 +150,18 @@ function handleWebSocketMessage(data: any) {
       saveUserToStorage(data.userId, data.username || loginUsername.value)
       console.log('User registered:', data.userId)
       loadSessions()
+      break
+
+    case 'user_validated':
+      isLoggedIn.value = true
+      loadSessions()
+      break
+
+    case 'user_invalid':
+      clearUserFromStorage()
+      userId.value = null
+      userUsername.value = null
+      isLoggedIn.value = false
       break
 
     case 'session_list':
@@ -431,10 +451,26 @@ function formatToolInput(input: string): string {
 function handleLogout() {
   isLoggedIn.value = false
   userId.value = null
+  userUsername.value = null
   sessions.value = []
   messages.value = []
   currentSessionId.value = null
   loginUsername.value = ''
+  clearUserFromStorage()
+}
+
+function restoreLogin(savedUser: { userId: string; username: string }) {
+  userId.value = savedUser.userId
+  loginUsername.value = savedUser.username
+  userUsername.value = savedUser.username
+  isLoggedIn.value = true
+  loadSessions()
+}
+
+function validateUser() {
+  if (ws.value && ws.value.readyState === WebSocket.OPEN && userId.value) {
+    ws.value.send(JSON.stringify({ type: 'validate_user', userId: userId.value, username: userUsername.value }))
+  }
 }
 
 onMounted(() => {
