@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid'
 import bcrypt from 'bcryptjs'
 import { getPool } from '../db/mysql'
 import { generateToken } from './jwtService'
+import { sendVerificationCodeEmail } from './emailService'
 import type { User, AuthResponse, LoginRequest, RegisterRequest, ResetPasswordRequest } from '../models/types'
 
 const CODE_EXPIRE_MINUTES = 5
@@ -34,8 +35,8 @@ export class AuthService {
       [uuidv4(), email, code, 'register', expiresAt, false]
     )
 
+    await sendVerificationCodeEmail(email, code, '注册')
     console.log(`注册验证码 ${code} 已发送到 ${email}`)
-    console.log(`[开发模式] 验证码: ${code}`)
   }
 
   async register(request: RegisterRequest): Promise<AuthResponse> {
@@ -158,8 +159,8 @@ export class AuthService {
       [uuidv4(), email, code, 'reset_password', expiresAt, false]
     )
 
+    await sendVerificationCodeEmail(email, code, '重置密码')
     console.log(`重置密码验证码 ${code} 已发送到 ${email}`)
-    console.log(`[开发模式] 验证码: ${code}`)
   }
 
   async resetPassword(request: ResetPasswordRequest): Promise<void> {

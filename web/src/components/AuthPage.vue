@@ -215,134 +215,194 @@ function switchToForgotPassword() {
 </script>
 
 <template>
-  <div class="auth-container">
-    <div class="auth-box">
-      <h1 class="auth-title">🤖 Claude Code Web</h1>
-      <p class="auth-subtitle">AI Coding Assistant</p>
+  <div class="auth-page">
+    <div class="auth-bg-pattern"></div>
+    <div class="auth-container">
+      <div class="auth-brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h1 class="brand-name">Claude Code Web</h1>
+        <p class="brand-tagline">AI Coding Assistant</p>
+      </div>
 
-      <div v-if="currentView === 'login'" class="auth-form">
-        <h2>登录</h2>
-        <input
-          v-model="loginEmail"
-          type="email"
-          placeholder="邮箱"
-          class="auth-input"
-          @keyup.enter="handleLogin"
-        />
-        <input
-          v-model="loginPassword"
-          type="password"
-          placeholder="密码"
-          class="auth-input"
-          @keyup.enter="handleLogin"
-        />
-        <button
-          @click="handleLogin"
-          class="auth-btn primary"
-          :disabled="loginLoading || !isLoginFormValid"
-        >
-          {{ loginLoading ? '登录中...' : '登录' }}
-        </button>
-        <p v-if="loginError" class="auth-error">{{ loginError }}</p>
-        <div class="auth-links">
-          <a @click="switchToForgotPassword" class="auth-link">忘记密码？</a>
-          <span class="auth-divider">|</span>
-          <a @click="switchToRegister" class="auth-link">注册账号</a>
+      <div class="auth-card">
+        <div v-if="currentView === 'login'" class="auth-form">
+          <div class="form-header">
+            <h2>欢迎回来</h2>
+            <p>登录到您的账户</p>
+          </div>
+          <div class="input-group">
+            <label>邮箱地址</label>
+            <input
+              v-model="loginEmail"
+              type="email"
+              placeholder="name@example.com"
+              class="auth-input"
+              @keyup.enter="handleLogin"
+            />
+          </div>
+          <div class="input-group">
+            <label>密码</label>
+            <input
+              v-model="loginPassword"
+              type="password"
+              placeholder="输入密码"
+              class="auth-input"
+              @keyup.enter="handleLogin"
+            />
+          </div>
+          <p v-if="loginError" class="auth-error">{{ loginError }}</p>
+          <button
+            @click="handleLogin"
+            class="auth-btn primary"
+            :disabled="loginLoading || !isLoginFormValid"
+          >
+            <span v-if="loginLoading" class="btn-loader"></span>
+            {{ loginLoading ? '登录中...' : '登录' }}
+          </button>
+          <div class="auth-links">
+            <a @click="switchToForgotPassword" class="auth-link">忘记密码？</a>
+            <span class="auth-divider">·</span>
+            <a @click="switchToRegister" class="auth-link">注册账号</a>
+          </div>
+        </div>
+
+        <div v-if="currentView === 'register'" class="auth-form">
+          <div class="form-header">
+            <h2>创建账户</h2>
+            <p>开始使用 AI 编程助手</p>
+          </div>
+          <div class="input-group">
+            <label>邮箱地址</label>
+            <input
+              v-model="registerEmail"
+              type="email"
+              placeholder="name@example.com"
+              class="auth-input"
+              :disabled="registerCodeSent"
+            />
+          </div>
+          <div class="code-row">
+            <input
+              v-model="registerCode"
+              type="text"
+              placeholder="验证码"
+              class="auth-input code-input"
+              maxlength="6"
+            />
+            <button
+              @click="handleSendRegisterCode"
+              class="auth-btn small"
+              :disabled="registerCodeSending || !registerEmail.includes('@')"
+            >
+              {{ registerCodeSending ? '发送中...' : registerCodeSent ? '已发送' : '获取验证码' }}
+            </button>
+          </div>
+          <div class="input-group">
+            <label>用户名</label>
+            <input
+              v-model="registerUsername"
+              type="text"
+              placeholder="输入用户名"
+              class="auth-input"
+            />
+          </div>
+          <div class="input-group">
+            <label>密码</label>
+            <input
+              v-model="registerPassword"
+              type="password"
+              placeholder="至少6位密码"
+              class="auth-input"
+            />
+          </div>
+          <p v-if="registerError" class="auth-error">{{ registerError }}</p>
+          <button
+            @click="handleRegister"
+            class="auth-btn primary"
+            :disabled="registerLoading || !isRegisterFormValid"
+          >
+            <span v-if="registerLoading" class="btn-loader"></span>
+            {{ registerLoading ? '注册中...' : '注册' }}
+          </button>
+          <div class="auth-links">
+            <a @click="switchToLogin" class="auth-link">已有账号？登录</a>
+          </div>
+        </div>
+
+        <div v-if="currentView === 'forgotPassword'" class="auth-form">
+          <div class="form-header">
+            <h2>找回密码</h2>
+            <p>重置您的账户密码</p>
+          </div>
+          <div class="input-group">
+            <label>邮箱地址</label>
+            <input
+              v-model="forgotEmail"
+              type="email"
+              placeholder="name@example.com"
+              class="auth-input"
+              :disabled="forgotCodeSent"
+            />
+          </div>
+          <div class="code-row">
+            <input
+              v-model="forgotCode"
+              type="text"
+              placeholder="验证码"
+              class="auth-input code-input"
+              maxlength="6"
+            />
+            <button
+              @click="handleSendForgotCode"
+              class="auth-btn small"
+              :disabled="forgotCodeSending || !forgotEmail.includes('@')"
+            >
+              {{ forgotCodeSending ? '发送中...' : forgotCodeSent ? '已发送' : '获取验证码' }}
+            </button>
+          </div>
+          <div class="input-group">
+            <label>新密码</label>
+            <input
+              v-model="forgotNewPassword"
+              type="password"
+              placeholder="至少6位密码"
+              class="auth-input"
+              :disabled="!forgotCodeSent"
+            />
+          </div>
+          <p v-if="forgotError" class="auth-error">{{ forgotError }}</p>
+          <button
+            @click="handleResetPassword"
+            class="auth-btn primary"
+            :disabled="forgotLoading || !isForgotFormValid"
+          >
+            <span v-if="forgotLoading" class="btn-loader"></span>
+            {{ forgotLoading ? '重置中...' : '重置密码' }}
+          </button>
+          <div class="auth-links">
+            <a @click="switchToLogin" class="auth-link">想起密码了？登录</a>
+          </div>
         </div>
       </div>
 
-      <div v-if="currentView === 'register'" class="auth-form">
-        <h2>注册</h2>
-        <input
-          v-model="registerEmail"
-          type="email"
-          placeholder="邮箱"
-          class="auth-input"
-          :disabled="registerCodeSent"
-        />
-        <div class="code-row">
-          <input
-            v-model="registerCode"
-            type="text"
-            placeholder="验证码"
-            class="auth-input code-input"
-            maxlength="6"
-          />
-          <button
-            @click="handleSendRegisterCode"
-            class="auth-btn small"
-            :disabled="registerCodeSending || !registerEmail.includes('@')"
-          >
-            {{ registerCodeSending ? '发送中...' : registerCodeSent ? '已发送' : '获取验证码' }}
-          </button>
+      <div class="auth-features">
+        <div class="feature-item">
+          <span class="feature-icon">⚡</span>
+          <span>快速响应</span>
         </div>
-        <input
-          v-model="registerUsername"
-          type="text"
-          placeholder="用户名"
-          class="auth-input"
-        />
-        <input
-          v-model="registerPassword"
-          type="password"
-          placeholder="密码（至少6位）"
-          class="auth-input"
-        />
-        <button
-          @click="handleRegister"
-          class="auth-btn primary"
-          :disabled="registerLoading || !isRegisterFormValid"
-        >
-          {{ registerLoading ? '注册中...' : '注册' }}
-        </button>
-        <p v-if="registerError" class="auth-error">{{ registerError }}</p>
-        <div class="auth-links">
-          <a @click="switchToLogin" class="auth-link">已有账号？登录</a>
+        <div class="feature-item">
+          <span class="feature-icon">🔧</span>
+          <span>工具调用</span>
         </div>
-      </div>
-
-      <div v-if="currentView === 'forgotPassword'" class="auth-form">
-        <h2>找回密码</h2>
-        <input
-          v-model="forgotEmail"
-          type="email"
-          placeholder="邮箱"
-          class="auth-input"
-          :disabled="forgotCodeSent"
-        />
-        <div class="code-row">
-          <input
-            v-model="forgotCode"
-            type="text"
-            placeholder="验证码"
-            class="auth-input code-input"
-            maxlength="6"
-          />
-          <button
-            @click="handleSendForgotCode"
-            class="auth-btn small"
-            :disabled="forgotCodeSending || !forgotEmail.includes('@')"
-          >
-            {{ forgotCodeSending ? '发送中...' : forgotCodeSent ? '已发送' : '获取验证码' }}
-          </button>
-        </div>
-        <input
-          v-model="forgotNewPassword"
-          type="password"
-          placeholder="新密码（至少6位）"
-          class="auth-input"
-          :disabled="!forgotCodeSent"
-        />
-        <button
-          @click="handleResetPassword"
-          class="auth-btn primary"
-          :disabled="forgotLoading || !isForgotFormValid"
-        >
-          {{ forgotLoading ? '重置中...' : '重置密码' }}
-        </button>
-        <p v-if="forgotError" class="auth-error">{{ forgotError }}</p>
-        <div class="auth-links">
-          <a @click="switchToLogin" class="auth-link">想起密码了？登录</a>
+        <div class="feature-item">
+          <span class="feature-icon">💾</span>
+          <span>会话管理</span>
         </div>
       </div>
     </div>
@@ -350,69 +410,147 @@ function switchToForgotPassword() {
 </template>
 
 <style scoped>
-.auth-container {
+.auth-page {
+  min-height: 100vh;
   display: flex;
-  justify-content: center;
   align-items: center;
-  height: 100vh;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  justify-content: center;
+  background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0f0f1a 100%);
+  position: relative;
+  overflow: hidden;
 }
 
-.auth-box {
-  background: #16213e;
-  padding: 40px;
-  border-radius: 16px;
+.auth-bg-pattern {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 80%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(168, 85, 247, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(236, 72, 153, 0.05) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 420px;
+  padding: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-brand {
   text-align: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  border: 1px solid #0f3460;
-  width: 360px;
+  margin-bottom: 32px;
 }
 
-.auth-title {
-  color: #e94560;
+.brand-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  color: #6366f1;
+  animation: float 3s ease-in-out infinite;
+}
+
+.brand-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.brand-name {
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
   margin: 0 0 8px 0;
-  font-size: 24px;
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.auth-subtitle {
-  color: #888;
-  margin: 0 0 32px 0;
+.brand-tagline {
   font-size: 14px;
+  color: #6b7280;
+  margin: 0;
 }
 
-.auth-form h2 {
-  color: #eee;
-  margin: 0 0 24px 0;
-  font-size: 20px;
+.auth-card {
+  background: rgba(30, 30, 45, 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.3),
+    0 2px 4px -2px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+.form-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.form-header h2 {
+  color: #fff;
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.form-header p {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 0;
+}
+
+.input-group {
+  margin-bottom: 20px;
+}
+
+.input-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #9ca3af;
+  margin-bottom: 8px;
 }
 
 .auth-input {
   width: 100%;
-  padding: 12px 16px;
-  font-size: 14px;
-  border: 2px solid #0f3460;
-  border-radius: 8px;
-  background: #1a1a2e;
-  color: #eee;
+  padding: 14px 16px;
+  font-size: 15px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 12px;
+  background: rgba(15, 15, 25, 0.8);
+  color: #fff;
   outline: none;
-  transition: border-color 0.2s;
+  transition: all 0.2s ease;
   box-sizing: border-box;
-  margin-bottom: 12px;
+}
+
+.auth-input::placeholder {
+  color: #4b5563;
 }
 
 .auth-input:focus {
-  border-color: #e94560;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
 .auth-input:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .code-row {
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 20px;
 }
 
 .code-input {
@@ -422,61 +560,118 @@ function switchToForgotPassword() {
 
 .auth-btn {
   width: 100%;
-  padding: 12px 20px;
-  font-size: 14px;
-  background: #0f3460;
-  color: #eee;
-  border: none;
-  border-radius: 8px;
+  padding: 14px 20px;
+  font-size: 15px;
+  font-weight: 500;
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 12px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .auth-btn.primary {
-  background: #e94560;
+  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
   color: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 
 .auth-btn:hover:not(:disabled) {
-  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+}
+
+.auth-btn.primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5558e3 0%, #6d28d9 100%);
 }
 
 .auth-btn:disabled {
-  background: #666;
+  opacity: 0.5;
   cursor: not-allowed;
-  color: #aaa;
+  transform: none;
+  box-shadow: none;
 }
 
 .auth-btn.small {
-  padding: 12px 14px;
-  font-size: 12px;
+  padding: 14px 16px;
+  font-size: 13px;
   white-space: nowrap;
   width: auto;
 }
 
+.btn-loader {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .auth-error {
-  color: #ef4444;
+  color: #f87171;
   margin: 12px 0;
   font-size: 13px;
+  text-align: center;
+  padding: 10px;
+  background: rgba(248, 113, 113, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.2);
 }
 
 .auth-links {
-  margin-top: 16px;
-  font-size: 13px;
+  margin-top: 20px;
+  text-align: center;
+  font-size: 14px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
 }
 
 .auth-link {
-  color: #4ade80;
+  color: #818cf8;
   cursor: pointer;
   text-decoration: none;
+  transition: color 0.2s;
 }
 
 .auth-link:hover {
+  color: #a5b4fc;
   text-decoration: underline;
 }
 
 .auth-divider {
-  color: #666;
-  margin: 0 8px;
+  color: #4b5563;
+}
+
+.auth-features {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 32px;
+  flex-wrap: wrap;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.feature-icon {
+  font-size: 14px;
 }
 </style>
