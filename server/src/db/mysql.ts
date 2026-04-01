@@ -70,6 +70,9 @@ export async function initDatabase(): Promise<void> {
     await tempPool.query(`CREATE DATABASE IF NOT EXISTS \`${config.database}\``)
     console.log(`Database ${config.database} ensured`)
 
+    await tempPool.query(`USE \`${config.database}\``)
+    console.log(`Using database ${config.database}`)
+
     const schemaPath = resolve(__dirname, './schema.sql')
     const schema = readFileSync(schemaPath, 'utf-8')
 

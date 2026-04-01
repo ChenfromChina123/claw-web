@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS tool_calls (
 );
 
 -- 索引
-CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);
-CREATE INDEX IF NOT EXISTS idx_tool_calls_session_id ON tool_calls(session_id);
-CREATE INDEX IF NOT EXISTS idx_tool_calls_message_id ON tool_calls(message_id);
+CREATE INDEX idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX idx_messages_session_id ON messages(session_id);
+CREATE INDEX idx_tool_calls_session_id ON tool_calls(session_id);
+CREATE INDEX idx_tool_calls_message_id ON tool_calls(message_id);
