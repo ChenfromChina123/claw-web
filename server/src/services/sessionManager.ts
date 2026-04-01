@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid'
 import { UserRepository } from '../db/repositories/userRepository'
 import { SessionRepository } from '../db/repositories/sessionRepository'
 import { MessageRepository } from '../db/repositories/messageRepository'
