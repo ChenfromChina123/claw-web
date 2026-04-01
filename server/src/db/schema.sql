@@ -1,7 +1,7 @@
 -- 用户表
 CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(36) PRIMARY KEY,
-  username VARCHAR(100) NOT NULL UNIQUE,
+  username VARCHAR(100) NOT NULL,
   email VARCHAR(120) UNIQUE,
   password_hash VARCHAR(255),
   avatar VARCHAR(255) DEFAULT '/avatars/default.png',

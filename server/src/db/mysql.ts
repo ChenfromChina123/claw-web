@@ -128,6 +128,10 @@ export async function initDatabase(): Promise<void> {
       )
     `).catch(() => {})
 
+    await tempPool.query(`
+      DROP INDEX username ON users
+    `).catch(() => {})
+
     console.log('Database schema initialized')
   } finally {
     await tempPool.end()
