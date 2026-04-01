@@ -6,10 +6,6 @@ A **Web interface version** of Claude Code, supporting any Anthropic-compatible 
 
 > This project is a Web frontend implementation of Claude Code, working with a WebSocket server to provide session management and user authentication.
 
-<p align="center">
-  <img src="docs/00runtime.png" alt="Runtime screenshot" width="800">
-</p>
-
 ## Features
 
 - Complete Web interaction interface
@@ -17,6 +13,24 @@ A **Web interface version** of Claude Code, supporting any Anthropic-compatible 
 - Custom API endpoint and model support
 - **WebSocket server** for session management and AI conversation
 - **User authentication system** (register, login, password recovery)
+
+### claw-web Login Interface
+
+<p align="center">
+  <img src="docs/login.png" alt="claw-web Login Interface" width="300">
+</p>
+
+### claw-web Registration Email
+
+<p align="center">
+  <img src="docs/resign-email.png" alt="claw-web Registration Email" width="300">
+</p>
+
+### claw-web Chat Interface
+
+<p align="center">
+  <img src="docs/chatVeiw.png" alt="claw-web Chat Interface" width="700">
+</p>
 
 ---
 
