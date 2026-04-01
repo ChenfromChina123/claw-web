@@ -7,6 +7,12 @@
     "start": "bun run src/index.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0"
+    "@anthropic-ai/sdk": "^0.80.0",
+    "mysql2": "^3.20.0",
+    "uuid": "^13.0.0",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^11.0.0"
   }
 }
