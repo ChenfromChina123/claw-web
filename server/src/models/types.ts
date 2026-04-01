@@ -1,8 +1,14 @@
 export interface User {
   id: string
   username: string
+  email?: string
+  passwordHash?: string
+  avatar?: string
+  isActive?: boolean
+  isAdmin?: boolean
   createdAt: Date
   updatedAt: Date
+  lastLogin?: Date
 }
 
 export interface Session {
@@ -20,6 +26,7 @@ export interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
   createdAt: Date
+  toolCalls?: ToolCall[]
 }
 
 export interface ToolCall {
@@ -55,4 +62,32 @@ export interface SessionWithMessages {
 export interface WebSocketMessage {
   type: string
   [key: string]: unknown
+}
+
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+export interface RegisterRequest {
+  email: string
+  username: string
+  password: string
+  code: string
+}
+
+export interface ResetPasswordRequest {
+  email: string
+  code: string
+  newPassword: string
+}
+
+export interface AuthResponse {
+  accessToken: string
+  tokenType: string
+  userId: string
+  username: string
+  email: string
+  isAdmin: boolean
+  avatar?: string
 }

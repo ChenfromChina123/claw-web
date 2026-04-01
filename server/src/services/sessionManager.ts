@@ -112,14 +112,18 @@ export class SessionManager {
     return this.sessions.get(sessionId)
   }
 
-  addMessage(sessionId: string, role: 'user' | 'assistant', content: string): void {
+  addMessage(sessionId: string, role: 'user' | 'assistant', content: string, toolCalls?: ToolCall[]): void {
     const sessionData = this.sessions.get(sessionId)
     if (!sessionData) {
       console.error(`Session ${sessionId} not found in memory`)
       return
     }
 
-    sessionData.messages.push({ role, content })
+    const message: Message = { id: uuidv4(), sessionId, role, content, createdAt: new Date() }
+    if (role === 'assistant' && toolCalls && toolCalls.length > 0) {
+      message.toolCalls = toolCalls
+    }
+    sessionData.messages.push(message)
     sessionData.dirty = true
 
     this.scheduleSave(sessionId)

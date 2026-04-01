@@ -4,7 +4,9 @@ import { readFile, writeFile } from 'fs/promises'
 import { v4 as uuidv4 } from 'uuid'
 import { initDatabase, closePool } from './db/mysql'
 import { SessionManager } from './services/sessionManager'
-import type { ConversationMessage, ToolCall } from './models/types'
+import { authService } from './services/authService'
+import { verifyToken, extractTokenFromHeader } from './services/jwtService'
+import type { ConversationMessage, ToolCall, LoginRequest, RegisterRequest, ResetPasswordRequest } from './models/types'
 
 const PORT = 3000
 
@@ -23,6 +25,7 @@ interface WebSocketData {
   sendEvent: ((event: string, data: unknown) => void) | null
   sessionId: string | null
   userId: string | null
+  token: string | null
 }
 
 const AVAILABLE_MODELS = [
@@ -59,6 +62,22 @@ function createErrorResponse(code: string, message: string, status: number): Res
       'Access-Control-Allow-Origin': '*',
     },
   })
+}
+
+async function authMiddleware(request: Request): Promise<{ userId: string | null; isAdmin: boolean | null }> {
+  const authHeader = request.headers.get('Authorization')
+  const token = await extractTokenFromHeader(authHeader)
+
+  if (!token) {
+    return { userId: null, isAdmin: null }
+  }
+
+  const payload = await verifyToken(token)
+  if (!payload) {
+    return { userId: null, isAdmin: null }
+  }
+
+  return { userId: payload.userId, isAdmin: payload.isAdmin || null }
 }
 
 class ToolExecutor {
@@ -340,6 +359,7 @@ class SessionConversationManager {
         let assistantText = ''
         let pendingToolCalls: Array<{ id: string; name: string; input: string }> = []
         let currentTextBlock = ''
+        let executedToolCalls: ToolCall[] = []
 
         for await (const event of stream) {
           console.log('Stream event:', event.type)
@@ -423,13 +443,23 @@ class SessionConversationManager {
                   sessionManager.addMessage(sessionId, 'user', JSON.stringify({ tool_use_id: tool.id, name: tool.name, error: errorMessage }))
                 }
               }
+              executedToolCalls = pendingToolCalls.map(tc => ({
+                id: tc.id,
+                messageId: '',
+                sessionId,
+                toolName: tc.name,
+                toolInput: tc.input ? JSON.parse(tc.input) : {},
+                toolOutput: null,
+                status: 'completed' as const,
+                createdAt: new Date(),
+              }))
               pendingToolCalls = []
               break
           }
         }
 
         if (assistantText) {
-          sessionManager.addMessage(sessionId, 'assistant', assistantText)
+          sessionManager.addMessage(sessionId, 'assistant', assistantText, executedToolCalls)
         }
 
         const finalSession = sessionManager.getInMemorySession(sessionId)
@@ -466,6 +496,105 @@ const toolExecutor = new ToolExecutor()
 const sessionConversationManager = new SessionConversationManager(toolExecutor)
 const sessionManager = SessionManager.getInstance()
 
+async function handleAuthRoutes(path: string, method: string, request: Request): Promise<Response> {
+  if (method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      },
+    })
+  }
+
+  if (path === '/api/auth/register/send-code' && method === 'POST') {
+    try {
+      const body = await request.json()
+      const email = body.email as string
+      await authService.sendRegisterCode(email)
+      return createSuccessResponse({ message: '验证码已发送到您的邮箱' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '发送验证码失败'
+      return createErrorResponse('SEND_CODE_FAILED', message, 400)
+    }
+  }
+
+  if (path === '/api/auth/register' && method === 'POST') {
+    try {
+      const body = await request.json()
+      const registerRequest: RegisterRequest = {
+        email: body.email,
+        username: body.username,
+        password: body.password,
+        code: body.code,
+      }
+      const result = await authService.register(registerRequest)
+      return createSuccessResponse(result)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '注册失败'
+      return createErrorResponse('REGISTER_FAILED', message, 400)
+    }
+  }
+
+  if (path === '/api/auth/login' && method === 'POST') {
+    try {
+      const body = await request.json()
+      const loginRequest: LoginRequest = {
+        email: body.email,
+        password: body.password,
+      }
+      const result = await authService.login(loginRequest)
+      return createSuccessResponse(result)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '登录失败'
+      return createErrorResponse('LOGIN_FAILED', message, 401)
+    }
+  }
+
+  if (path === '/api/auth/forgot-password/send-code' && method === 'POST') {
+    try {
+      const body = await request.json()
+      const email = body.email as string
+      await authService.sendForgotPasswordCode(email)
+      return createSuccessResponse({ message: '验证码已发送到您的邮箱' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '发送验证码失败'
+      return createErrorResponse('SEND_CODE_FAILED', message, 400)
+    }
+  }
+
+  if (path === '/api/auth/forgot-password' && method === 'POST') {
+    try {
+      const body = await request.json()
+      const resetRequest: ResetPasswordRequest = {
+        email: body.email,
+        code: body.code,
+        newPassword: body.newPassword,
+      }
+      await authService.resetPassword(resetRequest)
+      return createSuccessResponse({ message: '密码重置成功' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '重置密码失败'
+      return createErrorResponse('RESET_PASSWORD_FAILED', message, 400)
+    }
+  }
+
+  if (path === '/api/auth/me' && method === 'GET') {
+    const auth = await authMiddleware(request)
+    if (!auth.userId) {
+      return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
+    }
+    const user = await authService.getUserById(auth.userId)
+    if (!user) {
+      return createErrorResponse('USER_NOT_FOUND', '用户不存在', 404)
+    }
+    return createSuccessResponse(user)
+  }
+
+  return createErrorResponse('NOT_FOUND', `Route ${path} not found`, 404)
+}
+
 async function startServer() {
   try {
     console.log('Initializing database...')
@@ -483,9 +612,13 @@ async function startServer() {
       const path = url.pathname
       const method = req.method
 
+      if (path.startsWith('/api/auth/')) {
+        return handleAuthRoutes(path, method, req)
+      }
+
       if (path === '/ws') {
         const success = server.upgrade(req, {
-          data: { sendEvent: null, sessionId: null, userId: null } as WebSocketData,
+          data: { sendEvent: null, sessionId: null, userId: null, token: null } as WebSocketData,
         })
 
         if (!success) {
@@ -528,7 +661,7 @@ async function startServer() {
     websocket: {
       open(ws) {
         console.log('Client connected')
-        ws.data = { sendEvent: null, sessionId: null, userId: null } as WebSocketData
+        ws.data = { sendEvent: null, sessionId: null, userId: null, token: null } as WebSocketData
       },
 
       message(ws, data) {
@@ -563,6 +696,24 @@ async function startServer() {
                   console.error('Failed to register user:', err)
                   ws.send(JSON.stringify({ type: 'error', message: 'Failed to register user' }))
                 })
+              }
+              break
+
+            case 'login':
+              {
+                const token = message.token as string
+                if (token) {
+                  wsData.token = token
+                  verifyToken(token).then(payload => {
+                    if (payload) {
+                      wsData.userId = payload.userId
+                      console.log(`User logged in via token: ${payload.userId}`)
+                      ws.send(JSON.stringify({ type: 'logged_in', userId: payload.userId }))
+                    } else {
+                      ws.send(JSON.stringify({ type: 'error', message: 'Invalid token' }))
+                    }
+                  })
+                }
               }
               break
 
@@ -745,10 +896,16 @@ async function startServer() {
 
   console.log(`Claude Code Haha WebSocket Server running at ws://localhost:${PORT}`)
   console.log(`REST API: http://localhost:${PORT}/api/*`)
-  console.log(`Endpoints:`)
+  console.log(`Auth API Endpoints:`)
+  console.log(`  POST /api/auth/register/send-code  - 发送注册验证码`)
+  console.log(`  POST /api/auth/register            - 用户注册`)
+  console.log(`  POST /api/auth/login               - 用户登录`)
+  console.log(`  POST /api/auth/forgot-password/send-code  - 发送重置密码验证码`)
+  console.log(`  POST /api/auth/forgot-password     - 重置密码`)
+  console.log(`  GET  /api/auth/me                  - 获取当前用户信息`)
   console.log(`  GET  /api/health  - Health check`)
   console.log(`  GET  /api/models  - Get available models`)
-  console.log(`  GET  /api/tools    - Get available tools`)
+  console.log(`  GET  /api/tools   - Get available tools`)
   console.log(`  WS   /ws          - WebSocket connection`)
 }
 
