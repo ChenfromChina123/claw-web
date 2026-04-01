@@ -190,19 +190,54 @@ function handleWebSocketMessage(data: any) {
         content: m.content,
         toolCalls: [],
       }))
-      if (data.toolCalls && data.toolCalls.length > 0) {
-        const lastMsg = messages.value[messages.value.length - 1]
-        if (lastMsg && lastMsg.role === 'assistant') {
-          data.toolCalls.forEach((tc: any) => {
-            lastMsg.toolCalls.push({
+
+      // 解析 messages 中的工具调用结果 JSON
+      const assistantMsg = messages.value[messages.value.length - 1]
+      if (assistantMsg && assistantMsg.role === 'assistant' && data.toolCalls && data.toolCalls.length > 0) {
+        const toolCallMap = new Map<string, any>()
+        data.toolCalls.forEach((tc: any) => {
+          toolCallMap.set(tc.id, tc)
+        })
+
+        // 检查最后一条 assistant 消息之前的用户消息是否包含工具结果 JSON
+        for (let i = messages.value.length - 2; i >= 0; i--) {
+          const msg = messages.value[i]
+          if (msg.role === 'user' && typeof msg.content === 'string') {
+            try {
+              const parsed = JSON.parse(msg.content)
+              if (parsed && parsed.tool_use_id && parsed.name) {
+                const toolId = parsed.tool_use_id
+                const toolCall = toolCallMap.get(toolId)
+                if (toolCall) {
+                  assistantMsg.toolCalls.push({
+                    id: toolId,
+                    name: toolCall.toolName || parsed.name,
+                    input: typeof toolCall.toolInput === 'object' ? JSON.stringify(toolCall.toolInput, null, 2) : String(toolCall.toolInput || ''),
+                    status: toolCall.status === 'completed' ? 'completed' : toolCall.status === 'error' ? 'error' : 'pending',
+                    result: toolCall.toolOutput ? (typeof toolCall.toolOutput === 'object' ? JSON.stringify(toolCall.toolOutput, null, 2) : String(toolCall.toolOutput)) : (parsed.result || parsed.error ? (typeof (parsed.result || parsed.error) === 'object' ? JSON.stringify(parsed.result || parsed.error, null, 2) : String(parsed.result || parsed.error)) : undefined),
+                  })
+                  msg.content = '[已解析的工具调用结果]'
+                }
+              }
+            } catch (e) {
+              // 不是有效的 JSON，继续检查下一条
+            }
+          }
+        }
+
+        // 如果还有剩余的 toolCalls 未被匹配（直接从 toolCalls 数组获取）
+        data.toolCalls.forEach((tc: any) => {
+          const alreadyAdded = assistantMsg.toolCalls.some((tc2: any) => tc2.id === tc.id)
+          if (!alreadyAdded) {
+            assistantMsg.toolCalls.push({
               id: tc.id,
               name: tc.toolName,
               input: typeof tc.toolInput === 'object' ? JSON.stringify(tc.toolInput, null, 2) : String(tc.toolInput || ''),
               status: tc.status === 'completed' ? 'completed' : tc.status === 'error' ? 'error' : 'pending',
               result: tc.toolOutput ? (typeof tc.toolOutput === 'object' ? JSON.stringify(tc.toolOutput, null, 2) : String(tc.toolOutput)) : undefined,
             })
-          })
-        }
+          }
+        })
       }
       scrollToBottom()
       break
