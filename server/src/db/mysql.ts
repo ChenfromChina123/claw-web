@@ -79,9 +79,55 @@ export async function initDatabase(): Promise<void> {
     const statements = schema.split(';').filter(s => s.trim())
     for (const statement of statements) {
       if (statement.trim()) {
-        await tempPool.query(statement)
+        try {
+          await tempPool.query(statement)
+        } catch (err: any) {
+          if (err.code !== 'ER_TABLE_EXISTS_ERROR' && err.code !== 'ER_DUP_KEYNAME') {
+            console.warn('Schema statement warning:', err.message)
+          }
+        }
       }
     }
+
+    await tempPool.query(`
+      ALTER TABLE users 
+      ADD COLUMN email VARCHAR(120) UNIQUE AFTER username
+    `).catch(() => {})
+
+    await tempPool.query(`
+      ALTER TABLE users 
+      ADD COLUMN password_hash VARCHAR(255) AFTER email
+    `).catch(() => {})
+
+    await tempPool.query(`
+      ALTER TABLE users 
+      ADD COLUMN is_active BOOLEAN DEFAULT TRUE AFTER password_hash
+    `).catch(() => {})
+
+    await tempPool.query(`
+      ALTER TABLE users 
+      ADD COLUMN is_admin BOOLEAN DEFAULT FALSE AFTER is_active
+    `).catch(() => {})
+
+    await tempPool.query(`
+      ALTER TABLE users 
+      ADD COLUMN last_login TIMESTAMP NULL AFTER updated_at
+    `).catch(() => {})
+
+    await tempPool.query(`
+      CREATE TABLE IF NOT EXISTS verification_codes (
+        id VARCHAR(36) PRIMARY KEY,
+        email VARCHAR(120) NOT NULL,
+        code VARCHAR(6) NOT NULL,
+        usage_type VARCHAR(20) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        is_used BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_email (email),
+        INDEX idx_code (code)
+      )
+    `).catch(() => {})
+
     console.log('Database schema initialized')
   } finally {
     await tempPool.end()

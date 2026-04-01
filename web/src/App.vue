@@ -545,7 +545,7 @@ onUnmounted(() => {
       <header class="header">
         <div class="header-left">
           <button class="menu-btn" @click="toggleSidebar">☰</button>
-          <h1>Claude Code Haha</h1>
+          <h1>Claude Code Web</h1>
         </div>
         <div class="header-right">
           <span class="user-info">{{ userUsername }} ({{ userEmail }})</span>

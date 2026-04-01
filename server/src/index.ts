@@ -894,7 +894,7 @@ async function startServer() {
     },
   })
 
-  console.log(`Claude Code Haha WebSocket Server running at ws://localhost:${PORT}`)
+  console.log(`Claude Code WebSocket Server running at ws://localhost:${PORT}`)
   console.log(`REST API: http://localhost:${PORT}/api/*`)
   console.log(`Auth API Endpoints:`)
   console.log(`  POST /api/auth/register/send-code  - 发送注册验证码`)

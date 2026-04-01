@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   model VARCHAR(50) DEFAULT 'qwen-plus',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_sessions_user_id (user_id)
 );
 
 -- 消息表
@@ -45,7 +46,8 @@ CREATE TABLE IF NOT EXISTS messages (
   role ENUM('user', 'assistant', 'system') NOT NULL,
   content TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  INDEX idx_messages_session_id (session_id)
 );
 
 -- 工具调用表
@@ -59,11 +61,7 @@ CREATE TABLE IF NOT EXISTS tool_calls (
   status ENUM('pending', 'executing', 'completed', 'error') DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
-  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  INDEX idx_tool_calls_session_id (session_id),
+  INDEX idx_tool_calls_message_id (message_id)
 );
-
--- 索引
-CREATE INDEX idx_sessions_user_id ON sessions(user_id);
-CREATE INDEX idx_messages_session_id ON messages(session_id);
-CREATE INDEX idx_tool_calls_session_id ON tool_calls(session_id);
-CREATE INDEX idx_tool_calls_message_id ON tool_calls(message_id);

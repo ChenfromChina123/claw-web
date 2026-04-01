@@ -217,7 +217,7 @@ function switchToForgotPassword() {
 <template>
   <div class="auth-container">
     <div class="auth-box">
-      <h1 class="auth-title">🤖 Claude Code Haha</h1>
+      <h1 class="auth-title">🤖 Claude Code Web</h1>
       <p class="auth-subtitle">AI Coding Assistant</p>
 
       <div v-if="currentView === 'login'" class="auth-form">

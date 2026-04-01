@@ -1,10 +1,10 @@
-# Claude Code Haha
+# Claude Code Web
 
 <p align="right"><a href="./README.md">中文</a> | <strong>English</strong></p>
 
-A **locally runnable version** repaired from the leaked Claude Code source, with support for any Anthropic-compatible API endpoint such as MiniMax and OpenRouter.
+A **Web interface version** of Claude Code, supporting any Anthropic-compatible API endpoint (such as MiniMax, OpenRouter, etc.), providing complete AI conversation and tool calling capabilities.
 
-> The original leaked source does not run as-is. This repository fixes multiple blocking issues in the startup path so the full Ink TUI can work locally.
+> This project is a Web frontend implementation of Claude Code, working with a WebSocket server to provide session management and user authentication.
 
 <p align="center">
   <img src="docs/00runtime.png" alt="Runtime screenshot" width="800">
@@ -12,30 +12,11 @@ A **locally runnable version** repaired from the leaked Claude Code source, with
 
 ## Features
 
-- Full Ink TUI experience (matching the official Claude Code interface)
-- `--print` headless mode for scripts and CI
+- Complete Web interaction interface
 - MCP server, plugin, and Skills support
 - Custom API endpoint and model support
-- Fallback Recovery CLI mode
-
----
-
-## Architecture Overview
-
-<table>
-  <tr>
-    <td align="center" width="25%"><img src="docs/01-overall-architecture.png" alt="Overall architecture"><br><b>Overall architecture</b></td>
-    <td align="center" width="25%"><img src="docs/02-request-lifecycle.png" alt="Request lifecycle"><br><b>Request lifecycle</b></td>
-    <td align="center" width="25%"><img src="docs/03-tool-system.png" alt="Tool system"><br><b>Tool system</b></td>
-    <td align="center" width="25%"><img src="docs/04-multi-agent.png" alt="Multi-agent architecture"><br><b>Multi-agent architecture</b></td>
-  </tr>
-  <tr>
-    <td align="center" width="25%"><img src="docs/05-terminal-ui.png" alt="Terminal UI"><br><b>Terminal UI</b></td>
-    <td align="center" width="25%"><img src="docs/06-permission-security.png" alt="Permissions and security"><br><b>Permissions and security</b></td>
-    <td align="center" width="25%"><img src="docs/07-services-layer.png" alt="Services layer"><br><b>Services layer</b></td>
-    <td align="center" width="25%"><img src="docs/08-state-data-flow.png" alt="State and data flow"><br><b>State and data flow</b></td>
-  </tr>
-</table>
+- **WebSocket server** for session management and AI conversation
+- **User authentication system** (register, login, password recovery)
 
 ---
 
@@ -43,7 +24,7 @@ A **locally runnable version** repaired from the leaked Claude Code source, with
 
 ### 1. Install Bun
 
-This project requires [Bun](https://bun.sh). If Bun is not installed on the target machine yet, use one of the following methods first:
+This project requires [Bun](https://bun.sh). If Bun is not installed on your machine yet, use one of the following methods:
 
 ```bash
 # macOS / Linux (official install script)
@@ -113,131 +94,208 @@ CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
 ### 4. Start
 
-#### macOS / Linux
+#### Start the server
 
 ```bash
-# Interactive TUI mode (full interface)
-./bin/claude-haha
-
-# Headless mode (single prompt)
-./bin/claude-haha -p "your prompt here"
-
-# Pipe input
-echo "explain this code" | ./bin/claude-haha -p
-
-# Show all options
-./bin/claude-haha --help
+cd server
+bun install
+bun run src/index.ts
 ```
 
-#### Windows
-
-> **Prerequisite**: [Git for Windows](https://git-scm.com/download/win) must be installed (provides Git Bash, which the project's internal shell execution depends on).
-
-The startup script `bin/claude-haha` is a bash script and cannot run directly in cmd or PowerShell. Use one of the following methods:
-
-**Option 1: PowerShell / cmd — call Bun directly (recommended)**
-
-```powershell
-# Interactive TUI mode
-bun --env-file=.env ./src/entrypoints/cli.tsx
-
-# Headless mode
-bun --env-file=.env ./src/entrypoints/cli.tsx -p "your prompt here"
-
-# Fallback Recovery CLI
-bun --env-file=.env ./src/localRecoveryCli.ts
-```
-
-**Option 2: Run inside Git Bash**
+#### Start the Web frontend
 
 ```bash
-# Same usage as macOS / Linux
-./bin/claude-haha
+cd web
+bun install
+bun run dev
 ```
 
-> **Note**: Some features (voice input, Computer Use, sandbox isolation, etc.) are not available on Windows. This does not affect the core TUI interaction.
+Server runs at `ws://localhost:3000` and `http://localhost:3000`
+Web frontend runs at `http://localhost:5173`
+
+---
+
+## API Endpoints
+
+| Endpoint                                 | Method | Description              |
+| ---------------------------------------- | ------ | ------------------------ |
+| `/api/health`                            | GET    | Health check             |
+| `/api/models`                            | GET    | List available models    |
+| `/api/tools`                             | GET    | List available tools     |
+| `/api/auth/register/send-code`           | POST   | Send registration code   |
+| `/api/auth/register`                     | POST   | User registration        |
+| `/api/auth/login`                        | POST   | User login              |
+| `/api/auth/forgot-password/send-code`   | POST   | Send password reset code |
+| `/api/auth/forgot-password`              | POST   | Reset password           |
+| `/api/auth/me`                           | GET    | Get current user info    |
+
+### Authentication Flow
+
+#### 1. Send registration code
+
+```bash
+curl -X POST http://localhost:3000/api/auth/register/send-code \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+```
+
+#### 2. Register
+
+```bash
+curl -X POST http://localhost:3000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "username": "username",
+    "password": "123456",
+    "code": "123456"
+  }'
+```
+
+#### 3. Login
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "123456"
+  }'
+```
+
+Success response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "tokenType": "Bearer",
+    "userId": "uuid",
+    "username": "username",
+    "email": "user@example.com",
+    "isAdmin": false,
+    "avatar": "/avatars/default.png"
+  }
+}
+```
+
+#### 4. Password Recovery
+
+Send password reset code:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/forgot-password/send-code \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+```
+
+Reset password:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "code": "123456",
+    "newPassword": "newpassword123"
+  }'
+```
+
+#### 5. Get Current User
+
+```bash
+curl http://localhost:3000/api/auth/me \
+  -H "Authorization: Bearer your_access_token"
+```
+
+### WebSocket Message Types
+
+| Message Type      | Description        |
+| ----------------- | ------------------ |
+| `register`        | Register new user  |
+| `login`           | Login with token   |
+| `create_session`  | Create new session |
+| `load_session`    | Load session history |
+| `list_sessions`   | List user sessions |
+| `user_message`    | Send user message  |
+| `delete_session`  | Delete session     |
+| `rename_session`  | Rename session     |
+| `clear_session`   | Clear session messages |
+
+### Database Configuration
+
+The server uses MySQL database. Configure the following environment variables:
+
+```env
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=your_password
+DB_NAME=claude_code_web
+JWT_SECRET=your-super-secret-key-change-in-production-min-32-chars
+JWT_EXPIRATION=24h
+```
 
 ---
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|------|------|------|
-| `ANTHROPIC_API_KEY` | One of two | API key sent via the `x-api-key` header |
-| `ANTHROPIC_AUTH_TOKEN` | One of two | Auth token sent via the `Authorization: Bearer` header |
-| `ANTHROPIC_BASE_URL` | No | Custom API endpoint, defaults to Anthropic |
-| `ANTHROPIC_MODEL` | No | Default model |
-| `ANTHROPIC_DEFAULT_SONNET_MODEL` | No | Sonnet-tier model mapping |
-| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | No | Haiku-tier model mapping |
-| `ANTHROPIC_DEFAULT_OPUS_MODEL` | No | Opus-tier model mapping |
-| `API_TIMEOUT_MS` | No | API request timeout, default `600000` (10min) |
-| `DISABLE_TELEMETRY` | No | Set to `1` to disable telemetry |
-| `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | No | Set to `1` to disable non-essential network traffic |
-
----
-
-## Fallback Mode
-
-If the full TUI has issues, use the simplified readline-based interaction mode:
-
-```bash
-CLAUDE_CODE_FORCE_RECOVERY_CLI=1 ./bin/claude-haha
-```
-
----
-
-## Fixes Compared with the Original Leaked Source
-
-The leaked source could not run directly. This repository mainly fixes the following issues:
-
-| Issue | Root cause | Fix |
-|------|------|------|
-| TUI does not start | The entry script routed no-argument startup to the recovery CLI | Restored the full `cli.tsx` entry |
-| Startup hangs | The `verify` skill imports a missing `.md` file, causing Bun's text loader to hang indefinitely | Added stub `.md` files |
-| `--print` hangs | `filePersistence/types.ts` was missing | Added type stub files |
-| `--print` hangs | `ultraplan/prompt.txt` was missing | Added resource stub files |
-| **Enter key does nothing** | The `modifiers-napi` native package was missing, `isModifierPressed()` threw, `handleEnter` was interrupted, and `onSubmit` never ran | Added try/catch fault tolerance |
-| Setup was skipped | `preload.ts` automatically set `LOCAL_RECOVERY=1`, skipping all initialization | Removed the default setting |
+| Variable                                  | Required     | Description                              |
+| ----------------------------------------- | ------------ | ---------------------------------------- |
+| `ANTHROPIC_API_KEY`                       | One of two   | API key sent via `x-api-key` header      |
+| `ANTHROPIC_AUTH_TOKEN`                    | One of two   | Auth token sent via `Authorization` header |
+| `ANTHROPIC_BASE_URL`                      | No           | Custom API endpoint, defaults to Anthropic |
+| `ANTHROPIC_MODEL`                         | No           | Default model                            |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL`          | No           | Sonnet-tier model mapping                 |
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL`           | No           | Haiku-tier model mapping                  |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL`            | No           | Opus-tier model mapping                   |
+| `API_TIMEOUT_MS`                          | No           | API request timeout, default 600000 (10min) |
+| `DISABLE_TELEMETRY`                       | No           | Set to `1` to disable telemetry          |
+| `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | No           | Set to `1` to disable non-essential traffic |
+| `DB_HOST`                                 | Server mode  | Database host                            |
+| `DB_PORT`                                 | Server mode  | Database port                            |
+| `DB_USER`                                 | Server mode  | Database username                        |
+| `DB_PASSWORD`                             | Server mode  | Database password                        |
+| `DB_NAME`                                 | Server mode  | Database name                            |
+| `JWT_SECRET`                               | Server mode  | JWT secret (must change in production)    |
+| `JWT_EXPIRATION`                          | Server mode  | JWT expiration time                      |
 
 ---
 
 ## Project Structure
 
-```text
-bin/claude-haha          # Entry script
-preload.ts               # Bun preload (sets MACRO globals)
-.env.example             # Environment variable template
-src/
-├── entrypoints/cli.tsx  # Main CLI entry
-├── main.tsx             # Main TUI logic (Commander.js + React/Ink)
-├── localRecoveryCli.ts  # Fallback Recovery CLI
-├── setup.ts             # Startup initialization
-├── screens/REPL.tsx     # Interactive REPL screen
-├── ink/                 # Ink terminal rendering engine
-├── components/          # UI components
-├── tools/               # Agent tools (Bash, Edit, Grep, etc.)
-├── commands/            # Slash commands (/commit, /review, etc.)
-├── skills/              # Skill system
-├── services/            # Service layer (API, MCP, OAuth, etc.)
-├── hooks/               # React hooks
-└── utils/               # Utility functions
+```
+web/                      # Web frontend
+├── src/
+│   ├── App.vue          # Main app component
+│   ├── components/      # UI components
+│   └── services/        # API services
+server/                   # WebSocket server
+├── src/
+│   ├── index.ts         # Server main entry
+│   ├── db/              # Database connection and schema
+│   ├── models/          # Data type definitions
+│   └── services/        # Business services (auth, session, JWT)
 ```
 
 ---
 
 ## Tech Stack
 
-| Category | Technology |
-|------|------|
-| Runtime | [Bun](https://bun.sh) |
-| Language | TypeScript |
-| Terminal UI | React + [Ink](https://github.com/vadimdemedes/ink) |
-| CLI parsing | Commander.js |
-| API | Anthropic SDK |
-| Protocols | MCP, LSP |
+| Category    | Technology                          |
+| ----------- | ---------------------------------- |
+| Runtime     | [Bun](https://bun.sh)              |
+| Language    | TypeScript                         |
+| Frontend    | Vue 3                              |
+| Build Tool  | Vite                               |
+| API         | Anthropic SDK                      |
+| Server      | Bun.serve (WebSocket + REST)       |
+| Database    | MySQL                              |
+| Auth        | JWT + bcrypt                       |
 
 ---
 
 ## Disclaimer
 
-This repository is based on the Claude Code source leaked from the Anthropic npm registry on 2026-03-31. All original source code copyrights belong to [Anthropic](https://www.anthropic.com). It is provided for learning and research purposes only.
+This project is a Web version implementation of Claude Code. All original source code copyrights belong to [Anthropic](https://www.anthropic.com). It is provided for learning and research purposes only.
