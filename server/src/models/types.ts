@@ -36,6 +36,7 @@ export interface ToolCall {
 export interface ConversationMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
+  toolCalls?: ToolCall[]
 }
 
 export interface ToolResult {

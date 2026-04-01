@@ -338,9 +338,7 @@ class SessionConversationManager {
         })
 
         let assistantText = ''
-        let toolUseId = ''
-        let toolName = ''
-        let currentToolInput = ''
+        let pendingToolCalls: Array<{ id: string; name: string; input: string }> = []
         let currentTextBlock = ''
 
         for await (const event of stream) {
@@ -349,11 +347,11 @@ class SessionConversationManager {
           switch (event.type) {
             case 'content_block_start':
               if (event.content_block.type === 'tool_use') {
-                toolUseId = event.content_block.id || uuidv4()
-                toolName = event.content_block.name || ''
-                currentToolInput = ''
-                console.log('Tool use started:', toolName)
-                sendEvent('tool_use', { id: toolUseId, name: toolName, input: {} })
+                const toolId = event.content_block.id || uuidv4()
+                const toolName = event.content_block.name || ''
+                console.log('Tool use started:', toolName, 'id:', toolId)
+                pendingToolCalls.push({ id: toolId, name: toolName, input: '' })
+                sendEvent('tool_use', { id: toolId, name: toolName, input: {} })
               } else if (event.content_block.type === 'text') {
                 currentTextBlock = ''
               }
@@ -365,61 +363,15 @@ class SessionConversationManager {
                 assistantText += event.delta.text
                 sendEvent('content_block_delta', { text: event.delta.text })
               } else if (event.delta.type === 'input_json_delta') {
-                currentToolInput += event.delta.partial_json
-                const lastMsg = sessionManager.getInMemorySession(sessionId)?.messages.slice(-1)[0]
-                if (lastMsg && lastMsg.role === 'assistant' && lastMsg.toolCalls.length > 0) {
-                  const lastTool = lastMsg.toolCalls[lastMsg.toolCalls.length - 1]
-                  lastTool.input = currentToolInput
+                if (pendingToolCalls.length > 0) {
+                  const lastTool = pendingToolCalls[pendingToolCalls.length - 1]
+                  lastTool.input += event.delta.partial_json
+                  sendEvent('tool_input_delta', { id: lastTool.id, partial_json: event.delta.partial_json })
                 }
-                sendEvent('tool_input_delta', { partial_json: event.delta.partial_json })
               }
               break
 
             case 'content_block_stop':
-              if (toolUseId && toolName) {
-                const toolInput = currentToolInput ? JSON.parse(currentToolInput) : {}
-                sendEvent('tool_start', { name: toolName, input: currentToolInput })
-
-                const toolCall: ToolCall = {
-                  id: toolUseId,
-                  messageId: '',
-                  sessionId,
-                  toolName,
-                  toolInput,
-                  toolOutput: null,
-                  status: 'pending',
-                  createdAt: new Date(),
-                }
-
-                try {
-                  const result = await this.toolExecutor.executeTool(
-                    toolName,
-                    toolInput as Record<string, unknown>,
-                    sendEvent
-                  )
-
-                  toolCall.toolOutput = result as Record<string, unknown>
-                  toolCall.status = 'completed'
-
-                  sessionManager.addToolCall(sessionId, toolCall)
-                  sessionManager.addMessage(sessionId, 'user', JSON.stringify({ tool_use_id: toolUseId, name: toolName, result }))
-
-                  console.log('Tool result added to messages')
-                } catch (error) {
-                  const errorMessage = error instanceof Error ? error.message : String(error)
-                  console.error('Tool execution error:', errorMessage)
-
-                  toolCall.toolOutput = { error: errorMessage }
-                  toolCall.status = 'error'
-
-                  sessionManager.addToolCall(sessionId, toolCall)
-                  sessionManager.addMessage(sessionId, 'user', JSON.stringify({ tool_use_id: toolUseId, name: toolName, error: errorMessage }))
-                }
-
-                toolUseId = ''
-                toolName = ''
-                currentToolInput = ''
-              }
               break
 
             case 'message_delta':
@@ -430,6 +382,48 @@ class SessionConversationManager {
 
             case 'message_stop':
               console.log('Message stream completed')
+              console.log('Processing', pendingToolCalls.length, 'pending tool calls')
+              for (const tool of pendingToolCalls) {
+                const toolInput = tool.input ? JSON.parse(tool.input) : {}
+                sendEvent('tool_start', { name: tool.name, input: tool.input })
+
+                const toolCall: ToolCall = {
+                  id: tool.id,
+                  messageId: '',
+                  sessionId,
+                  toolName: tool.name,
+                  toolInput,
+                  toolOutput: null,
+                  status: 'pending',
+                  createdAt: new Date(),
+                }
+
+                try {
+                  const result = await this.toolExecutor.executeTool(
+                    tool.name,
+                    toolInput as Record<string, unknown>,
+                    sendEvent
+                  )
+
+                  toolCall.toolOutput = result as Record<string, unknown>
+                  toolCall.status = 'completed'
+
+                  sessionManager.addToolCall(sessionId, toolCall)
+                  sessionManager.addMessage(sessionId, 'user', JSON.stringify({ tool_use_id: tool.id, name: tool.name, result }))
+
+                  console.log('Tool result added to messages:', tool.name)
+                } catch (error) {
+                  const errorMessage = error instanceof Error ? error.message : String(error)
+                  console.error('Tool execution error:', errorMessage)
+
+                  toolCall.toolOutput = { error: errorMessage }
+                  toolCall.status = 'error'
+
+                  sessionManager.addToolCall(sessionId, toolCall)
+                  sessionManager.addMessage(sessionId, 'user', JSON.stringify({ tool_use_id: tool.id, name: tool.name, error: errorMessage }))
+                }
+              }
+              pendingToolCalls = []
               break
           }
         }
