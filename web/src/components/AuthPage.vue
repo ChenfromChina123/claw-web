@@ -281,14 +281,12 @@ function switchToForgotPassword() {
           type="text"
           placeholder="用户名"
           class="auth-input"
-          :disabled="registerCodeSent"
         />
         <input
           v-model="registerPassword"
           type="password"
           placeholder="密码（至少6位）"
           class="auth-input"
-          :disabled="registerCodeSent"
         />
         <button
           @click="handleRegister"
