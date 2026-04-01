@@ -3,6 +3,8 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
 import SessionSidebar from './components/SessionSidebar.vue'
+import AuthPage from './components/AuthPage.vue'
+import { authApi, type LoginResponse } from './services/authApi'
 
 interface ToolBlock {
   id: string
@@ -43,18 +45,23 @@ const messagesContainer = ref<HTMLElement | null>(null)
 const showSidebar = ref(true)
 const userId = ref<string | null>(null)
 const userUsername = ref<string | null>(null)
+const userEmail = ref<string | null>(null)
+const authToken = ref<string | null>(null)
 
-const LOCALSTORAGE_KEY = 'claude_code_haha_user'
+const LOCALSTORAGE_TOKEN_KEY = 'auth_token'
+const LOCALSTORAGE_USER_KEY = 'user_info'
 
-function saveUserToStorage(userId: string, username: string) {
-  localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify({ userId, username }))
+function saveAuthToStorage(token: string, user: LoginResponse) {
+  localStorage.setItem(LOCALSTORAGE_TOKEN_KEY, token)
+  localStorage.setItem(LOCALSTORAGE_USER_KEY, JSON.stringify(user))
 }
 
-function loadUserFromStorage(): { userId: string; username: string } | null {
-  const saved = localStorage.getItem(LOCALSTORAGE_KEY)
-  if (saved) {
+function loadAuthFromStorage(): { token: string; user: LoginResponse } | null {
+  const token = localStorage.getItem(LOCALSTORAGE_TOKEN_KEY)
+  const userStr = localStorage.getItem(LOCALSTORAGE_USER_KEY)
+  if (token && userStr) {
     try {
-      return JSON.parse(saved)
+      return { token, user: JSON.parse(userStr) }
     } catch {
       return null
     }
@@ -62,8 +69,25 @@ function loadUserFromStorage(): { userId: string; username: string } | null {
   return null
 }
 
-function clearUserFromStorage() {
-  localStorage.removeItem(LOCALSTORAGE_KEY)
+function clearAuthFromStorage() {
+  localStorage.removeItem(LOCALSTORAGE_TOKEN_KEY)
+  localStorage.removeItem(LOCALSTORAGE_USER_KEY)
+}
+
+function handleLoginSuccess(user: LoginResponse) {
+  authToken.value = localStorage.getItem(LOCALSTORAGE_TOKEN_KEY)
+  userId.value = user.userId
+  loginUsername.value = user.username
+  userUsername.value = user.username
+  userEmail.value = user.email
+  isLoggedIn.value = true
+
+  if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+    ws.value.send(JSON.stringify({
+      type: 'login',
+      token: authToken.value,
+    }))
+  }
 }
 
 let messageIdCounter = 0
@@ -91,16 +115,20 @@ function connectWebSocket() {
     console.log('WebSocket connected')
     isConnected.value = true
     error.value = ''
-    if (isLoggedIn.value && userId.value) {
-      validateUser()
-    } else {
-      const savedUser = loadUserFromStorage()
-      if (savedUser) {
-        userId.value = savedUser.userId
-        loginUsername.value = savedUser.username
-        userUsername.value = savedUser.username
-        validateUser()
-      }
+
+    const savedAuth = loadAuthFromStorage()
+    if (savedAuth) {
+      authToken.value = savedAuth.token
+      userId.value = savedAuth.user.userId
+      loginUsername.value = savedAuth.user.username
+      userUsername.value = savedAuth.user.username
+      userEmail.value = savedAuth.user.email
+      isLoggedIn.value = true
+
+      ws.value?.send(JSON.stringify({
+        type: 'login',
+        token: savedAuth.token,
+      }))
     }
   }
 
@@ -124,20 +152,6 @@ function connectWebSocket() {
   }
 }
 
-function handleLogin() {
-  const username = loginUsername.value.trim()
-  if (!username) {
-    loginError.value = '请输入用户名'
-    return
-  }
-
-  loginError.value = ''
-
-  if (ws.value && ws.value.readyState === WebSocket.OPEN) {
-    ws.value.send(JSON.stringify({ type: 'register', username }))
-  }
-}
-
 function handleWebSocketMessage(data: any) {
   console.log('Received:', data)
 
@@ -147,8 +161,12 @@ function handleWebSocketMessage(data: any) {
       loginUsername.value = data.username || loginUsername.value
       userUsername.value = data.username || loginUsername.value
       isLoggedIn.value = true
-      saveUserToStorage(data.userId, data.username || loginUsername.value)
       console.log('User registered:', data.userId)
+      loadSessions()
+      break
+
+    case 'logged_in':
+      userId.value = data.userId
       loadSessions()
       break
 
@@ -158,15 +176,17 @@ function handleWebSocketMessage(data: any) {
       break
 
     case 'user_invalid':
-      clearUserFromStorage()
+      clearAuthFromStorage()
       userId.value = null
       userUsername.value = null
+      userEmail.value = null
+      authToken.value = null
       isLoggedIn.value = false
       break
 
     case 'session_list':
       sessions.value = data.sessions || []
-      if (sessions.value.length > 0) {
+      if (sessions.value.length > 0 && !currentSessionId.value) {
         loadSession(sessions.value[0].id)
       }
       break
@@ -191,7 +211,6 @@ function handleWebSocketMessage(data: any) {
         toolCalls: [],
       }))
 
-      // 解析 messages 中的工具调用结果 JSON
       const assistantMsg = messages.value[messages.value.length - 1]
       if (assistantMsg && assistantMsg.role === 'assistant' && data.toolCalls && data.toolCalls.length > 0) {
         const toolCallMap = new Map<string, any>()
@@ -199,7 +218,6 @@ function handleWebSocketMessage(data: any) {
           toolCallMap.set(tc.id, tc)
         })
 
-        // 检查最后一条 assistant 消息之前的用户消息是否包含工具结果 JSON
         for (let i = messages.value.length - 2; i >= 0; i--) {
           const msg = messages.value[i]
           if (msg.role === 'user' && typeof msg.content === 'string') {
@@ -220,12 +238,10 @@ function handleWebSocketMessage(data: any) {
                 }
               }
             } catch (e) {
-              // 不是有效的 JSON，继续检查下一条
             }
           }
         }
 
-        // 如果还有剩余的 toolCalls 未被匹配（直接从 toolCalls 数组获取）
         data.toolCalls.forEach((tc: any) => {
           const alreadyAdded = assistantMsg.toolCalls.some((tc2: any) => tc2.id === tc.id)
           if (!alreadyAdded) {
@@ -346,6 +362,18 @@ function handleWebSocketMessage(data: any) {
           const lastTool = lastMsg.toolCalls[lastMsg.toolCalls.length - 1]
           lastTool.status = 'completed'
           lastTool.result = typeof data.result === 'object' ? JSON.stringify(data.result, null, 2) : String(data.result)
+        }
+      }
+      scrollToBottom()
+      break
+
+    case 'tool_error':
+      if (currentAssistantMessageId) {
+        const lastMsg = messages.value[messages.value.length - 1]
+        if (lastMsg && lastMsg.role === 'assistant' && lastMsg.toolCalls.length > 0) {
+          const lastTool = lastMsg.toolCalls[lastMsg.toolCalls.length - 1]
+          lastTool.status = 'error'
+          lastTool.result = data.error
         }
       }
       scrollToBottom()
@@ -484,28 +512,16 @@ function formatToolInput(input: string): string {
 }
 
 function handleLogout() {
-  isLoggedIn.value = false
+  clearAuthFromStorage()
+  authToken.value = null
   userId.value = null
   userUsername.value = null
+  userEmail.value = null
+  isLoggedIn.value = false
   sessions.value = []
   messages.value = []
   currentSessionId.value = null
   loginUsername.value = ''
-  clearUserFromStorage()
-}
-
-function restoreLogin(savedUser: { userId: string; username: string }) {
-  userId.value = savedUser.userId
-  loginUsername.value = savedUser.username
-  userUsername.value = savedUser.username
-  isLoggedIn.value = true
-  loadSessions()
-}
-
-function validateUser() {
-  if (ws.value && ws.value.readyState === WebSocket.OPEN && userId.value) {
-    ws.value.send(JSON.stringify({ type: 'validate_user', userId: userId.value, username: userUsername.value }))
-  }
 }
 
 onMounted(() => {
@@ -522,25 +538,7 @@ onUnmounted(() => {
 <template>
   <div class="app-container">
     <template v-if="!isLoggedIn">
-      <div class="login-screen">
-        <div class="login-box">
-          <h1>🤖 Claude Code Haha</h1>
-          <p>AI Coding Assistant</p>
-          <div class="login-form">
-            <input
-              v-model="loginUsername"
-              type="text"
-              placeholder="输入用户名"
-              @keyup.enter="handleLogin"
-              class="login-input"
-            />
-            <button @click="handleLogin" class="login-btn" :disabled="!isConnected">
-              {{ isConnected ? '登录' : '连接中...' }}
-            </button>
-          </div>
-          <p v-if="loginError" class="login-error">{{ loginError }}</p>
-        </div>
-      </div>
+      <AuthPage @loginSuccess="handleLoginSuccess" />
     </template>
 
     <template v-else>
@@ -550,7 +548,7 @@ onUnmounted(() => {
           <h1>Claude Code Haha</h1>
         </div>
         <div class="header-right">
-          <span class="user-info">{{ loginUsername }}</span>
+          <span class="user-info">{{ userUsername }} ({{ userEmail }})</span>
           <button @click="handleLogout" class="logout-btn">退出</button>
         </div>
       </header>
@@ -573,7 +571,7 @@ onUnmounted(() => {
 
           <div ref="messagesContainer" class="messages-container">
             <div v-if="messages.length === 0" class="welcome">
-              <h2>👋 欢迎, {{ loginUsername }}!</h2>
+              <h2>👋 欢迎, {{ userUsername }}!</h2>
               <p>开始一段新的对话吧</p>
               <div class="tools-list">
                 <h3>可用工具:</h3>
