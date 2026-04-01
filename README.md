@@ -33,7 +33,7 @@ Claude Code 的 **Web 界面版本**，支持接入任意 Anthropic 兼容 API�
 ### claw-web 聊天界面
 
 <p align="center">
-  <img src="docs/chatVeiw.png" alt="claw-web 聊天界面" width="500">
+  <img src="docs/chatVeiw.png" alt="claw-web 聊天界面" width="300">
 </p>
 
 ---
