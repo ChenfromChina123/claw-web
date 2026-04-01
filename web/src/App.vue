@@ -18,6 +18,7 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   toolCalls: ToolBlock[]
+  isStreaming?: boolean
 }
 
 interface Session {
@@ -27,6 +28,9 @@ interface Session {
   updatedAt: string
 }
 
+const isLoggedIn = ref(false)
+const loginUsername = ref('')
+const loginError = ref('')
 const messages = ref<Message[]>([])
 const sessions = ref<Session[]>([])
 const currentSessionId = ref<string | null>(null)
@@ -38,6 +42,29 @@ const isConnected = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
 const showSidebar = ref(true)
 const userId = ref<string | null>(null)
+const userUsername = ref<string | null>(null)
+
+const LOCALSTORAGE_KEY = 'claude_code_haha_user'
+
+function saveUserToStorage(userId: string, username: string) {
+  localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify({ userId, username }))
+}
+
+function loadUserFromStorage(): { userId: string; username: string } | null {
+  const saved = localStorage.getItem(LOCALSTORAGE_KEY)
+  if (saved) {
+    try {
+      return JSON.parse(saved)
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+function clearUserFromStorage() {
+  localStorage.removeItem(LOCALSTORAGE_KEY)
+}
 
 let messageIdCounter = 0
 let currentAssistantMessageId: string | null = null
@@ -64,7 +91,9 @@ function connectWebSocket() {
     console.log('WebSocket connected')
     isConnected.value = true
     error.value = ''
-    registerUser()
+    if (isLoggedIn.value && userId.value) {
+      loadSessions()
+    }
   }
 
   ws.value.onmessage = (event) => {
@@ -87,9 +116,17 @@ function connectWebSocket() {
   }
 }
 
-function registerUser() {
+function handleLogin() {
+  const username = loginUsername.value.trim()
+  if (!username) {
+    loginError.value = '请输入用户名'
+    return
+  }
+
+  loginError.value = ''
+
   if (ws.value && ws.value.readyState === WebSocket.OPEN) {
-    ws.value.send(JSON.stringify({ type: 'register' }))
+    ws.value.send(JSON.stringify({ type: 'register', username }))
   }
 }
 
@@ -99,12 +136,19 @@ function handleWebSocketMessage(data: any) {
   switch (data.type) {
     case 'registered':
       userId.value = data.userId
+      loginUsername.value = data.username || loginUsername.value
+      userUsername.value = data.username || loginUsername.value
+      isLoggedIn.value = true
+      saveUserToStorage(data.userId, data.username || loginUsername.value)
       console.log('User registered:', data.userId)
       loadSessions()
       break
 
     case 'session_list':
       sessions.value = data.sessions || []
+      if (sessions.value.length > 0) {
+        loadSession(sessions.value[0].id)
+      }
       break
 
     case 'session_created':
@@ -173,6 +217,7 @@ function handleWebSocketMessage(data: any) {
         role: 'assistant',
         content: '',
         toolCalls: [],
+        isStreaming: true,
       })
       break
 
@@ -265,6 +310,12 @@ function handleWebSocketMessage(data: any) {
 
     case 'message_stop':
       isLoading.value = false
+      if (currentAssistantMessageId) {
+        const lastMsg = messages.value[messages.value.length - 1]
+        if (lastMsg && lastMsg.role === 'assistant') {
+          lastMsg.isStreaming = false
+        }
+      }
       currentAssistantMessageId = null
       break
 
@@ -286,7 +337,7 @@ function createSession() {
   if (ws.value && ws.value.readyState === WebSocket.OPEN) {
     ws.value.send(JSON.stringify({
       type: 'create_session',
-      title: `新对话 ${sessions.value.length + 1}`,
+      title: `对话 ${sessions.value.length + 1}`,
       model: currentModel.value,
     }))
   }
@@ -377,6 +428,15 @@ function formatToolInput(input: string): string {
   }
 }
 
+function handleLogout() {
+  isLoggedIn.value = false
+  userId.value = null
+  sessions.value = []
+  messages.value = []
+  currentSessionId.value = null
+  loginUsername.value = ''
+}
+
 onMounted(() => {
   connectWebSocket()
 })
@@ -390,91 +450,110 @@ onUnmounted(() => {
 
 <template>
   <div class="app-container">
-    <header class="header">
-      <div class="header-left">
-        <button class="menu-btn" @click="toggleSidebar">☰</button>
-        <h1>Claude Code Haha</h1>
-      </div>
-      <div class="controls">
-        <select v-model="currentModel">
-          <option value="qwen-plus">qwen-plus</option>
-          <option value="qwen-turbo">qwen-turbo</option>
-          <option value="qwen-max">qwen-max</option>
-        </select>
-        <button @click="clearChat" class="clear-btn">清除对话</button>
-      </div>
-    </header>
-
-    <div class="main-content">
-      <SessionSidebar
-        v-if="showSidebar"
-        :sessions="sessions"
-        :current-session-id="currentSessionId"
-        @select="loadSession"
-        @create="createSession"
-        @delete="deleteSession"
-        @rename="renameSession"
-      />
-
-      <div class="chat-area">
-        <div class="connection-status" :class="{ connected: isConnected }">
-          {{ isConnected ? '已连接' : '连接中...' }}
+    <template v-if="!isLoggedIn">
+      <div class="login-screen">
+        <div class="login-box">
+          <h1>🤖 Claude Code Haha</h1>
+          <p>AI Coding Assistant</p>
+          <div class="login-form">
+            <input
+              v-model="loginUsername"
+              type="text"
+              placeholder="输入用户名"
+              @keyup.enter="handleLogin"
+              class="login-input"
+            />
+            <button @click="handleLogin" class="login-btn" :disabled="!isConnected">
+              {{ isConnected ? '登录' : '连接中...' }}
+            </button>
+          </div>
+          <p v-if="loginError" class="login-error">{{ loginError }}</p>
         </div>
+      </div>
+    </template>
 
-        <div ref="messagesContainer" class="messages-container">
-          <div v-if="messages.length === 0" class="welcome">
-            <h2>👋 欢迎使用 Claude Code Haha</h2>
-            <p>支持完整工具调用的 Web UI</p>
-            <div class="tools-list">
-              <h3>可用工具:</h3>
-              <ul>
-                <li><code>Bash</code> - 执行 Shell 命令</li>
-                <li><code>FileRead</code> - 读取文件</li>
-                <li><code>FileWrite</code> - 写入文件</li>
-                <li><code>FileEdit</code> - 编辑文件</li>
-                <li><code>Grep</code> - 代码搜索</li>
-                <li><code>Glob</code> - 文件匹配</li>
-              </ul>
+    <template v-else>
+      <header class="header">
+        <div class="header-left">
+          <button class="menu-btn" @click="toggleSidebar">☰</button>
+          <h1>Claude Code Haha</h1>
+        </div>
+        <div class="header-right">
+          <span class="user-info">{{ loginUsername }}</span>
+          <button @click="handleLogout" class="logout-btn">退出</button>
+        </div>
+      </header>
+
+      <div class="main-content">
+        <SessionSidebar
+          v-if="showSidebar"
+          :sessions="sessions"
+          :current-session-id="currentSessionId"
+          @select="loadSession"
+          @create="createSession"
+          @delete="deleteSession"
+          @rename="renameSession"
+        />
+
+        <div class="chat-area">
+          <div class="connection-status" :class="{ connected: isConnected }">
+            {{ isConnected ? '已连接' : '连接中...' }}
+          </div>
+
+          <div ref="messagesContainer" class="messages-container">
+            <div v-if="messages.length === 0" class="welcome">
+              <h2>👋 欢迎, {{ loginUsername }}!</h2>
+              <p>开始一段新的对话吧</p>
+              <div class="tools-list">
+                <h3>可用工具:</h3>
+                <ul>
+                  <li><code>Bash</code> - 执行 Shell 命令</li>
+                  <li><code>FileRead</code> - 读取文件</li>
+                  <li><code>FileWrite</code> - 写入文件</li>
+                  <li><code>Grep</code> - 代码搜索</li>
+                  <li><code>Glob</code> - 文件匹配</li>
+                </ul>
+              </div>
             </div>
+
+            <template v-for="msg in messages" :key="msg.id">
+              <ChatMessage :role="msg.role" :content="msg.content" :isStreaming="msg.isStreaming">
+                <template v-if="msg.toolCalls.length > 0" #tool-calls>
+                  <div v-for="tool in msg.toolCalls" :key="tool.id" class="inline-tool" :class="tool.status">
+                    <div class="tool-header">
+                      <span class="tool-icon">⏺</span>
+                      <span class="tool-name">{{ tool.name }}</span>
+                      <span v-if="tool.status === 'executing'" class="tool-status">执行中...</span>
+                      <span v-else-if="tool.status === 'completed'" class="tool-status completed">✓</span>
+                      <span v-else-if="tool.status === 'error'" class="tool-status error">✗</span>
+                    </div>
+                    <div class="tool-content">
+                      <pre class="tool-input">{{ formatToolInput(tool.input) }}</pre>
+                      <div v-if="tool.progress" class="tool-progress">
+                        <span class="progress-label">输出:</span>
+                        <pre class="progress-output">{{ tool.progress }}</pre>
+                      </div>
+                      <div v-if="tool.result" class="tool-result">
+                        <pre>{{ tool.result }}</pre>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </ChatMessage>
+            </template>
+
+            <div v-if="isLoading && messages.length > 0" class="loading">
+              <span class="spinner"></span>
+              <span>Claude 正在思考...</span>
+            </div>
+
+            <div v-if="error" class="error-message">{{ error }}</div>
           </div>
 
-          <template v-for="msg in messages" :key="msg.id">
-            <ChatMessage :role="msg.role" :content="msg.content">
-              <template v-if="msg.toolCalls.length > 0" #tool-calls>
-                <div v-for="tool in msg.toolCalls" :key="tool.id" class="inline-tool" :class="tool.status">
-                  <div class="tool-header">
-                    <span class="tool-icon">⏺</span>
-                    <span class="tool-name">{{ tool.name }}</span>
-                    <span v-if="tool.status === 'executing'" class="tool-status">执行中...</span>
-                    <span v-else-if="tool.status === 'completed'" class="tool-status completed">✓</span>
-                    <span v-else-if="tool.status === 'error'" class="tool-status error">✗</span>
-                  </div>
-                  <div class="tool-content">
-                    <pre class="tool-input">{{ formatToolInput(tool.input) }}</pre>
-                    <div v-if="tool.progress" class="tool-progress">
-                      <span class="progress-label">输出:</span>
-                      <pre class="progress-output">{{ tool.progress }}</pre>
-                    </div>
-                    <div v-if="tool.result" class="tool-result">
-                      <pre>{{ tool.result }}</pre>
-                    </div>
-                  </div>
-                </div>
-              </template>
-            </ChatMessage>
-          </template>
-
-          <div v-if="isLoading && messages.length > 0" class="loading">
-            <span class="spinner"></span>
-            <span>Claude 正在思考...</span>
-          </div>
-
-          <div v-if="error" class="error-message">{{ error }}</div>
+          <ChatInput @send="handleSend" :disabled="!isConnected" />
         </div>
-
-        <ChatInput @send="handleSend" :disabled="!isConnected" />
       </div>
-    </div>
+    </template>
   </div>
 </template>
 
@@ -485,6 +564,81 @@ onUnmounted(() => {
   height: 100vh;
   background: #1a1a2e;
   color: #eee;
+}
+
+.login-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+.login-box {
+  background: #16213e;
+  padding: 48px;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  border: 1px solid #0f3460;
+}
+
+.login-box h1 {
+  color: #e94560;
+  margin: 0 0 8px 0;
+  font-size: 28px;
+}
+
+.login-box p {
+  color: #888;
+  margin: 0 0 32px 0;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-input {
+  padding: 14px 20px;
+  font-size: 16px;
+  border: 2px solid #0f3460;
+  border-radius: 8px;
+  background: #1a1a2e;
+  color: #eee;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.login-input:focus {
+  border-color: #e94560;
+}
+
+.login-btn {
+  padding: 14px 20px;
+  font-size: 16px;
+  background: #e94560;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.login-btn:hover:not(:disabled) {
+  background: #d63850;
+}
+
+.login-btn:disabled {
+  background: #666;
+  cursor: not-allowed;
+}
+
+.login-error {
+  color: #ef4444;
+  margin-top: 16px;
+  font-size: 14px;
 }
 
 .header {
@@ -521,33 +675,29 @@ onUnmounted(() => {
   color: #e94560;
 }
 
-.controls {
+.header-right {
   display: flex;
-  gap: 12px;
   align-items: center;
+  gap: 12px;
 }
 
-.controls select {
-  padding: 6px 10px;
-  background: #0f3460;
-  border: 1px solid #e94560;
-  color: #eee;
-  border-radius: 6px;
-  font-size: 13px;
+.user-info {
+  color: #888;
+  font-size: 14px;
 }
 
-.clear-btn {
+.logout-btn {
   padding: 6px 14px;
-  background: #e94560;
-  color: white;
+  background: #442020;
+  color: #f44336;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
 }
 
-.clear-btn:hover {
-  background: #d63850;
+.logout-btn:hover {
+  background: #662020;
 }
 
 .main-content {

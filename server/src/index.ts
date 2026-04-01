@@ -317,7 +317,7 @@ class SessionConversationManager {
     const messages = sessionData.messages
     const client = getAnthropicClient()
 
-    console.log('Starting processMessage with model:', model)
+    console.log('Starting streaming processMessage with model:', model)
     console.log('Total messages in history:', messages.length)
 
     try {
@@ -330,71 +330,107 @@ class SessionConversationManager {
 
         sendEvent('message_start', {})
 
-        const response = await client.messages.create({
+        const stream = client.messages.stream({
           model,
           max_tokens: 4096,
           messages: messages,
           tools: this.toolExecutor.getAnthropicTools(),
         })
 
-        console.log('Response stop_reason:', response.stop_reason)
-        console.log('Response content blocks:', response.content?.length || 0)
-
         let assistantText = ''
         let toolUseId = ''
         let toolName = ''
+        let currentToolInput = ''
+        let currentTextBlock = ''
 
-        if (response.content) {
-          for (const block of response.content) {
-            if (block.type === 'text') {
-              assistantText += block.text
-              sendEvent('content_block_delta', { text: block.text })
-            } else if (block.type === 'tool_use') {
-              toolUseId = block.id || uuidv4()
-              toolName = block.name || ''
-              const toolInput = block.input || {}
+        for await (const event of stream) {
+          console.log('Stream event:', event.type)
 
-              console.log('Tool use detected:', toolName, toolInput)
-
-              const toolCall: ToolCall = {
-                id: toolUseId,
-                messageId: '',
-                sessionId,
-                toolName,
-                toolInput,
-                toolOutput: null,
-                status: 'pending',
-                createdAt: new Date(),
+          switch (event.type) {
+            case 'content_block_start':
+              if (event.content_block.type === 'tool_use') {
+                toolUseId = event.content_block.id || uuidv4()
+                toolName = event.content_block.name || ''
+                currentToolInput = ''
+                console.log('Tool use started:', toolName)
+                sendEvent('tool_use', { id: toolUseId, name: toolName, input: {} })
+              } else if (event.content_block.type === 'text') {
+                currentTextBlock = ''
               }
+              break
 
-              sendEvent('tool_use', { id: toolUseId, name: toolName, input: toolInput })
-              sendEvent('tool_start', { name: toolName, input: JSON.stringify(toolInput) })
+            case 'content_block_delta':
+              if (event.delta.type === 'text_delta') {
+                currentTextBlock += event.delta.text
+                assistantText += event.delta.text
+                sendEvent('content_block_delta', { text: event.delta.text })
+              } else if (event.delta.type === 'input_json_delta') {
+                currentToolInput += event.delta.partial_json
+                const lastMsg = sessionManager.getInMemorySession(sessionId)?.messages.slice(-1)[0]
+                if (lastMsg && lastMsg.role === 'assistant' && lastMsg.toolCalls.length > 0) {
+                  const lastTool = lastMsg.toolCalls[lastMsg.toolCalls.length - 1]
+                  lastTool.input = currentToolInput
+                }
+                sendEvent('tool_input_delta', { partial_json: event.delta.partial_json })
+              }
+              break
 
-              try {
-                const result = await this.toolExecutor.executeTool(
+            case 'content_block_stop':
+              if (toolUseId && toolName) {
+                const toolInput = currentToolInput ? JSON.parse(currentToolInput) : {}
+                sendEvent('tool_start', { name: toolName, input: currentToolInput })
+
+                const toolCall: ToolCall = {
+                  id: toolUseId,
+                  messageId: '',
+                  sessionId,
                   toolName,
-                  toolInput as Record<string, unknown>,
-                  sendEvent
-                )
+                  toolInput,
+                  toolOutput: null,
+                  status: 'pending',
+                  createdAt: new Date(),
+                }
 
-                toolCall.toolOutput = result as Record<string, unknown>
-                toolCall.status = 'completed'
+                try {
+                  const result = await this.toolExecutor.executeTool(
+                    toolName,
+                    toolInput as Record<string, unknown>,
+                    sendEvent
+                  )
 
-                sessionManager.addToolCall(sessionId, toolCall)
-                sessionManager.addMessage(sessionId, 'user', JSON.stringify({ tool_use_id: toolUseId, name: toolName, result }))
+                  toolCall.toolOutput = result as Record<string, unknown>
+                  toolCall.status = 'completed'
 
-                console.log('Tool result added to messages')
-              } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : String(error)
-                console.error('Tool execution error:', errorMessage)
+                  sessionManager.addToolCall(sessionId, toolCall)
+                  sessionManager.addMessage(sessionId, 'user', JSON.stringify({ tool_use_id: toolUseId, name: toolName, result }))
 
-                toolCall.toolOutput = { error: errorMessage }
-                toolCall.status = 'error'
+                  console.log('Tool result added to messages')
+                } catch (error) {
+                  const errorMessage = error instanceof Error ? error.message : String(error)
+                  console.error('Tool execution error:', errorMessage)
 
-                sessionManager.addToolCall(sessionId, toolCall)
-                sessionManager.addMessage(sessionId, 'user', JSON.stringify({ tool_use_id: toolUseId, name: toolName, error: errorMessage }))
+                  toolCall.toolOutput = { error: errorMessage }
+                  toolCall.status = 'error'
+
+                  sessionManager.addToolCall(sessionId, toolCall)
+                  sessionManager.addMessage(sessionId, 'user', JSON.stringify({ tool_use_id: toolUseId, name: toolName, error: errorMessage }))
+                }
+
+                toolUseId = ''
+                toolName = ''
+                currentToolInput = ''
               }
-            }
+              break
+
+            case 'message_delta':
+              if (event.delta.stop_reason) {
+                sendEvent('message_stop', { stop_reason: event.delta.stop_reason })
+              }
+              break
+
+            case 'message_stop':
+              console.log('Message stream completed')
+              break
           }
         }
 
@@ -402,14 +438,23 @@ class SessionConversationManager {
           sessionManager.addMessage(sessionId, 'assistant', assistantText)
         }
 
-        sendEvent('message_stop', { stop_reason: response.stop_reason })
+        const finalSession = sessionManager.getInMemorySession(sessionId)
+        if (!finalSession) break
 
-        if (response.stop_reason !== 'tool_use') {
-          console.log('Conversation completed, total messages:', messages.length)
+        const lastMsg = finalSession.messages[finalSession.messages.length - 1]
+        if (lastMsg?.role !== 'assistant' || !lastMsg.toolCalls || lastMsg.toolCalls.length === 0) {
+          console.log('Conversation completed, total messages:', finalSession.messages.length)
           break
         }
 
-        console.log('Tool was used, continuing with', messages.length, 'messages...')
+        const lastTool = lastMsg.toolCalls[lastMsg.toolCalls.length - 1]
+        if (lastTool.status !== 'pending' && iteration < maxIterations) {
+          console.log('Tool was used, continuing with', finalSession.messages.length, 'messages...')
+          continue
+        }
+
+        console.log('Conversation completed, total messages:', finalSession.messages.length)
+        break
       }
 
       if (iteration >= maxIterations) {

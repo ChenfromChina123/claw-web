@@ -2,6 +2,7 @@
 defineProps<{
   role: 'user' | 'assistant'
   content: string
+  isStreaming?: boolean
 }>()
 </script>
 
@@ -12,7 +13,8 @@ defineProps<{
     </div>
     <div class="content">
       <div class="role-label">{{ role === 'user' ? '你' : 'Claude' }}</div>
-      <div class="text" v-html="content"></div>
+      <div class="text" :class="{ streaming: isStreaming }" v-html="content"></div>
+      <span v-if="isStreaming" class="typing-cursor">▋</span>
       <slot name="tool-calls"></slot>
     </div>
   </div>
@@ -44,6 +46,8 @@ defineProps<{
 .content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .role-label {
@@ -83,5 +87,18 @@ defineProps<{
 .text :deep(pre code) {
   background: none;
   padding: 0;
+}
+
+.typing-cursor {
+  display: inline-block;
+  color: #e94560;
+  font-weight: bold;
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 </style>
