@@ -14,12 +14,16 @@ import {
 } from '../themes/themes';
 import { useSettingsStore } from '@/stores/settings';
 
-/** 获取 settings store 实例 */
-const settingsStore = useSettingsStore();
+/**
+ * 获取 settings store 实例（延迟获取，避免在 Pinia 初始化前调用）
+ */
+function getSettingsStore() {
+  return useSettingsStore();
+}
 
 /** 当前主题状态（从 settings store 获取） */
 const currentThemeId = computed<ThemeName>(() => {
-  return settingsStore.preferences.theme;
+  return getSettingsStore().preferences.theme;
 });
 
 /** 当前主题配置 */
@@ -103,7 +107,7 @@ function applyThemeToCSS(theme: ThemeConfig): void {
  * @param themeId 要切换的主题 ID
  */
 function setTheme(themeId: ThemeName): void {
-  settingsStore.setTheme(themeId);
+  getSettingsStore().setTheme(themeId);
 }
 
 /**
@@ -156,19 +160,21 @@ function getNaiveUiOverrides(theme: ThemeConfig): Record<string, unknown> {
   };
 }
 
-// 初始化时应用默认主题
-applyThemeToCSS(currentTheme.value);
-
-// 监听主题变化并应用
-watch(currentTheme, (newTheme) => {
-  applyThemeToCSS(newTheme);
-}, { immediate: true });
+// 不在模块级别初始化，由 useTheme 函数返回的 watch 处理
 
 /**
  * 主题管理 Hook
  * @returns 主题管理相关的响应式数据和方法
  */
 export function useTheme() {
+  // 初始化时应用默认主题
+  applyThemeToCSS(currentTheme.value);
+  
+  // 监听主题变化并应用
+  watch(currentTheme, (newTheme) => {
+    applyThemeToCSS(newTheme);
+  }, { immediate: true });
+  
   return {
     /** 当前主题ID */
     currentThemeId,
