@@ -16,6 +16,9 @@ export const useChatStore = defineStore('chat', () => {
   })
   
   async function connect(token?: string) {
+    // 在连接之前设置事件监听器，避免错过事件
+    setupEventListeners()
+    
     try {
       await wsClient.connect(token)
       isConnected.value = true
@@ -24,7 +27,12 @@ export const useChatStore = defineStore('chat', () => {
       isConnected.value = false
       throw error
     }
-    
+  }
+  
+  /**
+   * 设置所有事件监听器
+   */
+  function setupEventListeners() {
     wsClient.on('session_list', (data: unknown) => {
       const msg = data as { sessions: Session[] }
       sessions.value = msg.sessions
