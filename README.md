@@ -10,6 +10,7 @@
 - 🔧 **命令系统** - 丰富的命令支持 (/help, /clear, /config 等)
 - 🔌 **MCP 支持** - MCP 服务器集成 (开发中)
 - 📱 **响应式设计** - 适配桌面和移动端
+- 🔐 **OAuth 登录** - 支持 GitHub OAuth 登录
 
 ## 快速开始
 
@@ -74,6 +75,11 @@ SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_USER=user@example.com
 SMTP_PASS=password
+
+# GitHub OAuth (可选)
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+GITHUB_CALLBACK_URL=http://localhost:3000/api/auth/github/callback
 ```
 
 ## API 文档
@@ -87,6 +93,8 @@ SMTP_PASS=password
 | `/api/auth/login` | POST | 用户登录 |
 | `/api/auth/forgot-password` | POST | 重置密码 |
 | `/api/auth/me` | GET | 获取当前用户 |
+| `/api/auth/github` | GET | GitHub OAuth 登录 |
+| `/api/auth/github/callback` | GET | GitHub OAuth 回调 |
 | `/api/health` | GET | 健康检查 |
 | `/api/models` | GET | 获取可用模型 |
 | `/api/tools` | GET | 获取可用工具 |
