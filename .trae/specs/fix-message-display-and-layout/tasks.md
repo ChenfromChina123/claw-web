@@ -1,26 +1,26 @@
 # Tasks
 
 ## 任务 1: 修复消息显示问题
-- [ ] Task 1.1: 检查 `useWebSocket.ts` 中的事件转发逻辑
+- [x] Task 1.1: 检查 `useWebSocket.ts` 中的事件转发逻辑
   - 确保 `content_block_delta` 事件正确传递给监听器
   - 添加调试日志验证事件接收
-- [ ] Task 1.2: 检查 `chat.ts` 中的消息更新逻辑
+- [x] Task 1.2: 检查 `chat.ts` 中的消息更新逻辑
   - 验证消息数组更新是否触发响应式
   - 确保消息正确添加到列表
-- [ ] Task 1.3: 检查 `ChatMessageList.vue` 中的消息渲染
+- [x] Task 1.3: 检查 `ChatMessageList.vue` 中的消息渲染
   - 确保消息列表正确渲染
   - 验证消息组件接收正确的 props
 
 ## 任务 2: 调整发送按钮位置
-- [ ] Task 2.1: 修改 `ChatInput.vue` 布局
+- [x] Task 2.1: 修改 `ChatInput.vue` 布局
   - 将发送按钮移动到输入框左边
   - 调整样式确保布局美观
 
 ## 任务 3: 修复对话记录消失问题
-- [ ] Task 3.1: 检查会话加载逻辑
+- [x] Task 3.1: 检查会话加载逻辑
   - 验证 `loadSession` 方法正确加载消息
   - 确保消息正确显示
-- [ ] Task 3.2: 检查消息持久化
+- [x] Task 3.2: 检查消息持久化
   - 验证消息正确保存到数据库
   - 确保页面刷新后消息正确加载
 
