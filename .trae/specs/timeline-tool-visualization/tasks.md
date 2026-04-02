@@ -24,18 +24,18 @@
   - [x] SubTask 3.6: 添加 hover 和 is-active 状态样式
   - [x] SubTask 3.7: 实现 .step-detail-transition 展开动画
 
-- [ ] Task 4: 优化现有功能集成
-  - [ ] SubTask 4.1: 确保 ToolUseEnhanced 组件正确集成到展开区域
-  - [ ] SubTask 4.2: 验证 FlowVisualizer 和 KnowledgeCard 不受影响
-  - [ ] SubTask 4.3: 测试工具状态实时更新功能
+- [x] Task 4: 优化现有功能集成
+  - [x] SubTask 4.1: 确保 ToolUseEnhanced 组件正确集成到展开区域
+  - [x] SubTask 4.2: 验证 FlowVisualizer 和 KnowledgeCard 不受影响
+  - [x] SubTask 4.3: 测试工具状态实时更新功能
 
-- [ ] Task 5: 测试与验证
-  - [ ] SubTask 5.1: 测试单个工具调用的展示
-  - [ ] SubTask 5.2: 测试多个工具调用的时间轴展示
-  - [ ] SubTask 5.3: 测试展开/收起交互的手风琴效果
-  - [ ] SubTask 5.4: 测试不同状态（pending/executing/completed/error）的视觉反馈
-  - [ ] SubTask 5.5: 测试智能摘要的准确性
-  - [ ] SubTask 5.6: 验证响应式布局在不同屏幕尺寸下的表现
+- [x] Task 5: 测试与验证
+  - [x] SubTask 5.1: 测试单个工具调用的展示
+  - [x] SubTask 5.2: 测试多个工具调用的时间轴展示
+  - [x] SubTask 5.3: 测试展开/收起交互的手风琴效果
+  - [x] SubTask 5.4: 测试不同状态（pending/executing/completed/error）的视觉反馈
+  - [x] SubTask 5.5: 测试智能摘要的准确性
+  - [x] SubTask 5.6: 验证响应式布局在不同屏幕尺寸下的表现
 
 # Task Dependencies
 - Task 2 depends on Task 1 (需要先实现辅助函数才能在模板中使用)
