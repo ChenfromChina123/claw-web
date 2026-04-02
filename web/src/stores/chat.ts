@@ -58,6 +58,9 @@ export const useChatStore = defineStore('chat', () => {
       toolCalls.value = []
     })
     
+    /**
+     * 处理消息开始事件
+     */
     wsClient.on('message_start', () => {
       isLoading.value = true
       // 添加空的 assistant 消息
@@ -68,14 +71,29 @@ export const useChatStore = defineStore('chat', () => {
       })
     })
     
+    /**
+     * 处理内容增量更新事件
+     * 使用响应式更新确保界面实时刷新
+     */
     wsClient.on('content_block_delta', (data: unknown) => {
-      const msg = data as { text: string }
-      const lastMsg = messages.value[messages.value.length - 1]
+      const msg = data as { text: string; sessionId?: string }
+      const lastIndex = messages.value.length - 1
+      const lastMsg = messages.value[lastIndex]
+      
       if (lastMsg && lastMsg.role === 'assistant') {
-        lastMsg.content += msg.text
+        // 创建新数组以触发响应式更新
+        const updatedMessages = [...messages.value]
+        updatedMessages[lastIndex] = {
+          ...lastMsg,
+          content: lastMsg.content + msg.text
+        }
+        messages.value = updatedMessages
       }
     })
     
+    /**
+     * 处理消息停止事件
+     */
     wsClient.on('message_stop', () => {
       isLoading.value = false
     })

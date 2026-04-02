@@ -453,7 +453,8 @@ class EnhancedWebSocketClient {
         break
 
       case 'content_block_delta':
-        this.handleContentDelta(message)
+        // 不在这里处理，让事件直接传递给外部监听器
+        // 避免与 chat.ts 中的处理逻辑冲突
         break
 
       case 'tool_use':
@@ -473,30 +474,11 @@ class EnhancedWebSocketClient {
 
   /**
    * 处理内容增量更新
+   * @deprecated 已移除内部处理逻辑，统一由 chat.ts 处理
    */
   private handleContentDelta(message: WSMessage): void {
-    const text = message.text as string | undefined
-    if (!text) return
-
-    const currentMessages = [...this.messages.value]
-    const lastMsg = currentMessages[currentMessages.length - 1]
-
-    if (lastMsg && lastMsg.role === 'assistant') {
-      lastMsg.content += text
-      this.messages.value = currentMessages
-    } else {
-      this.messages.value = [
-        ...currentMessages,
-        {
-          id: this.generateId(),
-          sessionId: this.currentSession.value?.id || '',
-          role: 'assistant',
-          type: 'text',
-          content: text,
-          createdAt: new Date(),
-        },
-      ]
-    }
+    // 此方法已废弃，不再使用
+    // 流式消息更新统一在 chat.ts 中处理
   }
 
   /**
