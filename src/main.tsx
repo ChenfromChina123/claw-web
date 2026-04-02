@@ -1,11 +1,9 @@
-// These side-effects must run before all other imports:
-// 1. profileCheckpoint marks entry before heavy module evaluation begins
-// 2. startMdmRawRead fires MDM subprocesses (plutil/reg query) so they run in
-//    parallel with the remaining ~135ms of imports below
-// 3. startKeychainPrefetch fires both macOS keychain reads (OAuth + legacy API
-//    key) in parallel — isRemoteManagedSettingsEligible() otherwise reads them
-//    sequentially via sync spawn inside applySafeConfigEnvironmentVariables()
-//    (~65ms on every macOS startup)
+// 这些副作用必须在所有其他导入之前运行：
+// 1. profileCheckpoint 在重量级模块评估开始前标记入口点
+// 2. startMdmRawRead 启动 MDM 子进程（plutil/reg query），使其与下方剩余的约 135ms 导入并行运行
+// 3. startKeychainPrefetch 并行启动 macOS 钥匙串读取（OAuth + 传统 API 密钥）
+//    否则 isRemoteManagedSettingsEligible() 会在 applySafeConfigEnvironmentVariables() 中通过同步 spawn 顺序读取它们
+//    （每次 macOS 启动约 65ms）
 import { profileCheckpoint, profileReport } from './utils/startupProfiler.js';
 
 // eslint-disable-next-line custom-rules/no-top-level-side-effects
@@ -65,17 +63,17 @@ import { computeInitialTeamContext } from './utils/swarm/reconnection.js';
 import { initializeWarningHandler } from './utils/warningHandler.js';
 import { isWorktreeModeEnabled } from './utils/worktreeModeEnabled.js';
 
-// Lazy require to avoid circular dependency: teammate.ts -> AppState.tsx -> ... -> main.tsx
+// 延迟 require 以避免循环依赖：teammate.ts -> AppState.tsx -> ... -> main.tsx
 /* eslint-disable @typescript-eslint/no-require-imports */
 const getTeammateUtils = () => require('./utils/teammate.js') as typeof import('./utils/teammate.js');
 const getTeammatePromptAddendum = () => require('./utils/swarm/teammatePromptAddendum.js') as typeof import('./utils/swarm/teammatePromptAddendum.js');
 const getTeammateModeSnapshot = () => require('./utils/swarm/backends/teammateModeSnapshot.js') as typeof import('./utils/swarm/backends/teammateModeSnapshot.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
-// Dead code elimination: conditional import for COORDINATOR_MODE
+// 死代码消除：COORDINATOR_MODE 的条件导入
 /* eslint-disable @typescript-eslint/no-require-imports */
 const coordinatorModeModule = feature('COORDINATOR_MODE') ? require('./coordinator/coordinatorMode.js') as typeof import('./coordinator/coordinatorMode.js') : null;
 /* eslint-enable @typescript-eslint/no-require-imports */
-// Dead code elimination: conditional import for KAIROS (assistant mode)
+// 死代码消除：KAIROS（助手模式）的条件导入
 /* eslint-disable @typescript-eslint/no-require-imports */
 const assistantModule = feature('KAIROS') ? require('./assistant/index.js') as typeof import('./assistant/index.js') : null;
 const kairosGate = feature('KAIROS') ? require('./assistant/gate.js') as typeof import('./assistant/gate.js') : null;
@@ -136,7 +134,7 @@ import { logPluginLoadErrors, logPluginsEnabledForSession } from './utils/teleme
 import { logSkillsLoaded } from './utils/telemetry/skillLoadedEvent.js';
 import { generateTempFilePath } from './utils/tempfile.js';
 import { validateUuid } from './utils/uuid.js';
-// Plugin startup checks are now handled non-blockingly in REPL.tsx
+// 插件启动检查现在在 REPL.tsx 中以非阻塞方式处理
 
 import { registerMcpAddCommand } from 'src/commands/mcp/addCommand.js';
 import { registerMcpXaaIdpCommand } from 'src/commands/mcp/xaaIdpCommand.js';
@@ -209,9 +207,8 @@ import { getTmuxInstallInstructions, isTmuxAvailable, parsePRReference } from '.
 profileCheckpoint('main_tsx_imports_loaded');
 
 /**
- * Log managed settings keys to Statsig for analytics.
- * This is called after init() completes to ensure settings are loaded
- * and environment variables are applied before model resolution.
+ * 将托管设置键记录到 Statsig 以进行分析。
+ * 这在 init() 完成后调用，以确保在模型解析之前已加载设置并应用环境变量。
  */
 function logManagedSettings(): void {
   try {
@@ -224,57 +221,56 @@ function logManagedSettings(): void {
       });
     }
   } catch {
-    // Silently ignore errors - this is just for analytics
+    // 静默忽略错误 - 这只是用于分析
   }
 }
 
-// Check if running in debug/inspection mode
+// 检查是否在调试/检查模式下运行
 function isBeingDebugged() {
   const isBun = isRunningWithBun();
 
-  // Check for inspect flags in process arguments (including all variants)
+  // 检查进程参数中的检查标志（包括所有变体）
   const hasInspectArg = process.execArgv.some(arg => {
     if (isBun) {
-      // Note: Bun has an issue with single-file executables where application arguments
-      // from process.argv leak into process.execArgv (similar to https://github.com/oven-sh/bun/issues/11673)
-      // This breaks use of --debug mode if we omit this branch
-      // We're fine to skip that check, because Bun doesn't support Node.js legacy --debug or --debug-brk flags
+      // 注意：Bun 在单文件可执行文件中存在一个问题，应用程序参数
+      // 从 process.argv 泄漏到 process.execArgv（类似于 https://github.com/oven-sh/bun/issues/11673）
+      // 如果我们省略这个分支，会破坏 --debug 模式的使用
+      // 我们可以跳过该检查，因为 Bun 不支持 Node.js 传统的 --debug 或 --debug-brk 标志
       return /--inspect(-brk)?/.test(arg);
     } else {
-      // In Node.js, check for both --inspect and legacy --debug flags
+      // 在 Node.js 中，检查 --inspect 和传统的 --debug 标志
       return /--inspect(-brk)?|--debug(-brk)?/.test(arg);
     }
   });
 
-  // Check if NODE_OPTIONS contains inspect flags
+  // 检查 NODE_OPTIONS 是否包含检查标志
   const hasInspectEnv = process.env.NODE_OPTIONS && /--inspect(-brk)?|--debug(-brk)?/.test(process.env.NODE_OPTIONS);
 
-  // Check if inspector is available and active (indicates debugging)
+  // 检查检查器是否可用且处于活动状态（表示正在调试）
   try {
-    // Dynamic import would be better but is async - use global object instead
+    // 动态导入会更好，但是异步的 - 改用全局对象
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const inspector = (global as any).require('inspector');
     const hasInspectorUrl = !!inspector.url();
     return hasInspectorUrl || hasInspectArg || hasInspectEnv;
   } catch {
-    // Ignore error and fall back to argument detection
+    // 忽略错误并回退到参数检测
     return hasInspectArg || hasInspectEnv;
   }
 }
 
-// Exit if we detect node debugging or inspection
+// 如果检测到 Node.js 调试或检查，则退出
 if ("external" !== 'ant' && isBeingDebugged()) {
-  // Use process.exit directly here since we're in the top-level code before imports
-  // and gracefulShutdown is not yet available
+  // 在此处直接使用 process.exit，因为我们在导入之前的顶层代码中
+  // 且 gracefulShutdown 尚不可用
   // eslint-disable-next-line custom-rules/no-top-level-side-effects
   process.exit(1);
 }
 
 /**
- * Per-session skill/plugin telemetry. Called from both the interactive path
- * and the headless -p path (before runHeadless) — both go through
- * main.tsx but branch before the interactive startup path, so it needs two
- * call sites here rather than one here + one in QueryEngine.
+ * 每会话技能/插件遥测。从交互式路径和无头 -p 路径（在 runHeadless 之前）调用
+ * 两者都经过 main.tsx，但在交互式启动路径之前分支，因此需要在此处设置两个调用点，
+ * 而不是一个在这里 + 一个在 QueryEngine 中。
  */
 function logSessionTelemetry(): void {
   const model = parseUserSpecifiedModel(getInitialMainLoopModel() ?? getDefaultMainLoopModel());
@@ -320,8 +316,8 @@ async function logStartupTelemetry(): Promise<void> {
   });
 }
 
-// @[MODEL LAUNCH]: Consider any migrations you may need for model strings. See migrateSonnet1mToSonnet45.ts for an example.
-// Bump this when adding a new sync migration so existing users re-run the set.
+// @[模型发布]: 考虑模型字符串可能需要的任何迁移。有关示例，请参阅 migrateSonnet1mToSonnet45.ts。
+// 添加新的同步迁移时增加此版本号，以便现有用户重新运行迁移集。
 const CURRENT_MIGRATION_VERSION = 11;
 function runMigrations(): void {
   if (getGlobalConfig().migrationVersion !== CURRENT_MIGRATION_VERSION) {
@@ -345,30 +341,29 @@ function runMigrations(): void {
       migrationVersion: CURRENT_MIGRATION_VERSION
     });
   }
-  // Async migration - fire and forget since it's non-blocking
+  // 异步迁移 - 即发即弃，因为它是非阻塞的
   migrateChangelogFromConfig().catch(() => {
-    // Silently ignore migration errors - will retry on next startup
+    // 静默忽略迁移错误 - 将在下次启动时重试
   });
 }
 
 /**
- * Prefetch system context (including git status) only when it's safe to do so.
- * Git commands can execute arbitrary code via hooks and config (e.g., core.fsmonitor,
- * diff.external), so we must only run them after trust is established or in
- * non-interactive mode where trust is implicit.
+ * 仅在安全时预取系统上下文（包括 git 状态）。
+ * Git 命令可以通过钩子（hooks）和配置（例如 core.fsmonitor、diff.external）执行任意代码，
+ * 因此我们必须在信任建立后或在信任是隐式的非交互模式下运行它们。
  */
 function prefetchSystemContextIfSafe(): void {
   const isNonInteractiveSession = getIsNonInteractiveSession();
 
-  // In non-interactive mode (--print), trust dialog is skipped and
-  // execution is considered trusted (as documented in help text)
+  // 在非交互模式下（--print），信任对话框被跳过，
+  // 执行被认为是可信的（如帮助文本中所述）
   if (isNonInteractiveSession) {
     logForDiagnosticsNoPII('info', 'prefetch_system_context_non_interactive');
     void getSystemContext();
     return;
   }
 
-  // In interactive mode, only prefetch if trust has already been established
+  // 在交互模式下，仅在信任已经建立时才预取
   const hasTrust = checkHasTrustDialogAccepted();
   if (hasTrust) {
     logForDiagnosticsNoPII('info', 'prefetch_system_context_has_trust');
@@ -376,31 +371,29 @@ function prefetchSystemContextIfSafe(): void {
   } else {
     logForDiagnosticsNoPII('info', 'prefetch_system_context_skipped_no_trust');
   }
-  // Otherwise, don't prefetch - wait for trust to be established first
+  // 否则，不要预取 - 等待信任首先建立
 }
 
 /**
- * Start background prefetches and housekeeping that are NOT needed before first render.
- * These are deferred from setup() to reduce event loop contention and child process
- * spawning during the critical startup path.
- * Call this after the REPL has been rendered.
+ * 启动在首次渲染之前不需要的后台预取和清理工作。
+ * 这些从 setup() 延迟执行，以减少关键启动路径期间的事件循环争用和子进程生成。
+ * 在 REPL 渲染后调用此函数。
  */
 export function startDeferredPrefetches(): void {
-  // This function runs after first render, so it doesn't block the initial paint.
-  // However, the spawned processes and async work still contend for CPU and event
-  // loop time, which skews startup benchmarks (CPU profiles, time-to-first-render
-  // measurements). Skip all of it when we're only measuring startup performance.
+  // 此函数在首次渲染后运行，因此不会阻塞初始绘制。
+  // 但是，生成的进程和异步工作仍然会争夺 CPU 和事件循环时间，
+  // 这会影响启动基准测试（CPU 分析、首次渲染时间测量）。
+  // 当我们仅测量启动性能时，跳过所有这些操作。
   if (isEnvTruthy(process.env.CLAUDE_CODE_EXIT_AFTER_FIRST_RENDER) ||
-  // --bare: skip ALL prefetches. These are cache-warms for the REPL's
-  // first-turn responsiveness (initUser, getUserContext, tips, countFiles,
-  // modelCapabilities, change detectors). Scripted -p calls don't have a
-  // "user is typing" window to hide this work in — it's pure overhead on
-  // the critical path.
+  // --bare: 跳过所有预取。这些是 REPL 第一轮响应的缓存预热
+  // （initUser、getUserContext、tips、countFiles、modelCapabilities、change detectors）。
+  // 脚本化的 -p 调用没有"用户正在输入"窗口来隐藏这项工作 - 
+  // 它纯粹是关键路径上的开销。
   isBareMode()) {
     return;
   }
 
-  // Process-spawning prefetches (consumed at first API call, user is still typing)
+  // 生成进程的预取（在第一次 API 调用时消耗，用户仍在输入）
   void initUser();
   void getUserContext();
   prefetchSystemContextIfSafe();
@@ -413,18 +406,18 @@ export function startDeferredPrefetches(): void {
   }
   void countFilesRoundedRg(getCwd(), AbortSignal.timeout(3000), []);
 
-  // Analytics and feature flag initialization
+  // 分析和特性标志初始化
   void initializeAnalyticsGates();
   void prefetchOfficialMcpUrls();
   void refreshModelCapabilities();
 
-  // File change detectors deferred from init() to unblock first render
+  // 从 init() 延迟的文件变更检测器，以解除首次渲染的阻塞
   void settingsChangeDetector.initialize();
   if (!isBareMode()) {
     void skillChangeDetector.initialize();
   }
 
-  // Event loop stall detector — logs when the main thread is blocked >500ms
+  // 事件循环停滞检测器 - 当主线程被阻塞超过 500ms 时记录日志
   if ("external" === 'ant') {
     void import('./utils/eventLoopStallDetector.js').then(m => m.startEventLoopStallDetector());
   }
@@ -435,28 +428,27 @@ function loadSettingsFromFlag(settingsFile: string): void {
     const looksLikeJson = trimmedSettings.startsWith('{') && trimmedSettings.endsWith('}');
     let settingsPath: string;
     if (looksLikeJson) {
-      // It's a JSON string - validate and create temp file
+      // 它是 JSON 字符串 - 验证并创建临时文件
       const parsedJson = safeParseJSON(trimmedSettings);
       if (!parsedJson) {
         process.stderr.write(chalk.red('Error: Invalid JSON provided to --settings\n'));
         process.exit(1);
       }
 
-      // Create a temporary file and write the JSON to it.
-      // Use a content-hash-based path instead of random UUID to avoid
-      // busting the Anthropic API prompt cache. The settings path ends up
-      // in the Bash tool's sandbox denyWithinAllow list, which is part of
-      // the tool description sent to the API. A random UUID per subprocess
-      // changes the tool description on every query() call, invalidating
-      // the cache prefix and causing a 12x input token cost penalty.
-      // The content hash ensures identical settings produce the same path
-      // across process boundaries (each SDK query() spawns a new process).
+      // 创建临时文件并将 JSON 写入其中。
+      // 使用基于内容哈希的路径而不是随机 UUID，以避免破坏 Anthropic API 提示缓存。
+      // 设置路径最终位于 Bash 工具的沙箱 denyWithinAllow 列表中，
+      // 这是发送到 API 的工具描述的一部分。
+      // 每个子进程的随机 UUID 会在每次 query() 调用时更改工具描述，
+      // 使缓存前缀失效并导致 12 倍的输入令牌成本损失。
+      // 内容哈希确保相同的设置在进程边界之间产生相同的路径
+      // （每个 SDK query() 生成一个新进程）。
       settingsPath = generateTempFilePath('claude-settings', '.json', {
         contentHash: trimmedSettings
       });
       writeFileSync_DEPRECATED(settingsPath, trimmedSettings, 'utf8');
     } else {
-      // It's a file path - resolve and validate by attempting to read
+      // 它是文件路径 - 通过尝试读取来解析和验证
       const {
         resolvedPath: resolvedSettingsPath
       } = safeResolvePath(getFsImplementation(), settingsFile);
@@ -496,18 +488,18 @@ function loadSettingSourcesFromFlag(settingSourcesArg: string): void {
 }
 
 /**
- * Parse and load settings flags early, before init()
- * This ensures settings are filtered from the start of initialization
+ * 在 init() 之前尽早解析和加载设置标志
+ * 这确保设置从初始化开始就被过滤
  */
 function eagerLoadSettings(): void {
   profileCheckpoint('eagerLoadSettings_start');
-  // Parse --settings flag early to ensure settings are loaded before init()
+  // 尽早解析 --settings 标志，以确保设置在 init() 之前加载
   const settingsFile = eagerParseCliFlag('--settings');
   if (settingsFile) {
     loadSettingsFromFlag(settingsFile);
   }
 
-  // Parse --setting-sources flag early to control which sources are loaded
+  // 尽早解析 --setting-sources 标志，以控制加载哪些源
   const settingSourcesArg = eagerParseCliFlag('--setting-sources');
   if (settingSourcesArg !== undefined) {
     loadSettingSourcesFromFlag(settingSourcesArg);
@@ -515,13 +507,13 @@ function eagerLoadSettings(): void {
   profileCheckpoint('eagerLoadSettings_end');
 }
 function initializeEntrypoint(isNonInteractive: boolean): void {
-  // Skip if already set (e.g., by SDK or other entrypoints)
+  // 如果已经设置则跳过（例如，由 SDK 或其他入口点设置）
   if (process.env.CLAUDE_CODE_ENTRYPOINT) {
     return;
   }
   const cliArgs = process.argv.slice(2);
 
-  // Check for MCP serve command (handle flags before mcp serve, e.g., --debug mcp serve)
+  // 检查 MCP serve 命令（处理 mcp serve 之前的标志，例如 --debug mcp serve）
   const mcpIndex = cliArgs.indexOf('mcp');
   if (mcpIndex !== -1 && cliArgs[mcpIndex + 1] === 'serve') {
     process.env.CLAUDE_CODE_ENTRYPOINT = 'mcp';
@@ -532,14 +524,14 @@ function initializeEntrypoint(isNonInteractive: boolean): void {
     return;
   }
 
-  // Note: 'local-agent' entrypoint is set by the local agent mode launcher
-  // via CLAUDE_CODE_ENTRYPOINT env var (handled by early return above)
+  // 注意：'local-agent' 入口点由本地代理模式启动器通过 CLAUDE_CODE_ENTRYPOINT 环境变量设置
+  // （由上面的早期返回处理）
 
-  // Set based on interactive status
+  // 基于交互状态设置
   process.env.CLAUDE_CODE_ENTRYPOINT = isNonInteractive ? 'sdk-cli' : 'cli';
 }
 
-// Set by early argv processing when `claude open <url>` is detected (interactive mode only)
+// 当检测到 `claude open <url>` 时由早期 argv 处理设置（仅限交互模式）
 type PendingConnect = {
   url: string | undefined;
   authToken: string | undefined;
@@ -551,7 +543,7 @@ const _pendingConnect: PendingConnect | undefined = feature('DIRECT_CONNECT') ? 
   dangerouslySkipPermissions: false
 } : undefined;
 
-// Set by early argv processing when `claude assistant [sessionId]` is detected
+// 当检测到 `claude assistant [sessionId]` 时由早期 argv 处理设置
 type PendingAssistantChat = {
   sessionId?: string;
   discover: boolean;
@@ -561,17 +553,16 @@ const _pendingAssistantChat: PendingAssistantChat | undefined = feature('KAIROS'
   discover: false
 } : undefined;
 
-// `claude ssh <host> [dir]` — parsed from argv early (same pattern as
-// DIRECT_CONNECT above) so the main command path can pick it up and hand
-// the REPL an SSH-backed session instead of a local one.
+// `claude ssh <host> [dir]` — 从 argv 早期解析（与上面的 DIRECT_CONNECT 模式相同）
+// 以便主命令路径可以获取它并将 SSH 支持的会话交给 REPL，而不是本地会话。
 type PendingSSH = {
   host: string | undefined;
   cwd: string | undefined;
   permissionMode: string | undefined;
   dangerouslySkipPermissions: boolean;
-  /** --local: spawn the child CLI directly, skip ssh/probe/deploy. e2e test mode. */
+  /** --local: 直接生成子 CLI，跳过 ssh/probe/deploy。e2e 测试模式。 */
   local: boolean;
-  /** Extra CLI args to forward to the remote CLI on initial spawn (--resume, -c). */
+  /** 在初始生成时要转发到远程 CLI 的额外 CLI 参数（--resume, -c）。 */
   extraCliArgs: string[];
 };
 const _pendingSSH: PendingSSH | undefined = feature('SSH_REMOTE') ? {
@@ -585,20 +576,19 @@ const _pendingSSH: PendingSSH | undefined = feature('SSH_REMOTE') ? {
 export async function main() {
   profileCheckpoint('main_function_start');
 
-  // SECURITY: Prevent Windows from executing commands from current directory
-  // This must be set before ANY command execution to prevent PATH hijacking attacks
-  // See: https://docs.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-searchpathw
+  // 安全性：防止 Windows 从当前目录执行命令
+  // 这必须在任何命令执行之前设置，以防止 PATH 劫持攻击
+  // 参见：https://docs.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-searchpathw
   process.env.NoDefaultCurrentDirectoryInExePath = '1';
 
-  // Initialize warning handler early to catch warnings
+  // 尽早初始化警告处理程序以捕获警告
   initializeWarningHandler();
   process.on('exit', () => {
     resetCursor();
   });
   process.on('SIGINT', () => {
-    // In print mode, print.ts registers its own SIGINT handler that aborts
-    // the in-flight query and calls gracefulShutdown; skip here to avoid
-    // preempting it with a synchronous process.exit().
+    // 在打印模式下，print.ts 注册了自己的 SIGINT 处理程序，中止正在进行的查询并调用 gracefulShutdown；
+    // 在此处跳过以避免使用同步 process.exit() 抢占它。
     if (process.argv.includes('-p') || process.argv.includes('--print')) {
       return;
     }
@@ -606,9 +596,9 @@ export async function main() {
   });
   profileCheckpoint('main_warning_handler_initialized');
 
-  // Check for cc:// or cc+unix:// URL in argv — rewrite so the main command
-  // handles it, giving the full interactive TUI instead of a stripped-down subcommand.
-  // For headless (-p), we rewrite to the internal `open` subcommand.
+  // 检查 argv 中的 cc:// 或 cc+unix:// URL — 重写以便主命令处理它，
+  // 提供完整的交互式 TUI 而不是精简的子命令。
+  // 对于无头模式（-p），我们重写到内部的 `open` 子命令。
   if (feature('DIRECT_CONNECT')) {
     const rawCliArgs = process.argv.slice(2);
     const ccIdx = rawCliArgs.findIndex(a => a.startsWith('cc://') || a.startsWith('cc+unix://'));
@@ -620,7 +610,7 @@ export async function main() {
       const parsed = parseConnectUrl(ccUrl);
       _pendingConnect.dangerouslySkipPermissions = rawCliArgs.includes('--dangerously-skip-permissions');
       if (rawCliArgs.includes('-p') || rawCliArgs.includes('--print')) {
-        // Headless: rewrite to internal `open` subcommand
+        // 无头模式：重写到内部的 `open` 子命令
         const stripped = rawCliArgs.filter((_, i) => i !== ccIdx);
         const dspIdx = stripped.indexOf('--dangerously-skip-permissions');
         if (dspIdx !== -1) {
@@ -628,7 +618,7 @@ export async function main() {
         }
         process.argv = [process.argv[0]!, process.argv[1]!, 'open', ccUrl, ...stripped];
       } else {
-        // Interactive: strip cc:// URL and flags, run main command
+        // 交互模式：剥离 cc:// URL 和标志，运行主命令
         _pendingConnect.url = parsed.serverUrl;
         _pendingConnect.authToken = parsed.authToken;
         const stripped = rawCliArgs.filter((_, i) => i !== ccIdx);
@@ -641,9 +631,8 @@ export async function main() {
     }
   }
 
-  // Handle deep link URIs early — this is invoked by the OS protocol handler
-  // and should bail out before full init since it only needs to parse the URI
-  // and open a terminal.
+  // 尽早处理深层链接 URI — 这由操作系统协议处理程序调用，
+  // 应在完整初始化之前退出，因为它只需要解析 URI 并打开终端。
   if (feature('LODESTONE')) {
     const handleUriIdx = process.argv.indexOf('--handle-uri');
     if (handleUriIdx !== -1 && process.argv[handleUriIdx + 1]) {
