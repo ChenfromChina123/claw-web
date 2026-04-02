@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NLayoutSider, NButton, NInput, NScrollbar, NDropdown } from 'naive-ui'
+import { NLayoutSider, NButton, NInput, NScrollbar, NDropdown, useMessage } from 'naive-ui'
 import { useChatStore } from '@/stores/chat'
 import type { Session } from '@/types'
 
 const chatStore = useChatStore()
+const message = useMessage()
 
 const searchValue = ref('')
 const collapsed = ref(false)
@@ -16,7 +17,15 @@ const filteredSessions = computed(() => {
   )
 })
 
+/**
+ * 处理创建新会话
+ * 验证当前会话是否有消息，如果没有消息则提示用户
+ */
 function handleNewChat() {
+  if (chatStore.messages.length === 0) {
+    message.warning('请先在当前会话中发送消息')
+    return
+  }
   chatStore.createSession()
 }
 

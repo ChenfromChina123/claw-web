@@ -119,8 +119,13 @@ export const useChatStore = defineStore('chat', () => {
    * @param title 会话标题
    * @param model 使用的模型
    * @returns Promise，在会话创建成功后 resolve
+   * @throws 如果当前会话没有消息，抛出错误
    */
   function createSession(title?: string, model?: string): Promise<void> {
+    if (messages.value.length === 0) {
+      return Promise.reject(new Error('当前会话没有消息，无法创建新会话'))
+    }
+    
     return new Promise((resolve, reject) => {
       const timeout = 10000
       let timeoutId: ReturnType<typeof setTimeout> | null = null

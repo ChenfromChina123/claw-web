@@ -40,7 +40,33 @@ export class SessionManager {
     return { id: user.id, username: user.username }
   }
 
-  async createSession(userId: string, title?: string, model?: string): Promise<Session> {
+  /**
+   * 检查用户是否有空会话(没有消息的会话)
+   * @param userId 用户ID
+   * @returns 如果有空会话返回true,否则返回false
+   */
+  async hasEmptySession(userId: string): Promise<boolean> {
+    const emptySession = await this.sessionRepo.findEmptySessionByUserId(userId)
+    return emptySession !== null
+  }
+
+  /**
+   * 创建新会话
+   * @param userId 用户ID
+   * @param title 会话标题
+   * @param model 使用的模型
+   * @param force 是否强制创建(忽略空会话检查)
+   * @returns 创建的会话对象
+   * @throws 如果用户已有空会话且未强制创建
+   */
+  async createSession(userId: string, title?: string, model?: string, force?: boolean): Promise<Session> {
+    if (!force) {
+      const hasEmpty = await this.hasEmptySession(userId)
+      if (hasEmpty) {
+        throw new Error('您已有空会话,请先使用现有会话')
+      }
+    }
+
     const session = await this.sessionRepo.create(userId, title || '新对话', model || 'qwen-plus')
 
     this.sessions.set(session.id, {

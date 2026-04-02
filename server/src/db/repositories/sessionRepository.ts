@@ -120,6 +120,26 @@ export class SessionRepository {
     return this.mapToSession(rows[0])
   }
 
+  /**
+   * 查找用户的空会话(没有消息的会话)
+   * @param userId 用户ID
+   * @returns 返回最新的空会话,如果没有则返回null
+   */
+  async findEmptySessionByUserId(userId: string): Promise<Session | null> {
+    const pool = getPool()
+    const [rows] = await pool.query(
+      `SELECT s.* FROM sessions s 
+       LEFT JOIN messages m ON s.id = m.session_id 
+       WHERE s.user_id = ? AND m.id IS NULL 
+       ORDER BY s.updated_at DESC 
+       LIMIT 1`,
+      [userId]
+    ) as [Session[], unknown]
+
+    if (rows.length === 0) return null
+    return this.mapToSession(rows[0])
+  }
+
   private mapToSession(row: any): Session {
     return {
       id: row.id,
