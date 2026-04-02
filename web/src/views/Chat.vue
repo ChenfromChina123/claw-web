@@ -19,20 +19,23 @@ const inputRef = ref<InstanceType<typeof ChatInput> | null>(null)
 onMounted(async () => {
   // 连接 WebSocket
   chatStore.connect(authStore.token || undefined)
-  chatStore.listSessions()
-  
-  // 创建默认会话
+  await chatStore.listSessions()
+
+  // 创建默认会话（如果没有会话）
   if (chatStore.sessions.length === 0) {
-    chatStore.createSession()
+    await chatStore.createSession()
   } else if (chatStore.currentSessionId) {
-    chatStore.loadSession(chatStore.currentSessionId)
+    await chatStore.loadSession(chatStore.currentSessionId)
+  } else if (chatStore.sessions.length > 0) {
+    // 有会话但没有当前会话，加载第一个
+    await chatStore.loadSession(chatStore.sessions[0].id)
   }
-  
+
   // 聚焦输入框
   nextTick(() => {
     inputRef.value?.focus()
   })
-  
+
   // 监听键盘事件
   document.addEventListener('keydown', handleKeyDown)
 })
@@ -213,26 +216,27 @@ function handleCommandSelect(command: string): void {
   position: relative;
   z-index: 1;
   min-height: 0;
+  padding-bottom: 100px;
 }
 
 .message-list-container {
   flex: 1;
   overflow-y: auto;
   padding: 0;
-  margin-bottom: 80px;
 }
 
 /* ---- 输入区域 ---- */
 .input-container {
-  margin: 16px 20px 20px;
+  margin: 0 20px 20px;
   border-radius: 16px !important;
   padding: 4px !important;
   transition: all var(--transition-normal, 250ms) ease;
-  position: absolute;
+  position: fixed;
   bottom: 0;
-  left: 0;
+  left: 280px;
   right: 0;
-  z-index: 10;
+  z-index: 100;
+  max-width: calc(100% - 320px);
 }
 
 .input-container:hover {
