@@ -80,12 +80,12 @@ const toolStats = computed(() => {
   const stats: Record<string, { count: number; success: number; error: number }> = {}
   
   for (const tool of props.toolCalls) {
-    if (!stats[tool.name]) {
-      stats[tool.name] = { count: 0, success: 0, error: 0 }
+    if (!stats[tool.toolName]) {
+      stats[tool.toolName] = { count: 0, success: 0, error: 0 }
     }
-    stats[tool.name].count++
-    if (tool.status === 'completed') stats[tool.name].success++
-    if (tool.status === 'error') stats[tool.name].error++
+    stats[tool.toolName].count++
+    if (tool.status === 'completed') stats[tool.toolName].success++
+    if (tool.status === 'error') stats[tool.toolName].error++
   }
   
   return stats
@@ -142,16 +142,16 @@ function getStatusType(status: string): string {
  * @returns 摘要文本
  */
 function getShortSummary(toolCall: ToolCall): string {
-  switch (toolCall.name) {
+  switch (toolCall.toolName) {
     case 'FileRead':
-      const readPath = (toolCall.input as any)?.path || '未知文件'
+      const readPath = (toolCall.toolInput as any)?.path || '未知文件'
       return `读取文件：${readPath}`
     case 'FileList':
-      const listPath = (toolCall.input as any)?.path || '未知目录'
+      const listPath = (toolCall.toolInput as any)?.path || '未知目录'
       return `浏览目录：${listPath}`
     case 'Bash':
     case 'Shell':
-      const command = (toolCall.input as any)?.command || ''
+      const command = (toolCall.toolInput as any)?.command || ''
       const shortCmd = command.length > 50 ? command.substring(0, 50) + '...' : command
       return `执行命令：${shortCmd}`
     default:
@@ -235,7 +235,7 @@ function handleStepClick(toolCallId: string) {
             <div v-if="message.role === 'user'" class="message user-message">
               <div class="message-avatar">👤</div>
               <div class="message-content">
-                <div class="message-text">{{ message.content }}</div>
+                <div class="message-text">{{ (message as any).content }}</div>
               </div>
             </div>
             
@@ -243,15 +243,15 @@ function handleStepClick(toolCallId: string) {
             <div v-else-if="message.role === 'assistant'" class="message assistant-message">
               <div class="message-avatar">🤖</div>
               <div class="message-content">
-                <div class="message-text" v-html="message.content.replace(/\n/g, '<br>')"></div>
+                <div class="message-text" v-html="(message as any).content.replace(/\n/g, '<br>')"></div>
               </div>
             </div>
             
             <!-- 工具调用 - 步骤化增强版 -->
-            <div v-if="message.toolCalls && message.toolCalls.length > 0 && useEnhancedToolDisplay" class="tool-sequence-container">
+            <div v-if="props.toolCalls && props.toolCalls.length > 0 && useEnhancedToolDisplay" class="tool-sequence-container">
               <div class="tool-section-header">
                 <span class="section-icon">🔧</span>
-                <span class="section-title">工具调用 ({{ message.toolCalls.length }})</span>
+                <span class="section-title">工具调用 ({{ props.toolCalls.length }})</span>
               </div>
               
               <!-- 引导线 -->
@@ -259,7 +259,7 @@ function handleStepClick(toolCallId: string) {
               
               <!-- 工具步骤列表 -->
               <div 
-                v-for="(toolCall, idx) in message.toolCalls" 
+                v-for="(toolCall, idx) in props.toolCalls" 
                 :key="toolCall.id"
                 class="tool-step-item"
                 :class="[toolCall.status, { 'is-active': activeStep === toolCall.id }]"
@@ -272,13 +272,13 @@ function handleStepClick(toolCallId: string) {
                   <!-- 步骤头部 -->
                   <div class="step-header" @click="handleStepClick(toolCall.id)">
                     <div class="step-header-left">
-                      <span class="step-tool-icon">{{ getToolIcon(toolCall.name) }}</span>
-                      <span class="step-tool-name">{{ toolCall.name }}</span>
+                      <span class="step-tool-icon">{{ getToolIcon(toolCall.toolName) }}</span>
+                      <span class="step-tool-name">{{ toolCall.toolName }}</span>
                     </div>
                     <div class="step-header-right">
                       <NTooltip>
                         <template #trigger>
-                          <NTag size="small" :type="getStatusType(toolCall.status)">
+                          <NTag size="small" :type="getStatusType(toolCall.status) as any">
                             {{ toolCall.status === 'pending' ? '等待中' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
                           </NTag>
                         </template>
@@ -305,22 +305,22 @@ function handleStepClick(toolCallId: string) {
             </div>
             
             <!-- 工具调用 - 原始版 -->
-            <div v-if="message.toolCalls && message.toolCalls.length > 0 && !useEnhancedToolDisplay" class="tool-calls">
+            <div v-if="props.toolCalls && props.toolCalls.length > 0 && !useEnhancedToolDisplay" class="tool-calls">
               <div 
-                v-for="toolCall in message.toolCalls" 
+                v-for="toolCall in props.toolCalls" 
                 :key="toolCall.id"
                 class="tool-call"
                 :class="toolCall.status"
               >
                 <div class="tool-header">
-                  <span class="tool-name">{{ toolCall.name }}</span>
+                  <span class="tool-name">{{ toolCall.toolName }}</span>
                   <span class="tool-status">{{ toolCall.status === 'pending' ? '执行中...' : toolCall.status }}</span>
                 </div>
                 <div class="tool-input">
-                  <pre>{{ JSON.stringify(toolCall.input, null, 2) }}</pre>
+                  <pre>{{ JSON.stringify(toolCall.toolInput, null, 2) }}</pre>
                 </div>
-                <div v-if="toolCall.output" class="tool-output">
-                  <pre>{{ formatToolOutput(toolCall.output) }}</pre>
+                <div v-if="toolCall.toolOutput" class="tool-output">
+                  <pre>{{ formatToolOutput(toolCall.toolOutput) }}</pre>
                 </div>
               </div>
             </div>
@@ -339,7 +339,7 @@ function handleStepClick(toolCallId: string) {
           <!-- 活动工具调用 -->
           <div v-if="activeToolCalls.length > 0" class="active-tools">
             <div v-for="tool in activeToolCalls" :key="tool.id" class="tool-call active">
-              <span class="tool-name">{{ tool.name }}</span>
+              <span class="tool-name">{{ tool.toolName }}</span>
               <NSpin size="small" />
             </div>
           </div>
