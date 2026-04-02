@@ -258,17 +258,17 @@ function switchToForgotPassword() {
           </div>
           <p v-if="loginError" class="auth-error">{{ loginError }}</p>
           <button
-            @click="handleLogin"
             class="auth-btn primary"
             :disabled="loginLoading || !isLoginFormValid"
+            @click="handleLogin"
           >
             <span v-if="loginLoading" class="btn-loader"></span>
             {{ loginLoading ? '登录中...' : '登录' }}
           </button>
           <div class="auth-links">
-            <a @click="switchToForgotPassword" class="auth-link">忘记密码？</a>
+            <a class="auth-link" @click="switchToForgotPassword">忘记密码？</a>
             <span class="auth-divider">·</span>
-            <a @click="switchToRegister" class="auth-link">注册账号</a>
+            <a class="auth-link" @click="switchToRegister">注册账号</a>
           </div>
         </div>
 
@@ -296,9 +296,9 @@ function switchToForgotPassword() {
               maxlength="6"
             />
             <button
-              @click="handleSendRegisterCode"
               class="auth-btn small"
               :disabled="registerCodeSending || !registerEmail.includes('@')"
+              @click="handleSendRegisterCode"
             >
               {{ registerCodeSending ? '发送中...' : registerCodeSent ? '已发送' : '获取验证码' }}
             </button>
@@ -323,15 +323,15 @@ function switchToForgotPassword() {
           </div>
           <p v-if="registerError" class="auth-error">{{ registerError }}</p>
           <button
-            @click="handleRegister"
             class="auth-btn primary"
             :disabled="registerLoading || !isRegisterFormValid"
+            @click="handleRegister"
           >
             <span v-if="registerLoading" class="btn-loader"></span>
             {{ registerLoading ? '注册中...' : '注册' }}
           </button>
           <div class="auth-links">
-            <a @click="switchToLogin" class="auth-link">已有账号？登录</a>
+            <a class="auth-link" @click="switchToLogin">已有账号？登录</a>
           </div>
         </div>
 
@@ -359,9 +359,9 @@ function switchToForgotPassword() {
               maxlength="6"
             />
             <button
-              @click="handleSendForgotCode"
               class="auth-btn small"
               :disabled="forgotCodeSending || !forgotEmail.includes('@')"
+              @click="handleSendForgotCode"
             >
               {{ forgotCodeSending ? '发送中...' : forgotCodeSent ? '已发送' : '获取验证码' }}
             </button>
@@ -378,15 +378,15 @@ function switchToForgotPassword() {
           </div>
           <p v-if="forgotError" class="auth-error">{{ forgotError }}</p>
           <button
-            @click="handleResetPassword"
             class="auth-btn primary"
             :disabled="forgotLoading || !isForgotFormValid"
+            @click="handleResetPassword"
           >
             <span v-if="forgotLoading" class="btn-loader"></span>
             {{ forgotLoading ? '重置中...' : '重置密码' }}
           </button>
           <div class="auth-links">
-            <a @click="switchToLogin" class="auth-link">想起密码了？登录</a>
+            <a class="auth-link" @click="switchToLogin">想起密码了？登录</a>
           </div>
         </div>
       </div>

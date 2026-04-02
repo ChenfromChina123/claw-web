@@ -53,8 +53,8 @@ defineExpose({
       <NButton 
         type="primary"
         :disabled="!inputValue.trim() || disabled"
-        @click="handleSend"
         class="send-button"
+        @click="handleSend"
       >
         发送
       </NButton>

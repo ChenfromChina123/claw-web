@@ -43,8 +43,8 @@ function getPreviewStyle(theme: ThemeConfig): Record<string, string> {
     <!-- 触发按钮 -->
     <button
       class="theme-trigger"
-      @click="showPicker = !showPicker"
       :title="`当前主题: ${themes.find(t => t.id === currentThemeId)?.name}`"
+      @click="showPicker = !showPicker"
     >
       <span class="theme-icon">{{ themes.find(t => t.id === currentThemeId)?.icon }}</span>
       <span class="theme-label">主题</span>

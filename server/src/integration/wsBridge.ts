@@ -203,12 +203,12 @@ export class WebSocketManager {
   // ==================== Connection Management ====================
 
   addConnection(ws: unknown, connectionId: string, remoteAddress?: string): WebSocketConnection {
-    const connection = new WebSocketConnection(connectionId, ws as unknown as globalThis.WebSocket, remoteAddress)
+    const connection = new WebSocketConnection(connectionId, ws as WebSocket, remoteAddress)
     this.connections.set(connectionId, connection)
     
     connection.on('message', (msg) => this.handleMessage(connection, msg))
     connection.on('close', () => this.handleClose(connection))
-    connection.on('error', (err) => this.handleError(connection, err))
+    connection.on('error', (err: unknown) => this.handleError(connection, err instanceof Error ? err : new Error(String(err))))
     
     return connection
   }
@@ -325,7 +325,7 @@ export class WebSocketManager {
           code: 'METHOD_NOT_FOUND',
           message: `Method '${request.method}' not found`,
         },
-      } as RPCResponse & { type: 'rpc_response' })
+      } as unknown as WebSocketMessage)
       return
     }
 
@@ -340,7 +340,7 @@ export class WebSocketManager {
           code: 'TIMEOUT',
           message: `Method '${request.method}' timed out after ${timeout}ms`,
         },
-      } as RPCResponse & { type: 'rpc_response' })
+      } as unknown as WebSocketMessage)
     }, timeout)
 
     handler
@@ -352,7 +352,7 @@ export class WebSocketManager {
           id: request.id,
           success: true,
           result,
-        } as RPCResponse & { type: 'rpc_response' })
+        } as unknown as WebSocketMessage)
       })
       .catch((error) => {
         clearTimeout(timeoutId)
@@ -391,12 +391,12 @@ export class WebSocketManager {
       this.broadcastChannels.set(channel, new Set())
     }
     this.broadcastChannels.get(channel)!.add(connection.id)
-    connection.send({ type: 'subscribed', channel })
+    connection.send({ type: 'subscribed' as any, channel })
   }
 
   private handleUnsubscribe(connection: WebSocketConnection, channel: string): void {
     this.broadcastChannels.get(channel)?.delete(connection.id)
-    connection.send({ type: 'unsubscribed', channel })
+    connection.send({ type: 'unsubscribed' as any, channel })
   }
 
   broadcast(channel: string, message: WebSocketMessage, excludeConnectionId?: string): number {
@@ -511,7 +511,7 @@ export class WebSocketManager {
     if (this.cleanupInterval) clearInterval(this.cleanupInterval)
     
     for (const [, connection] of this.connections) {
-      connection.send({ type: 'shutdown', message: 'Server is shutting down' })
+      connection.send({ type: 'shutdown' as any, message: 'Server is shutting down' })
       connection.disconnect()
     }
     this.connections.clear()

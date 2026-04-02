@@ -150,6 +150,48 @@ claude-code-haha/
 - **数据库**: PostgreSQL + Redis
 - **AI**: Anthropic Claude API / 通义千问 API
 
+## 开发工具配置
+
+### 代码质量检查
+
+项目已配置以下工具用于实时代码检查：
+
+- **TypeScript ESLint** - TypeScript 代码检查
+- **ESLint** - JavaScript/TypeScript/Vue 代码规范
+- **Prettier** - 代码格式化
+
+### VS Code 推荐插件
+
+为获得最佳开发体验，请安装以下 VS Code 插件：
+
+1. **ESLint** (`dbaeumer.vscode-eslint`) - 实时 ESLint 错误检查
+2. **Prettier - Code formatter** (`esbenp.prettier-vscode`) - 代码格式化
+3. **Volar** (`Vue.volar`) - Vue 3 语言支持
+4. **TypeScript Hero** (`rbbit.typescript-hero`) - TypeScript 导入管理
+
+### 自动检查功能
+
+配置完成后，VS Code 将自动：
+
+- ✅ 保存时自动格式化代码
+- ✅ 保存时自动修复 ESLint 错误
+- ✅ 实时显示 TypeScript 类型错误
+- ✅ 实时显示 ESLint 规范错误
+- ✅ 自动组织导入语句
+
+### 手动运行检查
+
+```bash
+# 进入 web 目录
+cd web
+
+# 运行 ESLint 检查
+npm run lint
+
+# 修复可自动修复的问题
+npm run lint -- --fix
+```
+
 ## 许可证
 
 MIT

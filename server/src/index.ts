@@ -350,8 +350,8 @@ async function handleAuthRoutes(path: string, method: string, request: Request):
 
   if (path === '/api/auth/register/send-code' && method === 'POST') {
     try {
-      const body = await request.json()
-      const email = body.email as string
+      const body = await request.json() as { email: string }
+      const email = body.email
       await authService.sendRegisterCode(email)
       return createSuccessResponse({ message: '验证码已发送到您的邮箱' })
     } catch (error) {
@@ -362,7 +362,7 @@ async function handleAuthRoutes(path: string, method: string, request: Request):
 
   if (path === '/api/auth/register' && method === 'POST') {
     try {
-      const body = await request.json()
+      const body = await request.json() as RegisterRequest
       const registerRequest: RegisterRequest = {
         email: body.email,
         username: body.username,
@@ -379,7 +379,7 @@ async function handleAuthRoutes(path: string, method: string, request: Request):
 
   if (path === '/api/auth/login' && method === 'POST') {
     try {
-      const body = await request.json()
+      const body = await request.json() as LoginRequest
       const loginRequest: LoginRequest = {
         email: body.email,
         password: body.password,
@@ -394,8 +394,8 @@ async function handleAuthRoutes(path: string, method: string, request: Request):
 
   if (path === '/api/auth/forgot-password/send-code' && method === 'POST') {
     try {
-      const body = await request.json()
-      const email = body.email as string
+      const body = await request.json() as { email: string }
+      const email = body.email
       await authService.sendForgotPasswordCode(email)
       return createSuccessResponse({ message: '验证码已发送到您的邮箱' })
     } catch (error) {
@@ -406,7 +406,7 @@ async function handleAuthRoutes(path: string, method: string, request: Request):
 
   if (path === '/api/auth/forgot-password' && method === 'POST') {
     try {
-      const body = await request.json()
+      const body = await request.json() as ResetPasswordRequest
       const resetRequest: ResetPasswordRequest = {
         email: body.email,
         code: body.code,
@@ -540,7 +540,7 @@ async function startServer() {
             sessionId: null,
             token: null,
             sendEvent: null,
-          } as WebSocketData,
+          },
         })
 
         if (!success) {
@@ -626,9 +626,9 @@ async function startServer() {
           return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
         }
         try {
-          const body = await req.json()
-          const title = body.title as string || '新对话'
-          const model = body.model as string || 'qwen-plus'
+          const body = await req.json() as { title?: string; model?: string }
+          const title = body.title || '新对话'
+          const model = body.model || 'qwen-plus'
           const session = await sessionManager.createSession(auth.userId, title, model)
           return createSuccessResponse(session)
         } catch (error) {
@@ -670,7 +670,7 @@ async function startServer() {
         }
         const sessionId = updateSessionMatch[1]
         try {
-          const body = await req.json()
+          const body = await req.json() as { title?: string; model?: string; isPinned?: boolean }
           const updates: { title?: string; model?: string; isPinned?: boolean } = {}
           if (body.title !== undefined) updates.title = body.title
           if (body.model !== undefined) updates.model = body.model

@@ -73,10 +73,10 @@ function formatTime(date: Date | string) {
 
 <template>
   <NLayoutSider
+    v-model:collapsed="collapsed"
     bordered
     :width="280"
     :collapsed-width="0"
-    v-model:collapsed="collapsed"
     show-trigger
     content-style="padding: 0;"
   >
@@ -122,8 +122,8 @@ function formatTime(date: Date | string) {
             </div>
             <NDropdown
               :options="sessionOptions"
-              @select="(key) => handleSessionContext(key, session)"
               trigger="click"
+              @select="(key) => handleSessionContext(key, session)"
             >
               <NButton text size="tiny" @click.stop>
                 ⋮

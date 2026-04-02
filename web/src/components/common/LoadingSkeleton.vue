@@ -70,13 +70,15 @@ const defaultHeight = computed(() => {
     </template>
 
     <!-- 头像骨架 -->
-    <div v-else-if="type === 'avatar'"
+    <div
+v-else-if="type === 'avatar'"
          class="skeleton-avatar skeleton-shimmer"
          :style="[computedStyle, { height: defaultHeight, width: width || defaultHeight, borderRadius: radius || '50%' }]"
     />
 
     <!-- 按钮骨架 -->
-    <div v-else-if="type === 'button'"
+    <div
+v-else-if="type === 'button'"
          class="skeleton-button skeleton-shimmer"
          :style="[computedStyle, { height: defaultHeight, borderRadius: radius || '8px', width: width || '120px' }]"
     />
@@ -96,7 +98,8 @@ const defaultHeight = computed(() => {
     </div>
 
     <!-- 自定义骨架 -->
-    <div v-else
+    <div
+v-else
          class="skeleton-custom skeleton-shimmer"
          :style="[computedStyle, { borderRadius: radius || '8px' }]"
     />

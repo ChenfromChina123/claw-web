@@ -1,0 +1,56 @@
+{
+  "typescript.enable": true,
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.validate.enable": true,
+  "typescript.tsserver.enableTracing": false,
+  
+  "eslint.enable": true,
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact",
+    "vue"
+  ],
+  "eslint.options": {
+    "cache": true
+  },
+  "eslint.run": "onType",
+  "eslint.format.enable": true,
+  "eslint.workingDirectories": [
+    { "mode": "auto" }
+  ],
+  
+  "prettier.enable": true,
+  "prettier.configPath": ".prettierrc.cjs",
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "explicit"
+  },
+  
+  "vue.languageFeatures.codeActions": true,
+  "vue.languageFeatures.completions": true,
+  "vue.languageFeatures.diagnostics": true,
+  "vue.languageFeatures.semanticTokens": true,
+  
+  "[vue]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  
+  "files.eol": "\r\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true
+}
