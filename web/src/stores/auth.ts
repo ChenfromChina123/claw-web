@@ -109,6 +109,27 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token')
   }
 
+  /**
+   * 处理OAuth登录回调
+   * @param oauthData OAuth返回的数据
+   */
+  function handleOAuthLogin(oauthData: {
+    accessToken: string
+    userId: string
+    username: string
+    email: string
+    avatar?: string
+  }): void {
+    token.value = oauthData.accessToken
+    user.value = {
+      id: oauthData.userId,
+      username: oauthData.username,
+      email: oauthData.email,
+      avatar: oauthData.avatar || '/avatars/default.png',
+    }
+    localStorage.setItem('token', oauthData.accessToken)
+  }
+
   return {
     user,
     token,
@@ -120,6 +141,7 @@ export const useAuthStore = defineStore('auth', () => {
     sendForgotPasswordCode,
     resetPassword,
     fetchUser,
-    logout
+    logout,
+    handleOAuthLogin
   }
 })
