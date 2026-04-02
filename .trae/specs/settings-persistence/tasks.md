@@ -14,15 +14,15 @@
   - [x] 修改 useTheme hook，使用 settings store
   - [x] 确保主题切换自动保存
 
-- [ ] Task 4: 更新 Settings 页面
-  - [ ] 使用 settings store 替代本地 state
-  - [ ] 实现实时保存功能
-  - [ ] 优化 UI 交互体验
+- [x] Task 4: 更新 Settings 页面
+  - [x] 使用 settings store 替代本地 state
+  - [x] 实现实时保存功能
+  - [x] 优化 UI 交互体验
 
-- [ ] Task 5: 测试验证
-  - [ ] 测试主题切换持久化
-  - [ ] 测试设置修改持久化
-  - [ ] 测试页面刷新后数据保持
+- [x] Task 5: 测试验证
+  - [x] 测试主题切换持久化
+  - [x] 测试设置修改持久化
+  - [x] 测试页面刷新后数据保持
 
 # Task Dependencies
 - Task 2 依赖于 Task 1
