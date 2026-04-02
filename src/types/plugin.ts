@@ -289,8 +289,8 @@ export type PluginLoadResult = {
 }
 
 /**
- * Helper function to get a display message from any PluginError
- * Useful for logging and simple error displays
+ * 从任何 PluginError 获取显示消息的帮助函数。
+ * 用于日志记录和简单的错误显示
  */
 export function getPluginErrorMessage(error: PluginError): string {
   switch (error.type) {

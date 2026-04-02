@@ -7,22 +7,23 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
   const token = ref<string | null>(localStorage.getItem('token'))
   const loading = ref(false)
-  
+
   const isLoggedIn = computed(() => !!token.value)
-  
+
   async function login(email: string, password: string) {
     loading.value = true
     try {
       const response = await authApi.login({ email, password })
-      if (response.data.success && response.data.data) {
-        token.value = response.data.data.accessToken
+      // response 已经是 ApiResponse<AuthResponse>，直接访问 .success 和 .data
+      if (response.success && response.data) {
+        token.value = response.data.accessToken
         user.value = {
-          id: response.data.data.userId,
-          username: response.data.data.username,
-          email: response.data.data.email,
-          avatar: response.data.data.avatar,
+          id: response.data.userId,
+          username: response.data.username,
+          email: response.data.email,
+          avatar: response.data.avatar,
         }
-        localStorage.setItem('token', response.data.data.accessToken)
+        localStorage.setItem('token', response.data.accessToken)
         return true
       }
       return false
@@ -33,12 +34,12 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = false
     }
   }
-  
+
   async function register(email: string, username: string, password: string, code: string) {
     loading.value = true
     try {
       const response = await authApi.register({ email, username, password, code })
-      if (response.data.success) {
+      if (response.success) {
         return true
       }
       return false
@@ -49,11 +50,11 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = false
     }
   }
-  
+
   async function sendRegisterCode(email: string) {
     try {
       const response = await authApi.sendRegisterCode(email)
-      if (response.data.success) {
+      if (response.success) {
         return true
       }
       return false
@@ -66,7 +67,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function sendForgotPasswordCode(email: string) {
     try {
       const response = await authApi.sendForgotPasswordCode(email)
-      if (response.data.success) {
+      if (response.success) {
         return true
       }
       return false
@@ -79,7 +80,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function resetPassword(email: string, code: string, newPassword: string) {
     try {
       const response = await authApi.resetPassword({ email, code, newPassword })
-      if (response.data.success) {
+      if (response.success) {
         return true
       }
       return false
@@ -88,26 +89,26 @@ export const useAuthStore = defineStore('auth', () => {
       return false
     }
   }
-  
+
   async function fetchUser() {
     if (!token.value) return
     try {
-      const response = await authApi.getMe()
-      if (response.data.success && response.data.data) {
-        user.value = response.data.data
+      const response = await authApi.getCurrentUser()
+      if (response.success && response.data) {
+        user.value = response.data
       }
     } catch (error) {
       console.error('Fetch user failed:', error)
       logout()
     }
   }
-  
+
   function logout() {
     user.value = null
     token.value = null
     localStorage.removeItem('token')
   }
-  
+
   return {
     user,
     token,

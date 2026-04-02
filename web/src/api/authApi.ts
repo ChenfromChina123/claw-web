@@ -9,6 +9,7 @@ import type {
   ResetPasswordRequest,
   AuthResponse,
   User,
+  ApiResponse,
 } from '@/types'
 
 export interface SendCodeResponse {
@@ -19,26 +20,26 @@ export const authApi = {
   /**
    * 发送注册验证码
    */
-  async sendRegisterCode(email: string): Promise<SendCodeResponse> {
-    const { data } = await apiClient.post<SendCodeResponse>('/auth/register/send-code', { email })
+  async sendRegisterCode(email: string): Promise<ApiResponse<SendCodeResponse>> {
+    const { data } = await apiClient.post<ApiResponse<SendCodeResponse>>('/auth/register/send-code', { email })
     return data
   },
 
   /**
    * 用户注册
    */
-  async register(request: RegisterRequest): Promise<AuthResponse> {
-    const { data } = await apiClient.post<AuthResponse>('/auth/register', request)
+  async register(request: RegisterRequest): Promise<ApiResponse<AuthResponse>> {
+    const { data } = await apiClient.post<ApiResponse<AuthResponse>>('/auth/register', request)
     return data
   },
 
   /**
    * 用户登录
    */
-  async login(request: LoginRequest): Promise<AuthResponse> {
-    const { data } = await apiClient.post<AuthResponse>('/auth/login', request)
-    if (data.accessToken) {
-      localStorage.setItem('token', data.accessToken)
+  async login(request: LoginRequest): Promise<ApiResponse<AuthResponse>> {
+    const { data } = await apiClient.post<ApiResponse<AuthResponse>>('/auth/login', request)
+    if (data.data?.accessToken) {
+      localStorage.setItem('token', data.data.accessToken)
     }
     return data
   },
@@ -46,24 +47,24 @@ export const authApi = {
   /**
    * 发送忘记密码验证码
    */
-  async sendForgotPasswordCode(email: string): Promise<SendCodeResponse> {
-    const { data } = await apiClient.post<SendCodeResponse>('/auth/forgot-password/send-code', { email })
+  async sendForgotPasswordCode(email: string): Promise<ApiResponse<SendCodeResponse>> {
+    const { data } = await apiClient.post<ApiResponse<SendCodeResponse>>('/auth/forgot-password/send-code', { email })
     return data
   },
 
   /**
    * 重置密码
    */
-  async resetPassword(request: ResetPasswordRequest): Promise<{ message: string }> {
-    const { data } = await apiClient.post<{ message: string }>('/auth/forgot-password', request)
+  async resetPassword(request: ResetPasswordRequest): Promise<ApiResponse<{ message: string }>> {
+    const { data } = await apiClient.post<ApiResponse<{ message: string }>>('/auth/forgot-password', request)
     return data
   },
 
   /**
    * 获取当前用户信息
    */
-  async getCurrentUser(): Promise<User> {
-    const { data } = await apiClient.get<User>('/auth/me')
+  async getCurrentUser(): Promise<ApiResponse<User>> {
+    const { data } = await apiClient.get<ApiResponse<User>>('/auth/me')
     return data
   },
 

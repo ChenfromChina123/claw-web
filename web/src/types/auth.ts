@@ -2,6 +2,18 @@
  * 认证相关类型定义
  */
 
+/**
+ * API 统一响应格式
+ */
+export interface ApiResponse<T = unknown> {
+  success: boolean
+  data?: T
+  error?: {
+    code: string
+    message: string
+  }
+}
+
 export interface User {
   id: string
   username: string
