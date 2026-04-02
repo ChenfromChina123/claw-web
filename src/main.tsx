@@ -648,10 +648,10 @@ export async function main() {
       process.exit(exitCode);
     }
 
-    // macOS URL handler: when LaunchServices launches our .app bundle, the
-    // URL arrives via Apple Event (not argv). LaunchServices overwrites
-    // __CFBundleIdentifier to the launching bundle's ID, which is a precise
-    // positive signal — cheaper than importing and guessing with heuristics.
+    // macOS URL 处理程序：当 LaunchServices 启动我们的 .app 包时，
+    // URL 通过 Apple Event（而不是 argv）到达。LaunchServices 会覆盖
+    // __CFBundleIdentifier 为启动包的 ID，这是一个精确的正面信号
+    // —— 比导入和使用启发式方法猜测更便宜。
     if (process.platform === 'darwin' && process.env.__CFBundleIdentifier === 'com.anthropic.claude-code-url-handler') {
       const {
         enableConfigs
@@ -665,12 +665,11 @@ export async function main() {
     }
   }
 
-  // `claude assistant [sessionId]` — stash and strip so the main
-  // command handles it, giving the full interactive TUI. Position-0 only
-  // (matching the ssh pattern below) — indexOf would false-positive on
-  // `claude -p "explain assistant"`. Root-flag-before-subcommand
-  // (e.g. `--debug assistant`) falls through to the stub, which
-  // prints usage.
+  // `claude assistant [sessionId]` — 暂存并剥离，以便主命令处理它，
+  // 提供完整的交互式 TUI。仅限位置 0（与下面的 ssh 模式匹配）
+  // —— indexOf 会在 `claude -p "explain assistant"` 上产生误报。
+  // 子命令前的根标志（例如 `--debug assistant`）会落入存根，
+  // 该存根打印用法信息。
   if (feature('KAIROS') && _pendingAssistantChat) {
     const rawArgs = process.argv.slice(2);
     if (rawArgs[0] === 'assistant') {
@@ -684,22 +683,20 @@ export async function main() {
         rawArgs.splice(0, 1); // drop 'assistant'
         process.argv = [process.argv[0]!, process.argv[1]!, ...rawArgs];
       }
-      // else: `claude assistant --help` → fall through to stub
+      // 否则：`claude assistant --help` → 落入存根
     }
   }
 
-  // `claude ssh <host> [dir]` — strip from argv so the main command handler
-  // runs (full interactive TUI), stash the host/dir for the REPL branch at
-  // ~line 3720 to pick up. Headless (-p) mode not supported in v1: SSH
-  // sessions need the local REPL to drive them (interrupt, permissions).
+  // `claude ssh <host> [dir]` — 从 argv 中剥离，以便主命令处理程序运行
+  // （完整的交互式 TUI），将 host/dir 暂存到 REPL 分支以供第 3720 行左右获取。
+  // v1 中不支持无头模式（-p）：SSH 会话需要本地 REPL 来驱动它们（中断、权限）。
   if (feature('SSH_REMOTE') && _pendingSSH) {
     const rawCliArgs = process.argv.slice(2);
-    // SSH-specific flags can appear before the host positional (e.g.
-    // `ssh --permission-mode auto host /tmp` — standard POSIX flags-before-
-    // positionals). Pull them all out BEFORE checking whether a host was
-    // given, so `claude ssh --permission-mode auto host` and `claude ssh host
-    // --permission-mode auto` are equivalent. The host check below only needs
-    // to guard against `-h`/`--help` (which commander should handle).
+    // SSH 特定的标志可以出现在主机位置参数之前（例如
+    // `ssh --permission-mode auto host /tmp` —— 标准的 POSIX 位置参数前标志）。
+    // 在检查是否提供了主机之前将它们全部拉出，因此
+    // `claude ssh --permission-mode auto host` 和 `claude ssh host --permission-mode auto` 是等效的。
+    // 下面的主机检查只需要防范 `-h`/`--help`（commander 应该处理）。
     if (rawCliArgs[0] === 'ssh') {
       const localIdx = rawCliArgs.indexOf('--local');
       if (localIdx !== -1) {
@@ -721,10 +718,10 @@ export async function main() {
         _pendingSSH.permissionMode = rawCliArgs[pmEqIdx]!.split('=')[1];
         rawCliArgs.splice(pmEqIdx, 1);
       }
-      // Forward session-resume + model flags to the remote CLI's initial spawn.
-      // --continue/-c and --resume <uuid> operate on the REMOTE session history
-      // (which persists under the remote's ~/.claude/projects/<cwd>/).
-      // --model controls which model the remote uses.
+      // 将会话恢复 + 模型标志转发到远程 CLI 的初始生成。
+      // --continue/-c 和 --resume <uuid> 在远程会话历史上操作
+      // （它持久化在远程的 ~/.claude/projects/<cwd>/ 下）。
+      // --model 控制远程使用哪个模型。
       const extractFlag = (flag: string, opts: {
         hasValue?: boolean;
         as?: string;
@@ -757,12 +754,12 @@ export async function main() {
         hasValue: true
       });
     }
-    // After pre-extraction, any remaining dash-arg at [1] is either -h/--help
-    // (commander handles) or an unknown-to-ssh flag (fall through to commander
-    // so it surfaces a proper error). Only a non-dash arg is the host.
+    // 预提取后，[1] 处任何剩余的短横线参数要么是 -h/--help
+    // （commander 处理），要么是 ssh 未知的标志（落入 commander
+    // 以便它显示适当的错误）。只有非短横线参数才是主机。
     if (rawCliArgs[0] === 'ssh' && rawCliArgs[1] && !rawCliArgs[1].startsWith('-')) {
       _pendingSSH.host = rawCliArgs[1];
-      // Optional positional cwd.
+      // 可选的位置参数 cwd。
       let consumed = 2;
       if (rawCliArgs[2] && !rawCliArgs[2].startsWith('-')) {
         _pendingSSH.cwd = rawCliArgs[2];
@@ -770,40 +767,40 @@ export async function main() {
       }
       const rest = rawCliArgs.slice(consumed);
 
-      // Headless (-p) mode is not supported with SSH in v1 — reject early
-      // so the flag doesn't silently cause local execution.
+      // v1 中 SSH 不支持无头模式（-p）——尽早拒绝，
+      // 以便该标志不会静默地导致本地执行。
       if (rest.includes('-p') || rest.includes('--print')) {
         process.stderr.write('Error: headless (-p/--print) mode is not supported with claude ssh\n');
         gracefulShutdownSync(1);
         return;
       }
 
-      // Rewrite argv so the main command sees remaining flags but not `ssh`.
+      // 重写 argv，以便主命令看到剩余的标志但看不到 `ssh`。
       process.argv = [process.argv[0]!, process.argv[1]!, ...rest];
     }
   }
 
-  // Check for -p/--print and --init-only flags early to set isInteractiveSession before init()
-  // This is needed because telemetry initialization calls auth functions that need this flag
+  // 尽早检查 -p/--print 和 --init-only 标志，以便在 init() 之前设置 isInteractiveSession
+  // 这是必需的，因为遥测初始化会调用需要此标志的认证函数
   const cliArgs = process.argv.slice(2);
   const hasPrintFlag = cliArgs.includes('-p') || cliArgs.includes('--print');
   const hasInitOnlyFlag = cliArgs.includes('--init-only');
   const hasSdkUrl = cliArgs.some(arg => arg.startsWith('--sdk-url'));
   const isNonInteractive = hasPrintFlag || hasInitOnlyFlag || hasSdkUrl || !process.stdout.isTTY;
 
-  // Stop capturing early input for non-interactive modes
+  // 停止为非交互模式捕获早期输入
   if (isNonInteractive) {
     stopCapturingEarlyInput();
   }
 
-  // Set simplified tracking fields
+  // 设置简化的跟踪字段
   const isInteractive = !isNonInteractive;
   setIsInteractive(isInteractive);
 
-  // Initialize entrypoint based on mode - needs to be set before any event is logged
+  // 基于模式初始化入口点 - 需要在记录任何事件之前设置
   initializeEntrypoint(isNonInteractive);
 
-  // Determine client type
+  // 确定客户端类型
   const clientType = (() => {
     if (isEnvTruthy(process.env.GITHUB_ACTIONS)) return 'github-action';
     if (process.env.CLAUDE_CODE_ENTRYPOINT === 'sdk-ts') return 'sdk-typescript';
@@ -813,7 +810,7 @@ export async function main() {
     if (process.env.CLAUDE_CODE_ENTRYPOINT === 'local-agent') return 'local-agent';
     if (process.env.CLAUDE_CODE_ENTRYPOINT === 'claude-desktop') return 'claude-desktop';
 
-    // Check if session-ingress token is provided (indicates remote session)
+    // 检查是否提供了会话入口令牌（表示远程会话）
     const hasSessionIngressToken = process.env.CLAUDE_CODE_SESSION_ACCESS_TOKEN || process.env.CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR;
     if (process.env.CLAUDE_CODE_ENTRYPOINT === 'remote' || hasSessionIngressToken) {
       return 'remote';
@@ -825,19 +822,19 @@ export async function main() {
   if (previewFormat === 'markdown' || previewFormat === 'html') {
     setQuestionPreviewFormat(previewFormat);
   } else if (!clientType.startsWith('sdk-') &&
-  // Desktop and CCR pass previewFormat via toolConfig; when the feature is
-  // gated off they pass undefined — don't override that with markdown.
+  // Desktop 和 CCR 通过 toolConfig 传递 previewFormat；当功能被关闭时
+  // 它们传递 undefined —— 不要用 markdown 覆盖它。
   clientType !== 'claude-desktop' && clientType !== 'local-agent' && clientType !== 'remote') {
     setQuestionPreviewFormat('markdown');
   }
 
-  // Tag sessions created via `claude remote-control` so the backend can identify them
+  // 标记通过 `claude remote-control` 创建的会话，以便后端可以识别它们
   if (process.env.CLAUDE_CODE_ENVIRONMENT_KIND === 'bridge') {
     setSessionSource('remote-control');
   }
   profileCheckpoint('main_client_type_determined');
 
-  // Parse and load settings flags early, before init()
+  // 在 init() 之前尽早解析和加载设置标志
   eagerLoadSettings();
   profileCheckpoint('main_before_run');
   await run();
