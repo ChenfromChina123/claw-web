@@ -92,25 +92,27 @@ export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
 }
 
-export function debounce<T extends (...args: unknown[]) => unknown>(
-  func: T,
+ 
+export function debounce<T extends unknown[]>(
+  func: (...args: T) => unknown,
   wait: number
-): (...args: Parameters<T>) => void {
+): (...args: T) => void {
   let timeoutId: ReturnType<typeof setTimeout>
 
-  return function (this: unknown, ...args: Parameters<T>) {
+  return function (this: unknown, ...args: T) {
     clearTimeout(timeoutId)
     timeoutId = setTimeout(() => func.apply(this, args), wait)
   }
 }
 
-export function throttle<T extends (...args: unknown[]) => unknown>(
-  func: T,
+ 
+export function throttle<T extends unknown[]>(
+  func: (...args: T) => unknown,
   limit: number
-): (...args: Parameters<T>) => void {
+): (...args: T) => void {
   let inThrottle = false
 
-  return function (this: unknown, ...args: Parameters<T>) {
+  return function (this: unknown, ...args: T) {
     if (!inThrottle) {
       func.apply(this, args)
       inThrottle = true

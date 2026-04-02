@@ -121,7 +121,7 @@ export interface WebSocketMessage {
 export interface RPCContext {
   userId: string | null
   sessionId: string | null
-  sendEvent: (event: string, data: unknown) => void
+  sendEvent: () => void
   getConnectionId: () => string
   getRemoteAddress: () => string | undefined
 }

@@ -67,7 +67,7 @@ const outputStats = computed(() => {
     stats.lines = output.split('\n').length
     
     // 提取文件
-    const fileMatches = output.match(/[\w\-.\\\/]+\.(ts|tsx|js|jsx|json|md|txt|py|html|css|vue)/gi)
+    const fileMatches = output.match(/[\w\-.\\/]+\.(ts|tsx|js|jsx|json|md|txt|py|html|css|vue)/gi)
     if (fileMatches) {
       stats.files = [...new Set(fileMatches)] as string[]
     }

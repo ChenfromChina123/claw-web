@@ -251,7 +251,7 @@ function parseToolOutput(_toolName: string, output: unknown): {
     result.summary = truncateString(output, 150)
     
     // 尝试提取文件列表
-    const fileMatches = output.match(/[\w\-.\\\/]+\.(ts|tsx|js|jsx|json|md|txt|py|html|css)/gi)
+    const fileMatches = output.match(/[\w\-.\\/]+\.(ts|tsx|js|jsx|json|md|txt|py|html|css)/gi)
     if (fileMatches) {
       result.metrics = { files: fileMatches.length }
       result.details.push(`涉及 ${fileMatches.length} 个文件`)

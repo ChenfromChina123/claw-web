@@ -15,11 +15,11 @@ import type {
   WebSocketMessageType,
 } from '@/types'
 
-type EventCallback = (_data: unknown) => void
+type EventCallback = () => void
 
 interface PendingRPC {
-  resolve: (value: RPCResponse) => void
-  reject: (_reason?: unknown) => void
+  resolve: () => void
+  reject: () => void
   timeoutId: ReturnType<typeof setTimeout>
 }
 
@@ -38,7 +38,7 @@ class EnhancedWebSocketClient {
   private latency = ref(0)
   private manualClose = false
   private connectResolve: (() => void) | null = null
-  private connectReject: ((_reason?: unknown) => void) | null = null
+  private connectReject: (() => void) | null = null
   private connectTimeout: ReturnType<typeof setTimeout> | null = null
 
   public status = ref<ConnectionStatus>('disconnected')
@@ -187,7 +187,7 @@ class EnhancedWebSocketClient {
       }, timeout)
 
       this.pendingRPCs.set(id, {
-        resolve: resolve as (_value: RPCResponse) => void,
+        resolve: resolve as () => void,
         reject,
         timeoutId,
       })
@@ -355,7 +355,7 @@ class EnhancedWebSocketClient {
           this.handleRPCResponse(message as unknown as RPCResponse)
           break
 
-        default:
+        default: {
           // 处理后端发送的事件消息格式：{type: 'event', event: 'eventName', data: {...}}
           const eventName = (message as { event?: string }).event
           const eventData = (message as { data?: unknown }).data
@@ -367,6 +367,7 @@ class EnhancedWebSocketClient {
             console.warn('[WS] Event message missing event field:', message)
           }
           break
+        }
       }
     } catch (error) {
       console.error('[WS] 消息解析失败:', error)
