@@ -59,10 +59,10 @@ defineExpose({
   <div class="chat-input">
     <div class="input-actions">
       <NButton 
-        type="primary" 
-        size="small"
+        type="primary"
         :disabled="!inputValue.trim() || disabled"
         @click="handleSend"
+        class="send-button"
       >
         发送
       </NButton>
@@ -111,37 +111,34 @@ defineExpose({
   align-items: center;
 }
 
-/* 统一按钮样式 - 使用 !important 确保优先级 */
-.input-actions :deep(.n-button) {
-  --n-color: #6366f1 !important;
-  --n-color-hover: #818cf8 !important;
-  --n-color-pressed: #4f46e5 !important;
-  --n-color-focus: #818cf8 !important;
-  --n-color-disabled: rgba(99, 102, 241, 0.5) !important;
-  --n-text-color: #ffffff !important;
-  --n-text-color-hover: #ffffff !important;
-  --n-text-color-pressed: #ffffff !important;
-  --n-text-color-focus: #ffffff !important;
-  --n-text-color-disabled: rgba(255, 255, 255, 0.5) !important;
-  --n-border: none !important;
-  --n-border-hover: none !important;
-  --n-border-pressed: none !important;
-  --n-border-focus: none !important;
-  --n-border-disabled: none !important;
-  --n-height: 40px !important;
-  --n-font-size: 14px !important;
-  --n-padding: 0 20px !important;
-  --n-border-radius: 10px !important;
+/* 发送按钮样式 */
+.send-button {
+  height: 40px !important;
+  padding: 0 24px !important;
+  font-size: 14px !important;
   font-weight: 500 !important;
-  transition: all 0.2s ease !important;
+  border-radius: 10px !important;
+  background: #6366f1 !important;
+  color: #ffffff !important;
+  border: none !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.input-actions :deep(.n-button:not(:disabled):hover) {
+.send-button:hover:not(:disabled) {
+  background: #818cf8 !important;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
 }
 
-.input-actions :deep(.n-button:not(:disabled):active) {
+.send-button:active:not(:disabled) {
+  background: #4f46e5 !important;
   transform: translateY(0);
+}
+
+.send-button:disabled {
+  background: rgba(99, 102, 241, 0.5) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+  cursor: not-allowed;
 }
 </style>
