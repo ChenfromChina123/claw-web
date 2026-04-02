@@ -262,6 +262,7 @@ function handleStepClick(toolCallId: string) {
                 v-for="(toolCall, idx) in message.toolCalls" 
                 :key="toolCall.id"
                 class="tool-step-item"
+                :class="[toolCall.status, { 'is-active': activeStep === toolCall.id }]"
               >
                 <!-- 步骤序号徽章 -->
                 <div class="step-badge">{{ idx + 1 }}</div>
@@ -596,6 +597,11 @@ function handleStepClick(toolCallId: string) {
   margin-bottom: 12px;
   position: relative;
   align-items: flex-start;
+  transition: all 0.3s ease;
+}
+
+.tool-step-item:hover {
+  transform: translateX(4px);
 }
 
 /* 步骤序号徽章 */
@@ -613,6 +619,26 @@ function handleStepClick(toolCallId: string) {
   flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
   z-index: 1;
+  transition: all 0.3s ease;
+}
+
+/* 不同状态下的徽章颜色 */
+.tool-step-item.completed .step-badge {
+  background: linear-gradient(135deg, #22c55e, #10b981);
+}
+
+.tool-step-item.error .step-badge {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.tool-step-item.executing .step-badge,
+.tool-step-item.pending .step-badge {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.tool-step-item.is-active .step-badge {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+  transform: scale(1.1);
 }
 
 /* 步骤卡片 */
@@ -628,6 +654,13 @@ function handleStepClick(toolCallId: string) {
 .step-card:hover {
   border-color: rgba(99, 102, 241, 0.4);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+}
+
+/* 激活状态的步骤卡片 */
+.tool-step-item.is-active .step-card {
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+  background: rgba(40, 40, 80, 0.8);
 }
 
 /* 步骤头部 */
@@ -674,6 +707,18 @@ function handleStepClick(toolCallId: string) {
   padding: 16px;
   border-top: 1px solid rgba(99, 102, 241, 0.15);
   background: rgba(20, 20, 40, 0.3);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 步骤摘要 */
