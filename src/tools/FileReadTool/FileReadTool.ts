@@ -93,22 +93,22 @@ import {
   userFacingName,
 } from './UI.js'
 
-// Device files that would hang the process: infinite output or blocking input.
-// Checked by path only (no I/O). Safe devices like /dev/null are intentionally omitted.
+// 会导致进程挂起的设备文件：无限输出或阻塞输入。
+// 仅按路径检查（无 I/O）。故意省略像 /dev/null 这样的安全设备。
 const BLOCKED_DEVICE_PATHS = new Set([
-  // Infinite output — never reach EOF
+  // 无限输出 — 永远无法达到 EOF
   '/dev/zero',
   '/dev/random',
   '/dev/urandom',
   '/dev/full',
-  // Blocks waiting for input
+  // 阻塞输入 — 会在等待用户输入时挂起
   '/dev/stdin',
   '/dev/tty',
   '/dev/console',
-  // Nonsensical to read
+  // 读它没有意义
   '/dev/stdout',
   '/dev/stderr',
-  // fd aliases for stdin/stdout/stderr
+  // stdin/stdout/stderr 的 fd 别名
   '/dev/fd/0',
   '/dev/fd/1',
   '/dev/fd/2',
