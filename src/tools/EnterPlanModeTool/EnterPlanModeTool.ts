@@ -54,9 +54,9 @@ export const EnterPlanModeTool: Tool<InputSchema, Output> = buildTool({
   },
   shouldDefer: true,
   isEnabled() {
-    // When --channels is active, ExitPlanMode is disabled (its approval
-    // dialog needs the terminal). Disable entry too so plan mode isn't a
-    // trap the model can enter but never leave.
+    // 当 --channels 处于活动状态时，ExitPlanMode 被禁用（其审批
+    // 对话框需要终端）。也禁用进入，这样计划模式不会成为
+    // 模型可以进入但永远无法离开的陷阱。
     if (
       (feature('KAIROS') || feature('KAIROS_CHANNELS')) &&
       getAllowedChannels().length > 0
@@ -76,15 +76,14 @@ export const EnterPlanModeTool: Tool<InputSchema, Output> = buildTool({
   renderToolUseRejectedMessage,
   async call(_input, context) {
     if (context.agentId) {
-      throw new Error('EnterPlanMode tool cannot be used in agent contexts')
+      throw new Error('EnterPlanMode 工具无法在代理上下文中使用')
     }
 
     const appState = context.getAppState()
     handlePlanModeTransition(appState.toolPermissionContext.mode, 'plan')
 
-    // Update the permission mode to 'plan'. prepareContextForPlanMode runs
-    // the classifier activation side effects when the user's defaultMode is
-    // 'auto' — see permissionSetup.ts for the full lifecycle.
+    // 当用户的 defaultMode 是 'auto' 时，prepareContextForPlanMode 运行
+    // 分类器激活副作用 —— 参见 permissionSetup.ts 获取完整生命周期。
     context.setAppState(prev => ({
       ...prev,
       toolPermissionContext: applyPermissionUpdate(
@@ -101,21 +100,21 @@ export const EnterPlanModeTool: Tool<InputSchema, Output> = buildTool({
     }
   },
   mapToolResultToToolResultBlockParam({ message }, toolUseID) {
-    const instructions = isPlanModeInterviewPhaseEnabled()
+    const instructions = isPlanPlanModeInterviewPhaseEnabled()
       ? `${message}
 
-DO NOT write or edit any files except the plan file. Detailed workflow instructions will follow.`
+请勿编写或编辑除计划文件之外的任何文件。详细的工作流程说明将随之而来。`
       : `${message}
 
-In plan mode, you should:
-1. Thoroughly explore the codebase to understand existing patterns
-2. Identify similar features and architectural approaches
-3. Consider multiple approaches and their trade-offs
-4. Use AskUserQuestion if you need to clarify the approach
-5. Design a concrete implementation strategy
-6. When ready, use ExitPlanMode to present your plan for approval
+在计划模式中，您应该：
+1. 彻底探索代码库以了解现有模式
+2. 识别类似的功能和架构方法
+3. 考虑多种方法及其权衡
+4. 如果需要澄清方法，请使用 AskUserQuestion
+5. 设计具体的实施策略
+6. 准备好后，使用 ExitPlanMode 提交您的计划供批准
 
-Remember: DO NOT write or edit any files yet. This is a read-only exploration and planning phase.`
+记住：还不要编写或编辑任何文件。这是一个只读的探索和规划阶段。`
 
     return {
       type: 'tool_result',
