@@ -586,7 +586,7 @@ class WebSocketConnection {
 
   // Send event with helper
   sendEvent(event: string, data: unknown): void {
-    this.send({ type: 'event', event, data, sessionId: this.sessionId } as WebSocketMessage)
+    this.send({ type: 'event', event, data, sessionId: this.sessionId } as unknown as WebSocketMessage)
   }
 
   // Check connection state

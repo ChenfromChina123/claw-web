@@ -26,7 +26,8 @@
     "node_modules",
     "web",
     "web/dist",
+    "server",
     "**/*.js",
-    "server"
+    "src/commands"
   ]
 }

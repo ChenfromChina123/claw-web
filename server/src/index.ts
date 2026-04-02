@@ -785,7 +785,7 @@ async function startServer() {
               ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }))
               break
 
-            case 'register':
+            case 'register' as any:
               {
                 const userId = message.userId as string || uuidv4()
                 const username = message.username as string || `user_${userId.slice(0, 8)}`
@@ -802,7 +802,7 @@ async function startServer() {
               }
               break
 
-            case 'login':
+            case 'login' as any:
               {
                 const token = message.token as string
                 if (token) {
@@ -980,7 +980,7 @@ async function startServer() {
               }
               break
 
-            case 'get_tools':
+            case 'get_tools' as any:
               sendEvent('tools', {
                 tools: toolExecutor.getAllTools().map(t => ({
                   name: t.name,
@@ -991,7 +991,7 @@ async function startServer() {
               })
               break
 
-            case 'execute_command':
+            case 'execute_command' as any:
               {
                 const commandBridge = new WebCommandBridge()
                 const command = message.command as string
@@ -1005,7 +1005,7 @@ async function startServer() {
               }
               break
 
-            case 'validate_user':
+            case 'validate_user' as any:
               {
                 const userId = message.userId as string
                 const username = message.username as string
@@ -1021,11 +1021,11 @@ async function startServer() {
               }
               break
 
-            case 'get_models':
+            case 'get_models' as any:
               ws.send(JSON.stringify({ type: 'models', models: AVAILABLE_MODELS }))
               break
 
-            case 'get_status':
+            case 'get_status' as any:
               {
                 const status = {
                   type: 'status',
