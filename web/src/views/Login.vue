@@ -369,6 +369,7 @@ function handleBlur(): void {
   transition: all var(--transition-fast, 150ms) ease;
   background: transparent;
   padding: 0 4px;
+  z-index: 10;
 }
 
 .floating-label--active {
@@ -378,6 +379,7 @@ function handleBlur(): void {
   color: var(--color-primary);
   background: var(--bg-card);
   font-weight: var(--font-weight-medium, 500);
+  z-index: 11;
 }
 
 .input-wrapper :deep(.n-input) {
