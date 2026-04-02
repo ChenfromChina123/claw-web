@@ -148,24 +148,28 @@ function formatTime(date: Date | string) {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--bg-secondary);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-right: 1px solid var(--glass-border);
 }
 
 .sidebar-header {
-  padding: 16px;
+  padding: 20px 16px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color, rgba(99, 102, 241, 0.1));
 }
 
 .sidebar-header h2 {
   font-size: 18px;
-  font-weight: 600;
-  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  font-weight: 700;
+  background: var(--gradient-text);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  letter-spacing: -0.3px;
 }
 
 .sidebar-search {
