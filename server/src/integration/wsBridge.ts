@@ -612,4 +612,4 @@ class WebSocketConnection {
 
 // Singleton instance
 export const wsManager = new WebSocketManager()
-export { WebSocketManager, WebSocketConnection }
+export { WebSocketConnection }

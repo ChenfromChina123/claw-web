@@ -1201,4 +1201,3 @@ export class EnhancedToolExecutor {
 
 // Singleton instance
 export const toolExecutor = new EnhancedToolExecutor()
-export { EnhancedToolExecutor }

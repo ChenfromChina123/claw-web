@@ -578,7 +578,7 @@ async function startServer() {
         }))
       },
 
-      message(ws, data) {
+      async message(ws, data) {
         const wsData = ws.data as WebSocketData
         
         try {
