@@ -1,41 +1,45 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { NLayout, NLayoutSider, NLayoutContent, NCard, NForm, NFormItem, NInput, NInputNumber, NSelect, NButton, NSwitch, NDivider, NSpace, useMessage } from 'naive-ui'
 import { useAuthStore } from '@/stores/auth'
+import { useSettingsStore } from '@/stores/settings'
+import { useTheme } from '@/composables/useTheme'
+import type { ThemeConfig } from '@/themes/types'
 
 const router = useRouter()
 const message = useMessage()
 const authStore = useAuthStore()
+const settingsStore = useSettingsStore()
+const { themes: availableThemes } = useTheme()
 
-const settings = ref({
-  theme: 'dark',
-  language: 'zh-CN',
-  model: 'qwen-plus',
-  temperature: 0.7,
-  maxTokens: 4096,
-  streamResponse: true,
-  soundEnabled: false
+// 从 store 获取设置
+const preferences = computed(() => settingsStore.preferences)
+const modelSettings = computed(() => settingsStore.model)
+
+// 主题选项（从可用主题列表生成）
+const themeOptions = computed(() => {
+  return availableThemes.map((theme: ThemeConfig) => ({
+    label: `${theme.icon} ${theme.name}`,
+    value: theme.id,
+  }))
 })
 
+// 模型选项
 const modelOptions = [
   { label: '通义千问 Plus', value: 'qwen-plus' },
   { label: '通义千问 Turbo', value: 'qwen-turbo' },
   { label: '通义千问 Max', value: 'qwen-max' }
 ]
 
-const themeOptions = [
-  { label: '深色', value: 'dark' },
-  { label: '浅色', value: 'light' }
-]
-
-function handleSave() {
-  message.success('设置已保存')
-}
-
 function handleLogout() {
   authStore.logout()
   router.push('/login')
+}
+
+function handleReset() {
+  settingsStore.resetSettings()
+  message.success('设置已重置')
 }
 </script>
 
@@ -61,21 +65,32 @@ function handleLogout() {
       <NCard title="通用设置">
         <NForm label-placement="left" label-width="120">
           <NFormItem label="主题">
-            <NSelect v-model:value="settings.theme" :options="themeOptions" style="width: 200px" />
+            <NSelect 
+              v-model:value="preferences.theme" 
+              :options="themeOptions" 
+              style="width: 200px" 
+            />
           </NFormItem>
           
           <NFormItem label="语言">
-            <NInput v-model:value="settings.language" style="width: 200px" />
+            <NInput 
+              v-model:value="preferences.language" 
+              style="width: 200px" 
+            />
           </NFormItem>
           
           <NDivider />
           
           <NFormItem label="流式响应">
-            <NSwitch v-model:value="settings.streamResponse" />
+            <NSwitch 
+              v-model:value="preferences.streamResponse" 
+            />
           </NFormItem>
           
           <NFormItem label="声音提示">
-            <NSwitch v-model:value="settings.soundEnabled" />
+            <NSwitch 
+              v-model:value="preferences.soundEnabled" 
+            />
           </NFormItem>
         </NForm>
       </NCard>
@@ -83,15 +98,31 @@ function handleLogout() {
       <NCard title="模型设置" style="margin-top: 16px">
         <NForm label-placement="left" label-width="120">
           <NFormItem label="默认模型">
-            <NSelect v-model:value="settings.model" :options="modelOptions" style="width: 200px" />
+            <NSelect 
+              v-model:value="modelSettings.model" 
+              :options="modelOptions" 
+              style="width: 200px" 
+            />
           </NFormItem>
           
           <NFormItem label="温度">
-            <NInputNumber v-model:value="settings.temperature" style="width: 100px" :min="0" :max="2" />
+            <NInputNumber 
+              v-model:value="modelSettings.temperature" 
+              style="width: 100px" 
+              :min="0" 
+              :max="2"
+              :step="0.1"
+            />
           </NFormItem>
           
           <NFormItem label="最大 Token">
-            <NInputNumber v-model:value="settings.maxTokens" style="width: 120px" :min="100" :max="100000" />
+            <NInputNumber 
+              v-model:value="modelSettings.maxTokens" 
+              style="width: 120px" 
+              :min="100" 
+              :max="100000"
+              :step="100"
+            />
           </NFormItem>
         </NForm>
       </NCard>
@@ -105,7 +136,7 @@ function handleLogout() {
             <strong>用户名:</strong> {{ authStore.user?.username || '未登录' }}
           </div>
           <NSpace>
-            <NButton type="primary" @click="handleSave">保存设置</NButton>
+            <NButton @click="handleReset">重置设置</NButton>
             <NButton @click="handleLogout">退出登录</NButton>
           </NSpace>
         </NSpace>

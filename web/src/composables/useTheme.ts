@@ -1,8 +1,8 @@
 /**
  * 主题管理 Hook
- * 提供主题切换、持久化、CSS变量应用等功能
+ * 提供主题切换、持久化、CSS 变量应用等功能
  */
-import { ref, watch, computed } from 'vue';
+import { watch, computed } from 'vue';
 import type {
   ThemeConfig,
   ThemeName,
@@ -12,14 +12,15 @@ import {
   defaultTheme,
   getThemeById,
 } from '../themes/themes';
+import { useSettingsStore } from '@/stores/settings';
 
-/** 本地存储键名 */
-const THEME_STORAGE_KEY = 'claude-code-theme';
+/** 获取 settings store 实例 */
+const settingsStore = useSettingsStore();
 
-/** 当前主题状态 */
-const currentThemeId = ref<ThemeName>(
-  (localStorage.getItem(THEME_STORAGE_KEY) as ThemeName) || defaultTheme.id
-);
+/** 当前主题状态（从 settings store 获取） */
+const currentThemeId = computed<ThemeName>(() => {
+  return settingsStore.preferences.theme;
+});
 
 /** 当前主题配置 */
 const currentTheme = computed<ThemeConfig>(() => {
@@ -99,11 +100,10 @@ function applyThemeToCSS(theme: ThemeConfig): void {
 
 /**
  * 切换主题
- * @param themeId 要切换的主题ID
+ * @param themeId 要切换的主题 ID
  */
 function setTheme(themeId: ThemeName): void {
-  currentThemeId.value = themeId;
-  localStorage.setItem(THEME_STORAGE_KEY, themeId);
+  settingsStore.setTheme(themeId);
 }
 
 /**
@@ -162,7 +162,7 @@ applyThemeToCSS(currentTheme.value);
 // 监听主题变化并应用
 watch(currentTheme, (newTheme) => {
   applyThemeToCSS(newTheme);
-}, { immediate: false });
+}, { immediate: true });
 
 /**
  * 主题管理 Hook

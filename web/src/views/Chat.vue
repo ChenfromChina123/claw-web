@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { NLayout, NLayoutContent, NSpin, NButton, NEmpty, useMessage } from 'naive-ui'
 import ChatSidebar from '@/components/ChatSidebar.vue'
 import ChatMessageList from '@/components/ChatMessageList.vue'
@@ -9,6 +10,7 @@ import GlassPanel from '@/components/common/GlassPanel.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 
+const router = useRouter()
 const message = useMessage()
 const chatStore = useChatStore()
 const authStore = useAuthStore()
@@ -19,6 +21,13 @@ const isInitializing = ref(true)
 const initError = ref<string | null>(null)
 
 onMounted(async () => {
+  // 检查是否已登录
+  if (!authStore.token || !authStore.isLoggedIn) {
+    console.warn('[Chat] 用户未登录，重定向到登录页面')
+    router.replace('/login')
+    return
+  }
+  
   isInitializing.value = true
   initError.value = null
   
@@ -75,6 +84,13 @@ function handleKeyDown(e: KeyboardEvent): void {
  * 重新初始化
  */
 async function handleRetry(): Promise<void> {
+  // 检查是否已登录
+  if (!authStore.token || !authStore.isLoggedIn) {
+    console.warn('[Chat] 用户未登录，重定向到登录页面')
+    router.replace('/login')
+    return
+  }
+  
   isInitializing.value = true
   initError.value = null
   
