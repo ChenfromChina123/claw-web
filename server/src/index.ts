@@ -649,13 +649,12 @@ async function startServer() {
           const message: WebSocketMessage = JSON.parse(data.toString())
           console.log(`[WS] Message from ${wsData.connectionId}:`, message.type)
 
+          const originalSendEvent = wsData.sendEvent
           const sendEvent = (event: string, eventData: unknown) => {
-            if (wsData.sendEvent) {
-              wsData.sendEvent(event, { ...eventData as object, sessionId: wsData.sessionId })
+            if (originalSendEvent) {
+              originalSendEvent(event, { ...eventData as object, sessionId: wsData.sessionId })
             }
           }
-
-          wsData.sendEvent = sendEvent
 
           switch (message.type) {
             case 'rpc_call':
