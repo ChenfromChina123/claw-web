@@ -247,19 +247,60 @@ function handleStepClick(toolCallId: string) {
               </div>
             </div>
             
-            <!-- 工具调用 - 增强版 -->
-            <div v-if="message.toolCalls && message.toolCalls.length > 0 && useEnhancedToolDisplay" class="tool-calls-enhanced">
+            <!-- 工具调用 - 步骤化增强版 -->
+            <div v-if="message.toolCalls && message.toolCalls.length > 0 && useEnhancedToolDisplay" class="tool-sequence-container">
               <div class="tool-section-header">
                 <span class="section-icon">🔧</span>
                 <span class="section-title">工具调用 ({{ message.toolCalls.length }})</span>
               </div>
               
-              <ToolUseEnhanced 
-                v-for="toolCall in message.toolCalls" 
+              <!-- 引导线 -->
+              <div class="sequence-line"></div>
+              
+              <!-- 工具步骤列表 -->
+              <div 
+                v-for="(toolCall, idx) in message.toolCalls" 
                 :key="toolCall.id"
-                :tool-call="toolCall"
-                :expanded="false"
-              />
+                class="tool-step-item"
+              >
+                <!-- 步骤序号徽章 -->
+                <div class="step-badge">{{ idx + 1 }}</div>
+                
+                <!-- 步骤卡片 -->
+                <div class="step-card">
+                  <!-- 步骤头部 -->
+                  <div class="step-header" @click="handleStepClick(toolCall.id)">
+                    <div class="step-header-left">
+                      <span class="step-tool-icon">{{ getToolIcon(toolCall.name) }}</span>
+                      <span class="step-tool-name">{{ toolCall.name }}</span>
+                    </div>
+                    <div class="step-header-right">
+                      <NTooltip>
+                        <template #trigger>
+                          <NTag size="small" :type="getStatusType(toolCall.status)">
+                            {{ toolCall.status === 'pending' ? '等待中' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
+                          </NTag>
+                        </template>
+                        {{ toolCall.status }}
+                      </NTooltip>
+                    </div>
+                  </div>
+                  
+                  <!-- 展开内容：显示详细工具调用组件 -->
+                  <div v-if="activeStep === toolCall.id" class="step-content">
+                    <ToolUseEnhanced 
+                      :tool-call="toolCall"
+                      :expanded="true"
+                    />
+                  </div>
+                  
+                  <!-- 收起内容：显示智能摘要 -->
+                  <div v-else class="step-summary">
+                    {{ getShortSummary(toolCall) }}
+                    <span class="summary-hint">（点击展开）</span>
+                  </div>
+                </div>
+              </div>
             </div>
             
             <!-- 工具调用 - 原始版 -->
@@ -529,9 +570,124 @@ function handleStepClick(toolCallId: string) {
   margin-top: 12px;
 }
 
-.tool-calls-enhanced {
+/* 工具调用步骤化容器 */
+.tool-sequence-container {
   margin-left: 48px;
   margin-top: 12px;
+  position: relative;
+  padding-left: 20px;
+}
+
+/* 引导线 */
+.sequence-line {
+  position: absolute;
+  left: 24px;
+  top: 30px;
+  bottom: 20px;
+  width: 2px;
+  background: linear-gradient(to bottom, rgba(99, 102, 241, 0.4), rgba(99, 102, 241, 0.1));
+  border-radius: 2px;
+}
+
+/* 工具步骤项 */
+.tool-step-item {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  position: relative;
+  align-items: flex-start;
+}
+
+/* 步骤序号徽章 */
+.step-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  z-index: 1;
+}
+
+/* 步骤卡片 */
+.step-card {
+  flex: 1;
+  background: rgba(40, 40, 80, 0.6);
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.step-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+}
+
+/* 步骤头部 */
+.step-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  background: rgba(30, 30, 60, 0.3);
+  transition: background 0.2s ease;
+}
+
+.step-header:hover {
+  background: rgba(30, 30, 60, 0.5);
+}
+
+.step-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.step-tool-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.step-tool-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e5e7eb;
+  font-family: 'Monaco', 'Menlo', monospace;
+}
+
+.step-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 步骤内容区域 */
+.step-content {
+  padding: 16px;
+  border-top: 1px solid rgba(99, 102, 241, 0.15);
+  background: rgba(20, 20, 40, 0.3);
+}
+
+/* 步骤摘要 */
+.step-summary {
+  padding: 12px 16px;
+  color: #9ca3af;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.summary-hint {
+  color: #6b7280;
+  font-size: 12px;
+  margin-left: 4px;
 }
 
 .tool-section-header {
