@@ -65,16 +65,16 @@ type ChangeSummary = {
 }
 
 /**
- * Returns null when state cannot be reliably determined — callers that use
- * this as a safety gate must treat null as "unknown, assume unsafe"
- * (fail-closed). A silent 0/0 would let cleanupWorktree destroy real work.
+ * 当状态无法可靠确定时返回 null——使用此作为安全门的调用者必须
+ * 将 null 视为"未知，假定不安全"（故障关闭）。静默 0/0 会让
+ * cleanupWorktree 销毁真实的工作。
  *
- * Null is returned when:
- * - git status or rev-list exit non-zero (lock file, corrupt index, bad ref)
- * - originalHeadCommit is undefined but git status succeeded — this is the
- *   hook-based-worktree-wrapping-git case (worktree.ts:525-532 doesn't set
- *   originalHeadCommit). We can see the working tree is git, but cannot count
- *   commits without a baseline, so we cannot prove the branch is clean.
+ * 在以下情况下返回 null：
+ * - git status 或 rev-list 退出非零（锁文件、损坏的索引、错误的 ref）
+ * - originalHeadCommit 是 undefined 但 git status 成功——这是
+ *   基于钩子的-worktree-wrapping-git 的情况（worktree.ts:525-532 没有设置
+ *   originalHeadCommit）。我们可以看到工作树是 git，但无法在没有基线的情况下
+ *   计算 commit 数，所以我们无法证明分支是干净的。
  */
 async function countWorktreeChanges(
   worktreePath: string,
@@ -92,8 +92,8 @@ async function countWorktreeChanges(
   const changedFiles = count(status.stdout.split('\n'), l => l.trim() !== '')
 
   if (!originalHeadCommit) {
-    // git status succeeded → this is a git repo, but without a baseline
-    // commit we cannot count commits. Fail-closed rather than claim 0.
+    // git status 成功 → 这是一个 git repo，但没有基线
+    // commit 我们无法计算 commit 数。故障关闭而不是声称 0。
     return null
   }
 
@@ -113,30 +113,29 @@ async function countWorktreeChanges(
 }
 
 /**
- * Restore session state to reflect the original directory.
- * This is the inverse of the session-level mutations in EnterWorktreeTool.call().
+ * 恢复会话状态以反映原始目录。
+ * 这是 EnterWorktreeTool.call() 中会话级别变动的逆操作。
  *
- * keepWorktree()/cleanupWorktree() handle process.chdir and currentWorktreeSession;
- * this handles everything above the worktree utility layer.
+ * keepWorktree()/cleanupWorktree() 处理 process.chdir 和 currentWorktreeSession；
+ * 这处理 worktree 实用程序层之上的所有内容。
  */
 function restoreSessionToOriginalCwd(
   originalCwd: string,
   projectRootIsWorktree: boolean,
 ): void {
   setCwd(originalCwd)
-  // EnterWorktree sets originalCwd to the *worktree* path (intentional — see
-  // state.ts getProjectRoot comment). Reset to the real original.
+  // EnterWorktree 将 originalCwd 设置为 *worktree* 路径（故意的——见
+  // state.ts getProjectRoot 注释）。重置为真正的原始值。
   setOriginalCwd(originalCwd)
-  // --worktree startup sets projectRoot to the worktree; mid-session
-  // EnterWorktreeTool does not. Only restore when it was actually changed —
-  // otherwise we'd move projectRoot to wherever the user had cd'd before
-  // entering the worktree (session.originalCwd), breaking the "stable project
-  // identity" contract.
+  // --worktree 启动将 projectRoot 设置为 worktree；会话中期
+  // EnterWorktreeTool 不会。只有在实际上被更改时才恢复——
+  // 否则我们会移动 projectRoot 到用户进入 worktree 之前 cd 到的任何地方
+  //（session.originalCwd），破坏"稳定项目身份"契约。
   if (projectRootIsWorktree) {
     setProjectRoot(originalCwd)
-    // setup.ts's --worktree block called updateHooksConfigSnapshot() to re-read
-    // hooks from the worktree. Restore symmetrically. (Mid-session
-    // EnterWorktreeTool never touched the snapshot, so no-op there.)
+    // setup.ts 的 --worktree 块调用 updateHooksConfigSnapshot() 以从头重读
+    // worktree 的 hooks。对称地恢复。（会话中期
+    // EnterWorktreeTool 从未触及快照，所以那里是无操作。）
     updateHooksConfigSnapshot()
   }
   saveWorktreeState(null)
@@ -172,11 +171,10 @@ export const ExitWorktreeTool: Tool<InputSchema, Output> = buildTool({
     return input.action
   },
   async validateInput(input) {
-    // Scope guard: getCurrentWorktreeSession() is null unless EnterWorktree
-    // (specifically createWorktreeForSession) ran in THIS session. Worktrees
-    // created by `git worktree add`, or by EnterWorktree in a previous
-    // session, do not populate it. This is the sole entry gate — everything
-    // past this point operates on a path EnterWorktree created.
+    // 范围守卫：getCurrentWorktreeSession() 除非 EnterWorktree
+    //（特别地是 createWorktreeForSession）在此会话中运行，否则为 null。通过
+    // `git worktree add` 创建的工作树，或在之前会话中的 EnterWorktree，不会填充它。
+    // 这是唯一的入口门——之后的一切都操作 EnterWorktree 创建的路径。
     const session = getCurrentWorktreeSession()
     if (!session) {
       return {
@@ -227,12 +225,12 @@ export const ExitWorktreeTool: Tool<InputSchema, Output> = buildTool({
   async call(input) {
     const session = getCurrentWorktreeSession()
     if (!session) {
-      // validateInput guards this, but the session is module-level mutable
-      // state — defend against a race between validation and execution.
+      // validateInput 守卫了这一点，但 session 是模块级可变
+      // 状态——防止验证和执行之间的竞争。
       throw new Error('Not in a worktree session')
     }
 
-    // Capture before keepWorktree/cleanupWorktree null out currentWorktreeSession.
+    // 在 keepWorktree/cleanupWorktree 将 currentWorktreeSession 置空之前捕获。
     const {
       originalCwd,
       worktreePath,
@@ -241,18 +239,17 @@ export const ExitWorktreeTool: Tool<InputSchema, Output> = buildTool({
       originalHeadCommit,
     } = session
 
-    // --worktree startup calls setOriginalCwd(getCwd()) and
-    // setProjectRoot(getCwd()) back-to-back right after setCwd(worktreePath)
-    // (setup.ts:235/239), so both hold the same realpath'd value and BashTool
-    // cd never touches either. Mid-session EnterWorktreeTool sets originalCwd
-    // but NOT projectRoot. (Can't use getCwd() — BashTool mutates it on every
-    // cd. Can't use session.worktreePath — it's join()'d, not realpath'd.)
+    // --worktree 启动在 setCwd(worktreePath) 之后立即背靠背调用
+    // setOriginalCwd(getCwd()) 和 setProjectRoot(getCwd())
+    //（setup.ts:235/239），所以两者都保存相同的 realpath'd 值，BashTool
+    // cd 不会触及任何一个。会话中期的 EnterWorktreeTool 设置 originalCwd
+    // 但不设置 projectRoot。（不能使用 getCwd()——BashTool 每次
+    // cd 都改变它。不能使用 session.worktreePath——它是 join()'d，而不是 realpath'd。）
     const projectRootIsWorktree = getProjectRoot() === getOriginalCwd()
 
-    // Re-count at execution time for accurate analytics and output — the
-    // worktree state at validateInput time may not match now. Null (git
-    // failure) falls back to 0/0; safety gating already happened in
-    // validateInput, so this only affects analytics + messaging.
+    // 在执行时重新计数以获得准确的分析和输出——验证时的
+    // worktree 状态可能与现在不匹配。Null（git 失败）退回到 0/0；
+    // 安全门控已经在 validateInput 中发生，所以这只影响分析 + 消息。
     const { changedFiles, commits } = (await countWorktreeChanges(
       worktreePath,
       originalHeadCommit,

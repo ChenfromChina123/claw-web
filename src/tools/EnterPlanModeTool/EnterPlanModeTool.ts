@@ -20,14 +20,14 @@ import {
 
 const inputSchema = lazySchema(() =>
   z.strictObject({
-    // No parameters needed
+    // 不需要参数
   }),
 )
 type InputSchema = ReturnType<typeof inputSchema>
 
 const outputSchema = lazySchema(() =>
   z.object({
-    message: z.string().describe('Confirmation that plan mode was entered'),
+    message: z.string().describe('确认已进入计划模式'),
   }),
 )
 type OutputSchema = ReturnType<typeof outputSchema>
@@ -35,10 +35,10 @@ export type Output = z.infer<OutputSchema>
 
 export const EnterPlanModeTool: Tool<InputSchema, Output> = buildTool({
   name: ENTER_PLAN_MODE_TOOL_NAME,
-  searchHint: 'switch to plan mode to design an approach before coding',
+  searchHint: '切换到计划模式以在编码前设计方法',
   maxResultSizeChars: 100_000,
   async description() {
-    return 'Requests permission to enter plan mode for complex tasks requiring exploration and design'
+    return '请求许可进入计划模式以处理需要探索和设计的复杂任务'
   },
   async prompt() {
     return getEnterPlanModeToolPrompt()

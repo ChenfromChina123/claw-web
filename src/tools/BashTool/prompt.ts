@@ -352,16 +352,16 @@ export function getSimplePrompt(): string {
   ]
 
   return [
-    'Executes a given bash command and returns its output.',
+    '执行给定的 bash 命令并返回其输出。',
     '',
-    "The working directory persists between commands, but shell state does not. The shell environment is initialized from the user's profile (bash or zsh).",
+    "工作目录在命令之间保持不变，但 shell 状态不会。Shell 环境从用户的 profile（bash 或 zsh）初始化。",
     '',
-    `IMPORTANT: Avoid using this tool to run ${avoidCommands} commands, unless explicitly instructed or after you have verified that a dedicated tool cannot accomplish your task. Instead, use the appropriate dedicated tool as this will provide a much better experience for the user:`,
+    `重要提示: 避免使用此工具运行 ${avoidCommands} 命令，除非明确指示或在你验证了专用工具无法完成你的任务之后。相反，使用适当的专用工具，因为这将为用户提供更好的体验并使审查工具调用和授予权限变得更加容易:`,
     '',
     ...prependBullets(toolPreferenceItems),
-    `While the ${BASH_TOOL_NAME} tool can do similar things, it’s better to use the built-in tools as they provide a better user experience and make it easier to review tool calls and give permission.`,
+    `虽然 ${BASH_TOOL_NAME} 工具可以做类似的事情，但最好使用内置工具，因为它们提供更好的用户体验并使审查工具调用和授予权限变得更加容易。`,
     '',
-    '# Instructions',
+    '# 指令',
     ...prependBullets(instructionItems),
     getSimpleSandboxSection(),
     ...(getCommitAndPRInstructions() ? ['', getCommitAndPRInstructions()] : []),

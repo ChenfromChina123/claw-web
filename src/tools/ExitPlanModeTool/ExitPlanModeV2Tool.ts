@@ -365,9 +365,9 @@ export const ExitPlanModeV2Tool: Tool<InputSchema, Output> = buildTool({
           restoreMode = 'default'
         }
         const finalRestoringAuto = restoreMode === 'auto'
-        // Capture pre-restore state — isAutoModeActive() is the authoritative
-        // signal (prePlanMode/strippedDangerousRules are stale after
-        // transitionPlanAutoMode deactivates mid-plan).
+        // 捕获预恢复状态 —— isAutoModeActive() 是权威信号
+        //（prePlanMode/strippedDangerousRules 在 transitionPlanAutoMode 
+        // 停用后是过时的）。
         const autoWasUsedDuringPlan =
           autoModeStateModule?.isAutoModeActive() ?? false
         autoModeStateModule?.setAutoModeActive(finalRestoringAuto)
@@ -375,9 +375,9 @@ export const ExitPlanModeV2Tool: Tool<InputSchema, Output> = buildTool({
           setNeedsAutoModeExitAttachment(true)
         }
       }
-      // If restoring to a non-auto mode and permissions were stripped (either
-      // from entering plan from auto, or from shouldPlanUseAutoMode),
-      // restore them. If restoring to auto, keep them stripped.
+      // 如果恢复到非自动模式且权限被剥离（要么是从 auto 进入计划时，
+      // 要么是从 shouldPlanUseAutoMode），则恢复它们。
+      // 如果恢复到 auto，则保持剥离状态。
       const restoringToAuto = restoreMode === 'auto'
       let baseContext = prev.toolPermissionContext
       if (restoringToAuto) {
@@ -426,23 +426,23 @@ export const ExitPlanModeV2Tool: Tool<InputSchema, Output> = buildTool({
     },
     toolUseID,
   ) {
-    // Handle teammate awaiting leader approval
+    // 处理等待负责人批准的队友
     if (awaitingLeaderApproval) {
       return {
         type: 'tool_result',
-        content: `Your plan has been submitted to the team lead for approval.
+        content: `您的计划已提交给团队负责人审批。
 
-Plan file: ${filePath}
+计划文件：${filePath}
 
-**What happens next:**
-1. Wait for the team lead to review your plan
-2. You will receive a message in your inbox with approval/rejection
-3. If approved, you can proceed with implementation
-4. If rejected, refine your plan based on the feedback
+**接下来会发生什么：**
+1. 等待团队负责人审核您的计划
+2. 您将在收件箱中收到批准/拒绝消息
+3. 如果批准，您可以继续实施
+4. 如果被拒绝，根据反馈完善您的计划
 
-**Important:** Do NOT proceed until you receive approval. Check your inbox for response.
+**重要：** 在收到批准之前不要继续。查看您的收件箱获取回复。
 
-Request ID: ${requestId}`,
+请求 ID：${requestId}`,
         tool_use_id: toolUseID,
       }
     }
@@ -451,39 +451,39 @@ Request ID: ${requestId}`,
       return {
         type: 'tool_result',
         content:
-          'User has approved the plan. There is nothing else needed from you now. Please respond with "ok"',
+          '用户已批准计划。您现在不需要做任何事情。请回复"ok"',
         tool_use_id: toolUseID,
       }
     }
 
-    // Handle empty plan
+    // 处理空计划
     if (!plan || plan.trim() === '') {
       return {
         type: 'tool_result',
-        content: 'User has approved exiting plan mode. You can now proceed.',
+        content: '用户已批准退出计划模式。您现在可以继续。',
         tool_use_id: toolUseID,
       }
     }
 
     const teamHint = hasTaskTool
-      ? `\n\nIf this plan can be broken down into multiple independent tasks, consider using the ${TEAM_CREATE_TOOL_NAME} tool to create a team and parallelize the work.`
+      ? `\n\n如果这个计划可以分解为多个独立任务，请考虑使用 ${TEAM_CREATE_TOOL_NAME} 工具创建团队并行工作。`
       : ''
 
-    // Always include the plan — extractApprovedPlan() in the Ultraplan CCR
-    // flow parses the tool_result to retrieve the plan text for the local CLI.
-    // Label edited plans so the model knows the user changed something.
+    // 始终包含计划 —— Ultraplan CCR 流程中的 extractApprovedPlan()
+    // 解析 tool_result 以检索本地 CLI 的计划文本。
+    // 标记编辑的计划，以便模型知道用户更改了内容。
     const planLabel = planWasEdited
-      ? 'Approved Plan (edited by user)'
-      : 'Approved Plan'
+      ? '批准的计划（已由用户编辑）'
+      : '批准的计划'
 
     return {
       type: 'tool_result',
-      content: `User has approved your plan. You can now start coding. Start with updating your todo list if applicable
+      content: `用户已批准您的计划。您现在可以开始编码。如果适用的话，先更新您的待办列表。
 
-Your plan has been saved to: ${filePath}
-You can refer back to it if needed during implementation.${teamHint}
+您的计划已保存到：${filePath}
+您可以在实施过程中需要时参考它。${teamHint}
 
-## ${planLabel}:
+## ${planLabel}：
 ${plan}`,
       tool_use_id: toolUseID,
     }
