@@ -17,9 +17,6 @@
         "./src/*"
       ]
     },
-    "types": [
-      "bun-types"
-    ],
     "skipLibCheck": true
   },
   "include": [
@@ -29,6 +26,7 @@
     "node_modules",
     "web",
     "web/dist",
-    "**/*.js"
+    "**/*.js",
+    "server"
   ]
 }

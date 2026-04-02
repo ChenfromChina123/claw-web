@@ -1,10 +1,11 @@
 import { v4 as uuidv4 } from 'uuid'
 import { getPool } from '../mysql'
 import type { Session } from '../../models/types'
+import type { Pool } from 'mysql2/promise'
 
 export class SessionRepository {
   async create(userId: string, title: string = '新对话', model: string = 'qwen-plus'): Promise<Session> {
-    const pool = getPool()
+    const pool = getPool() as Pool
     const id = uuidv4()
 
     await pool.query(
@@ -21,7 +22,7 @@ export class SessionRepository {
   }
 
   async findById(id: string): Promise<Session | null> {
-    const pool = getPool()
+    const pool = getPool() as Pool
     const [rows] = await pool.query(
       'SELECT * FROM sessions WHERE id = ?',
       [id]
@@ -32,7 +33,7 @@ export class SessionRepository {
   }
 
   async findByUserId(userId: string): Promise<Session[]> {
-    const pool = getPool()
+    const pool = getPool() as Pool
     const [rows] = await pool.query(
       'SELECT * FROM sessions WHERE user_id = ? ORDER BY updated_at DESC',
       [userId]
@@ -42,7 +43,7 @@ export class SessionRepository {
   }
 
   async updateTitle(id: string, title: string): Promise<void> {
-    const pool = getPool()
+    const pool = getPool() as Pool
     await pool.query(
       'UPDATE sessions SET title = ? WHERE id = ?',
       [title, id]
@@ -50,7 +51,7 @@ export class SessionRepository {
   }
 
   async updateModel(id: string, model: string): Promise<void> {
-    const pool = getPool()
+    const pool = getPool() as Pool
     await pool.query(
       'UPDATE sessions SET model = ? WHERE id = ?',
       [model, id]
@@ -58,7 +59,7 @@ export class SessionRepository {
   }
 
   async updateIsPinned(id: string, isPinned: boolean): Promise<void> {
-    const pool = getPool()
+    const pool = getPool() as Pool
     await pool.query(
       'UPDATE sessions SET is_pinned = ? WHERE id = ?',
       [isPinned, id]
@@ -66,7 +67,7 @@ export class SessionRepository {
   }
 
   async update(id: string, updates: { title?: string; model?: string; isPinned?: boolean }): Promise<Session | null> {
-    const pool = getPool()
+    const pool = getPool() as Pool
     const setClauses: string[] = []
     const values: (string | boolean)[] = []
 
@@ -97,7 +98,7 @@ export class SessionRepository {
   }
 
   async touch(id: string): Promise<void> {
-    const pool = getPool()
+    const pool = getPool() as Pool
     await pool.query(
       'UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       [id]
@@ -105,12 +106,12 @@ export class SessionRepository {
   }
 
   async delete(id: string): Promise<void> {
-    const pool = getPool()
+    const pool = getPool() as Pool
     await pool.query('DELETE FROM sessions WHERE id = ?', [id])
   }
 
   async findLatestByUserId(userId: string): Promise<Session | null> {
-    const pool = getPool()
+    const pool = getPool() as Pool
     const [rows] = await pool.query(
       'SELECT * FROM sessions WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1',
       [userId]
@@ -121,12 +122,12 @@ export class SessionRepository {
   }
 
   /**
-   * 查找用户的空会话(没有消息的会话)
-   * @param userId 用户ID
-   * @returns 返回最新的空会话,如果没有则返回null
+   * 查找用户的空会话 (没有消息的会话)
+   * @param userId 用户 ID
+   * @returns 返回最新的空会话，如果没有则返回 null
    */
   async findEmptySessionByUserId(userId: string): Promise<Session | null> {
-    const pool = getPool()
+    const pool = getPool() as Pool
     const [rows] = await pool.query(
       `SELECT s.* FROM sessions s 
        LEFT JOIN messages m ON s.id = m.session_id 

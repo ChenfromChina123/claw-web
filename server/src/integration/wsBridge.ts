@@ -13,6 +13,28 @@
  * - Type-safe message protocol
  */
 
+// Global type declarations for Node.js/Bun types
+declare global {
+  interface BufferConstructor {
+    isBuffer(obj: any): obj is Buffer;
+  }
+  
+  interface Buffer {
+    toString(encoding?: string): string;
+  }
+  
+  var Buffer: BufferConstructor;
+  
+  namespace NodeJS {
+    interface Timeout {
+      hasRef(): boolean;
+      ref(): Timeout;
+      refresh(): Timeout;
+      unref(): Timeout;
+    }
+  }
+}
+
 import { v4 as uuidv4 } from 'uuid'
 import type { EventSender } from './webStore'
 
@@ -533,7 +555,7 @@ class WebSocketConnection {
     this.eventHandlers.get(event)?.delete(handler)
   }
 
-  private emit(event: string, data?: unknown): void {
+  emit(event: string, data?: unknown): void {
     this.eventHandlers.get(event)?.forEach((handler) => handler(data))
   }
 
