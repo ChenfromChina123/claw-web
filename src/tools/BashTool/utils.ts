@@ -15,9 +15,8 @@ import { maybeResizeAndDownsampleImageBuffer } from '../../utils/imageResizer.js
 import { getMaxOutputLength } from '../../utils/shell/outputLimits.js'
 import { countCharInString, plural } from '../../utils/stringUtils.js'
 /**
- * Strips leading and trailing lines that contain only whitespace/newlines.
- * Unlike trim(), this preserves whitespace within content lines and only removes
- * completely empty lines from the beginning and end.
+ * 剥离仅包含空白/换行符的前导和尾随行。
+ * 与 trim() 不同，这会保留内容行中的空白，仅删除开头和结尾的完全空行。
  */
 export function stripEmptyLines(content: string): string {
   const lines = content.split('\n')
@@ -44,7 +43,7 @@ export function stripEmptyLines(content: string): string {
 }
 
 /**
- * Check if content is a base64 encoded image data URL
+ * 检查内容是否为 base64 编码的图像数据 URL
  */
 export function isImageOutput(content: string): boolean {
   return /^data:image\/[a-z0-9.+_-]+;base64,/i.test(content)
@@ -53,8 +52,8 @@ export function isImageOutput(content: string): boolean {
 const DATA_URI_RE = /^data:([^;]+);base64,(.+)$/
 
 /**
- * Parse a data-URI string into its media type and base64 payload.
- * Input is trimmed before matching.
+ * 将 data-URI 字符串解析为其媒体类型和 base64 负载。
+ * 输入在匹配前会被修剪。
  */
 export function parseDataUri(
   s: string,
@@ -65,8 +64,8 @@ export function parseDataUri(
 }
 
 /**
- * Build an image tool_result block from shell stdout containing a data URI.
- * Returns null if parse fails so callers can fall through to text handling.
+ * 从包含 data URI 的 shell stdout 构建图像 tool_result 块。
+ * 如果解析失败则返回 null，以便调用者可以回退到文本处理。
  */
 export function buildImageToolResult(
   stdout: string,
@@ -90,22 +89,21 @@ export function buildImageToolResult(
   }
 }
 
-// Cap file reads to 20 MB — any image data URI larger than this is
-// well beyond what the API accepts (5 MB base64) and would OOM if read
-// into memory.
+// 将文件读取限制为 20 MB —— 任何大于此值的图像 data URI 都
+// 远远超出 API 接受的范围（5 MB base64），如果读入内存会导致 OOM。
 const MAX_IMAGE_FILE_SIZE = 20 * 1024 * 1024
 
 /**
  * Resize image output from a shell tool. stdout is capped at
  * getMaxOutputLength() when read back from the shell output file — if the
  * full output spilled to disk, re-read it from there, since truncated base64
- * would decode to a corrupt image that either throws here or gets rejected by
- * the API. Caps dimensions too: compressImageBuffer only checks byte size, so
- * a small-but-high-DPI PNG (e.g. matplotlib at dpi=300) sails through at full
- * resolution and poisons many-image requests (CC-304).
+ * 将解码为损坏的图像，要么在此处抛出异常，要么被 API 拒绝。
+ * 也限制尺寸：compressImageBuffer 只检查字节大小，因此
+ * 小而高 DPI 的 PNG（例如 dpi=300 的 matplotlib）会以完整分辨率通过，
+ * 并污染多图像请求（CC-304）。
  *
- * Returns the re-encoded data URI on success, or null if the source didn't
- * parse as a data URI (caller decides whether to flip isImage).
+ * 成功时返回重新编码的 data URI，如果源未解析为 data URI 则返回 null
+ * （调用者决定是否翻转 isImage）。
  */
 export async function resizeShellImageOutput(
   stdout: string,
@@ -175,13 +173,13 @@ export function resetCwdIfOutsideProject(
   const shouldMaintain = shouldMaintainProjectWorkingDir()
   if (
     shouldMaintain ||
-    // Fast path: originalCwd is unconditionally in allWorkingDirectories
-    // (filesystem.ts), so when cwd hasn't moved, pathInAllowedWorkingPath is
-    // trivially true — skip its syscalls for the no-cd common case.
+    // 快速路径：originalCwd 无条件地在 allWorkingDirectories 中
+    // （filesystem.ts），因此当 cwd 未移动时，pathInAllowedWorkingPath 显然为 true
+    // —— 对于无 cd 的常见情况跳过其系统调用。
     (cwd !== originalCwd &&
       !pathInAllowedWorkingPath(cwd, toolPermissionContext))
   ) {
-    // Reset to original directory if maintaining project dir OR outside allowed working directory
+    // 如果维护项目目录或在允许的工作目录之外，则重置到原始目录
     setCwd(originalCwd)
     if (!shouldMaintain) {
       logEvent('tengu_bash_tool_reset_to_original_dir', {})
@@ -192,8 +190,8 @@ export function resetCwdIfOutsideProject(
 }
 
 /**
- * Creates a human-readable summary of structured content blocks.
- * Used to display MCP results with images and text in the UI.
+ * 创建结构化内容块的人类可读摘要。
+ * 用于在 UI 中显示带有图像和文本的 MCP 结果。
  */
 export function createContentSummary(content: ContentBlockParam[]): string {
   const parts: string[] = []
@@ -205,7 +203,7 @@ export function createContentSummary(content: ContentBlockParam[]): string {
       imageCount++
     } else if (block.type === 'text' && 'text' in block) {
       textCount++
-      // Include first 200 chars of text blocks for context
+      // 包含文本块的前 200 个字符以提供上下文
       const preview = block.text.slice(0, 200)
       parts.push(preview + (block.text.length > 200 ? '...' : ''))
     }
