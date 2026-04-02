@@ -4,13 +4,13 @@
  */
 
 /* 1. CSS 变量和基础样式 */
-@import './styles/variables.css';
+@import '../styles/variables.css';
 
 /* 2. 动画效果 */
-@import './styles/animations.css';
+@import '../styles/animations.css';
 
 /* 3. 特效样式 */
-@import './styles/effects.css';
+@import '../styles/effects.css';
 
 /* 4. 响应式样式 */
-@import './styles/responsive.css';
+@import '../styles/responsive.css';
