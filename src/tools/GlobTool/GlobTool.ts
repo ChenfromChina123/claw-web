@@ -10,6 +10,8 @@ import {
 import { getFsImplementation } from '../../utils/fsOperations.js'
 import { glob } from '../../utils/glob.js'
 import { lazySchema } from '../../utils/lazySchema.js'
+// 版本控制系统目录，从搜索中排除
+// 这些会自动排除，因为它们会在搜索结果中产生噪音
 import { expandPath, toRelativePath } from '../../utils/path.js'
 import { checkReadPermissionForTool } from '../../utils/permissions/filesystem.js'
 import type { PermissionDecision } from '../../utils/permissions/PermissionResult.js'

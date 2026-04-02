@@ -108,20 +108,20 @@ function checkDangerousRemovalPaths(
 }
 
 /**
- * SECURITY: Extract positional (non-flag) arguments, correctly handling the
- * POSIX `--` end-of-options delimiter.
+ * 安全检查：提取位置（非标志）参数，正确处理 POSIX `--` 结束选项分隔符。
  *
- * Most commands (rm, cat, touch, etc.) stop parsing options at `--` and treat
- * ALL subsequent arguments as positional, even if they start with `-`. Naive
- * `!arg.startsWith('-')` filtering drops these, causing path validation to be
- * silently skipped for attack payloads like:
+ * 大多数命令（rm、cat、touch 等）在 `--` 处停止解析选项，
+ * 并将所有后续参数视为位置参数，即使它们以 `-` 开头。
+ * 简单的 `!arg.startsWith('-')` 过滤会丢弃这些参数，
+ * 导致路径验证被静默跳过，攻击有效载荷如：
  *
  *   rm -- -/../.claude/settings.local.json
  *
- * Here `-/../.claude/settings.local.json` starts with `-` so the naive filter
- * drops it, validation sees zero paths, returns passthrough, and the file is
- * deleted without a prompt. With `--` handling, the path IS extracted and
- * validated (blocked by isClaudeConfigFilePath / pathInAllowedWorkingPath).
+ * 这里 `-/../.claude/settings.local.json` 以 `-` 开头，
+ * 所以简单过滤器会丢弃它，验证看到零路径，返回 passthrough，
+ * 文件被删除而没有提示。
+ * 使用 `--` 处理后，路径被提取并验证
+ * （被 isClaudeConfigFilePath/pathInAllowedWorkingPath 阻止）。
  */
 function filterOutFlags(args: string[]): string[] {
   const result: string[] = []
@@ -184,30 +184,29 @@ function parsePatternCommand(
 }
 
 /**
- * Extracts paths from command arguments for different path commands.
- * Each command has specific logic for how it handles paths and flags.
+ * 从命令参数中提取不同路径命令的路径。
+ * 每个命令都有特定的处理路径和标志的逻辑。
  */
 export const PATH_EXTRACTORS: Record<
   PathCommand,
   (args: string[]) => string[]
 > = {
-  // cd: special case - all args form one path
+  // cd: 特殊情况 - 所有参数组成一个路径
   cd: args => (args.length === 0 ? [homedir()] : [args.join(' ')]),
 
-  // ls: filter flags, default to current dir
+  // ls: 过滤标志，默认为当前目录
   ls: args => {
     const paths = filterOutFlags(args)
     return paths.length > 0 ? paths : ['.']
   },
 
-  // find: collect paths until hitting a real flag, also check path-taking flags
-  // SECURITY: `find -- -path` makes `-path` a starting point (not a predicate).
-  // GNU find supports `--` to allow search roots starting with `-`. After `--`,
-  // we conservatively collect all remaining args as paths to validate. This
-  // over-includes predicates like `-name foo`, but find is a read-only op and
-  // predicates resolve to paths within cwd (allowed), so no false blocks for
-  // legitimate use. The over-inclusion ensures attack paths like
-  // `find -- -/../../etc` are caught.
+  // find: 在遇到真正的标志之前收集路径，也检查带路径的标志
+  // 安全检查: `find -- -path` 使 `-path` 成为起点（不是谓词）。
+  // GNU find 支持 `--` 以允许以 `-` 开头的搜索根目录。
+  // 在 `--` 之后，我们保守地将所有剩余参数作为路径收集以进行验证。
+  // 这会过度包含谓词如 `-name foo`，但 find 是只读操作，
+  // 谓词解析为 cwd 内的路径（允许），因此对合法使用没有误报阻止。
+  // 过度包含确保攻击路径如 `find -- -/../../etc` 被捕获。
   find: args => {
     const paths: string[] = []
     const pathFlags = new Set([
@@ -268,7 +267,7 @@ export const PATH_EXTRACTORS: Record<
     return paths.length > 0 ? paths : ['.']
   },
 
-  // All simple commands: just filter out flags
+  // 所有简单命令：只过滤标志
   mkdir: filterOutFlags,
   touch: filterOutFlags,
   rm: filterOutFlags,
@@ -297,7 +296,7 @@ export const PATH_EXTRACTORS: Record<
   sha1sum: filterOutFlags,
   md5sum: filterOutFlags,
 
-  // tr: special case - skip character sets
+  // tr: 特殊情况 - 跳过字符集
   tr: args => {
     const hasDelete = args.some(
       a =>
@@ -306,10 +305,10 @@ export const PATH_EXTRACTORS: Record<
         (a.startsWith('-') && a.includes('d')),
     )
     const nonFlags = filterOutFlags(args)
-    return nonFlags.slice(hasDelete ? 1 : 2) // Skip SET1 or SET1+SET2
+    return nonFlags.slice(hasDelete ? 1 : 2) // 跳过 SET1 或 SET1+SET2
   },
 
-  // grep: pattern then paths, defaults to stdin
+  // grep: 模式然后路径，默认为 stdin
   grep: args => {
     const flags = new Set([
       '-e',
@@ -330,7 +329,7 @@ export const PATH_EXTRACTORS: Record<
       '--context',
     ])
     const paths = parsePatternCommand(args, flags)
-    // Special: if -r/-R flag present and no paths, use current dir
+    // 特殊情况: 如果存在 -r/-R 标志且没有路径，使用当前目录
     if (
       paths.length === 0 &&
       args.some(a => ['-r', '-R', '--recursive'].includes(a))
@@ -340,7 +339,7 @@ export const PATH_EXTRACTORS: Record<
     return paths
   },
 
-  // rg: pattern then paths, defaults to current dir
+  // rg: 模式然后路径，默认为当前目录
   rg: args => {
     const flags = new Set([
       '-e',
@@ -368,7 +367,7 @@ export const PATH_EXTRACTORS: Record<
     return parsePatternCommand(args, flags, ['.'])
   },
 
-  // sed: processes files in-place or reads from stdin
+  // sed: 就地处理文件或从 stdin 读取
   sed: args => {
     const paths: string[] = []
     let skipNext = false
@@ -391,45 +390,45 @@ export const PATH_EXTRACTORS: Record<
         continue
       }
 
-      // Handle flags (only before `--`)
+      // 处理标志（仅在 `--` 之前）
       if (!afterDoubleDash && arg.startsWith('-')) {
-        // -f flag: next arg is a script file that needs validation
+        // -f 标志: 下一个参数是需要验证的脚本文件
         if (['-f', '--file'].includes(arg)) {
           const scriptFile = args[i + 1]
           if (scriptFile) {
-            paths.push(scriptFile) // Add script file to paths for validation
+            paths.push(scriptFile) // 添加脚本文件到路径以进行验证
             skipNext = true
           }
           scriptFound = true
         }
-        // -e flag: next arg is expression, not a file
+        // -e 标志: 下一个参数是表达式，不是文件
         else if (['-e', '--expression'].includes(arg)) {
           skipNext = true
           scriptFound = true
         }
-        // Combined flags like -ie or -nf
+        // 组合标志如 -ie 或 -nf
         else if (arg.includes('e') || arg.includes('f')) {
           scriptFound = true
         }
         continue
       }
 
-      // First non-flag is the script (if not already found via -e/-f)
+      // 第一个非标志是脚本（如果没有通过 -e/-f 找到）
       if (!scriptFound) {
         scriptFound = true
         continue
       }
 
-      // Rest are file paths
+      // 其余的是文件路径
       paths.push(arg)
     }
 
     return paths
   },
 
-  // jq: filter then file paths (similar to grep)
-  // The jq command structure is: jq [flags] filter [files...]
-  // If no files are provided, jq reads from stdin
+  // jq: 过滤器然后文件路径（类似于 grep）
+  // jq 命令结构: jq [flags] filter [files...]
+  // 如果没有提供文件，jq 从 stdin 读取
   jq: args => {
     const paths: string[] = []
     const flagsWithArgs = new Set([
@@ -589,9 +588,9 @@ export const COMMAND_OPERATION_TYPE: Record<PathCommand, FileOperationType> = {
 }
 
 /**
- * Command-specific validators that run before path validation.
- * Returns true if the command is valid, false if it should be rejected.
- * Used to block commands with flags that could bypass path validation.
+ * 命令特定的验证器，在路径验证之前运行。
+ * 如果命令有效则返回 true，如果应该被拒绝则返回 false。
+ * 用于阻止带有可能绕过路径验证的标志的命令。
  */
 const COMMAND_VALIDATOR: Partial<
   Record<PathCommand, (args: string[]) => boolean>
@@ -612,36 +611,35 @@ function validateCommandPaths(
   const paths = extractor(args)
   const operationType = operationTypeOverride ?? COMMAND_OPERATION_TYPE[command]
 
-  // SECURITY: Check command-specific validators (e.g., to block flags that could bypass path validation)
-  // Some commands like mv/cp have flags (--target-directory=PATH) that can bypass path extraction,
-  // so we block ALL flags for these commands to ensure security.
+  // 安全检查: 检查特定于命令的验证器（例如，阻止可能绕过路径验证的标志）
+  // 某些命令如 mv/cp 有标志（--target-directory=PATH）可以绕过路径提取，
+  // 因此我们阻止这些命令的所有标志以确保安全。
   const validator = COMMAND_VALIDATOR[command]
   if (validator && !validator(args)) {
     return {
       behavior: 'ask',
-      message: `${command} with flags requires manual approval to ensure path safety. For security, Claude Code cannot automatically validate ${command} commands that use flags, as some flags like --target-directory=PATH can bypass path validation.`,
+      message: `${command} 带标志需要手动批准以确保路径安全。为了安全起见，Claude Code 无法自动验证使用标志的 ${command} 命令，因为某些标志如 --target-directory=PATH 可以绕过路径验证。`,
       decisionReason: {
         type: 'other',
-        reason: `${command} command with flags requires manual approval`,
+        reason: `${command} 命令带标志需要手动批准`,
       },
     }
   }
 
-  // SECURITY: Block write operations in compound commands containing 'cd'
-  // This prevents bypassing path safety checks via directory changes before operations.
-  // Example attack: cd .claude/ && mv test.txt settings.json
-  // This would bypass the check for .claude/settings.json because paths are resolved
-  // relative to the original CWD, not accounting for the cd's effect.
+  // 安全检查: 在包含 'cd' 的复合命令中阻止写操作
+  // 这防止了通过目录更改之前的操作来绕过路径安全检查。
+  // 示例攻击: cd .claude/ && mv test.txt settings.json
+  // 这会绕过对 .claude/settings.json 的检查，因为路径是相对于
+  // 原始 CWD 解析的，没有考虑 cd 的效果。
   //
-  // ALTERNATIVE APPROACH: Instead of blocking all writes with cd, we could track the
-  // effective CWD through the command chain (e.g., after "cd .claude/", subsequent
-  // commands would be validated with CWD=".claude/"). This would be more permissive
-  // but requires careful handling of:
-  // - Relative paths (cd ../foo)
-  // - Special cd targets (cd ~, cd -, cd with no args)
-  // - Multiple cd commands in sequence
-  // - Error cases where cd target cannot be determined
-  // For now, we take the conservative approach of requiring manual approval.
+  // 替代方法: 我们可以通过命令链跟踪有效的 CWD
+  // （例如，在 "cd .claude/" 之后，后续命令将使用 CWD=".claude/" 进行验证）。
+  // 这会更宽松，但需要仔细处理:
+  // - 相对路径 (cd ../foo)
+  // - 特殊 cd 目标 (cd ~, cd -, cd 无参数)
+  // - 连续多个 cd 命令
+  // - cd 目标无法确定的错误情况
+  // 目前，我们采用保守方法，需要手动批准。
   if (compoundCommandHasCd && operationType !== 'read') {
     return {
       behavior: 'ask',
@@ -668,8 +666,8 @@ function validateCommandPaths(
       )
       const dirListStr = formatDirectoryList(workingDirs)
 
-      // Use security check's custom reason if available (type: 'other' or 'safetyCheck')
-      // Otherwise use the standard "was blocked" message
+      // 使用安全检查的自定义原因（如果有的话，类型为 'other' 或 'safetyCheck'）
+      // 否则使用标准的 "被阻止" 消息
       const message =
         decisionReason?.type === 'other' ||
         decisionReason?.type === 'safetyCheck'
@@ -693,7 +691,7 @@ function validateCommandPaths(
     }
   }
 
-  // All paths are valid - return passthrough
+  // 所有路径都有效 - 返回 passthrough
   return {
     behavior: 'passthrough',
     message: `Path validation passed for ${command} command`,
@@ -720,78 +718,78 @@ export function createPathChecker(
       operationTypeOverride,
     )
 
-    // If explicitly denied, respect that (don't override with dangerous path message)
-    if (result.behavior === 'deny') {
-      return result
+    // 如果被明确拒绝，尊重该决定（不要用危险路径消息覆盖）
+  if (result.behavior === 'deny') {
+    return result
+  }
+
+  // 在显式拒绝规则之后但在其他结果之前检查危险移除路径
+  // 这确保检查即使在用户有允许列表规则或 glob 模式被拒绝时也会运行，
+  // 但尊重显式拒绝规则。危险模式会获得特定错误消息，
+  // 覆盖通用的 glob 模式拒绝消息。
+  if (command === 'rm' || command === 'rmdir') {
+    const dangerousPathResult = checkDangerousRemovalPaths(command, args, cwd)
+    if (dangerousPathResult.behavior !== 'passthrough') {
+      return dangerousPathResult
     }
+  }
 
-    // Check for dangerous removal paths AFTER explicit deny rules but BEFORE other results
-    // This ensures the check runs even if the user has allowlist rules or if glob patterns
-    // were rejected, but respects explicit deny rules. Dangerous patterns get a specific
-    // error message that overrides generic glob pattern rejection messages.
-    if (command === 'rm' || command === 'rmdir') {
-      const dangerousPathResult = checkDangerousRemovalPaths(command, args, cwd)
-      if (dangerousPathResult.behavior !== 'passthrough') {
-        return dangerousPathResult
-      }
-    }
+  // 如果是 passthrough，直接返回
+  if (result.behavior === 'passthrough') {
+    return result
+  }
 
-    // If it's a passthrough, return it directly
-    if (result.behavior === 'passthrough') {
-      return result
-    }
+  // 如果是 ask 决定，根据操作类型添加建议
+  if (result.behavior === 'ask') {
+    const operationType =
+      operationTypeOverride ?? COMMAND_OPERATION_TYPE[command]
+    const suggestions: PermissionUpdate[] = []
 
-    // If it's an ask decision, add suggestions based on the operation type
-    if (result.behavior === 'ask') {
-      const operationType =
-        operationTypeOverride ?? COMMAND_OPERATION_TYPE[command]
-      const suggestions: PermissionUpdate[] = []
-
-      // Only suggest adding directory/rules if we have a blocked path
-      if (result.blockedPath) {
-        if (operationType === 'read') {
-          // For read operations, suggest a Read rule for the directory (only if it exists)
-          const dirPath = getDirectoryForPath(result.blockedPath)
-          const suggestion = createReadRuleSuggestion(dirPath, 'session')
-          if (suggestion) {
-            suggestions.push(suggestion)
-          }
-        } else {
-          // For write/create operations, suggest adding the directory
-          suggestions.push({
-            type: 'addDirectories',
-            directories: [getDirectoryForPath(result.blockedPath)],
-            destination: 'session',
-          })
+    // 只有在有被阻止的路径时才建议添加目录/规则
+    if (result.blockedPath) {
+      if (operationType === 'read') {
+        // 对于读操作，建议为目录添加读取规则（仅在存在时）
+        const dirPath = getDirectoryForPath(result.blockedPath)
+        const suggestion = createReadRuleSuggestion(dirPath, 'session')
+        if (suggestion) {
+          suggestions.push(suggestion)
         }
-      }
-
-      // For write operations, also suggest enabling accept-edits mode
-      if (operationType === 'write' || operationType === 'create') {
+      } else {
+        // 对于写/创建操作，建议添加目录
         suggestions.push({
-          type: 'setMode',
-          mode: 'acceptEdits',
+          type: 'addDirectories',
+          directories: [getDirectoryForPath(result.blockedPath)],
           destination: 'session',
         })
       }
-
-      result.suggestions = suggestions
     }
 
-    // Return the decision directly
+    // 对于写操作，也建议启用接受编辑模式
+    if (operationType === 'write' || operationType === 'create') {
+      suggestions.push({
+        type: 'setMode',
+        mode: 'acceptEdits',
+        destination: 'session',
+      })
+    }
+
+    result.suggestions = suggestions
+  }
+
+  // 直接返回决定
     return result
   }
 }
 
 /**
- * Parses command arguments using shell-quote, converting glob objects to strings.
- * This is necessary because shell-quote parses patterns like *.txt as glob objects,
- * but we need them as strings for path validation.
+ * 使用 shell-quote 解析命令参数，将 glob 对象转换为字符串。
+ * 这是必要的，因为 shell-quote 将像 *.txt 这样的模式解析为 glob 对象，
+ * 但我们需要它们作为字符串来进行路径验证。
  */
 function parseCommandArguments(cmd: string): string[] {
   const parseResult = tryParseShellCommand(cmd, env => `$${env}`)
   if (!parseResult.success) {
-    // Malformed shell syntax, return empty array
+    // 格式错误的 shell 语法，返回空数组
     return []
   }
   const parsed = parseResult.tokens
@@ -799,7 +797,7 @@ function parseCommandArguments(cmd: string): string[] {
 
   for (const arg of parsed) {
     if (typeof arg === 'string') {
-      // Include empty strings - they're valid arguments (e.g., grep "" /tmp/t)
+      // 包含空字符串 - 它们是有效的参数（例如 grep "" /tmp/t）
       extractedArgs.push(arg)
     } else if (
       typeof arg === 'object' &&
@@ -808,7 +806,7 @@ function parseCommandArguments(cmd: string): string[] {
       arg.op === 'glob' &&
       'pattern' in arg
     ) {
-      // shell-quote parses glob patterns as objects, but we need them as strings for validation
+      // shell-quote 将 glob 模式解析为对象，但我们需要它们作为字符串以进行验证
       extractedArgs.push(String(arg.pattern))
     }
   }
@@ -817,19 +815,19 @@ function parseCommandArguments(cmd: string): string[] {
 }
 
 /**
- * Validates a single command for path constraints and shell safety.
+ * 验证单个命令的路径约束和 shell 安全性。
  *
- * This function:
- * 1. Parses the command arguments
- * 2. Checks if it's a path command (cd, ls, find)
- * 3. Validates for shell injection patterns
- * 4. Validates all paths are within allowed directories
+ * 此函数:
+ * 1. 解析命令参数
+ * 2. 检查是否是路径命令（cd、ls、find）
+ * 3. 验证 shell 注入模式
+ * 4. 验证所有路径都在允许的目录内
  *
- * @param cmd - The command string to validate
- * @param cwd - Current working directory
- * @param toolPermissionContext - Context containing allowed directories
- * @param compoundCommandHasCd - Whether the full compound command contains a cd
- * @returns PermissionResult - 'passthrough' if not a path command, otherwise validation result
+ * @param cmd - 要验证的命令字符串
+ * @param cwd - 当前工作目录
+ * @param toolPermissionContext - 包含允许目录的上下文
+ * @param compoundCommandHasCd - 完整复合命令是否包含 cd
+ * @returns PermissionResult - 如果不是路径命令则返回 'passthrough'，否则返回验证结果
  */
 function validateSinglePathCommand(
   cmd: string,
@@ -837,14 +835,13 @@ function validateSinglePathCommand(
   toolPermissionContext: ToolPermissionContext,
   compoundCommandHasCd?: boolean,
 ): PermissionResult {
-  // SECURITY: Strip wrapper commands (timeout, nice, nohup, time) before extracting
-  // the base command. Without this, dangerous commands wrapped with these utilities
-  // would bypass path validation since the wrapper command (e.g., 'timeout') would
-  // be checked instead of the actual command (e.g., 'rm').
-  // Example: 'timeout 10 rm -rf /' would otherwise see 'timeout' as the base command.
+  // 安全检查: 在提取基础命令之前，先剥离包装命令（timeout、nice、nohup、time）
+  // 否则，包装了这些工具的危险命令会绕过路径验证，
+  // 因为会检查包装命令（如 'timeout'）而不是实际命令（如 'rm'）。
+  // 示例: 'timeout 10 rm -rf /' 否则会看到 'timeout' 作为基础命令。
   const strippedCmd = stripSafeWrappers(cmd)
 
-  // Parse command into arguments, handling quotes and globs
+  // 解析命令参数，处理引号和 glob
   const extractedArgs = parseCommandArguments(strippedCmd)
   if (extractedArgs.length === 0) {
     return {
@@ -853,7 +850,7 @@ function validateSinglePathCommand(
     }
   }
 
-  // Check if this is a path command we need to validate
+  // 检查这是否是我们需要验证的路径命令
   const [baseCmd, ...args] = extractedArgs
   if (!baseCmd || !SUPPORTED_PATH_COMMANDS.includes(baseCmd as PathCommand)) {
     return {
@@ -862,16 +859,16 @@ function validateSinglePathCommand(
     }
   }
 
-  // For read-only sed commands (e.g., sed -n '1,10p' file.txt),
-  // validate file paths as read operations instead of write operations.
-  // sed is normally classified as 'write' for path validation, but when the
-  // command is purely reading (line printing with -n), file args are read-only.
+  // 对于只读 sed 命令（如 sed -n '1,10p' file.txt），
+  // 将文件路径验证为读操作而不是写操作。
+  // sed 通常被归类为 'write' 以进行路径验证，但当命令是纯读操作时
+  // （使用 -n 进行行打印），文件参数是只读的。
   const operationTypeOverride =
     baseCmd === 'sed' && sedCommandIsAllowedByAllowlist(strippedCmd)
       ? ('read' as FileOperationType)
       : undefined
 
-  // Validate all paths are within allowed directories
+  // 验证所有路径都在允许的目录内
   const pathChecker = createPathChecker(
     baseCmd as PathCommand,
     operationTypeOverride,
@@ -880,10 +877,10 @@ function validateSinglePathCommand(
 }
 
 /**
- * Like validateSinglePathCommand but operates on AST-derived argv directly
- * instead of re-parsing the command string with shell-quote. Avoids the
- * shell-quote single-quote backslash bug that causes parseCommandArguments
- * to silently return [] and skip path validation.
+ * 类似于 validateSinglePathCommand 但直接对 AST 派生的 argv 进行操作，
+ * 而不是使用 shell-quote 重新解析命令字符串。
+ * 避免 shell-quote 单引号反斜杠 bug 导致 parseCommandArguments
+ * 静默返回 [] 并跳过路径验证。
  */
 function validateSinglePathCommandArgv(
   cmd: SimpleCommand,
@@ -921,6 +918,13 @@ function validateSinglePathCommandArgv(
   return pathChecker(args, cwd, toolPermissionContext, compoundCommandHasCd)
 }
 
+/**
+ * 检查包含 'cd' 的复合命令中的输出重定向。
+ * 这防止了通过目录更改之前的重定向来绕过路径安全检查。
+ * 示例攻击: cd .claude/ && echo "malicious" > settings.json
+ * 重定向目标将相对于原始 CWD 验证，但实际写入
+ * 发生在 'cd' 执行后更改的目录中。
+ */
 function validateOutputRedirections(
   redirections: Array<{ target: string; operator: '>' | '>>' }>,
   cwd: string,
@@ -1018,31 +1022,31 @@ export function checkPathConstraints(
   astRedirects?: Redirect[],
   astCommands?: SimpleCommand[],
 ): PermissionResult {
-  // SECURITY: Process substitution >(cmd) can execute commands that write to files
-  // without those files appearing as redirect targets. For example:
+  // 安全检查: 进程替换 >(cmd) 可以执行写入文件的命令，
+  // 而这些文件不会作为重定向目标出现。例如:
   //   echo secret > >(tee .git/config)
-  // The tee command writes to .git/config but it's not detected as a redirect.
-  // Require explicit approval for any command containing process substitution.
-  // Skip on AST path — process_substitution is in DANGEROUS_TYPES and
-  // already returned too-complex before reaching here.
+  // tee 命令写入 .git/config 但它没有被检测为重定向。
+  // 需要对任何包含进程替换的命令进行明确批准。
+  // 在 AST 路径上跳过 - process_substitution 在 DANGEROUS_TYPES 中
+  // 并且在到达这里之前已经返回 too-complex。
   if (!astCommands && />>\s*>\s*\(|>\s*>\s*\(|<\s*\(/.test(input.command)) {
     return {
       behavior: 'ask',
       message:
-        'Process substitution (>(...) or <(...)) can execute arbitrary commands and requires manual approval',
+        '进程替换 (>(...) 或 <(...)) 可以执行任意命令，需要手动批准',
       decisionReason: {
         type: 'other',
-        reason: 'Process substitution requires manual approval',
+        reason: '进程替换需要手动批准',
       },
     }
   }
 
-  // SECURITY: When AST-derived redirects are available, use them directly
-  // instead of re-parsing with shell-quote. shell-quote has a known
-  // single-quote backslash bug that silently merges redirect operators into
-  // garbled tokens on a successful parse (not a parse failure, so the
-  // fail-closed guard doesn't help). The AST already resolved targets
-  // correctly and checkSemantics validated them.
+  // 安全检查: 当 AST 派生的重定向可用时，直接使用它们，
+  // 而不是用 shell-quote 重新解析。
+  // shell-quote 有一个已知的单引号反斜杠 bug，
+  // 它在成功解析（不是解析失败）时将重定向操作符静默合并为
+  // 乱码标记，因此 fail-closed 保护没有帮助。
+  // AST 已经正确解析了目标，checkSemantics 也验证了它们。
   const { redirections, hasDangerousRedirection } = astRedirects
     ? astRedirectsToOutputRedirections(astRedirects)
     : extractOutputRedirections(input.command)
@@ -1101,7 +1105,7 @@ export function checkPathConstraints(
     }
   }
 
-  // Always return passthrough to let other permission checks handle the command
+  // 始终返回 passthrough 以让其他权限检查处理命令
   return {
     behavior: 'passthrough',
     message: 'All path commands validated successfully',
@@ -1109,9 +1113,9 @@ export function checkPathConstraints(
 }
 
 /**
- * Convert AST-derived Redirect[] to the format expected by
- * validateOutputRedirections. Filters to output-only redirects (excluding
- * fd duplications like 2>&1) and maps operators to '>' | '>>'.
+ * 将 AST 派生的 Redirect[] 转换为
+ * validateOutputRedirections 期望的格式。
+ * 仅过滤输出重定向（排除 fd 复制如 2>&1）并将操作符映射到 '>' | '>>'。
  */
 function astRedirectsToOutputRedirections(redirects: Redirect[]): {
   redirections: Array<{ target: string; operator: '>' | '>>' }>
@@ -1130,8 +1134,8 @@ function astRedirectsToOutputRedirections(redirects: Redirect[]): {
         redirections.push({ target: r.target, operator: '>>' })
         break
       case '>&':
-        // >&N (digits only) is fd duplication (e.g. 2>&1, >&10), not a file
-        // write. >&file is the deprecated form of &>file (redirect to file).
+        // >&N（仅数字）是 fd 复制（例如 2>&1、>&10），不是文件
+        // 写入。>&file 是 &>file 的已弃用形式（重定向到文件）。
         if (!/^\d+$/.test(r.target)) {
           redirections.push({ target: r.target, operator: '>' })
         }
@@ -1140,45 +1144,46 @@ function astRedirectsToOutputRedirections(redirects: Redirect[]): {
       case '<<':
       case '<&':
       case '<<<':
-        // input redirects — skip
+        // 输入重定向 - 跳过
         break
     }
   }
-  // AST targets are fully resolved (no shell expansion) — checkSemantics
-  // already validated them. No dangerous redirections are possible.
+  // AST 目标是完全解析的（没有 shell 扩展）- checkSemantics
+  // 已经验证了它们。不可能有危险的重定向。
   return { redirections, hasDangerousRedirection: false }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Argv-level safe-wrapper stripping (timeout, nice, stdbuf, env, time, nohup)
+// Argv 级别的安全包装器剥离（timeout、nice、stdbuf、env、time、nohup）
 //
-// This is the CANONICAL stripWrappersFromArgv. bashPermissions.ts still
-// exports an older narrower copy (timeout/nice-n-N only) that is DEAD CODE
-// — no prod consumer — but CANNOT be removed: bashPermissions.ts is right
-// at Bun's feature() DCE complexity threshold, and deleting ~80 lines from
-// that module silently breaks feature('BASH_CLASSIFIER') evaluation (drops
-// every pendingClassifierCheck spread). Verified in PR #21503 round 3:
-// baseline classifier tests 30/30 pass, after deletion 22/30 fail. See
-// team memory: bun-feature-dce-cliff.md. Hit 3× in PR #21075 + twice in
-// #21503. The expanded version lives here (the only prod consumer) instead.
+// 这是规范化的 stripWrappersFromArgv。bashPermissions.ts 仍然
+// 导出一个较旧的较窄副本（仅 timeout/nice-n-N），是死代码
+// - 没有生产消费者 - 但不能删除: bashPermissions.ts 正好
+// 在 Bun 的 feature() DCE 复杂度阈值，删除约 80 行会
+// 静默破坏 feature('BASH_CLASSIFIER') 评估（删除
+// 每个 pendingClassifierCheck spread）。
+// 在 PR #21503 第 3 轮验证:
+// 基线分类器测试 30/30 通过，删除后 22/30 失败。参见
+// team memory: bun-feature-dce-cliff.md。在 PR #21075 + #21503
+// 中命中 3 次。扩展版本在此处（唯一生产消费者）。
 //
-// KEEP IN SYNC with:
-//   - SAFE_WRAPPER_PATTERNS in bashPermissions.ts (text-based stripSafeWrappers)
-//   - the wrapper-stripping loop in checkSemantics (src/utils/bash/ast.ts ~1860)
-// If you add a wrapper in either, add it here too. Asymmetry means
-// checkSemantics exposes the wrapped command to semantic checks but path
-// validation sees the wrapper name → passthrough → wrapped paths never
-// validated (PR #21503 review comment 2907319120).
+// 与以下保持同步:
+//   - bashPermissions.ts 中的 SAFE_WRAPPER_PATTERNS（基于文本的 stripSafeWrappers）
+//   - checkSemantics 中的包装器剥离循环 (src/utils/bash/ast.ts ~1860)
+// 如果你在任一位置添加包装器，也在此处添加。不对称意味着
+// checkSemantics 将包装命令暴露给语义检查，但路径
+// 验证看到包装器名称 → passthrough → 包装路径从未
+// 验证（PR #21503 评论 2907319120）。
 // ───────────────────────────────────────────────────────────────────────────
 
-// SECURITY: allowlist for timeout flag VALUES (signals are TERM/KILL/9,
-// durations are 5/5s/10.5). Rejects $ ( ) ` | ; & and newlines that
-// previously matched via [^ \t]+ — `timeout -k$(id) 10 ls` must NOT strip.
+// 安全检查: timeout 标志值的允许列表（信号为 TERM/KILL/9，
+// 持续时间为 5/5s/10.5）。拒绝 $ ( ) ` | ; & 和换行符
+// 以前匹配 [^ \t]+ — `timeout -k$(id) 10 ls` 不能剥离。
 const TIMEOUT_FLAG_VALUE_RE = /^[A-Za-z0-9_.+-]+$/
 
 /**
- * Parse timeout's GNU flags (long + short, fused + space-separated) and
- * return the argv index of the DURATION token, or -1 if flags are unparseable.
+ * 解析 timeout 的 GNU 标志（长 + 短，融合 + 空格分隔）
+ * 并返回 DURATION 标记的 argv 索引，如果标志不可解析则返回 -1。
  */
 function skipTimeoutFlags(a: readonly string[]): number {
   let i = 1
@@ -1218,9 +1223,9 @@ function skipTimeoutFlags(a: readonly string[]): number {
 }
 
 /**
- * Parse stdbuf's flags (-i/-o/-e in fused/space-separated/long-= forms).
- * Returns argv index of wrapped COMMAND, or -1 if unparseable or no flags
- * consumed (stdbuf without flags is inert). Mirrors checkSemantics (ast.ts).
+ * 解析 stdbuf 的标志（-i/-o/-e 融合/空格分隔/long-= 形式）。
+ * 返回包装命令的 argv 索引，如果不可解析或没有消耗标志则返回 -1
+ *（stdbuf 没有标志是惰性的）。镜像 checkSemantics (ast.ts)。
  */
 function skipStdbufFlags(a: readonly string[]): number {
   let i = 1
@@ -1237,9 +1242,10 @@ function skipStdbufFlags(a: readonly string[]): number {
 }
 
 /**
- * Parse env's VAR=val and safe flags (-i/-0/-v/-u NAME). Returns argv index
- * of wrapped COMMAND, or -1 if unparseable/no wrapped cmd. Rejects -S (argv
- * splitter), -C/-P (altwd/altpath). Mirrors checkSemantics (ast.ts).
+ * 解析 env 的 VAR=val 和安全标志（-i/-0/-v/-u NAME）。
+ * 返回包装命令的 argv 索引，如果不可解析/没有包装 cmd 则返回 -1。
+ * 拒绝 -S（argv 分割器）、-C/-P（altwd/altpath）。
+ * 镜像 checkSemantics (ast.ts)。
  */
 function skipEnvFlags(a: readonly string[]): number {
   let i = 1
@@ -1256,9 +1262,9 @@ function skipEnvFlags(a: readonly string[]): number {
 }
 
 /**
- * Argv-level counterpart to stripSafeWrappers (bashPermissions.ts). Strips
- * wrapper commands from AST-derived argv. Env vars are already separated
- * into SimpleCommand.envVars so no env-var stripping here.
+ * stripSafeWrappers (bashPermissions.ts) 的 Argv 级对应物。
+ * 从 AST 派生的 argv 剥离包装命令。
+ * Env vars 已经分离到 SimpleCommand.envVars，所以这里没有 env-var 剥离。
  */
 export function stripWrappersFromArgv(argv: string[]): string[] {
   let a = argv
@@ -1267,32 +1273,32 @@ export function stripWrappersFromArgv(argv: string[]): string[] {
       a = a.slice(a[1] === '--' ? 2 : 1)
     } else if (a[0] === 'timeout') {
       const i = skipTimeoutFlags(a)
-      // SECURITY (PR #21503 round 3): unrecognized duration (`.5`, `+5`,
-      // `inf` — strtod formats GNU timeout accepts) → return a unchanged.
-      // Safe because checkSemantics (ast.ts) fails CLOSED on the same input
-      // and runs first in bashToolHasPermission, so we never reach here.
+      // 安全检查（PR #21503 第 3 轮）: 无法识别的持续时间（`.5`、`+5`、
+      // `inf` — strtod 格式 GNU timeout 接受）→ 返回不变的 a。
+      // 安全是因为 checkSemantics (ast.ts) 对相同输入失败 CLOSED
+      // 并且首先在 bashToolHasPermission 中运行，所以我们永远不会到达这里。
       if (i < 0 || !a[i] || !/^\d+(?:\.\d+)?[smhd]?$/.test(a[i]!)) return a
       a = a.slice(i + 1)
     } else if (a[0] === 'nice') {
-      // SECURITY (PR #21503 round 3): mirror checkSemantics — handle bare
-      // `nice cmd` and legacy `nice -N cmd`, not just `nice -n N cmd`.
-      // Previously only `-n N` was stripped: `nice rm /outside` →
-      // baseCmd='nice' → passthrough → /outside never path-validated.
+      // 安全检查（PR #21503 第 3 轮）: 镜像 checkSemantics - 处理裸
+      // `nice cmd` 和传统 `nice -N cmd`，而不仅仅是 `nice -n N cmd`。
+      // 以前只剥离 `-n N`: `nice rm /outside` →
+      // baseCmd='nice' → passthrough → /outside 从未路径验证。
       if (a[1] === '-n' && a[2] && /^-?\d+$/.test(a[2]))
         a = a.slice(a[3] === '--' ? 4 : 3)
       else if (a[1] && /^-\d+$/.test(a[1])) a = a.slice(a[2] === '--' ? 3 : 2)
       else a = a.slice(a[1] === '--' ? 2 : 1)
     } else if (a[0] === 'stdbuf') {
-      // SECURITY (PR #21503 round 3): PR-WIDENED. Pre-PR, `stdbuf -o0 -eL rm`
-      // was rejected by fragment check (old checkSemantics slice(2) left
-      // name='-eL'). Post-PR, checkSemantics strips both flags → name='rm'
-      // → passes. But stripWrappersFromArgv returned unchanged →
-      // baseCmd='stdbuf' → not in SUPPORTED_PATH_COMMANDS → passthrough.
+      // 安全检查（PR #21503 第 3 轮）: PR-扩大。PR 前，
+      // `stdbuf -o0 -eL rm` 被片段检查拒绝（旧的 checkSemantics
+      // slice(2) 留下 name='-eL'）。PR 后，checkSemantics 剥离两个标志
+      // → name='rm' → 通过。但 stripWrappersFromArgv 返回不变
+      // → baseCmd='stdbuf' → 不在 SUPPORTED_PATH_COMMANDS 中 → passthrough。
       const i = skipStdbufFlags(a)
       if (i < 0) return a
       a = a.slice(i)
     } else if (a[0] === 'env') {
-      // Same asymmetry: checkSemantics strips env, we didn't.
+      // 相同的不对称: checkSemantics 剥离 env，我们没有。
       const i = skipEnvFlags(a)
       if (i < 0) return a
       a = a.slice(i)

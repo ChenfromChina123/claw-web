@@ -1,16 +1,15 @@
 /**
- * Read tool output limits.  Two caps apply to text reads:
+ * 读取工具输出限制。文本读取有两个上限：
  *
- *   | limit         | default | checks                    | cost          | on overflow     |
- *   |---------------|---------|---------------------------|---------------|-----------------|
- *   | maxSizeBytes  | 256 KB  | TOTAL FILE SIZE (not out) | 1 stat        | throws pre-read |
- *   | maxTokens     | 25000   | actual output tokens      | API roundtrip | throws post-read|
+ *   | limit         | 默认值  | 检查                    | 成本          | 超过时处理     |
+ *   |---------------|---------|-------------------------|---------------|----------------|
+ *   | maxSizeBytes  | 256 KB  | 总文件大小（非输出）      | 1 次 stat     | 读取前抛出异常 |
+ *   | maxTokens     | 25000   | 实际输出 token 数        | API 往返      | 读取后抛出异常 |
  *
- * Known mismatch: maxSizeBytes gates on total file size, not the slice.
- * Tested truncating instead of throwing for explicit-limit reads that
- * exceed the byte cap (#21841, Mar 2026).  Reverted: tool error rate
- * dropped but mean tokens rose — the throw path yields a ~100-byte error
- * tool-result while truncation yields ~25K tokens of content at the cap.
+ * 已知不匹配：maxSizeBytes 基于总文件大小限制，而非切片大小。
+ * 对于超过字节限制的显式限制读取，曾测试使用截断而非抛出（#21841，2026年3月）。
+ * 回滚原因：工具错误率下降但平均 token 数上升——抛出路径返回约100字节的错误
+ * tool-result，而截断返回约25K token 的内容上限。
  */
 import memoize from 'lodash-es/memoize.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from 'src/services/analytics/growthbook.js'
@@ -18,8 +17,8 @@ import { MAX_OUTPUT_SIZE } from 'src/utils/file.js'
 export const DEFAULT_MAX_OUTPUT_TOKENS = 25000
 
 /**
- * Env var override for max output tokens. Returns undefined when unset/invalid
- * so the caller can fall through to the next precedence tier.
+ * 环境变量覆盖 max output tokens。当未设置/无效时返回 undefined，
+ * 以便调用方可以降级到下一个优先级层。
  */
 function getEnvMaxTokens(): number | undefined {
   const override = process.env.CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS
@@ -40,15 +39,15 @@ export type FileReadingLimits = {
 }
 
 /**
- * Default limits for Read tool when the ToolUseContext doesn't supply an
- * override. Memoized so the GrowthBook value is fixed at first call — avoids
- * the cap changing mid-session as the flag refreshes in the background.
+ * 当 ToolUseContext 未提供覆盖时，Read 工具的默认限制。
+ * 使用记忆化以便 GrowthBook 值在首次调用时固定——避免标志
+ * 在后台刷新时上限在会话期间发生变化。
  *
- * Precedence for maxTokens: env var > GrowthBook > DEFAULT_MAX_OUTPUT_TOKENS.
- * (Env var is a user-set override, should beat experiment infrastructure.)
+ * maxTokens 的优先级：环境变量 > GrowthBook > DEFAULT_MAX_OUTPUT_TOKENS。
+ * （环境变量是用户设置的覆盖，应优于实验基础设施。）
  *
- * Defensive: each field is individually validated; invalid values fall
- * through to the hardcoded defaults (no route to cap=0).
+ * 防御性：每个字段都经过单独验证；无效值会
+ * 降级到硬编码默认值（没有 route 到 cap=0）。
  */
 export const getDefaultFileReadingLimits = memoize((): FileReadingLimits => {
   const override =

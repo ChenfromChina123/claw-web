@@ -1,11 +1,11 @@
-// In its own file to avoid circular dependencies
+// 为避免循环依赖而单独存放
 export const FILE_EDIT_TOOL_NAME = 'Edit'
 
-// Permission pattern for granting session-level access to the project's .claude/ folder
+// 用于授予项目 .claude/ 文件夹会话级访问权限的模式
 export const CLAUDE_FOLDER_PERMISSION_PATTERN = '/.claude/**'
 
-// Permission pattern for granting session-level access to the global ~/.claude/ folder
+// 用于授予全局 ~/.claude/ 文件夹会话级访问权限的模式
 export const GLOBAL_CLAUDE_FOLDER_PERMISSION_PATTERN = '~/.claude/**'
 
 export const FILE_UNEXPECTEDLY_MODIFIED_ERROR =
-  'File has been unexpectedly modified. Read it again before attempting to write it.'
+  '文件意外被修改。请在尝试写入之前重新读取。'

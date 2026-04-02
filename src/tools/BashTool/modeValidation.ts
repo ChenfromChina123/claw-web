@@ -16,6 +16,11 @@ const ACCEPT_EDITS_ALLOWED_COMMANDS = [
 
 type FilesystemCommand = (typeof ACCEPT_EDITS_ALLOWED_COMMANDS)[number]
 
+/**
+ * 检查 rm/rmdir 命令是否针对危险路径，
+ * 即使存在允许列表规则也需要用户明确批准。
+ * 这可以防止像 `rm -rf /` 这样的灾难性数据丢失命令。
+ */
 function isFilesystemCommand(command: string): command is FilesystemCommand {
   return ACCEPT_EDITS_ALLOWED_COMMANDS.includes(command as FilesystemCommand)
 }

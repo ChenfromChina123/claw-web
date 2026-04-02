@@ -1,6 +1,6 @@
 /**
- * Parser for sed edit commands (-i flag substitutions)
- * Extracts file paths and substitution patterns to enable file-edit-style rendering
+ * sed 编辑命令（-i 标志替换）的解析器
+ * 提取文件路径和替换模式以启用文件编辑风格的渲染
  */
 
 import { randomBytes } from 'crypto'

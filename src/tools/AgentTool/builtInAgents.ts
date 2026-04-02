@@ -10,18 +10,21 @@ import { STATUSLINE_SETUP_AGENT } from './built-in/statuslineSetup.js'
 import { VERIFICATION_AGENT } from './built-in/verificationAgent.js'
 import type { AgentDefinition } from './loadAgentsDir.js'
 
+/**
+ * 检查 Explore/Plan 代理是否启用
+ */
 export function areExplorePlanAgentsEnabled(): boolean {
   if (feature('BUILTIN_EXPLORE_PLAN_AGENTS')) {
-    // 3P default: true — Bedrock/Vertex keep agents enabled (matches pre-experiment
-    // external behavior). A/B test treatment sets false to measure impact of removal.
+    // 3P 默认值：true — Bedrock/Vertex 保持代理启用（与实验前外部行为一致）
+    // A/B 测试处理组设置为 false 以衡量移除的影响
     return getFeatureValue_CACHED_MAY_BE_STALE('tengu_amber_stoat', true)
   }
   return false
 }
 
 export function getBuiltInAgents(): AgentDefinition[] {
-  // Allow disabling all built-in agents via env var (useful for SDK users who want a blank slate)
-  // Only applies in noninteractive mode (SDK/API usage)
+  // 允许通过环境变量禁用所有内置代理（对于希望空白状态的 SDK 用户有用）
+  // 仅在非交互模式下（SDK/API 使用）适用
   if (
     isEnvTruthy(process.env.CLAUDE_AGENT_SDK_DISABLE_BUILTIN_AGENTS) &&
     getIsNonInteractiveSession()
@@ -29,9 +32,8 @@ export function getBuiltInAgents(): AgentDefinition[] {
     return []
   }
 
-  // Use lazy require inside the function body to avoid circular dependency
-  // issues at module init time. The coordinatorMode module depends on tools
-  // which depend on AgentTool which imports this file.
+  // 在函数体内使用延迟 require 以避免模块初始化时的循环依赖问题
+  // coordinatorMode 模块依赖于 tools，而 tools 依赖于 AgentTool，后者又导入此文件
   if (feature('COORDINATOR_MODE')) {
     if (isEnvTruthy(process.env.CLAUDE_CODE_COORDINATOR_MODE)) {
       /* eslint-disable @typescript-eslint/no-require-imports */
@@ -51,7 +53,7 @@ export function getBuiltInAgents(): AgentDefinition[] {
     agents.push(EXPLORE_AGENT, PLAN_AGENT)
   }
 
-  // Include Code Guide agent for non-SDK entrypoints
+  // 为非 SDK 入口点包含 Code Guide 代理
   const isNonSdkEntrypoint =
     process.env.CLAUDE_CODE_ENTRYPOINT !== 'sdk-ts' &&
     process.env.CLAUDE_CODE_ENTRYPOINT !== 'sdk-py' &&

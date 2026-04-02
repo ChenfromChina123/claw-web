@@ -1,6 +1,6 @@
 import mysql from 'mysql2/promise'
 import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import { join, resolve } from 'path'
 
 let pool: mysql.Pool | null = null
 
@@ -13,7 +13,10 @@ interface DbConfig {
 }
 
 function loadDbConfig(): DbConfig {
-  const configPath = resolve(__dirname, '../../.env')
+  // 使用 process.cwd() 获取项目根目录，然后向上查找 .env
+  // process.cwd() 在运行时指向 server/ 目录
+  const projectRoot = process.cwd()
+  const configPath = join(projectRoot, '.env')
   const envContent = readFileSync(configPath, 'utf-8')
 
   const config: Record<string, string> = {}
@@ -73,7 +76,9 @@ export async function initDatabase(): Promise<void> {
     await tempPool.query(`USE \`${config.database}\``)
     console.log(`Using database ${config.database}`)
 
-    const schemaPath = resolve(__dirname, './schema.sql')
+    // 使用 process.cwd() 获取 server/ 目录
+    const projectRoot = process.cwd()
+    const schemaPath = join(projectRoot, 'src', 'db', 'schema.sql')
     const schema = readFileSync(schemaPath, 'utf-8')
 
     const statements = schema.split(';').filter(s => s.trim())

@@ -12,15 +12,15 @@ import { DESCRIPTION, PROMPT } from './prompt.js'
 
 const inputSchema = lazySchema(() =>
   z.strictObject({
-    todos: TodoListSchema().describe('The updated todo list'),
+    todos: TodoListSchema().describe('更新后的待办列表'),
   }),
 )
 type InputSchema = ReturnType<typeof inputSchema>
 
 const outputSchema = lazySchema(() =>
   z.object({
-    oldTodos: TodoListSchema().describe('The todo list before the update'),
-    newTodos: TodoListSchema().describe('The todo list after the update'),
+    oldTodos: TodoListSchema().describe('更新前的待办列表'),
+    newTodos: TodoListSchema().describe('更新后的待办列表'),
     verificationNudgeNeeded: z.boolean().optional(),
   }),
 )
@@ -30,7 +30,7 @@ export type Output = z.infer<OutputSchema>
 
 export const TodoWriteTool = buildTool({
   name: TODO_WRITE_TOOL_NAME,
-  searchHint: 'manage the session task checklist',
+  searchHint: '管理会话任务清单',
   maxResultSizeChars: 100_000,
   strict: true,
   async description() {
@@ -56,7 +56,7 @@ export const TodoWriteTool = buildTool({
     return `${input.todos.length} items`
   },
   async checkPermissions(input) {
-    // No permission checks required for todo operations
+    // 待办事项操作不需要权限检查
     return { behavior: 'allow', updatedInput: input }
   },
   renderToolUseMessage() {
@@ -69,10 +69,9 @@ export const TodoWriteTool = buildTool({
     const allDone = todos.every(_ => _.status === 'completed')
     const newTodos = allDone ? [] : todos
 
-    // Structural nudge: if the main-thread agent is closing out a 3+ item
-    // list and none of those items was a verification step, append a reminder
-    // to the tool result. Fires at the exact loop-exit moment where skips
-    // happen ("when the last task closed, the loop exited").
+    // 结构提示：如果主线程代理正在关闭一个包含 3+ 项的列表，
+    // 但其中没有任何项是验证步骤，则向工具结果追加提醒。
+    // 在跳过发生时的精确循环退出时刻触发（"当最后一项关闭时，循环退出"）。
     let verificationNudgeNeeded = false
     if (
       feature('VERIFICATION_AGENT') &&
@@ -102,9 +101,9 @@ export const TodoWriteTool = buildTool({
     }
   },
   mapToolResultToToolResultBlockParam({ verificationNudgeNeeded }, toolUseID) {
-    const base = `Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable`
+    const base = `待办事项已修改成功。请继续使用待办列表跟踪当前任务`
     const nudge = verificationNudgeNeeded
-      ? `\n\nNOTE: You just closed out 3+ tasks and none of them was a verification step. Before writing your final summary, spawn the verification agent (subagent_type="${VERIFICATION_AGENT_TYPE}"). You cannot self-assign PARTIAL by listing caveats in your summary \u2014 only the verifier issues a verdict.`
+      ? `\n\n注意：您刚刚关闭了 3+ 个任务，但其中没有任何验证步骤。在编写最终总结之前，请生成验证代理 (subagent_type="${VERIFICATION_AGENT_TYPE}")。您不能通过在总结中列出免责条款来自行分配 PARTIAL —— 只有验证者才能做出裁决。`
       : ''
     return {
       tool_use_id: toolUseID,

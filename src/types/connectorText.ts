@@ -1,12 +1,7 @@
-export type ConnectorTextBlock = {
-  type: 'connector_text';
-  text?: string;
-};
-
-export type ConnectorTextDelta = {
-  type: 'connector_text_delta';
-  text?: string;
-};
+/**
+ * 连接器文本类型的类型定义。
+ * 用于标识来自连接器的文本块和文本增量。
+ */
 
 export function isConnectorTextBlock(
   value: unknown,

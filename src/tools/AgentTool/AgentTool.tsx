@@ -59,10 +59,10 @@ import { renderGroupedAgentToolUse, renderToolResultMessage, renderToolUseErrorM
 const proactiveModule = feature('PROACTIVE') || feature('KAIROS') ? require('../../proactive/index.js') as typeof import('../../proactive/index.js') : null;
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-// Progress display constants (for showing background hint)
-const PROGRESS_THRESHOLD_MS = 2000; // Show background hint after 2 seconds
+// 进度显示常量（用于显示后台提示）
+const PROGRESS_THRESHOLD_MS = 2000; // 2秒后显示后台提示
 
-// Check if background tasks are disabled at module load time
+// 在模块加载时检查后台任务是否被禁用
 const isBackgroundTasksDisabled =
 // eslint-disable-next-line custom-rules/no-process-env-top-level -- Intentional: schema must be defined at module load
 isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS);

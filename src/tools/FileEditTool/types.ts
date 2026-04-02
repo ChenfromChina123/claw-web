@@ -59,7 +59,7 @@ export const gitDiffSchema = lazySchema(() =>
   }),
 )
 
-// Output schema for FileEditTool
+// FileEditTool 的输出模式
 const outputSchema = lazySchema(() =>
   z.object({
     filePath: z.string().describe('The file path that was edited'),

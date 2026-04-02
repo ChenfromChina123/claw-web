@@ -75,14 +75,14 @@ import {
 } from './UI.js'
 
 /**
- * Gets all commands including MCP skills/prompts from AppState.
- * SkillTool needs this because getCommands() only returns local/bundled skills.
+ * 从 AppState 获取所有命令，包括 MCP 技能/提示。
+ * SkillTool 需要这个，因为 getCommands() 只返回本地/绑定的技能。
  */
 async function getAllCommands(context: ToolUseContext): Promise<Command[]> {
-  // Only include MCP skills (loadedFrom === 'mcp'), not plain MCP prompts.
-  // Before this filter, the model could invoke MCP prompts via SkillTool
-  // if it guessed the mcp__server__prompt name — they weren't discoverable
-  // but were technically reachable.
+  // 只包含 MCP 技能（loadedFrom === 'mcp'），而不是普通 MCP 提示。
+  // 在此过滤器之前，模型可以通过 SkillTool 调用 MCP 提示
+  // 如果它猜到了 mcp__server__prompt 名称 —— 它们不可发现
+  // 但技术上可达。
   const mcpSkills = context
     .getAppState()
     .mcp.commands.filter(
@@ -98,12 +98,11 @@ export type { SkillToolProgress as Progress } from '../../types/tools.js'
 
 import type { SkillToolProgress as Progress } from '../../types/tools.js'
 
-// Conditional require for remote skill modules — static imports here would
-// pull in akiBackend.ts (via remoteSkillLoader → akiBackend), which has
-// module-level memoize()/lazySchema() consts that survive tree-shaking as
-// side-effecting initializers. All usages are inside
-// feature('EXPERIMENTAL_SKILL_SEARCH') guards, so remoteSkillModules is
-// non-null at every call site.
+// 远程技能模块的条件导入 —— 这里的静态导入会拉入
+// akiBackend.ts（通过 remoteSkillLoader → akiBackend），它有
+// 在树摇中存活的有副作用初始化的模块级 memoize()/lazySchema() 常量。
+// 所有用法都在 feature('EXPERIMENTAL_SKILL_SEARCH') 守卫内，因此 remoteSkillModules
+// 在每个调用点都是非空的。
 /* eslint-disable @typescript-eslint/no-require-imports */
 const remoteSkillModules = feature('EXPERIMENTAL_SKILL_SEARCH')
   ? {
@@ -116,8 +115,8 @@ const remoteSkillModules = feature('EXPERIMENTAL_SKILL_SEARCH')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 /**
- * Executes a skill in a forked sub-agent context.
- * This runs the skill prompt in an isolated agent with its own token budget.
+ * 在分叉子代理上下文中执行技能。
+ * 这在具有自己令牌预算的隔离代理中运行技能提示。
  */
 async function executeForkedSkill(
   command: Command & { type: 'prompt' },

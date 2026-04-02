@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 
 interface Session {
   id: string
@@ -8,7 +8,7 @@ interface Session {
   updatedAt: string
 }
 
-const props = defineProps<{
+defineProps<{
   sessions: Session[]
   currentSessionId: string | null
 }>()

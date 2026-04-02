@@ -28,14 +28,14 @@ import { AgentPromptDisplay, AgentResponseDisplay } from '../AgentTool/UI.js';
 import BashToolResultMessage from '../BashTool/BashToolResultMessage.js';
 import { TASK_OUTPUT_TOOL_NAME } from './constants.js';
 const inputSchema = lazySchema(() => z.strictObject({
-  task_id: z.string().describe('The task ID to get output from'),
-  block: semanticBoolean(z.boolean().default(true)).describe('Whether to wait for completion'),
-  timeout: z.number().min(0).max(600000).default(30000).describe('Max wait time in ms')
+  task_id: z.string().describe('要获取输出的任务ID'),
+  block: semanticBoolean(z.boolean().default(true)).describe('是否等待完成'),
+  timeout: z.number().min(0).max(600000).default(30000).describe('最大等待时间（毫秒）')
 }));
 type InputSchema = ReturnType<typeof inputSchema>;
 type TaskOutputToolInput = z.infer<InputSchema>;
 
-// Unified output type covering all task types
+// 统一输出类型，涵盖所有任务类型
 type TaskOutput = {
   task_id: string;
   task_type: TaskType;
@@ -53,10 +53,10 @@ type TaskOutputToolOutput = {
   task: TaskOutput | null;
 };
 
-// Re-export Progress from centralized types to break import cycles
+// 从集中化类型重新导出 Progress 以打破导入循环
 export type { TaskOutputProgress as Progress } from '../../types/tools.js';
 
-// Get output for any task type
+// 获取任何任务类型的输出
 async function getTaskOutputData(task: TaskState): Promise<TaskOutput> {
   let output: string;
   if (task.type === 'local_bash') {
@@ -90,11 +90,10 @@ async function getTaskOutputData(task: TaskState): Promise<TaskOutput> {
   }
   if (task.type === 'local_agent') {
     const agentTask = task as LocalAgentTaskState;
-    // Prefer the clean final answer from the in-memory result over the raw
-    // JSONL transcript on disk. The disk output is a symlink to the full
-    // session transcript (every message, tool use, etc.), not just the
-    // subagent's answer. The in-memory result contains only the final
-    // assistant text content blocks.
+    // 优先使用内存中的干净最终答案，而不是磁盘上的原始
+    // JSONL transcript。磁盘输出是指向完整会话 transcript 的符号链接
+    //（每个消息、工具使用等），不仅仅是子代理的答案。
+    // 内存中的结果只包含最终的助手文本内容块。
     const cleanResult = agentTask.result ? extractTextContent(agentTask.result.content, '\n') : undefined;
     return {
       ...baseOutput,
@@ -114,13 +113,13 @@ async function getTaskOutputData(task: TaskState): Promise<TaskOutput> {
   return baseOutput;
 }
 
-// Wait for task to complete
+// 等待任务完成
 async function waitForTaskCompletion(taskId: string, getAppState: () => {
   tasks?: Record<string, TaskState>;
 }, timeoutMs: number, abortController?: AbortController): Promise<TaskState | null> {
   const startTime = Date.now();
   while (Date.now() - startTime < timeoutMs) {
-    // Check abort signal
+    // 检查中止信号
     if (abortController?.signal.aborted) {
       throw new AbortError();
     }
@@ -133,20 +132,20 @@ async function waitForTaskCompletion(taskId: string, getAppState: () => {
       return task;
     }
 
-    // Wait before polling again
+    // 再次轮询前等待
     await sleep(100);
   }
 
-  // Timeout - return current state
+  // 超时 - 返回当前状态
   const finalState = getAppState();
   return finalState.tasks?.[taskId] as TaskState ?? null;
 }
 export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool({
   name: TASK_OUTPUT_TOOL_NAME,
-  searchHint: 'read output/logs from a background task',
+  searchHint: '从后台任务读取输出/日志',
   maxResultSizeChars: 100_000,
   shouldDefer: true,
-  // Backwards-compatible aliases for renamed tools
+  // 重命名工具的向后兼容别名
   aliases: ['AgentOutputTool', 'BashOutputTool'],
   userFacingName() {
     return 'Task Output';
@@ -155,7 +154,7 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
     return inputSchema();
   },
   async description() {
-    return '[Deprecated] — prefer Read on the task output file path';
+    return '[已弃用] — 建议使用 Read 工具读取任务输出文件路径';
   },
   isConcurrencySafe(_input) {
     return this.isReadOnly?.(_input) ?? false;
@@ -170,15 +169,15 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
     return input.task_id;
   },
   async prompt() {
-    return `DEPRECATED: Prefer using the Read tool on the task's output file path instead. Background tasks return their output file path in the tool result, and you receive a <task-notification> with the same path when the task completes — Read that file directly.
+    return `已弃用：建议改用 Read 工具读取任务的输出文件路径。后台任务在工具结果中返回其输出文件路径，当任务完成时会收到包含相同路径的 <task-notification> —— 直接读取该文件。
 
-- Retrieves output from a running or completed task (background shell, agent, or remote session)
-- Takes a task_id parameter identifying the task
-- Returns the task output along with status information
-- Use block=true (default) to wait for task completion
-- Use block=false for non-blocking check of current status
-- Task IDs can be found using the /tasks command
-- Works with all task types: background shells, async agents, and remote sessions`;
+- 从运行中或已完成的任务检索输出（后台 shell、代理或远程会话）
+- 获取标识任务的 task_id 参数
+- 返回任务输出以及状态信息
+- 使用 block=true（默认）等待任务完成
+- 使用 block=false 进行非阻塞检查当前状态
+- 任务 ID 可以使用 /tasks 命令查找
+- 适用于所有任务类型：后台 shell、异步代理和远程会话`;
   },
   async validateInput({
     task_id
@@ -188,7 +187,7 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
     if (!task_id) {
       return {
         result: false,
-        message: 'Task ID is required',
+        message: '需要任务ID',
         errorCode: 1
       };
     }
@@ -197,7 +196,7 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
     if (!task) {
       return {
         result: false,
-        message: `No task found with ID: ${task_id}`,
+        message: `未找到 ID 为 ${task_id} 的任务`,
         errorCode: 2
       };
     }
@@ -214,12 +213,12 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
     const appState = toolUseContext.getAppState();
     const task = appState.tasks?.[task_id] as TaskState | undefined;
     if (!task) {
-      throw new Error(`No task found with ID: ${task_id}`);
+      throw new Error(`未找到 ID 为 ${task_id} 的任务`);
     }
     if (!block) {
-      // Non-blocking: return current state
+      // 非阻塞：返回当前状态
       if (task.status !== 'running' && task.status !== 'pending') {
-        // Mark as notified
+        // 标记为已通知
         updateTaskState(task_id, toolUseContext.setAppState, t => ({
           ...t,
           notified: true
@@ -239,7 +238,7 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
       };
     }
 
-    // Blocking: wait for completion
+    // 阻塞：等待完成
     if (onProgress) {
       onProgress({
         toolUseID: `task-output-waiting-${Date.now()}`,
@@ -268,7 +267,7 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
       };
     }
 
-    // Mark as notified
+    // 标记为已通知
     updateTaskState(task_id, toolUseContext.setAppState, t => ({
       ...t,
       notified: true
@@ -311,7 +310,7 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
       block = true
     } = input;
     if (!block) {
-      return 'non-blocking';
+      return '非阻塞';
     }
     return '';
   },
@@ -330,8 +329,8 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
     return <Box flexDirection="column">
           {progressData?.taskDescription && <Text>&nbsp;&nbsp;{progressData.taskDescription}</Text>}
           <Text>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Waiting for task{' '}
-            <Text dimColor>(esc to give additional instructions)</Text>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;正在等待任务{' '}
+            <Text dimColor>(esc 提供额外说明)</Text>
           </Text>
         </Box>;
   },
@@ -371,7 +370,7 @@ function TaskOutputResultDisplay(t0) {
   if (!result.task) {
     let t3;
     if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-      t3 = <MessageResponse><Text dimColor={true}>No task output available</Text></MessageResponse>;
+      t3 = <MessageResponse><Text dimColor={true}>没有可用的任务输出</Text></MessageResponse>;
       $[2] = t3;
     } else {
       t3 = $[2];
@@ -415,7 +414,7 @@ function TaskOutputResultDisplay(t0) {
       if (verbose) {
         let t3;
         if ($[9] !== lineCount || $[10] !== task.description) {
-          t3 = <Text>{task.description} ({lineCount} lines)</Text>;
+          t3 = <Text>{task.description} ({lineCount} 行)</Text>;
           $[9] = lineCount;
           $[10] = task.description;
           $[11] = t3;
@@ -474,7 +473,7 @@ function TaskOutputResultDisplay(t0) {
       }
       let t3;
       if ($[27] !== expandShortcut) {
-        t3 = <MessageResponse><Text dimColor={true}>Read output ({expandShortcut} to expand)</Text></MessageResponse>;
+        t3 = <MessageResponse><Text dimColor={true}>读取输出（按 {expandShortcut} 展开）</Text></MessageResponse>;
         $[27] = expandShortcut;
         $[28] = t3;
       } else {
@@ -485,7 +484,7 @@ function TaskOutputResultDisplay(t0) {
     if (result.retrieval_status === "timeout" || task.status === "running") {
       let t3;
       if ($[29] === Symbol.for("react.memo_cache_sentinel")) {
-        t3 = <MessageResponse><Text dimColor={true}>Task is still running…</Text></MessageResponse>;
+        t3 = <MessageResponse><Text dimColor={true}>任务仍在运行中…</Text></MessageResponse>;
         $[29] = t3;
       } else {
         t3 = $[29];
@@ -495,7 +494,7 @@ function TaskOutputResultDisplay(t0) {
     if (result.retrieval_status === "not_ready") {
       let t3;
       if ($[30] === Symbol.for("react.memo_cache_sentinel")) {
-        t3 = <MessageResponse><Text dimColor={true}>Task is still running…</Text></MessageResponse>;
+        t3 = <MessageResponse><Text dimColor={true}>任务仍在运行中…</Text></MessageResponse>;
         $[30] = t3;
       } else {
         t3 = $[30];
@@ -504,7 +503,7 @@ function TaskOutputResultDisplay(t0) {
     }
     let t3;
     if ($[31] === Symbol.for("react.memo_cache_sentinel")) {
-      t3 = <MessageResponse><Text dimColor={true}>Task not ready</Text></MessageResponse>;
+      t3 = <MessageResponse><Text dimColor={true}>任务未就绪</Text></MessageResponse>;
       $[31] = t3;
     } else {
       t3 = $[31];
@@ -532,7 +531,7 @@ function TaskOutputResultDisplay(t0) {
     }
     let t5;
     if ($[38] !== expandShortcut || $[39] !== task.output || $[40] !== verbose) {
-      t5 = !verbose && task.output && <Text dimColor={true}>{"     "}({expandShortcut} to expand)</Text>;
+        t5 = !verbose && task.output && <Text dimColor={true}>{"     "}(按 {expandShortcut} 展开)</Text>;
       $[38] = expandShortcut;
       $[39] = task.output;
       $[40] = verbose;

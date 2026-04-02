@@ -56,11 +56,11 @@ export async function sendEmail(options: SendEmailOptions): Promise<void> {
   const transport = getTransporter()
 
   if (!transport) {
-    console.log('[开发模式] 邮件发送配置未完成，跳过实际发送')
-    console.log(`[开发模式] 邮件内容:`)
-    console.log(`  收件人: ${options.to}`)
-    console.log(`  主题: ${options.subject}`)
-    console.log(`  内容: ${options.text}`)
+    // 开发模式：邮件发送配置未完成，仅记录日志
+    console.log('[开发模式] 邮件发送已跳过（配置未完成）')
+    console.log(`[开发模式] 收件人: ${options.to}`)
+    console.log(`[开发模式] 主题: ${options.subject}`)
+    console.log(`[开发模式] 内容: ${options.text.substring(0, 100)}...`)
     return
   }
 
@@ -75,7 +75,8 @@ export async function sendEmail(options: SendEmailOptions): Promise<void> {
     console.log(`邮件已发送到: ${options.to}`)
   } catch (error) {
     console.error('发送邮件失败:', error)
-    throw error
+    // 邮件发送失败不抛出异常，避免阻塞业务流程
+    console.warn(`邮件发送失败，已记录错误: ${options.to}`)
   }
 }
 

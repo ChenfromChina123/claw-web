@@ -31,36 +31,36 @@ import { TASK_UPDATE_TOOL_NAME } from './constants.js'
 import { DESCRIPTION, PROMPT } from './prompt.js'
 
 const inputSchema = lazySchema(() => {
-  // Extended status schema that includes 'deleted' as a special action
+  // 扩展状态模式，包含 'deleted' 作为特殊操作
   const TaskUpdateStatusSchema = TaskStatusSchema().or(z.literal('deleted'))
 
   return z.strictObject({
-    taskId: z.string().describe('The ID of the task to update'),
-    subject: z.string().optional().describe('New subject for the task'),
-    description: z.string().optional().describe('New description for the task'),
+    taskId: z.string().describe('要更新的任务ID'),
+    subject: z.string().optional().describe('任务的新标题'),
+    description: z.string().optional().describe('任务的新描述'),
     activeForm: z
       .string()
       .optional()
       .describe(
-        'Present continuous form shown in spinner when in_progress (e.g., "Running tests")',
+        '进行时形式，当状态为 in_progress 时显示在旋转器中（例如："Running tests"）',
       ),
     status: TaskUpdateStatusSchema.optional().describe(
-      'New status for the task',
+      '任务的新状态',
     ),
     addBlocks: z
       .array(z.string())
       .optional()
-      .describe('Task IDs that this task blocks'),
+      .describe('此任务阻塞的任务ID'),
     addBlockedBy: z
       .array(z.string())
       .optional()
-      .describe('Task IDs that block this task'),
-    owner: z.string().optional().describe('New owner for the task'),
+      .describe('阻塞此任务的任务ID'),
+    owner: z.string().optional().describe('任务的新负责人'),
     metadata: z
       .record(z.string(), z.unknown())
       .optional()
       .describe(
-        'Metadata keys to merge into the task. Set a key to null to delete it.',
+        '要合并到任务的元数据键。将键设置为 null 可删除它。',
       ),
   })
 })
@@ -87,7 +87,7 @@ export type Output = z.infer<OutputSchema>
 
 export const TaskUpdateTool = buildTool({
   name: TASK_UPDATE_TOOL_NAME,
-  searchHint: 'update a task',
+  searchHint: '更新任务',
   maxResultSizeChars: 100_000,
   async description() {
     return DESCRIPTION
@@ -136,13 +136,13 @@ export const TaskUpdateTool = buildTool({
   ) {
     const taskListId = getTaskListId()
 
-    // Auto-expand task list when updating tasks
+    // 更新任务时自动展开任务列表
     context.setAppState(prev => {
       if (prev.expandedView === 'tasks') return prev
       return { ...prev, expandedView: 'tasks' as const }
     })
 
-    // Check if task exists
+    // 检查任务是否存在
     const existingTask = await getTask(taskListId, taskId)
     if (!existingTask) {
       return {
@@ -157,7 +157,7 @@ export const TaskUpdateTool = buildTool({
 
     const updatedFields: string[] = []
 
-    // Update basic fields if provided and different from current value
+    // 如果提供了基本字段且与当前值不同，则更新
     const updates: {
       subject?: string
       description?: string
@@ -182,9 +182,8 @@ export const TaskUpdateTool = buildTool({
       updates.owner = owner
       updatedFields.push('owner')
     }
-    // Auto-set owner when a teammate marks a task as in_progress without
-    // explicitly providing an owner. This ensures the task list can match
-    // todo items to teammates for showing activity status.
+    // 当队友将任务标记为 in_progress 但未明确提供负责人时，自动设置负责人。
+    // 这确保任务列表可以将待办事项匹配到队友以显示活动状态。
     if (
       isAgentSwarmsEnabled() &&
       status === 'in_progress' &&
@@ -210,7 +209,7 @@ export const TaskUpdateTool = buildTool({
       updatedFields.push('metadata')
     }
     if (status !== undefined) {
-      // Handle deletion - delete the task file and return early
+      // 处理删除 - 删除任务文件并提前返回
       if (status === 'deleted') {
         const deleted = await deleteTask(taskListId, taskId)
         return {
@@ -226,9 +225,9 @@ export const TaskUpdateTool = buildTool({
         }
       }
 
-      // For regular status updates, validate and apply if different
+      // 对于常规状态更新，如果不同则验证并应用
       if (status !== existingTask.status) {
-        // Run TaskCompleted hooks when marking a task as completed
+        // 将任务标记为已完成时运行 TaskCompleted 钩子
         if (status === 'completed') {
           const blockingErrors: string[] = []
 
@@ -273,7 +272,7 @@ export const TaskUpdateTool = buildTool({
       await updateTask(taskListId, taskId, updates)
     }
 
-    // Notify new owner via mailbox when ownership changes
+    // 所有权变更时通过邮箱通知新负责人
     if (updates.owner && isAgentSwarmsEnabled()) {
       const senderName = getAgentName() || 'team-lead'
       const senderColor = getTeammateColor()
@@ -297,7 +296,7 @@ export const TaskUpdateTool = buildTool({
       )
     }
 
-    // Add blocks if provided and not already present
+    // 如果提供了 addBlocks 且不存在，则添加
     if (addBlocks && addBlocks.length > 0) {
       const newBlocks = addBlocks.filter(
         id => !existingTask.blocks.includes(id),
@@ -310,7 +309,7 @@ export const TaskUpdateTool = buildTool({
       }
     }
 
-    // Add blockedBy if provided and not already present (reverse: the blocker blocks this task)
+    // 如果提供了 addBlockedBy 且不存在则添加（反向：阻塞者阻塞此任务）
     if (addBlockedBy && addBlockedBy.length > 0) {
       const newBlockedBy = addBlockedBy.filter(
         id => !existingTask.blockedBy.includes(id),
@@ -323,13 +322,11 @@ export const TaskUpdateTool = buildTool({
       }
     }
 
-    // Structural verification nudge: if the main-thread agent just closed
-    // out a 3+ task list and none of those tasks was a verification step,
-    // append a reminder to the tool result. Fires at the loop-exit moment
-    // where skips happen ("when the last task closed, the loop exited").
-    // Mirrors the TodoWriteTool nudge for V1 sessions; this covers V2
-    // (interactive CLI). TaskUpdateToolOutput is @internal so this field
-    // does not touch the public SDK surface.
+    // 结构验证提示：如果主线程代理刚刚关闭了 3+ 任务列表，
+    // 但其中没有任何任务是验证步骤，则向工具结果追加提醒。
+    // 在跳过发生时的循环退出时刻触发（"当最后一个任务关闭时，循环退出"）。
+    // 镜像了 V1 会话的 TodoWriteTool 提示；这覆盖了 V2（交互式 CLI）。
+    // TaskUpdateToolOutput 是 @internal 的，因此此字段不触及公共 SDK 表面。
     let verificationNudgeNeeded = false
     if (
       feature('VERIFICATION_AGENT') &&
@@ -371,9 +368,9 @@ export const TaskUpdateTool = buildTool({
       verificationNudgeNeeded,
     } = content as Output
     if (!success) {
-      // Return as non-error so it doesn't trigger sibling tool cancellation
-      // in StreamingToolExecutor. "Task not found" is a benign condition
-      // (e.g., task list already cleaned up) that the model can handle.
+      // 返回非错误结果，以免在 StreamingToolExecutor 中触发同级工具取消。
+      // "Task not found" 是一个良性条件（例如：任务列表已被清理），
+      // 模型可以处理。
       return {
         tool_use_id: toolUseID,
         type: 'tool_result',
@@ -381,20 +378,20 @@ export const TaskUpdateTool = buildTool({
       }
     }
 
-    let resultContent = `Updated task #${taskId} ${updatedFields.join(', ')}`
+    let resultContent = `已更新任务 #${taskId} ${updatedFields.join(', ')}`
 
-    // Add reminder for teammates when they complete a task (supports in-process teammates)
+    // 当队友完成任务时添加提醒（支持进程内队友）
     if (
       statusChange?.to === 'completed' &&
       getAgentId() &&
       isAgentSwarmsEnabled()
     ) {
       resultContent +=
-        '\n\nTask completed. Call TaskList now to find your next available task or see if your work unblocked others.'
+        '\n\n任务已完成。立即调用 TaskList 来查找下一个可用任务，或查看您的工作是否解除了其他任务的阻塞。'
     }
 
     if (verificationNudgeNeeded) {
-      resultContent += `\n\nNOTE: You just closed out 3+ tasks and none of them was a verification step. Before writing your final summary, spawn the verification agent (subagent_type="${VERIFICATION_AGENT_TYPE}"). You cannot self-assign PARTIAL by listing caveats in your summary — only the verifier issues a verdict.`
+      resultContent += `\n\n注意：您刚刚关闭了 3+ 个任务，但其中没有任何验证步骤。在编写最终总结之前，请生成验证代理 (subagent_type="${VERIFICATION_AGENT_TYPE}")。您不能通过在总结中列出免责条款来自行分配 PARTIAL —— 只有验证者才能做出裁决。`
     }
 
     return {

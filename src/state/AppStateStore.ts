@@ -38,6 +38,9 @@ import type { SettingsJson } from '../utils/settings/types.js'
 import { shouldEnableThinkingByDefault } from '../utils/thinking.js'
 import type { Store } from './store.js'
 
+/**
+ * 完成边界类型 - 表示 speculation 的完成状态
+ */
 export type CompletionBoundary =
   | { type: 'complete'; completedAt: number; outputTokens: number }
   | { type: 'bash'; command: string; completedAt: number }
@@ -49,12 +52,18 @@ export type CompletionBoundary =
       completedAt: number
     }
 
+/**
+ * 推测执行结果
+ */
 export type SpeculationResult = {
   messages: Message[]
   boundary: CompletionBoundary | null
   timeSavedMs: number
 }
 
+/**
+ * 推测执行状态
+ */
 export type SpeculationState =
   | { status: 'idle' }
   | {
@@ -62,8 +71,8 @@ export type SpeculationState =
       id: string
       abort: () => void
       startTime: number
-      messagesRef: { current: Message[] } // Mutable ref - avoids array spreading per message
-      writtenPathsRef: { current: Set<string> } // Mutable ref - relative paths written to overlay
+      messagesRef: { current: Message[] } // 可变引用 - 避免每条消息都进行数组展开
+      writtenPathsRef: { current: Set<string> } // 可变引用 - 写入覆盖层的相对路径
       boundary: CompletionBoundary | null
       suggestionLength: number
       toolUseCount: number
@@ -78,6 +87,9 @@ export type SpeculationState =
 
 export const IDLE_SPECULATION_STATE: SpeculationState = { status: 'idle' }
 
+/**
+ * 底部导航栏项目类型
+ */
 export type FooterItem =
   | 'tasks'
   | 'tmux'
@@ -86,7 +98,8 @@ export type FooterItem =
   | 'bridge'
   | 'companion'
 
-export type AppState = DeepImmutable<{
+/**
+ * 应用程序状态类型定义
   settings: SettingsJson
   verbose: boolean
   mainLoopModel: ModelSetting

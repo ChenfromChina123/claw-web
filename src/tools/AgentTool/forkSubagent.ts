@@ -16,18 +16,18 @@ import { createUserMessage } from '../../utils/messages.js'
 import type { BuiltInAgentDefinition } from './loadAgentsDir.js'
 
 /**
- * Fork subagent feature gate.
+ * 分叉子代理功能开关。
  *
- * When enabled:
- * - `subagent_type` becomes optional on the Agent tool schema
- * - Omitting `subagent_type` triggers an implicit fork: the child inherits
- *   the parent's full conversation context and system prompt
- * - All agent spawns run in the background (async) for a unified
- *   `<task-notification>` interaction model
- * - `/fork <directive>` slash command is available
+ * 启用时：
+ * - `subagent_type` 在 Agent 工具模式中变为可选
+ * - 省略 `subagent_type` 触发隐式分叉：子代理继承
+ *   父代理的完整对话上下文和系统提示
+ * - 所有代理生成以后台（异步）运行，实现统一的
+ *   `<task-notification>` 交互模型
+ * - `/fork <directive>` 斜杠命令可用
  *
- * Mutually exclusive with coordinator mode — coordinator already owns the
- * orchestration role and has its own delegation model.
+ * 与协调器模式互斥 —— 协调器已经拥有编排角色
+ * 并有自己的委托模型。
  */
 export function isForkSubagentEnabled(): boolean {
   if (feature('FORK_SUBAGENT')) {
@@ -38,24 +38,24 @@ export function isForkSubagentEnabled(): boolean {
   return false
 }
 
-/** Synthetic agent type name used for analytics when the fork path fires. */
+/** 分叉路径触发时用于分析的综合代理类型名称。 */
 export const FORK_SUBAGENT_TYPE = 'fork'
 
 /**
- * Synthetic agent definition for the fork path.
+ * 分叉路径的综合代理定义。
  *
- * Not registered in builtInAgents — used only when `!subagent_type` and the
- * experiment is active. `tools: ['*']` with `useExactTools` means the fork
- * child receives the parent's exact tool pool (for cache-identical API
- * prefixes). `permissionMode: 'bubble'` surfaces permission prompts to the
- * parent terminal. `model: 'inherit'` keeps the parent's model for context
- * length parity.
+ * 不在 builtInAgents 中注册 —— 仅在 `!subagent_type` 且
+ * 实验激活时使用。`tools: ['*']` 配合 `useExactTools` 表示分叉
+ * 子代理接收父代理的精确工具池（用于缓存相同的 API
+ * 前缀）。`permissionMode: 'bubble'` 将权限提示呈现给
+ * 父终端。`model: 'inherit'` 保持父代理的模型以获得上下文
+ * 长度对等。
  *
- * The getSystemPrompt here is unused: the fork path passes
- * `override.systemPrompt` with the parent's already-rendered system prompt
- * bytes, threaded via `toolUseContext.renderedSystemPrompt`. Reconstructing
- * by re-calling getSystemPrompt() can diverge (GrowthBook cold→warm) and
- * bust the prompt cache; threading the rendered bytes is byte-exact.
+ * 这里的 getSystemPrompt 未使用：分叉路径传递
+ * `override.systemPrompt` 以及父代理已渲染的系统提示
+ * 字节，通过 `toolUseContext.renderedSystemPrompt` 传递。重新调用
+ * getSystemPrompt() 可能产生差异（GrowthBook cold→warm）并
+ * 导致提示缓存失效；传递渲染的字节是字节精确的。
  */
 export const FORK_AGENT = {
   agentType: FORK_SUBAGENT_TYPE,
@@ -71,9 +71,10 @@ export const FORK_AGENT = {
 } satisfies BuiltInAgentDefinition
 
 /**
- * Guard against recursive forking. Fork children keep the Agent tool in their
- * tool pool for cache-identical tool definitions, so we reject fork attempts
- * at call time by detecting the fork boilerplate tag in conversation history.
+ * 防止递归分叉的守卫。分叉子代理在它们的
+ * 工具池中保留 Agent 工具以获得缓存相同的工具定义，
+ * 因此我们通过检测对话历史记录中的分叉样板标签
+ * 在调用时拒绝分叉尝试。
  */
 export function isInForkChild(messages: MessageType[]): boolean {
   return messages.some(m => {
@@ -88,21 +89,21 @@ export function isInForkChild(messages: MessageType[]): boolean {
   })
 }
 
-/** Placeholder text used for all tool_result blocks in the fork prefix.
- * Must be identical across all fork children for prompt cache sharing. */
+/** 分叉前缀中所有 tool_result 块使用的占位符文本。
+ * 为了提示缓存共享，所有分叉子代理必须完全相同。 */
 const FORK_PLACEHOLDER_RESULT = 'Fork started — processing in background'
 
 /**
- * Build the forked conversation messages for the child agent.
+ * 为子代理构建分叉的对话消息。
  *
- * For prompt cache sharing, all fork children must produce byte-identical
- * API request prefixes. This function:
- * 1. Keeps the full parent assistant message (all tool_use blocks, thinking, text)
- * 2. Builds a single user message with tool_results for every tool_use block
- *    using an identical placeholder, then appends a per-child directive text block
+ * 为了提示缓存共享，所有分叉子代理必须产生字节相同的
+ * API 请求前缀。此函数：
+ * 1. 保留完整的父助手消息（所有 tool_use 块、thinking、text）
+ * 2. 为每个 tool_use 块构建一个带有 tool_results 的单一用户消息，
+ *    使用相同的占位符，然后追加每个子代理的指令文本块
  *
- * Result: [...history, assistant(all_tool_uses), user(placeholder_results..., directive)]
- * Only the final text block differs per child, maximizing cache hits.
+ * 结果：[...history, assistant(all_tool_uses), user(placeholder_results..., directive)]
+ * 只有最终的文本块因子代理而异，最大化缓存命中。
  */
 export function buildForkedMessages(
   directive: string,

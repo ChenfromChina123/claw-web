@@ -90,8 +90,8 @@ const inputSchema = lazySchema(() =>
 )
 type InputSchema = ReturnType<typeof inputSchema>
 
-// Version control system directories to exclude from searches
-// These are excluded automatically because they create noise in search results
+// 版本控制系统目录，从搜索中排除
+// 这些会自动排除，因为它们会在搜索结果中产生噪音
 const VCS_DIRECTORIES_TO_EXCLUDE = [
   '.git',
   '.svn',
@@ -101,10 +101,10 @@ const VCS_DIRECTORIES_TO_EXCLUDE = [
   '.sl',
 ] as const
 
-// Default cap on grep results when head_limit is unspecified. Unbounded content-mode
-// greps can fill up to the 20KB persist threshold (~6-24K tokens/grep-heavy session).
-// 250 is generous enough for exploratory searches while preventing context bloat.
-// Pass head_limit=0 explicitly for unlimited.
+// 当未指定 head_limit 时的默认上限。无限制的内容模式
+// grep 可以填满 20KB 的持久化阈值（约 6-24K tokens/grep 重度会话）。
+// 250 对于探索性搜索来说足够慷慨，同时防止上下文膨胀。
+// 显式传递 head_limit=0 表示无限制。
 const DEFAULT_HEAD_LIMIT = 250
 
 function applyHeadLimit<T>(
@@ -112,14 +112,14 @@ function applyHeadLimit<T>(
   limit: number | undefined,
   offset: number = 0,
 ): { items: T[]; appliedLimit: number | undefined } {
-  // Explicit 0 = unlimited escape hatch
+  // 显式 0 = 无限制逃生通道
   if (limit === 0) {
     return { items: items.slice(offset), appliedLimit: undefined }
   }
   const effectiveLimit = limit ?? DEFAULT_HEAD_LIMIT
   const sliced = items.slice(offset, offset + effectiveLimit)
-  // Only report appliedLimit when truncation actually occurred, so the model
-  // knows there may be more results and can paginate with offset.
+  // 仅在实际发生截断时报告 appliedLimit，以便模型
+  // 知道可能有更多结果并可以使用 offset 进行分页。
   const wasTruncated = items.length - offset > effectiveLimit
   return {
     items: sliced,
@@ -127,10 +127,10 @@ function applyHeadLimit<T>(
   }
 }
 
-// Format limit/offset information for display in tool results.
-// appliedLimit is only set when truncation actually occurred (see applyHeadLimit),
-// so it may be undefined even when appliedOffset is set — build parts conditionally
-// to avoid "limit: undefined" appearing in user-visible output.
+// 格式化 limit/offset 信息以便在工具结果中显示。
+// appliedLimit 仅在实际发生截断时设置（见 applyHeadLimit），
+// 因此即使设置了 appliedOffset，它可能仍然是 undefined——有条件地构建 parts
+// 以避免在用户可见的输出中出现 "limit: undefined"。
 function formatLimitInfo(
   appliedLimit: number | undefined,
   appliedOffset: number | undefined,
@@ -244,9 +244,9 @@ export const GrepTool = buildTool({
   renderToolUseMessage,
   renderToolUseErrorMessage,
   renderToolResultMessage,
-  // SearchResultSummary shows content (mode=content) or filenames.join.
-  // numFiles/numLines/numMatches are chrome ("Found 3 files") — fine to
-  // skip (under-count, not phantom). Glob reuses this via UI.tsx:65.
+  // SearchResultSummary 显示内容（mode=content）或 filenames.join。
+  // numFiles/numLines/numMatches 是 chrome 元素（"找到 3 个文件"）——可以跳过
+  //（少计，不是幻影）。Glob 通过 UI.tsx:65 重用此函数。
   extractSearchText({ mode, content, filenames }) {
     if (mode === 'content' && content) return content
     return filenames.join('\n')
@@ -299,7 +299,7 @@ export const GrepTool = buildTool({
         content: 'No files found',
       }
     }
-    // head_limit has already been applied in call() method, so just show all filenames
+    // head_limit 已在 call() 方法中应用，所以只显示所有文件名
     const result = `Found ${numFiles} ${plural(numFiles, 'file')}${limitInfo ? ` ${limitInfo}` : ''}\n${filenames.join('\n')}`
     return {
       tool_use_id: toolUseID,
@@ -329,15 +329,15 @@ export const GrepTool = buildTool({
     const absolutePath = path ? expandPath(path) : getCwd()
     const args = ['--hidden']
 
-    // Exclude VCS directories to avoid noise from version control metadata
+    // 排除 VCS 目录以避免版本控制元数据中的噪音
     for (const dir of VCS_DIRECTORIES_TO_EXCLUDE) {
       args.push('--glob', `!${dir}`)
     }
 
-    // Limit line length to prevent base64/minified content from cluttering output
+    // 限制行长度以防止 base64/压缩内容弄乱输出
     args.push('--max-columns', '500')
 
-    // Only apply multiline flags when explicitly requested
+    // 仅在明确请求时应用多行标志
     if (multiline) {
       args.push('-U', '--multiline-dotall')
     }
@@ -375,8 +375,8 @@ export const GrepTool = buildTool({
       }
     }
 
-    // If pattern starts with dash, use -e flag to specify it as a pattern
-    // This prevents ripgrep from interpreting it as a command-line option
+    // 如果模式以破折号开头，使用 -e 标志将其指定为模式
+    // 这可以防止 ripgrep 将其解释为命令行选项
     if (pattern.startsWith('-')) {
       args.push('-e', pattern)
     } else {
@@ -394,11 +394,11 @@ export const GrepTool = buildTool({
       const rawPatterns = glob.split(/\s+/)
 
       for (const rawPattern of rawPatterns) {
-        // If pattern contains braces, don't split further
+      // 如果模式包含大括号，不再进一步拆分
         if (rawPattern.includes('{') && rawPattern.includes('}')) {
           globPatterns.push(rawPattern)
         } else {
-          // Split on commas for patterns without braces
+          // 对于没有大括号的模式，用逗号拆分
           globPatterns.push(...rawPattern.split(',').filter(Boolean))
         }
       }
@@ -415,11 +415,11 @@ export const GrepTool = buildTool({
       getCwd(),
     )
     for (const ignorePattern of ignorePatterns) {
-      // Note: ripgrep only applies gitignore patterns relative to the working directory
-      // So for non-absolute paths, we need to prefix them with '**'
-      // See: https://github.com/BurntSushi/ripgrep/discussions/2156#discussioncomment-2316335
-      //
-      // We also need to negate the pattern with `!` to exclude it
+      // 注意：ripgrep 仅相对于工作目录应用 gitignore 模式
+    // 因此对于非绝对路径，我们需要用 '**' 作为前缀
+    // 参见：https://github.com/BurntSushi/ripgrep/discussions/2156#discussioncomment-2316335
+    //
+    // 我们还需要用 `!` 来否定模式以排除它
       const rgIgnorePattern = ignorePattern.startsWith('/')
         ? `!${ignorePattern}`
         : `!**/${ignorePattern}`
@@ -433,20 +433,20 @@ export const GrepTool = buildTool({
       args.push('--glob', exclusion)
     }
 
-    // WSL has severe performance penalty for file reads (3-5x slower on WSL2)
-    // The timeout is handled by ripgrep itself via execFile timeout option
-    // We don't use AbortController for timeout to avoid interrupting the agent loop
-    // If ripgrep times out, it throws RipgrepTimeoutError which propagates up
-    // so Claude knows the search didn't complete (rather than thinking there were no matches)
+    // WSL 的文件读取性能损失严重（WSL2 慢 3-5 倍）
+    // 超时由 ripgrep 本身通过 execFile timeout 选项处理
+    // 我们不使用 AbortController 进行超时以避免中断代理循环
+    // 如果 ripgrep 超时，它会抛出 RipgrepTimeoutError 并向上传播
+    // 这样 Claude 就知道搜索没有完成（而不是认为没有匹配项）
     const results = await ripGrep(args, absolutePath, abortController.signal)
 
     if (output_mode === 'content') {
-      // For content mode, results are the actual content lines
-      // Convert absolute paths to relative paths to save tokens
+      // 对于内容模式，结果是实际的内容行
+      // 转换为相对路径以节省 tokens
 
-      // Apply head_limit first — relativize is per-line work, so
-      // avoid processing lines that will be discarded (broad patterns can
-      // return 10k+ lines with head_limit keeping only ~30-100).
+      // 首先应用 head_limit——relativize 是按行工作，所以
+      // 避免处理将被丢弃的行（广泛的模式可以返回 10k+ 行，
+      // head_limit 只保留约 30-100 行）。
       const { items: limitedResults, appliedLimit } = applyHeadLimit(
         results,
         head_limit,
@@ -454,7 +454,7 @@ export const GrepTool = buildTool({
       )
 
       const finalLines = limitedResults.map(line => {
-        // Lines have format: /absolute/path:line_content or /absolute/path:num:content
+        // 行格式为：/absolute/path:line_content 或 /absolute/path:num:content
         const colonIndex = line.indexOf(':')
         if (colonIndex > 0) {
           const filePath = line.substring(0, colonIndex)
@@ -476,17 +476,17 @@ export const GrepTool = buildTool({
     }
 
     if (output_mode === 'count') {
-      // For count mode, pass through raw ripgrep output (filename:count format)
-      // Apply head_limit first to avoid relativizing entries that will be discarded.
+      // 对于计数模式，传递原始 ripgrep 输出（filename:count 格式）
+      // 首先应用 head_limit 以避免 relativize 将被丢弃的条目。
       const { items: limitedResults, appliedLimit } = applyHeadLimit(
         results,
         head_limit,
         offset,
       )
 
-      // Convert absolute paths to relative paths to save tokens
+      // 转换为相对路径以节省 tokens
       const finalCountLines = limitedResults.map(line => {
-        // Lines have format: /absolute/path:count
+        // 行格式为：/absolute/path:count
         const colonIndex = line.lastIndexOf(':')
         if (colonIndex > 0) {
           const filePath = line.substring(0, colonIndex)
@@ -496,7 +496,7 @@ export const GrepTool = buildTool({
         return line
       })
 
-      // Parse count output to extract total matches and file count
+      // 解析计数输出以提取总匹配数和文件数
       let totalMatches = 0
       let fileCount = 0
       for (const line of finalCountLines) {
@@ -523,14 +523,14 @@ export const GrepTool = buildTool({
       return { data: output }
     }
 
-    // For files_with_matches mode (default)
-    // Use allSettled so a single ENOENT (file deleted between ripgrep's scan
-    // and this stat) does not reject the whole batch. Failed stats sort as mtime 0.
+    // 对于 files_with_matches 模式（默认）
+    // 使用 allSettled 以便单个 ENOENT（文件在 ripgrep 扫描之间被删除
+    // 和此 stat 之间）不会拒绝整个批次。失败的 stat 排序为 mtime 0。
     const stats = await Promise.allSettled(
       results.map(_ => getFsImplementation().stat(_)),
     )
     const sortedMatches = results
-      // Sort by modification time
+      // 按修改时间排序
       .map((_, i) => {
         const r = stats[i]!
         return [
@@ -540,26 +540,26 @@ export const GrepTool = buildTool({
       })
       .sort((a, b) => {
         if (process.env.NODE_ENV === 'test') {
-          // In tests, we always want to sort by filename, so that results are deterministic
+          // 在测试中，我们总是按文件名排序，以便结果具有确定性
           return a[0].localeCompare(b[0])
         }
         const timeComparison = b[1] - a[1]
         if (timeComparison === 0) {
-          // Sort by filename as a tiebreaker
+          // 按文件名作为 tiebreaker 排序
           return a[0].localeCompare(b[0])
         }
         return timeComparison
       })
       .map(_ => _[0])
 
-    // Apply head_limit to sorted file list (like "| head -N")
+    // 将 head_limit 应用于排序后的文件列表（如 "| head -N"）
     const { items: finalMatches, appliedLimit } = applyHeadLimit(
       sortedMatches,
       head_limit,
       offset,
     )
 
-    // Convert absolute paths to relative paths to save tokens
+    // 转换为相对路径以节省 tokens
     const relativeMatches = finalMatches.map(toRelativePath)
 
     const output = {

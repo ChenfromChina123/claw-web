@@ -1,12 +1,10 @@
 /**
- * Pure-TypeScript bash parser producing tree-sitter-bash-compatible ASTs.
+ * 纯 TypeScript bash 解析器，生成与 tree-sitter-bash 兼容的 AST。
  *
- * Downstream code in parser.ts, ast.ts, prefix.ts, ParsedCommand.ts walks this
- * by field name. startIndex/endIndex are UTF-8 BYTE offsets (not JS string
- * indices).
+ * 下游代码 parser.ts、ast.ts、prefix.ts、ParsedCommand.ts 按字段名遍历此 AST。
+ * startIndex/endIndex 是 UTF-8 字节偏移量（不是 JS 字符串索引）。
  *
- * Grammar reference: tree-sitter-bash. Validated against a 3449-input golden
- * corpus generated from the WASM parser.
+ * 语法参考: tree-sitter-bash。通过 3449 个输入的黄金语料库验证。
  */
 
 export type TsNode = {
@@ -22,30 +20,30 @@ type ParserModule = {
 }
 
 /**
- * 50ms wall-clock cap — bails out on pathological/adversarial input.
- * Pass `Infinity` via `parse(src, Infinity)` to disable (e.g. correctness
- * tests, where CI jitter would otherwise cause spurious null returns).
+ * 50ms 实时上限 — 在病态/对抗性输入上退出。
+ * 传入 `parse(src, Infinity)` 可禁用（例如正确性测试，
+ * 否则 CI 抖动会导致虚假的 null 返回）。
  */
 const PARSE_TIMEOUT_MS = 50
 
-/** Node budget cap — bails out before OOM on deeply nested input. */
+/** 节点预算上限 — 在深度嵌套输入上退出以避免 OOM。 */
 const MAX_NODES = 50_000
 
 const MODULE: ParserModule = { parse: parseSource }
 
 const READY = Promise.resolve()
 
-/** No-op: pure-TS parser needs no async init. Kept for API compatibility. */
+/** 无操作：纯 TS 解析器不需要异步初始化。保持 API 兼容性。 */
 export function ensureParserInitialized(): Promise<void> {
   return READY
 }
 
-/** Always succeeds — pure-TS needs no init. */
+/** 始终成功 — 纯 TS 不需要初始化。 */
 export function getParserModule(): ParserModule | null {
   return MODULE
 }
 
-// ───────────────────────────── Tokenizer ─────────────────────────────
+// ───────────────────────────── 词法分析器 ─────────────────────────────
 
 type TokenType =
   | 'WORD'

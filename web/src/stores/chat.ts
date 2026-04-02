@@ -1,0 +1,172 @@
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import type { Session, Message, ToolCall } from '@/types'
+import wsClient from '@/composables/useWebSocket'
+
+export const useChatStore = defineStore('chat', () => {
+  const sessions = ref<Session[]>([])
+  const currentSessionId = ref<string | null>(null)
+  const messages = ref<Message[]>([])
+  const toolCalls = ref<ToolCall[]>([])
+  const isLoading = ref(false)
+  const isConnected = ref(false)
+  
+  const currentSession = computed(() => {
+    return sessions.value.find(s => s.id === currentSessionId.value)
+  })
+  
+  function connect(token?: string) {
+    wsClient.connect(token).then(() => {
+      isConnected.value = true
+    }).catch(() => {
+      isConnected.value = false
+    })
+    
+    // 监听 WebSocket 事件
+    wsClient.on('session_list', (data: unknown) => {
+      const msg = data as { sessions: Session[] }
+      sessions.value = msg.sessions
+    })
+    
+    wsClient.on('session_created', (data: unknown) => {
+      const msg = data as { session: Session }
+      sessions.value.unshift(msg.session)
+      currentSessionId.value = msg.session.id
+      messages.value = []
+      toolCalls.value = []
+    })
+    
+    wsClient.on('session_loaded', (data: unknown) => {
+      const msg = data as { session: Session; messages: Message[]; toolCalls: ToolCall[] }
+      currentSessionId.value = msg.session.id
+      messages.value = msg.messages || []
+      toolCalls.value = msg.toolCalls || []
+    })
+    
+    wsClient.on('session_deleted', (data: unknown) => {
+      const msg = data as { sessionId: string }
+      sessions.value = sessions.value.filter(s => s.id !== msg.sessionId)
+      if (currentSessionId.value === msg.sessionId) {
+        currentSessionId.value = sessions.value[0]?.id || null
+      }
+    })
+    
+    wsClient.on('session_cleared', () => {
+      messages.value = []
+      toolCalls.value = []
+    })
+    
+    wsClient.on('message_start', () => {
+      isLoading.value = true
+      // 添加空的 assistant 消息
+      messages.value.push({
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: ''
+      })
+    })
+    
+    wsClient.on('content_block_delta', (data: unknown) => {
+      const msg = data as { text: string }
+      const lastMsg = messages.value[messages.value.length - 1]
+      if (lastMsg && lastMsg.role === 'assistant') {
+        lastMsg.content += msg.text
+      }
+    })
+    
+    wsClient.on('message_stop', () => {
+      isLoading.value = false
+    })
+    
+    wsClient.on('tool_use', (data: unknown) => {
+      const msg = data as { id: string; name: string; input: Record<string, unknown> }
+      toolCalls.value.push({
+        id: msg.id,
+        name: msg.name,
+        input: msg.input,
+        status: 'pending'
+      })
+    })
+    
+    wsClient.on('tool_end', (data: unknown) => {
+      const msg = data as { id: string; result: unknown }
+      const tool = toolCalls.value.find(t => t.id === msg.id)
+      if (tool) {
+        tool.status = 'completed'
+        tool.output = msg.result
+      }
+    })
+    
+    wsClient.on('tool_error', (data: unknown) => {
+      const msg = data as { id: string; error: string }
+      const tool = toolCalls.value.find(t => t.id === msg.id)
+      if (tool) {
+        tool.status = 'error'
+        tool.output = { error: msg.error }
+      }
+    })
+  }
+  
+  function disconnect() {
+    wsClient.disconnect()
+    isConnected.value = false
+  }
+  
+  function createSession(title?: string, model?: string) {
+    wsClient.createSession(title, model)
+  }
+  
+  function loadSession(sessionId: string) {
+    wsClient.loadSession(sessionId)
+  }
+  
+  function listSessions() {
+    wsClient.listSessions()
+  }
+  
+  function sendMessage(content: string, model?: string) {
+    // 添加用户消息
+    messages.value.push({
+      id: Date.now().toString(),
+      role: 'user',
+      content
+    })
+    
+    wsClient.sendMessage(content, model)
+  }
+  
+  function deleteSession(sessionId: string) {
+    wsClient.deleteSession(sessionId)
+  }
+  
+  function renameSession(sessionId: string, title: string) {
+    wsClient.renameSession(sessionId, title)
+    const session = sessions.value.find(s => s.id === sessionId)
+    if (session) {
+      session.title = title
+    }
+  }
+  
+  function clearSession() {
+    wsClient.clearSession()
+  }
+  
+  return {
+    sessions,
+    currentSessionId,
+    currentSession,
+    messages,
+    toolCalls,
+    isLoading,
+    isConnected,
+    connect,
+    disconnect,
+    createSession,
+    loadSession,
+    listSessions,
+    sendMessage,
+    deleteSession,
+    renameSession,
+    clearSession
+  }
+})

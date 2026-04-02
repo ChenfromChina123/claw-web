@@ -67,9 +67,9 @@ export async function getImageProcessor(): Promise<SharpFunction> {
 }
 
 /**
- * Get image creator for generating new images from scratch.
- * Note: image-processor-napi doesn't support image creation,
- * so this always uses sharp directly.
+ * 获取用于从零开始生成新图像的图像创建器。
+ * 注意：image-processor-napi 不支持图像创建，
+ * 因此这里始终直接使用 sharp。
  */
 export async function getImageCreator(): Promise<SharpCreator> {
   if (imageCreatorModule) {
@@ -84,7 +84,7 @@ export async function getImageCreator(): Promise<SharpCreator> {
   return sharp
 }
 
-// Dynamic import shape varies by module interop mode — ESM yields { default: fn }, CJS yields fn directly.
+// 动态导入的形状因模块互操作模式而异——ESM 返回 { default: fn }，CJS 直接返回 fn。
 type MaybeDefault<T> = T | { default: T }
 
 function unwrapDefault<T extends (...args: never[]) => unknown>(

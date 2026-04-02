@@ -1,16 +1,16 @@
 /**
- * Pure permission type definitions extracted to break import cycles.
+ * 纯权限类型定义，提取出来以打破导入循环。
  *
- * This file contains only type definitions and constants with no runtime dependencies.
- * Implementation files remain in src/utils/permissions/ but can now import from here
- * to avoid circular dependencies.
+ * 此文件仅包含类型定义和常量，没有运行时依赖。
+ * 实现文件保留在 src/utils/permissions/ 中，但现在可以从这里导入
+ * 以避免循环依赖。
  */
 
 import { feature } from 'bun:bundle'
 import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages.mjs'
 
 // ============================================================================
-// Permission Modes
+// 权限模式
 // ============================================================================
 
 export const EXTERNAL_PERMISSION_MODES = [
@@ -44,12 +44,12 @@ export const PERMISSION_MODES = INTERNAL_PERMISSION_MODES
 export type PermissionBehavior = 'allow' | 'deny' | 'ask'
 
 // ============================================================================
-// Permission Rules
+// 权限规则
 // ============================================================================
 
 /**
- * Where a permission rule originated from.
- * Includes all SettingSource values plus additional rule-specific sources.
+ * 权限规则的来源。
+ * 包括所有 SettingSource 值以及额外的规则特定来源。
  */
 export type PermissionRuleSource =
   | 'userSettings'
@@ -62,7 +62,7 @@ export type PermissionRuleSource =
   | 'session'
 
 /**
- * The value of a permission rule - specifies which tool and optional content
+ * 权限规则的值 - 指定哪个工具和可选内容
  */
 export type PermissionRuleValue = {
   toolName: string
@@ -70,7 +70,7 @@ export type PermissionRuleValue = {
 }
 
 /**
- * A permission rule with its source and behavior
+ * 带有其来源和行为的权限规则
  */
 export type PermissionRule = {
   source: PermissionRuleSource
@@ -131,14 +131,14 @@ export type PermissionUpdate =
     }
 
 /**
- * Source of an additional working directory permission.
- * Note: This is currently the same as PermissionRuleSource but kept as a
- * separate type for semantic clarity and potential future divergence.
+ * 额外工作目录权限的来源。
+ * 注意：当前与 PermissionRuleSource 相同，但保留为单独类型以保持语义清晰
+ * 并为未来可能的差异做准备。
  */
 export type WorkingDirectorySource = PermissionRuleSource
 
 /**
- * An additional directory included in permission scope
+ * 包含在权限范围内的额外目录
  */
 export type AdditionalWorkingDirectory = {
   path: string
@@ -184,8 +184,8 @@ export type PermissionAllowDecision<
 }
 
 /**
- * Metadata for a pending classifier check that will run asynchronously.
- * Used to enable non-blocking allow classifier evaluation.
+ * 用于异步运行的待处理分类器检查的元数据。
+ * 用于启用非阻塞允许分类器评估。
  */
 export type PendingClassifierCheck = {
   command: string
@@ -194,7 +194,7 @@ export type PendingClassifierCheck = {
 }
 
 /**
- * Result when user should be prompted
+ * 当应该提示用户时的结果
  */
 export type PermissionAskDecision<
   Input extends { [key: string]: unknown } = { [key: string]: unknown },
@@ -246,7 +246,7 @@ export type PermissionDecision<
   | PermissionDenyDecision
 
 /**
- * Permission result with additional passthrough option
+ * 带有额外穿透选项的权限结果
  */
 export type PermissionResult<
   Input extends { [key: string]: unknown } = { [key: string]: unknown },
@@ -259,14 +259,14 @@ export type PermissionResult<
       suggestions?: PermissionUpdate[]
       blockedPath?: string
       /**
-       * If set, an allow classifier check should be run asynchronously.
-       * The classifier may auto-approve the permission before the user responds.
+       * 如果设置，应异步运行允许分类器检查。
+       * 分类器可以在用户响应之前自动批准权限。
        */
       pendingClassifierCheck?: PendingClassifierCheck
     }
 
 /**
- * Explanation of why a permission decision was made
+ * 解释为什么做出权限决策
  */
 export type PermissionDecisionReason =
   | {
@@ -312,10 +312,10 @@ export type PermissionDecisionReason =
   | {
       type: 'safetyCheck'
       reason: string
-      // When true, auto mode lets the classifier evaluate this instead of
-      // forcing a prompt. True for sensitive-file paths (.claude/, .git/,
-      // shell configs) — the classifier can see context and decide. False
-      // for Windows path bypass attempts and cross-machine bridge messages.
+      // 当为true时，自动模式让分类器评估此项而不是
+      // 强制提示。对于敏感文件路径（.claude/、.git/、
+      // shell配置）为true——分类器可以看到上下文并决定。对于
+      // Windows路径绕过尝试和跨机器桥接消息为false。
       classifierApprovable: boolean
     }
   | {
@@ -324,7 +324,7 @@ export type PermissionDecisionReason =
     }
 
 // ============================================================================
-// Bash Classifier Types
+// Bash 分类器类型
 // ============================================================================
 
 export type ClassifierResult = {
@@ -349,55 +349,55 @@ export type YoloClassifierResult = {
   reason: string
   unavailable?: boolean
   /**
-   * API returned "prompt is too long" — the classifier transcript exceeded
-   * the context window. Deterministic (same transcript → same error), so
-   * callers should fall back to normal prompting rather than retry/fail-closed.
+   * API返回"prompt过长"——分类器转录本超出了
+   * 上下文窗口。确定性的（相同转录本→相同错误），所以
+   * 调用者应该回退到正常提示而不是重试/失败关闭。
    */
   transcriptTooLong?: boolean
-  /** The model used for this classifier call */
+  /** 此次分类器调用使用的模型 */
   model: string
-  /** Token usage from the classifier API call (for overhead telemetry) */
+  /** 分类器API调用的令牌使用量（用于开销遥测） */
   usage?: ClassifierUsage
-  /** Duration of the classifier API call in ms */
+  /** 分类器API调用的持续时间（毫秒） */
   durationMs?: number
-  /** Character lengths of the prompt components sent to the classifier */
+  /** 发送到分类器的提示组件的字符长度 */
   promptLengths?: {
     systemPrompt: number
     toolCalls: number
     userPrompts: number
   }
-  /** Path where error prompts were dumped (only set when unavailable due to API error) */
+  /** 错误提示被转储的路径（仅在因API错误不可用时设置） */
   errorDumpPath?: string
-  /** Which classifier stage produced the final decision (2-stage XML only) */
+  /** 产生最终决策的分类器阶段（仅2阶段XML） */
   stage?: 'fast' | 'thinking'
-  /** Token usage from stage 1 (fast) when stage 2 was also run */
+  /** 阶段1（fast）的令牌使用量，当也运行了阶段2时 */
   stage1Usage?: ClassifierUsage
-  /** Duration of stage 1 in ms when stage 2 was also run */
+  /** 阶段1的持续时间（毫秒），当也运行了阶段2时 */
   stage1DurationMs?: number
   /**
-   * API request_id (req_xxx) for stage 1. Enables joining to server-side
-   * api_usage logs for cache-miss / routing attribution. Also used for the
-   * legacy 1-stage (tool_use) classifier — the single request goes here.
+   * 阶段1的API request_id（req_xxx）。用于加入到服务器端
+   * api_usage日志以进行缓存未命中/路由归因。也用于
+   * 遗留的1阶段（tool_use）分类器——单个请求进入这里。
    */
   stage1RequestId?: string
   /**
-   * API message id (msg_xxx) for stage 1. Enables joining the
-   * tengu_auto_mode_decision analytics event to the classifier's actual
-   * prompt/completion in post-analysis.
+   * 阶段1的API message id（msg_xxx）。用于将
+   * tengu_auto_mode_decision分析事件与分类器的实际
+   * prompt/completion在后期分析中关联。
    */
   stage1MsgId?: string
-  /** Token usage from stage 2 (thinking) when stage 2 was run */
+  /** 阶段2（thinking）的令牌使用量，当运行了阶段2时 */
   stage2Usage?: ClassifierUsage
-  /** Duration of stage 2 in ms when stage 2 was run */
+  /** 阶段2的持续时间（毫秒），当运行了阶段2时 */
   stage2DurationMs?: number
-  /** API request_id for stage 2 (set whenever stage 2 ran) */
+  /** 阶段2的API request_id（每当阶段2运行时设置） */
   stage2RequestId?: string
-  /** API message id (msg_xxx) for stage 2 (set whenever stage 2 ran) */
+  /** 阶段2的API message id（msg_xxx）（每当阶段2运行时设置） */
   stage2MsgId?: string
 }
 
 // ============================================================================
-// Permission Explainer Types
+// 权限解释器类型
 // ============================================================================
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH'
@@ -410,19 +410,19 @@ export type PermissionExplanation = {
 }
 
 // ============================================================================
-// Tool Permission Context
+// 工具权限上下文
 // ============================================================================
 
 /**
- * Mapping of permission rules by their source
+ * 按来源排列的权限规则映射
  */
 export type ToolPermissionRulesBySource = {
   [T in PermissionRuleSource]?: string[]
 }
 
 /**
- * Context needed for permission checking in tools
- * Note: Uses a simplified DeepImmutable approximation for this types-only file
+ * 工具中权限检查所需的上下文
+ * 注意：为此类型专用文件使用简化的 DeepImmutable 近似
  */
 export type ToolPermissionContext = {
   readonly mode: PermissionMode

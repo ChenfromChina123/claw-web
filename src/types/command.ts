@@ -152,19 +152,19 @@ type LocalJSXCommand = {
 }
 
 /**
- * Declares which auth/provider environments a command is available in.
+ * 声明命令在哪些认证/提供商环境中可用。
  *
- * This is separate from `isEnabled()`:
- *   - `availability` = who can use this (auth/provider requirement, static)
- *   - `isEnabled()`  = is this turned on right now (GrowthBook, platform, env vars)
+ * 这与 `isEnabled()` 是分开的：
+ *   - `availability` = 谁可以使用此命令（认证/提供商要求，静态的）
+ *   - `isEnabled()`  = 现在是否开启（GrowthBook、平台、环境变量）
  *
- * Commands without `availability` are available everywhere.
- * Commands with `availability` are only shown if the user matches at least one
- * of the listed auth types. See meetsAvailabilityRequirement() in commands.ts.
+ * 没有 `availability` 的命令在所有地方可用。
+ * 有 `availability` 的命令仅在用户匹配至少列出的认证类型之一时显示。
+ * 参见 commands.ts 中的 meetsAvailabilityRequirement()。
  *
- * Example: `availability: ['claude-ai', 'console']` shows the command to
- * claude.ai subscribers and direct Console API key users (api.anthropic.com),
- * but hides it from Bedrock/Vertex/Foundry users and custom base URL users.
+ * 示例：`availability: ['claude-ai', 'console']` 向
+ * claude.ai 订阅者和直接 Console API 密钥用户（api.anthropic.com）显示命令，
+ * 但对 Bedrock/Vertex/Foundry 用户和自定义 base URL 用户隐藏。
  */
 export type CommandAvailability =
   // claude.ai OAuth subscriber (Pro/Max/Team/Enterprise via claude.ai)
@@ -205,12 +205,12 @@ export type CommandBase = {
 export type Command = CommandBase &
   (PromptCommand | LocalCommand | LocalJSXCommand)
 
-/** Resolves the user-visible name, falling back to `cmd.name` when not overridden. */
+/** 解析用户可见名称，在未覆盖时回退到 `cmd.name`。 */
 export function getCommandName(cmd: CommandBase): string {
   return cmd.userFacingName?.() ?? cmd.name
 }
 
-/** Resolves whether the command is enabled, defaulting to true. */
+/** 解析命令是否启用，默认为true。 */
 export function isCommandEnabled(cmd: CommandBase): boolean {
   return cmd.isEnabled?.() ?? true
 }

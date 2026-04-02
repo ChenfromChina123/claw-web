@@ -1,6 +1,6 @@
 /**
- * Shared utilities for displaying agent information.
- * Used by both the CLI `claude agents` handler and the interactive `/agents` command.
+ * 代理信息显示的共享工具类
+ * 用于 CLI `claude agents` 处理器和交互式 `/agents` 命令
  */
 
 import { getDefaultSubagentModel } from '../../utils/model/agent.js'
@@ -18,17 +18,17 @@ export type AgentSourceGroup = {
 }
 
 /**
- * Ordered list of agent source groups for display.
- * Both the CLI and interactive UI should use this to ensure consistent ordering.
+ * 用于显示的代理源组有序列表
+ * CLI 和交互式 UI 都应使用此列表以确保一致的排序
  */
 export const AGENT_SOURCE_GROUPS: AgentSourceGroup[] = [
-  { label: 'User agents', source: 'userSettings' },
-  { label: 'Project agents', source: 'projectSettings' },
-  { label: 'Local agents', source: 'localSettings' },
-  { label: 'Managed agents', source: 'policySettings' },
-  { label: 'Plugin agents', source: 'plugin' },
-  { label: 'CLI arg agents', source: 'flagSettings' },
-  { label: 'Built-in agents', source: 'built-in' },
+  { label: '用户代理', source: 'userSettings' },
+  { label: '项目代理', source: 'projectSettings' },
+  { label: '本地代理', source: 'localSettings' },
+  { label: '托管代理', source: 'policySettings' },
+  { label: '插件代理', source: 'plugin' },
+  { label: 'CLI 参数代理', source: 'flagSettings' },
+  { label: '内置代理', source: 'built-in' },
 ]
 
 export type ResolvedAgent = AgentDefinition & {
@@ -36,12 +36,11 @@ export type ResolvedAgent = AgentDefinition & {
 }
 
 /**
- * Annotate agents with override information by comparing against the active
- * (winning) agent list. An agent is "overridden" when another agent with the
- * same type from a higher-priority source takes precedence.
+ * 通过与活动（获胜）代理列表比较来标注代理的覆盖信息
+ * 当来自更高优先级源的同名代理时，该代理被"覆盖"
  *
- * Also deduplicates by (agentType, source) to handle git worktree duplicates
- * where the same agent file is loaded from both the worktree and main repo.
+ * 还按 (agentType, source) 去重以处理 git worktree 重复项
+ * （相同的代理文件从 worktree 和主仓库加载）
  */
 export function resolveAgentOverrides(
   allAgents: AgentDefinition[],
@@ -55,8 +54,8 @@ export function resolveAgentOverrides(
   const seen = new Set<string>()
   const resolved: ResolvedAgent[] = []
 
-  // Iterate allAgents, annotating each with override info from activeAgents.
-  // Deduplicate by (agentType, source) to handle git worktree duplicates.
+  // 遍历 allAgents，用 activeAgents 的覆盖信息标注每个代理
+  // 按 (agentType, source) 去重以处理 git worktree 重复项
   for (const agent of allAgents) {
     const key = `${agent.agentType}:${agent.source}`
     if (seen.has(key)) continue
@@ -72,8 +71,8 @@ export function resolveAgentOverrides(
 }
 
 /**
- * Resolve the display model string for an agent.
- * Returns the model alias or 'inherit' for display purposes.
+ * 解析代理的显示模型字符串
+ * 返回模型别名或用于显示目的的 'inherit'
  */
 export function resolveAgentModelDisplay(
   agent: AgentDefinition,
@@ -84,15 +83,15 @@ export function resolveAgentModelDisplay(
 }
 
 /**
- * Get a human-readable label for the source that overrides an agent.
- * Returns lowercase, e.g. "user", "project", "managed".
+ * 获取覆盖代理的源的易读标签
+ * 返回小写形式，如 "user"、"project"、"managed"
  */
 export function getOverrideSourceLabel(source: AgentSource): string {
   return getSourceDisplayName(source).toLowerCase()
 }
 
 /**
- * Compare agents alphabetically by name (case-insensitive).
+ * 按名称比较代理（不区分大小写）
  */
 export function compareAgentsByName(
   a: AgentDefinition,

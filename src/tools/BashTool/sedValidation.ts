@@ -35,11 +35,11 @@ function validateFlagsAgainstAllowlist(
 }
 
 /**
- * Pattern 1: Check if this is a line printing command with -n flag
- * Allows: sed -n 'N' | sed -n 'N,M' with optional -E, -r, -z flags
- * Allows semicolon-separated print commands like: sed -n '1p;2p;3p'
- * File arguments are ALLOWED for this pattern
- * @internal Exported for testing
+ * 模式 1: 检查这是否是带 -n 标志的行打印命令
+ * 允许: sed -n 'N' | sed -n 'N,M'，可选 -E、-r、-z 标志
+ * 允许分号分隔的打印命令，如: sed -n '1p;2p;3p'
+ * 此模式的文件参数是允许的
+ * @internal 导出用于测试
  */
 export function isLinePrintingCommand(
   command: string,
@@ -117,13 +117,13 @@ export function isLinePrintingCommand(
 }
 
 /**
- * Helper: Check if a single command is a valid print command
- * STRICT ALLOWLIST - only these exact forms are allowed:
- * - p (print all)
- * - Np (print line N, where N is digits)
- * - N,Mp (print lines N through M)
- * Anything else (including w, W, e, E commands) is rejected.
- * @internal Exported for testing
+ * 辅助函数: 检查单个命令是否是有效的打印命令
+ * 严格允许列表 - 只允许以下确切形式:
+ * - p (打印全部)
+ * - Np (打印第 N 行，N 是数字)
+ * - N,Mp (打印第 N 到 M 行)
+ * 其他任何内容（包括 w、W、e、E 命令）都被拒绝。
+ * @internal 导出用于测试
  */
 export function isPrintCommand(cmd: string): boolean {
   if (!cmd) return false
@@ -238,11 +238,11 @@ function isSubstitutionCommand(
 }
 
 /**
- * Checks if a sed command is allowed by the allowlist.
- * The allowlist patterns themselves are strict enough to reject dangerous operations.
- * @param command The sed command to check
- * @param options.allowFileWrites When true, allows -i flag and file arguments for substitution commands
- * @returns true if the command is allowed (matches allowlist and passes denylist check), false otherwise
+ * 检查 sed 命令是否被允许列表允许。
+ * 允许列表模式本身足够严格，可以拒绝危险操作。
+ * @param command 要检查的 sed 命令
+ * @param options.allowFileWrites 当为 true 时，允许 -i 标志和文件参数用于替换命令
+ * @returns 如果命令被允许（匹配允许列表并通过拒绝列表检查）则返回 true，否则返回 false
  */
 export function sedCommandIsAllowedByAllowlist(
   command: string,
@@ -255,11 +255,11 @@ export function sedCommandIsAllowedByAllowlist(
   try {
     expressions = extractSedExpressions(command)
   } catch (_error) {
-    // If parsing failed, treat as not allowed
+    // 如果解析失败，视为不允许
     return false
   }
 
-  // Check if sed command has file arguments
+  // 检查 sed 命令是否有文件参数（不只是 stdin）
   const hasFileArguments = hasFileArgs(command)
 
   // Check if command matches allowlist patterns
@@ -290,7 +290,7 @@ export function sedCommandIsAllowedByAllowlist(
     }
   }
 
-  // Defense-in-depth: Even if allowlist matches, check denylist
+  // 纵深防御: 即使允许列表匹配，也要检查拒绝列表
   for (const expr of expressions) {
     if (containsDangerousOperations(expr)) {
       return false
@@ -301,8 +301,8 @@ export function sedCommandIsAllowedByAllowlist(
 }
 
 /**
- * Check if a sed command has file arguments (not just stdin)
- * @internal Exported for testing
+ * 检查 sed 命令是否有文件参数（不只是 stdin）
+ * @internal 导出用于测试
  */
 export function hasFileArgs(command: string): boolean {
   const sedMatch = command.match(/^\s*sed\s+/)
@@ -388,22 +388,22 @@ export function hasFileArgs(command: string): boolean {
 export function extractSedExpressions(command: string): string[] {
   const expressions: string[] = []
 
-  // Calculate withoutSed by trimming off the first N characters (removing 'sed ')
+  // 计算 withoutSed，通过去掉前 N 个字符（去掉 'sed '）来计算
   const sedMatch = command.match(/^\s*sed\s+/)
   if (!sedMatch) return expressions
 
   const withoutSed = command.slice(sedMatch[0].length)
 
-  // Reject dangerous flag combinations like -ew, -eW, -ee, -we (combined -e/-w with dangerous commands)
+  // 拒绝危险的标志组合如 -ew、-eW、-ee、-we（带危险命令的组合 -e/-w）
   if (/-e[wWe]/.test(withoutSed) || /-w[eE]/.test(withoutSed)) {
-    throw new Error('Dangerous flag combination detected')
+    throw new Error('检测到危险的标志组合')
   }
 
-  // Use shell-quote to parse the arguments properly
+  // 使用 shell-quote 正确解析参数
   const parseResult = tryParseShellCommand(withoutSed)
   if (!parseResult.success) {
-    // Malformed shell syntax - throw error to be caught by caller
-    throw new Error(`Malformed shell syntax: ${parseResult.error}`)
+    // 格式错误的 shell 语法 - 抛出错误以被调用者捕获
+    throw new Error(`格式错误的 shell 语法: ${parseResult.error}`)
   }
   const parsed = parseResult.tokens
   try {
@@ -413,52 +413,52 @@ export function extractSedExpressions(command: string): string[] {
     for (let i = 0; i < parsed.length; i++) {
       const arg = parsed[i]
 
-      // Skip non-string arguments (like control operators)
+      // 跳过非字符串参数（如控制操作符）
       if (typeof arg !== 'string') continue
 
-      // Handle -e flag followed by expression
+      // 处理 -e 标志后跟表达式
       if ((arg === '-e' || arg === '--expression') && i + 1 < parsed.length) {
         foundEFlag = true
         const nextArg = parsed[i + 1]
         if (typeof nextArg === 'string') {
           expressions.push(nextArg)
-          i++ // Skip the next argument since we consumed it
+          i++ // 跳过下一个参数，因为我们消耗了它
         }
         continue
       }
 
-      // Handle --expression=value format
+      // 处理 --expression=value 格式
       if (arg.startsWith('--expression=')) {
         foundEFlag = true
         expressions.push(arg.slice('--expression='.length))
         continue
       }
 
-      // Handle -e=value format (non-standard but defense in depth)
+      // 处理 -e=value 格式（非标准但纵深防御）
       if (arg.startsWith('-e=')) {
         foundEFlag = true
         expressions.push(arg.slice('-e='.length))
         continue
       }
 
-      // Skip other flags
+      // 跳过其他标志
       if (arg.startsWith('-')) continue
 
-      // If we haven't found any -e flags, the first non-flag argument is the sed expression
+      // 如果我们没有找到任何 -e 标志，第一个非标志参数是 sed 表达式
       if (!foundEFlag && !foundExpression) {
         expressions.push(arg)
         foundExpression = true
         continue
       }
 
-      // If we've already found -e flags or a standalone expression,
-      // remaining non-flag arguments are filenames
+      // 如果我们已经找到了 -e 标志或独立表达式，
+      // 其余的非标志参数是文件名
       break
     }
   } catch (error) {
-    // If shell-quote parsing fails, treat the sed command as unsafe
+    // 如果 shell-quote 解析失败，假定 sed 命令不安全
     throw new Error(
-      `Failed to parse sed command: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `解析 sed 命令失败: ${error instanceof Error ? error.message : '未知错误'}`,
     )
   }
 
@@ -466,9 +466,9 @@ export function extractSedExpressions(command: string): string[] {
 }
 
 /**
- * Check if a sed expression contains dangerous operations (denylist)
- * @param expression Single sed expression (without quotes)
- * @returns true if dangerous, false if safe
+ * 检查 sed 表达式是否包含危险操作（拒绝列表）
+ * @param expression 单个 sed 表达式（不带引号）
+ * @returns 如果危险则返回 true，如果安全则返回 false
  */
 function containsDangerousOperations(expression: string): boolean {
   const cmd = expression.trim()
@@ -629,17 +629,17 @@ function containsDangerousOperations(expression: string): boolean {
 }
 
 /**
- * Cross-cutting validation step for sed commands.
+ * sed 命令的横切验证步骤。
  *
- * This is a constraint check that blocks dangerous sed operations regardless of mode.
- * It returns 'passthrough' for non-sed commands or safe sed commands,
- * and 'ask' for dangerous sed operations (w/W/e/E commands).
+ * 这是一个约束检查，无论模式如何，都阻止危险的 sed 操作。
+ * 对于非 sed 命令或安全的 sed 命令返回 'passthrough'，
+ * 对于危险 sed 操作（w/W/e/E 命令）返回 'ask'。
  *
- * @param input - Object containing the command string
- * @param toolPermissionContext - Context containing mode and permissions
+ * @param input - 包含命令字符串的对象
+ * @param toolPermissionContext - 包含模式和权限的上下文
  * @returns
- * - 'ask' if any sed command contains dangerous operations
- * - 'passthrough' if no sed commands or all are safe
+ * - 如果任何 sed 命令包含危险操作则返回 'ask'
+ * - 如果没有 sed 命令或所有都安全则返回 'passthrough'
  */
 export function checkSedConstraints(
   input: { command: string },

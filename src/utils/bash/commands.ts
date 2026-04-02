@@ -10,12 +10,12 @@ import { extractHeredocs, restoreHeredocs } from './heredoc.js'
 import { quote, tryParseShellCommand } from './shellQuote.js'
 
 /**
- * Generates placeholder strings with random salt to prevent injection attacks.
- * The salt prevents malicious commands from containing literal placeholder strings
- * that would be replaced during parsing, allowing command argument injection.
+ * 生成具有随机盐的占位符字符串以防止注入攻击。
+ * 盐可以防止恶意命令包含字面占位符字符串，
+ * 这些字符串会在解析过程中被替换，从而允许命令参数注入。
  *
- * Security: This is critical for preventing attacks where a command like
- * `sort __SINGLE_QUOTE__ hello --help __SINGLE_QUOTE__` could inject arguments.
+ * 安全：这对防止类似
+ * `sort __SINGLE_QUOTE__ hello --help __SINGLE_QUOTE__` 这样的命令注入攻击至关重要。
  */
 function generatePlaceholders(): {
   SINGLE_QUOTE: string
@@ -35,14 +35,14 @@ function generatePlaceholders(): {
   }
 }
 
-// File descriptors for standard input/output/error
+// 文件描述符用于标准输入/输出/错误
 // https://en.wikipedia.org/wiki/File_descriptor#Standard_streams
 const ALLOWED_FILE_DESCRIPTORS = new Set(['0', '1', '2'])
 
 /**
- * Checks if a redirection target is a simple static file path that can be safely stripped.
- * Returns false for targets containing dynamic content (variables, command substitutions, globs,
- * shell expansions) which should remain visible in permission prompts for security.
+ * 检查重定向目标是否是简单的静态文件路径，可以安全地剥离。
+ * 对于包含动态内容（变量、命令替换、glob、shell 扩展）的目标返回 false，
+ * 为了安全起见，这些目标应保持在权限提示中可见。
  */
 function isStaticRedirectTarget(target: string): boolean {
   // SECURITY: A static redirect target in bash is a SINGLE shell word. After
@@ -257,10 +257,10 @@ export function filterControlOperators(
 }
 
 /**
- * @deprecated Legacy regex/shell-quote path. Only used when tree-sitter is
- * unavailable. The primary gate is parseForSecurity (ast.ts).
+ * @deprecated 旧版 regex/shell-quote 路径。仅在 tree-sitter 不可用时使用。
+ * 主要入口是 parseForSecurity (ast.ts)。
  *
- * Splits a command string into individual commands based on shell operators
+ * 根据 shell 操作符将命令字符串分割为单个命令
  */
 export function splitCommand_DEPRECATED(command: string): string[] {
   const parts: (string | undefined)[] = splitCommandWithOperators(command)

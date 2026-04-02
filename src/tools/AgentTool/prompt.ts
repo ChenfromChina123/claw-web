@@ -37,24 +37,23 @@ function getToolsDescription(agent: AgentDefinition): string {
 }
 
 /**
- * Format one agent line for the agent_listing_delta attachment message:
- * `- type: whenToUse (Tools: ...)`.
+ * 为 agent_listing_delta 附件消息格式化单个代理行：
+ * `- type: whenToUse (Tools: ...)`。
  */
 export function formatAgentLine(agent: AgentDefinition): string {
   const toolsDescription = getToolsDescription(agent)
-  return `- ${agent.agentType}: ${agent.whenToUse} (Tools: ${toolsDescription})`
+  return `- ${agent.agentType}: ${agent.whenToUse} (工具: ${toolsDescription})`
 }
 
 /**
- * Whether the agent list should be injected as an attachment message instead
- * of embedded in the tool description. When true, getPrompt() returns a static
- * description and attachments.ts emits an agent_listing_delta attachment.
+ * 是否应将代理列表作为附件消息注入，而不是嵌入在工具描述中。
+ * 当为 true 时，getPrompt() 返回静态描述，attachments.ts 发送 agent_listing_delta 附件。
  *
- * The dynamic agent list was ~10.2% of fleet cache_creation tokens: MCP async
- * connect, /reload-plugins, or permission-mode changes mutate the list →
- * description changes → full tool-schema cache bust.
+ * 动态代理列表约占 fleet cache_creation token 的 10.2%：MCP 异步
+ * 连接、/reload-plugins 或权限模式更改会导致列表变化 →
+ * 描述变化 → 完整的工具模式缓存失效。
  *
- * Override with CLAUDE_CODE_AGENT_LIST_IN_MESSAGES=true/false for testing.
+ * 可通过 CLAUDE_CODE_AGENT_LIST_IN_MESSAGES=true/false 覆盖以进行测试。
  */
 export function shouldInjectAgentListInMessages(): boolean {
   if (isEnvTruthy(process.env.CLAUDE_CODE_AGENT_LIST_IN_MESSAGES)) return true
@@ -68,13 +67,13 @@ export async function getPrompt(
   isCoordinator?: boolean,
   allowedAgentTypes?: string[],
 ): Promise<string> {
-  // Filter agents by allowed types when Agent(x,y) restricts which agents can be spawned
+  // 当 Agent(x,y) 限制可以生成哪些代理时，按允许的类型过滤代理
   const effectiveAgents = allowedAgentTypes
     ? agentDefinitions.filter(a => allowedAgentTypes.includes(a.agentType))
     : agentDefinitions
 
-  // Fork subagent feature: when enabled, insert the "When to fork" section
-  // (fork semantics, directive-style prompts) and swap in fork-aware examples.
+  // 分叉子代理功能：启用时，插入"何时分叉"部分
+  // （分叉语义、指令式提示）并换入支持分叉的示例
   const forkEnabled = isForkSubagentEnabled()
 
   const whenToForkSection = forkEnabled
@@ -187,10 +186,10 @@ assistant: "I'm going to use the ${AGENT_TOOL_NAME} tool to launch the greeting-
 </example>
 `
 
-  // When the gate is on, the agent list lives in an agent_listing_delta
-  // attachment (see attachments.ts) instead of inline here. This keeps the
-  // tool description static across MCP/plugin/permission changes so the
-  // tools-block prompt cache doesn't bust every time an agent loads.
+  // 当开关打开时，代理列表存在于 agent_listing_delta
+  // 附件中（见 attachments.ts），而不是内联在这里。这保持了
+  // 工具描述在 MCP/插件/权限更改时静态化，因此
+  // 工具块提示缓存在每次代理加载时不会失效
   const listViaAttachment = shouldInjectAgentListInMessages()
 
   const agentListSection = listViaAttachment
@@ -211,24 +210,24 @@ ${
     : `When using the ${AGENT_TOOL_NAME} tool, specify a subagent_type parameter to select which agent type to use. If omitted, the general-purpose agent is used.`
 }`
 
-  // Coordinator mode gets the slim prompt -- the coordinator system prompt
-  // already covers usage notes, examples, and when-not-to-use guidance.
+  // 协调器模式获得精简提示 -- 协调器系统提示
+  // 已经涵盖了使用说明、示例和何时不使用的指导
   if (isCoordinator) {
     return shared
   }
 
-  // Ant-native builds alias find/grep to embedded bfs/ugrep and remove the
-  // dedicated Glob/Grep tools, so point at find via Bash instead.
+  // Ant 原生构建将 find/grep 别名为嵌入式 bfs/ugrep，
+  // 并移除专用的 Glob/Grep 工具，因此通过 Bash 指向 find
   const embedded = hasEmbeddedSearchTools()
   const fileSearchHint = embedded
-    ? '`find` via the Bash tool'
-    : `the ${GLOB_TOOL_NAME} tool`
-  // The "class Foo" example is about content search. Non-embedded stays Glob
-  // (original intent: find-the-file-containing). Embedded gets grep because
-  // find -name doesn't look at file contents.
+    ? '通过 Bash 工具的 `find`'
+    : `${GLOB_TOOL_NAME} 工具`
+  // "class Foo" 示例是关于内容搜索的。非嵌入式保持 Glob
+  // （原始意图：查找包含内容的文件）。嵌入式使用 grep，因为
+  // find -name 不查看文件内容
   const contentSearchHint = embedded
-    ? '`grep` via the Bash tool'
-    : `the ${GLOB_TOOL_NAME} tool`
+    ? '通过 Bash 工具的 `grep`'
+    : `${GLOB_TOOL_NAME} 工具`
   const whenNotToUseSection = forkEnabled
     ? ''
     : `
@@ -239,16 +238,16 @@ When NOT to use the ${AGENT_TOOL_NAME} tool:
 - Other tasks that are not related to the agent descriptions above
 `
 
-  // When listing via attachment, the "launch multiple agents" note is in the
-  // attachment message (conditioned on subscription there). When inline, keep
-  // the existing per-call getSubscriptionType() check.
+  // 通过附件列出时，"启动多个代理"说明在
+  // 附件消息中（在那里根据订阅条件）。内联时，保留
+  // 每个调用的现有 getSubscriptionType() 检查
   const concurrencyNote =
     !listViaAttachment && getSubscriptionType() !== 'pro'
       ? `
 - Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses`
       : ''
 
-  // Non-coordinator gets the full prompt with all sections
+  // 非协调器获得包含所有部分的完整提示
   return `${shared}
 ${whenNotToUseSection}
 

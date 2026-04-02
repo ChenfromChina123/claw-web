@@ -58,16 +58,16 @@ const permissionSetupModule = feature('TRANSCRIPT_CLASSIFIER')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 /**
- * Schema for prompt-based permission requests.
- * Used by Claude to request semantic permissions when exiting plan mode.
+ * 基于提示的权限请求模式。
+ * 在退出计划模式时供 Claude 请求语义权限。
  */
 const allowedPromptSchema = lazySchema(() =>
   z.object({
-    tool: z.enum(['Bash']).describe('The tool this prompt applies to'),
+    tool: z.enum(['Bash']).describe('此提示适用的工具'),
     prompt: z
       .string()
       .describe(
-        'Semantic description of the action, e.g. "run tests", "install dependencies"',
+        '操作的语义描述，例如 "run tests"、"install dependencies"',
       ),
   }),
 )

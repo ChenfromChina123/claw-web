@@ -1,38 +1,61 @@
+/**
+ * Claude Code HAHA - Deep React Integration Server
+ * 
+ * A comprehensive server that integrates the React frontend with backend services:
+ * - WebSocket RPC bridge for real-time communication
+ * - Enhanced tool execution system
+ * - Session management with AI streaming
+ * - MCP server integration
+ * - Authentication with JWT
+ * - File watching and sandbox isolation
+ */
+
 import Anthropic from '@anthropic-ai/sdk'
-import { exec, execFile } from 'child_process'
-import { readFile, writeFile } from 'fs/promises'
 import { v4 as uuidv4 } from 'uuid'
 import { initDatabase, closePool } from './db/mysql'
 import { SessionManager } from './services/sessionManager'
 import { authService } from './services/authService'
 import { verifyToken, extractTokenFromHeader } from './services/jwtService'
+import { wsManager } from './integration/wsBridge'
+import { toolExecutor, EnhancedToolExecutor } from './integration/enhancedToolExecutor'
+import { WebCommandBridge, parseUserInput } from './integrations/commandBridge'
+import { WebMCPBridge } from './integrations/mcpBridge'
+import { WebAgentRunner } from './integrations/agentRunner'
+import { WebSessionBridge } from './integrations/sessionBridge'
+import { appStateManager } from './integration/webStore'
+import type { WebSocketMessage, RPCContext } from './integration/wsBridge'
+import type { ToolExecutionContext } from './integration/enhancedToolExecutor'
 import type { ConversationMessage, ToolCall, LoginRequest, RegisterRequest, ResetPasswordRequest } from './models/types'
 
-const PORT = 3000
+const PORT = parseInt(process.env.PORT || '3000', 10)
+const WS_PORT = parseInt(process.env.WS_PORT || '3001', 10)
 
-interface Tool {
-  name: string
-  description: string
-  inputSchema: Record<string, unknown>
-}
-
-interface Message {
-  type: string
-  [key: string]: unknown
-}
+// ==================== Types ====================
 
 interface WebSocketData {
-  sendEvent: ((event: string, data: unknown) => void) | null
-  sessionId: string | null
+  connectionId: string
   userId: string | null
+  sessionId: string | null
   token: string | null
+  sendEvent: ((event: string, data: unknown) => void) | null
 }
 
+interface SessionConversationState {
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>
+  toolCalls: ToolCall[]
+}
+
+// ==================== Configuration ====================
+
 const AVAILABLE_MODELS = [
-  { id: 'qwen-plus', name: '通义千问 Plus', provider: 'aliyun' },
-  { id: 'qwen-turbo', name: '通义千问 Turbo', provider: 'aliyun' },
-  { id: 'qwen-max', name: '通义千问 Max', provider: 'aliyun' },
+  { id: 'qwen-plus', name: '通义千问 Plus', provider: 'aliyun', description: '最适合编程和复杂推理' },
+  { id: 'qwen-turbo', name: '通义千问 Turbo', provider: 'aliyun', description: '快速响应，适合简单任务' },
+  { id: 'qwen-max', name: '通义千问 Max', provider: 'aliyun', description: '最强能力，适合最复杂任务' },
+  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'anthropic', description: 'Anthropic 最强编程模型' },
+  { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', provider: 'anthropic', description: '最通用，最强推理能力' },
 ]
+
+// ==================== Anthropic Client Factory ====================
 
 function getAnthropicClient(): Anthropic {
   return new Anthropic({
@@ -44,12 +67,16 @@ function getAnthropicClient(): Anthropic {
   })
 }
 
-function createSuccessResponse(data: unknown): Response {
+// ==================== Response Helpers ====================
+
+function createSuccessResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify({ success: true, data }), {
-    status: 200,
+    status,
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   })
 }
@@ -63,6 +90,8 @@ function createErrorResponse(code: string, message: string, status: number): Res
     },
   })
 }
+
+// ==================== Auth Middleware ====================
 
 async function authMiddleware(request: Request): Promise<{ userId: string | null; isAdmin: boolean | null }> {
   const authHeader = request.headers.get('Authorization')
@@ -80,242 +109,37 @@ async function authMiddleware(request: Request): Promise<{ userId: string | null
   return { userId: payload.userId, isAdmin: payload.isAdmin || null }
 }
 
-class ToolExecutor {
-  private tools: Tool[] = [
-    {
-      name: 'Bash',
-      description: 'Execute shell commands',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          command: { type: 'string', description: 'The shell command to execute' },
-          workingDirectory: { type: 'string', description: 'Working directory for the command' },
-        },
-        required: ['command'],
-      },
-    },
-    {
-      name: 'FileRead',
-      description: 'Read contents of a file',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', description: 'Path to the file to read' },
-        },
-        required: ['path'],
-      },
-    },
-    {
-      name: 'FileWrite',
-      description: 'Write content to a file',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', description: 'Path to the file to write' },
-          content: { type: 'string', description: 'Content to write to the file' },
-        },
-        required: ['path', 'content'],
-      },
-    },
-    {
-      name: 'FileEdit',
-      description: 'Edit a file by replacing text',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', description: 'Path to the file to edit' },
-          oldText: { type: 'string', description: 'Text to find and replace' },
-          newText: { type: 'string', description: 'Replacement text' },
-        },
-        required: ['path', 'oldText', 'newText'],
-      },
-    },
-    {
-      name: 'Grep',
-      description: 'Search for patterns in files',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          pattern: { type: 'string', description: 'Search pattern (regex)' },
-          path: { type: 'string', description: 'Directory or file to search in' },
-        },
-        required: ['pattern'],
-      },
-    },
-    {
-      name: 'Glob',
-      description: 'List files matching a pattern',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          pattern: { type: 'string', description: 'Glob pattern (e.g., **/*.ts)' },
-          path: { type: 'string', description: 'Base directory for search' },
-        },
-        required: ['pattern'],
-      },
-    },
-    {
-      name: 'WebSearch',
-      description: 'Search the web for information',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          query: { type: 'string', description: 'Search query' },
-        },
-        required: ['query'],
-      },
-    },
-  ]
+// ==================== Event Sender Factory ====================
 
-  async executeTool(name: string, input: Record<string, unknown>, sendEvent: (event: string, data: unknown) => void): Promise<unknown> {
-    sendEvent('tool_start', { name, input })
-
+function createEventSender(ws: unknown): (event: string, data: unknown) => void {
+  return (event: string, data: unknown) => {
     try {
-      let result: unknown
-
-      switch (name) {
-        case 'Bash':
-          result = await this.executeBash(input.command as string, process.cwd(), sendEvent)
-          break
-        case 'FileRead':
-          result = await this.readFile(input.path as string)
-          break
-        case 'FileWrite':
-          await this.writeFile(input.path as string, input.content as string)
-          result = { success: true, message: 'File written successfully' }
-          break
-        case 'FileEdit':
-          result = await this.editFile(input.path as string, input.oldText as string, input.newText as string)
-          break
-        case 'Grep':
-          result = await this.grep(input.pattern as string, input.path as string | undefined)
-          break
-        case 'Glob':
-          result = await this.glob(input.pattern as string, input.path as string | undefined)
-          break
-        case 'WebSearch':
-          result = await this.webSearch(input.query as string)
-          break
-        default:
-          throw new Error(`Unknown tool: ${name}`)
+      const socket = ws as { send?: (data: string) => void; readyState?: number }
+      if (socket.send && socket.readyState === 1) {
+        const payload = JSON.stringify({ type: 'event', event, data, timestamp: Date.now() })
+        socket.send(payload)
       }
-
-      sendEvent('tool_end', { name, result })
-      return result
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      sendEvent('tool_error', { name, error: errorMessage })
-      return { error: errorMessage }
+      console.error('Failed to send event:', error)
     }
-  }
-
-  private executeBash(command: string, cwd?: string, sendEvent?: (event: string, data: unknown) => void): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    return new Promise((resolve) => {
-      const isWindows = process.platform === 'win32'
-      const args = isWindows ? ['-Command', command] : ['-c', command]
-
-      sendEvent?.('tool_progress', { output: `Executing: ${command}\n` })
-
-      const child = execFile(isWindows ? 'powershell.exe' : '/bin/bash', args, { cwd }, (error, stdout, stderr) => {
-        if (error) {
-          sendEvent?.('tool_progress', { output: `Error: ${stderr || error.message}\n` })
-        }
-        resolve({
-          stdout: stdout || '',
-          stderr: stderr || '',
-          exitCode: error?.code || 0,
-        })
-      })
-
-      child.stdout?.on('data', (data) => {
-        sendEvent?.('tool_progress', { output: data.toString() })
-      })
-
-      child.stderr?.on('data', (data) => {
-        sendEvent?.('tool_progress', { output: data.toString() })
-      })
-    })
-  }
-
-  private async readFile(path: string): Promise<{ content: string; path: string }> {
-    const content = await readFile(path, 'utf-8')
-    return { content, path }
-  }
-
-  private async writeFile(path: string, content: string): Promise<void> {
-    await writeFile(path, content, 'utf-8')
-  }
-
-  private async editFile(path: string, oldText: string, newText: string): Promise<{ success: boolean; message: string }> {
-    const content = await readFile(path, 'utf-8')
-    if (!content.includes(oldText)) {
-      throw new Error(`Text not found in file: ${oldText}`)
-    }
-    const newContent = content.replace(oldText, newText)
-    await writeFile(path, newContent, 'utf-8')
-    return { success: true, message: 'File edited successfully' }
-  }
-
-  private grep(pattern: string, path?: string): Promise<{ matches: string[] }> {
-    return new Promise((resolve) => {
-      const searchPath = path || '.'
-      const isWindows = process.platform === 'win32'
-      let command: string
-
-      if (isWindows) {
-        command = `Get-ChildItem -Recurse -Path "${searchPath}" -Filter "*${pattern}*" -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName`
-      } else {
-        command = `grep -rn "${pattern}" ${searchPath} 2>/dev/null || true`
-      }
-
-      exec(command, { cwd: searchPath }, (error, stdout) => {
-        const matches = stdout.trim().split('\n').filter(Boolean)
-        resolve({ matches })
-      })
-    })
-  }
-
-  private glob(pattern: string, path?: string): Promise<{ files: string[] }> {
-    return new Promise((resolve) => {
-      const searchPath = path || '.'
-      const isWindows = process.platform === 'win32'
-      let command: string
-
-      if (isWindows) {
-        command = `Get-ChildItem -Recurse -Path "${searchPath}" -Filter "${pattern}" -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName`
-      } else {
-        command = `find ${searchPath} -name "${pattern}" -type f 2>/dev/null || true`
-      }
-
-      exec(command, { cwd: searchPath }, (error, stdout) => {
-        const files = stdout.trim().split('\n').filter(Boolean)
-        resolve({ files })
-      })
-    })
-  }
-
-  private async webSearch(query: string): Promise<{ results: string[] }> {
-    return { results: [`Web search for: ${query} - (WebSearch tool placeholder)`] }
-  }
-
-  getTools(): Tool[] {
-    return this.tools
-  }
-
-  getAnthropicTools(): Anthropic.Tool[] {
-    return this.tools.map(tool => ({
-      name: tool.name,
-      description: tool.description,
-      input_schema: tool.inputSchema as Anthropic.Tool.InputSchema,
-    }))
   }
 }
 
-class SessionConversationManager {
-  private toolExecutor: ToolExecutor
+// ==================== Session Conversation Manager ====================
 
-  constructor(toolExecutor: ToolExecutor) {
+class SessionConversationManager {
+  private toolExecutor: EnhancedToolExecutor
+  private commandBridge: WebCommandBridge
+  private mcpBridge: WebMCPBridge
+  private agentRunner: WebAgentRunner
+  private sessionBridge: WebSessionBridge
+
+  constructor() {
     this.toolExecutor = toolExecutor
+    this.commandBridge = new WebCommandBridge()
+    this.mcpBridge = new WebMCPBridge()
+    this.agentRunner = new WebAgentRunner()
+    this.sessionBridge = new WebSessionBridge()
   }
 
   async processMessage(
@@ -325,6 +149,15 @@ class SessionConversationManager {
     sessionManager: SessionManager,
     sendEvent: (event: string, data: unknown) => void
   ): Promise<void> {
+    // Check if input is a command
+    const parsed = parseUserInput(userMessage)
+    if (parsed.isCommand && parsed.command) {
+      const result = await this.commandBridge.executeCommand(parsed.command, sendEvent)
+      sendEvent('command_result', result)
+      return
+    }
+
+    // Add user message to session
     sessionManager.addMessage(sessionId, 'user', userMessage)
 
     const sessionData = sessionManager.getInMemorySession(sessionId)
@@ -336,8 +169,8 @@ class SessionConversationManager {
     const messages = sessionData.messages
     const client = getAnthropicClient()
 
-    console.log('Starting streaming processMessage with model:', model)
-    console.log('Total messages in history:', messages.length)
+    console.log(`[${sessionId}] Starting streaming with model: ${model}`)
+    console.log(`[${sessionId}] Total messages in history: ${messages.length}`)
 
     try {
       let maxIterations = 10
@@ -345,33 +178,35 @@ class SessionConversationManager {
 
       while (iteration < maxIterations) {
         iteration++
-        console.log(`API iteration ${iteration}, messages count:`, messages.length)
+        console.log(`[${sessionId}] API iteration ${iteration}, messages: ${messages.length}`)
 
-        sendEvent('message_start', {})
+        sendEvent('message_start', { iteration })
 
         const stream = client.messages.stream({
           model,
           max_tokens: 4096,
-          messages: messages,
-          tools: this.toolExecutor.getAnthropicTools(),
+          messages: messages.map(m => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+          })),
+          tools: this.toolExecutor.getAnthropicTools() as Anthropic.Tool[],
         })
 
         let assistantText = ''
         let pendingToolCalls: Array<{ id: string; name: string; input: string }> = []
         let currentTextBlock = ''
-        let executedToolCalls: ToolCall[] = []
 
         for await (const event of stream) {
-          console.log('Stream event:', event.type)
+          console.log(`[${sessionId}] Stream event: ${event.type}`)
 
           switch (event.type) {
             case 'content_block_start':
               if (event.content_block.type === 'tool_use') {
                 const toolId = event.content_block.id || uuidv4()
                 const toolName = event.content_block.name || ''
-                console.log('Tool use started:', toolName, 'id:', toolId)
+                console.log(`[${sessionId}] Tool use started: ${toolName}`)
                 pendingToolCalls.push({ id: toolId, name: toolName, input: '' })
-                sendEvent('tool_use', { id: toolId, name: toolName, input: {} })
+                sendEvent('tool_use', { id: toolId, name: toolName })
               } else if (event.content_block.type === 'text') {
                 currentTextBlock = ''
               }
@@ -396,16 +231,18 @@ class SessionConversationManager {
 
             case 'message_delta':
               if (event.delta.stop_reason) {
-                sendEvent('message_stop', { stop_reason: event.delta.stop_reason })
+                sendEvent('message_stop', { stop_reason: event.delta.stop_reason, iteration })
               }
               break
 
             case 'message_stop':
-              console.log('Message stream completed')
-              console.log('Processing', pendingToolCalls.length, 'pending tool calls')
+              console.log(`[${sessionId}] Message stream completed, processing ${pendingToolCalls.length} tool calls`)
+              
+              const executedToolCalls: ToolCall[] = []
+
               for (const tool of pendingToolCalls) {
                 const toolInput = tool.input ? JSON.parse(tool.input) : {}
-                sendEvent('tool_start', { name: tool.name, input: tool.input })
+                sendEvent('tool_start', { name: tool.name, input: toolInput })
 
                 const toolCall: ToolCall = {
                   id: tool.id,
@@ -419,40 +256,38 @@ class SessionConversationManager {
                 }
 
                 try {
-                  const result = await this.toolExecutor.executeTool(
-                    tool.name,
-                    toolInput as Record<string, unknown>,
-                    sendEvent
-                  )
+                  const result = await this.toolExecutor.execute(tool.name, toolInput, sendEvent)
 
-                  toolCall.toolOutput = result as Record<string, unknown>
-                  toolCall.status = 'completed'
+                  toolCall.toolOutput = result.result as Record<string, unknown>
+                  toolCall.status = result.success ? 'completed' : 'error'
 
                   sessionManager.addToolCall(sessionId, toolCall)
-                  sessionManager.addMessage(sessionId, 'user', JSON.stringify({ tool_use_id: tool.id, name: tool.name, result }))
+                  sessionManager.addMessage(sessionId, 'user', JSON.stringify({
+                    tool_use_id: tool.id,
+                    name: tool.name,
+                    result: result.result,
+                    error: result.error,
+                  }))
 
-                  console.log('Tool result added to messages:', tool.name)
+                  console.log(`[${sessionId}] Tool ${tool.name} completed`)
                 } catch (error) {
                   const errorMessage = error instanceof Error ? error.message : String(error)
-                  console.error('Tool execution error:', errorMessage)
+                  console.error(`[${sessionId}] Tool ${tool.name} error:`, errorMessage)
 
                   toolCall.toolOutput = { error: errorMessage }
                   toolCall.status = 'error'
 
                   sessionManager.addToolCall(sessionId, toolCall)
-                  sessionManager.addMessage(sessionId, 'user', JSON.stringify({ tool_use_id: tool.id, name: tool.name, error: errorMessage }))
+                  sessionManager.addMessage(sessionId, 'user', JSON.stringify({
+                    tool_use_id: tool.id,
+                    name: tool.name,
+                    error: errorMessage,
+                  }))
                 }
+
+                executedToolCalls.push(toolCall)
               }
-              executedToolCalls = pendingToolCalls.map(tc => ({
-                id: tc.id,
-                messageId: '',
-                sessionId,
-                toolName: tc.name,
-                toolInput: tc.input ? JSON.parse(tc.input) : {},
-                toolOutput: null,
-                status: 'completed' as const,
-                createdAt: new Date(),
-              }))
+
               pendingToolCalls = []
               break
           }
@@ -467,34 +302,37 @@ class SessionConversationManager {
 
         const lastMsg = finalSession.messages[finalSession.messages.length - 1]
         if (lastMsg?.role !== 'assistant' || !lastMsg.toolCalls || lastMsg.toolCalls.length === 0) {
-          console.log('Conversation completed, total messages:', finalSession.messages.length)
+          console.log(`[${sessionId}] Conversation completed, total messages: ${finalSession.messages.length}`)
+          sendEvent('conversation_end', { totalMessages: finalSession.messages.length })
           break
         }
 
         const lastTool = lastMsg.toolCalls[lastMsg.toolCalls.length - 1]
         if (lastTool.status !== 'pending' && iteration < maxIterations) {
-          console.log('Tool was used, continuing with', finalSession.messages.length, 'messages...')
+          console.log(`[${sessionId}] Tool was used, continuing with ${finalSession.messages.length} messages...`)
           continue
         }
 
-        console.log('Conversation completed, total messages:', finalSession.messages.length)
+        console.log(`[${sessionId}] Conversation completed`)
         break
       }
 
       if (iteration >= maxIterations) {
-        console.log('Max iterations reached')
+        console.log(`[${sessionId}] Max iterations reached`)
+        sendEvent('max_iterations_reached', { iterations: iteration })
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      console.error('API call error:', errorMessage)
+      console.error(`[${sessionId}] API call error:`, errorMessage)
       sendEvent('error', { message: errorMessage })
     }
   }
 }
 
-const toolExecutor = new ToolExecutor()
-const sessionConversationManager = new SessionConversationManager(toolExecutor)
+const sessionConversationManager = new SessionConversationManager()
 const sessionManager = SessionManager.getInstance()
+
+// ==================== Auth Route Handler ====================
 
 async function handleAuthRoutes(path: string, method: string, request: Request): Promise<Response> {
   if (method === 'OPTIONS') {
@@ -595,16 +433,27 @@ async function handleAuthRoutes(path: string, method: string, request: Request):
   return createErrorResponse('NOT_FOUND', `Route ${path} not found`, 404)
 }
 
+// ==================== Main Server ====================
+
 async function startServer() {
+  console.log('='.repeat(60))
+  console.log('  Claude Code HAHA - Deep React Integration Server')
+  console.log('='.repeat(60))
+  
+  // Initialize database
   try {
-    console.log('Initializing database...')
+    console.log('\n[DB] Initializing database...')
     await initDatabase()
-    console.log('Database initialized successfully')
+    console.log('[DB] Database initialized successfully')
   } catch (error) {
-    console.error('Failed to initialize database:', error)
-    console.warn('Server will start without database connection')
+    console.warn('[DB] Failed to initialize database:', error)
+    console.warn('[DB] Server will start without database connection')
   }
 
+  // Initialize WebSocket RPC methods
+  initializeRPCMethods()
+
+  // Start HTTP server
   const server = Bun.serve({
     port: PORT,
     async fetch(req, server) {
@@ -612,47 +461,100 @@ async function startServer() {
       const path = url.pathname
       const method = req.method
 
+      // Auth routes
       if (path.startsWith('/api/auth/')) {
         return handleAuthRoutes(path, method, req)
       }
 
+      // WebSocket upgrade
       if (path === '/ws') {
         const success = server.upgrade(req, {
-          data: { sendEvent: null, sessionId: null, userId: null, token: null } as WebSocketData,
+          data: {
+            connectionId: uuidv4(),
+            userId: null,
+            sessionId: null,
+            token: null,
+            sendEvent: null,
+          } as WebSocketData,
         })
 
         if (!success) {
           return new Response('WebSocket upgrade failed', { status: 500 })
         }
-
         return
       }
 
+      // CORS preflight
       if (method === 'OPTIONS') {
         return new Response(null, {
           status: 204,
           headers: {
             'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization',
           },
         })
       }
 
+      // Health check
       if (path === '/api/health' && method === 'GET') {
         return createSuccessResponse({
           status: 'healthy',
+          version: '1.0.0',
           timestamp: new Date().toISOString(),
+          uptime: process.uptime(),
           dbConnected: true,
+          connections: wsManager.getAllConnections().size,
         })
       }
 
+      // List available models
       if (path === '/api/models' && method === 'GET') {
         return createSuccessResponse({ models: AVAILABLE_MODELS })
       }
 
+      // Get available tools
       if (path === '/api/tools' && method === 'GET') {
-        return createSuccessResponse({ tools: toolExecutor.getTools() })
+        return createSuccessResponse({
+          tools: toolExecutor.getAllTools().map(t => ({
+            name: t.name,
+            description: t.description,
+            inputSchema: t.inputSchema,
+            category: t.category,
+          })),
+        })
+      }
+
+      // Get MCP servers
+      if (path === '/api/mcp/servers' && method === 'GET') {
+        const mcpBridge = new WebMCPBridge()
+        return createSuccessResponse({ servers: mcpBridge.getServers() })
+      }
+
+      // Get commands
+      if (path === '/api/commands' && method === 'GET') {
+        const commandBridge = new WebCommandBridge()
+        return createSuccessResponse({ commands: commandBridge.getCommandsList() })
+      }
+
+      // Get server info
+      if (path === '/api/info' && method === 'GET') {
+        return createSuccessResponse({
+          name: 'Claude Code HAHA',
+          version: '1.0.0',
+          description: 'Deep React Integration Server',
+          features: {
+            tools: toolExecutor.getAllTools().length,
+            models: AVAILABLE_MODELS.length,
+            websocket: true,
+            mcp: true,
+            auth: true,
+          },
+          endpoints: {
+            api: `http://localhost:${PORT}/api`,
+            websocket: `ws://localhost:${PORT}/ws`,
+          },
+        })
       }
 
       return createErrorResponse('NOT_FOUND', `Route ${path} not found`, 404)
@@ -660,28 +562,46 @@ async function startServer() {
 
     websocket: {
       open(ws) {
-        console.log('Client connected')
-        ws.data = { sendEvent: null, sessionId: null, userId: null, token: null } as WebSocketData
+        const wsData = ws.data as WebSocketData
+        console.log(`[WS] Client connected: ${wsData.connectionId}`)
+        
+        // Add to WebSocket manager
+        wsManager.addConnection(ws, wsData.connectionId)
+        
+        // Set up event sender
+        wsData.sendEvent = createEventSender(ws)
+
+        ws.send(JSON.stringify({
+          type: 'connected',
+          connectionId: wsData.connectionId,
+          timestamp: Date.now(),
+        }))
       },
 
       message(ws, data) {
-        console.log('WebSocket message received:', data.toString())
+        const wsData = ws.data as WebSocketData
+        
         try {
-          const message: Message = JSON.parse(data.toString())
-          console.log('Parsed message:', message)
+          const message: WebSocketMessage = JSON.parse(data.toString())
+          console.log(`[WS] Message from ${wsData.connectionId}:`, message.type)
 
           const sendEvent = (event: string, eventData: unknown) => {
-            const wsData = ws.data as WebSocketData
-            if (wsData.sendEvent && ws.readyState === 1) {
-              const payload = JSON.stringify({ type: event, ...eventData as object, sessionId: wsData.sessionId })
-              ws.send(payload)
+            if (wsData.sendEvent) {
+              wsData.sendEvent(event, { ...eventData as object, sessionId: wsData.sessionId })
             }
           }
 
-          const wsData = ws.data as WebSocketData
           wsData.sendEvent = sendEvent
 
           switch (message.type) {
+            case 'rpc_call':
+              // Handled by wsManager
+              break
+
+            case 'ping':
+              ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }))
+              break
+
             case 'register':
               {
                 const userId = message.userId as string || uuidv4()
@@ -690,10 +610,10 @@ async function startServer() {
 
                 sessionManager.getOrCreateUser(userId, username).then(user => {
                   wsData.userId = user.id
-                  console.log(`User registered: ${user.id} (${user.username})`)
+                  console.log(`[WS] User registered: ${user.id} (${user.username})`)
                   ws.send(JSON.stringify({ type: 'registered', userId: user.id, username: user.username }))
                 }).catch(err => {
-                  console.error('Failed to register user:', err)
+                  console.error('[WS] Failed to register user:', err)
                   ws.send(JSON.stringify({ type: 'error', message: 'Failed to register user' }))
                 })
               }
@@ -707,7 +627,7 @@ async function startServer() {
                   verifyToken(token).then(payload => {
                     if (payload) {
                       wsData.userId = payload.userId
-                      console.log(`User logged in via token: ${payload.userId}`)
+                      console.log(`[WS] User logged in via token: ${payload.userId}`)
                       ws.send(JSON.stringify({ type: 'logged_in', userId: payload.userId }))
                     } else {
                       ws.send(JSON.stringify({ type: 'error', message: 'Invalid token' }))
@@ -730,10 +650,10 @@ async function startServer() {
 
                 sessionManager.createSession(userId, title, model).then(session => {
                   wsData.sessionId = session.id
-                  console.log(`Session created: ${session.id} for user ${userId}`)
+                  console.log(`[WS] Session created: ${session.id} for user ${userId}`)
                   ws.send(JSON.stringify({ type: 'session_created', session }))
                 }).catch(err => {
-                  console.error('Failed to create session:', err)
+                  console.error('[WS] Failed to create session:', err)
                   sendEvent('error', { message: 'Failed to create session' })
                 })
               }
@@ -750,7 +670,7 @@ async function startServer() {
                   }
 
                   wsData.sessionId = sessionId
-                  console.log(`Session loaded: ${sessionId}`)
+                  console.log(`[WS] Session loaded: ${sessionId}`)
 
                   ws.send(JSON.stringify({
                     type: 'session_loaded',
@@ -759,7 +679,7 @@ async function startServer() {
                     toolCalls: sessionData.toolCalls,
                   }))
                 }).catch(err => {
-                  console.error('Failed to load session:', err)
+                  console.error('[WS] Failed to load session:', err)
                   sendEvent('error', { message: 'Failed to load session' })
                 })
               }
@@ -776,7 +696,7 @@ async function startServer() {
                 sessionManager.getUserSessions(userId).then(sessions => {
                   ws.send(JSON.stringify({ type: 'session_list', sessions }))
                 }).catch(err => {
-                  console.error('Failed to list sessions:', err)
+                  console.error('[WS] Failed to list sessions:', err)
                   sendEvent('error', { message: 'Failed to list sessions' })
                 })
               }
@@ -793,7 +713,7 @@ async function startServer() {
                 const content = message.content as string
                 const model = (message.model as string) || 'qwen-plus'
 
-                console.log(`Processing message for session ${sessionId}:`, content)
+                console.log(`[WS] Processing message for session ${sessionId}:`, content.substring(0, 100))
 
                 sessionConversationManager.processMessage(
                   sessionId,
@@ -802,7 +722,7 @@ async function startServer() {
                   sessionManager,
                   sendEvent
                 ).catch(err => {
-                  console.error('processMessage error:', err)
+                  console.error('[WS] processMessage error:', err)
                   sendEvent('error', { message: 'Failed to process message' })
                 })
               }
@@ -817,7 +737,7 @@ async function startServer() {
                     wsData.sessionId = null
                   }
                 }).catch(err => {
-                  console.error('Failed to delete session:', err)
+                  console.error('[WS] Failed to delete session:', err)
                   sendEvent('error', { message: 'Failed to delete session' })
                 })
               }
@@ -830,7 +750,7 @@ async function startServer() {
                 sessionManager.renameSession(sessionId, title).then(() => {
                   ws.send(JSON.stringify({ type: 'session_renamed', sessionId, title }))
                 }).catch(err => {
-                  console.error('Failed to rename session:', err)
+                  console.error('[WS] Failed to rename session:', err)
                   sendEvent('error', { message: 'Failed to rename session' })
                 })
               }
@@ -847,14 +767,35 @@ async function startServer() {
                 sessionManager.clearSession(sessionId).then(() => {
                   ws.send(JSON.stringify({ type: 'session_cleared', sessionId }))
                 }).catch(err => {
-                  console.error('Failed to clear session:', err)
+                  console.error('[WS] Failed to clear session:', err)
                   sendEvent('error', { message: 'Failed to clear session' })
                 })
               }
               break
 
             case 'get_tools':
-              sendEvent('tools', { tools: toolExecutor.getTools() })
+              sendEvent('tools', {
+                tools: toolExecutor.getAllTools().map(t => ({
+                  name: t.name,
+                  description: t.description,
+                  inputSchema: t.inputSchema,
+                  category: t.category,
+                })),
+              })
+              break
+
+            case 'execute_command':
+              {
+                const commandBridge = new WebCommandBridge()
+                const command = message.command as string
+                if (!command) {
+                  sendEvent('error', { message: 'Command is required' })
+                  break
+                }
+                
+                const result = await commandBridge.executeCommand(command, sendEvent)
+                ws.send(JSON.stringify({ type: 'command_result', result }))
+              }
               break
 
             case 'validate_user':
@@ -864,12 +805,30 @@ async function startServer() {
 
                 sessionManager.getOrCreateUser(userId, username).then(user => {
                   wsData.userId = user.id
-                  console.log(`User validated: ${user.id} (${user.username})`)
+                  console.log(`[WS] User validated: ${user.id} (${user.username})`)
                   ws.send(JSON.stringify({ type: 'user_validated', userId: user.id, username: user.username }))
                 }).catch(err => {
-                  console.error('Failed to validate user:', err)
+                  console.error('[WS] Failed to validate user:', err)
                   ws.send(JSON.stringify({ type: 'user_invalid' }))
                 })
+              }
+              break
+
+            case 'get_models':
+              ws.send(JSON.stringify({ type: 'models', models: AVAILABLE_MODELS }))
+              break
+
+            case 'get_status':
+              {
+                const status = {
+                  type: 'status',
+                  uptime: process.uptime(),
+                  memory: process.memoryUsage(),
+                  connections: wsManager.getAllConnections().size,
+                  sessions: sessionManager.getAllSessions().length,
+                  models: AVAILABLE_MODELS,
+                }
+                ws.send(JSON.stringify(status))
               }
               break
 
@@ -878,42 +837,310 @@ async function startServer() {
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error)
-          console.error('Message handling error:', errorMessage)
+          console.error('[WS] Message handling error:', errorMessage)
+          ws.send(JSON.stringify({ type: 'error', message: errorMessage }))
         }
       },
 
       close(ws) {
-        console.log('Client disconnected')
         const wsData = ws.data as WebSocketData
+        console.log(`[WS] Client disconnected: ${wsData.connectionId}`)
+        
+        // Save session on close
         if (wsData.sessionId) {
           sessionManager.saveSession(wsData.sessionId).catch(err => {
-            console.error('Failed to save session on close:', err)
+            console.error('[WS] Failed to save session on close:', err)
           })
         }
+        
+        // Remove from WebSocket manager
+        wsManager.removeConnection(wsData.connectionId)
       },
     },
   })
 
-  console.log(`Claude Code WebSocket Server running at ws://localhost:${PORT}`)
-  console.log(`REST API: http://localhost:${PORT}/api/*`)
-  console.log(`Auth API Endpoints:`)
-  console.log(`  POST /api/auth/register/send-code  - 发送注册验证码`)
-  console.log(`  POST /api/auth/register            - 用户注册`)
-  console.log(`  POST /api/auth/login               - 用户登录`)
-  console.log(`  POST /api/auth/forgot-password/send-code  - 发送重置密码验证码`)
-  console.log(`  POST /api/auth/forgot-password     - 重置密码`)
-  console.log(`  GET  /api/auth/me                  - 获取当前用户信息`)
-  console.log(`  GET  /api/health  - Health check`)
-  console.log(`  GET  /api/models  - Get available models`)
-  console.log(`  GET  /api/tools   - Get available tools`)
-  console.log(`  WS   /ws          - WebSocket connection`)
+  console.log(`\n${'='.repeat(60)}`)
+  console.log('  Server Status')
+  console.log(`${'='.repeat(60)}`)
+  console.log(`\n[HTTP] REST API:     http://localhost:${PORT}/api/*`)
+  console.log(`[WS]   WebSocket:    ws://localhost:${PORT}/ws`)
+  console.log(`\n[API]  Auth Endpoints:`)
+  console.log(`       POST /api/auth/register/send-code  - 发送注册验证码`)
+  console.log(`       POST /api/auth/register            - 用户注册`)
+  console.log(`       POST /api/auth/login               - 用户登录`)
+  console.log(`       POST /api/auth/forgot-password/send-code  - 发送重置密码验证码`)
+  console.log(`       POST /api/auth/forgot-password     - 重置密码`)
+  console.log(`       GET  /api/auth/me                  - 获取当前用户信息`)
+  console.log(`\n[API]  Info Endpoints:`)
+  console.log(`       GET  /api/health       - 健康检查`)
+  console.log(`       GET  /api/models       - 可用模型列表`)
+  console.log(`       GET  /api/tools        - 可用工具列表`)
+  console.log(`       GET  /api/mcp/servers  - MCP 服务器列表`)
+  console.log(`       GET  /api/commands     - 命令列表`)
+  console.log(`       GET  /api/info         - 服务器信息`)
+  console.log(`\n[WS]   WebSocket Events:`)
+  console.log(`       create_session, load_session, list_sessions`)
+  console.log(`       user_message, delete_session, rename_session`)
+  console.log(`       clear_session, get_tools, execute_command`)
+  console.log(`       get_models, get_status, rpc_call`)
+  console.log(`\n${'='.repeat(60)}\n`)
 }
 
+// ==================== Initialize RPC Methods ====================
+
+function initializeRPCMethods() {
+  // System methods
+  wsManager.registerMethod({
+    name: 'system.ping',
+    description: 'Ping the server',
+    execute: async () => ({ pong: true, timestamp: Date.now() }),
+  })
+
+  wsManager.registerMethod({
+    name: 'system.info',
+    description: 'Get server information',
+    execute: async () => ({
+      version: '1.0.0',
+      uptime: process.uptime(),
+      platform: process.platform,
+      nodeVersion: process.version,
+      memory: process.memoryUsage(),
+      connections: wsManager.getAllConnections().size,
+      registeredMethods: wsManager.getRegisteredMethods().length,
+      tools: toolExecutor.getAllTools().length,
+      models: AVAILABLE_MODELS.length,
+    }),
+  })
+
+  wsManager.registerMethod({
+    name: 'system.listMethods',
+    description: 'List all registered RPC methods',
+    execute: async () => {
+      return wsManager.getRegisteredMethods().map((name) => ({ name }))
+    },
+  })
+
+  // Tool execution methods
+  wsManager.registerMethod({
+    name: 'tool.execute',
+    description: 'Execute a tool',
+    params: {
+      name: { type: 'string', required: true, description: 'Tool name' },
+      input: { type: 'object', required: true, description: 'Tool input parameters' },
+    },
+    execute: async (params) => {
+      const name = params.name as string
+      const input = params.input as Record<string, unknown>
+      return await toolExecutor.execute(name, input)
+    },
+  })
+
+  wsManager.registerMethod({
+    name: 'tool.list',
+    description: 'List all available tools',
+    execute: async () => {
+      return toolExecutor.getAllTools().map(t => ({
+        name: t.name,
+        description: t.description,
+        category: t.category,
+      }))
+    },
+  })
+
+  wsManager.registerMethod({
+    name: 'tool.history',
+    description: 'Get tool execution history',
+    params: {
+      limit: { type: 'number', description: 'Maximum number of results' },
+    },
+    execute: async (params) => {
+      const limit = params.limit as number
+      return toolExecutor.getHistory(limit)
+    },
+  })
+
+  // Session methods
+  wsManager.registerMethod({
+    name: 'session.create',
+    description: 'Create a new session',
+    params: {
+      title: { type: 'string', description: 'Session title' },
+      model: { type: 'string', description: 'AI model to use' },
+    },
+    execute: async (params, context) => {
+      const userId = context.userId
+      if (!userId) {
+        throw new Error('User not authenticated')
+      }
+      const title = params.title as string || '新对话'
+      const model = params.model as string || 'qwen-plus'
+      return await sessionManager.createSession(userId, title, model)
+    },
+  })
+
+  wsManager.registerMethod({
+    name: 'session.list',
+    description: 'List user sessions',
+    execute: async (_, context) => {
+      const userId = context.userId
+      if (!userId) {
+        throw new Error('User not authenticated')
+      }
+      return await sessionManager.getUserSessions(userId)
+    },
+  })
+
+  wsManager.registerMethod({
+    name: 'session.load',
+    description: 'Load a session with messages',
+    params: {
+      sessionId: { type: 'string', required: true, description: 'Session ID' },
+    },
+    execute: async (params) => {
+      const sessionId = params.sessionId as string
+      return await sessionManager.loadSession(sessionId)
+    },
+  })
+
+  wsManager.registerMethod({
+    name: 'session.delete',
+    description: 'Delete a session',
+    params: {
+      sessionId: { type: 'string', required: true, description: 'Session ID' },
+    },
+    execute: async (params) => {
+      const sessionId = params.sessionId as string
+      return await sessionManager.deleteSession(sessionId)
+    },
+  })
+
+  // Auth methods
+  wsManager.registerMethod({
+    name: 'auth.register',
+    description: 'Register a new user',
+    params: {
+      email: { type: 'string', required: true },
+      username: { type: 'string', required: true },
+      password: { type: 'string', required: true },
+      code: { type: 'string', required: true },
+    },
+    execute: async (params) => {
+      return await authService.register(params as RegisterRequest)
+    },
+  })
+
+  wsManager.registerMethod({
+    name: 'auth.login',
+    description: 'Login user',
+    params: {
+      email: { type: 'string', required: true },
+      password: { type: 'string', required: true },
+    },
+    execute: async (params) => {
+      return await authService.login(params as LoginRequest)
+    },
+  })
+
+  wsManager.registerMethod({
+    name: 'auth.sendCode',
+    description: 'Send verification code',
+    params: {
+      email: { type: 'string', required: true },
+      type: { type: 'string', description: 'Code type: register or forgot-password' },
+    },
+    execute: async (params) => {
+      const email = params.email as string
+      const type = params.type as string
+      if (type === 'forgot-password') {
+        await authService.sendForgotPasswordCode(email)
+      } else {
+        await authService.sendRegisterCode(email)
+      }
+      return { message: 'Verification code sent' }
+    },
+  })
+
+  // Model methods
+  wsManager.registerMethod({
+    name: 'model.list',
+    description: 'List available AI models',
+    execute: async () => {
+      return AVAILABLE_MODELS
+    },
+  })
+
+  // MCP methods
+  wsManager.registerMethod({
+    name: 'mcp.listServers',
+    description: 'List MCP servers',
+    execute: async () => {
+      const mcpBridge = new WebMCPBridge()
+      return mcpBridge.getServers()
+    },
+  })
+
+  wsManager.registerMethod({
+    name: 'mcp.getStatus',
+    description: 'Get MCP status',
+    execute: async () => {
+      const mcpBridge = new WebMCPBridge()
+      return mcpBridge.getStatus()
+    },
+  })
+
+  // Command methods
+  wsManager.registerMethod({
+    name: 'command.list',
+    description: 'List available commands',
+    execute: async () => {
+      const commandBridge = new WebCommandBridge()
+      return commandBridge.getCommandsList()
+    },
+  })
+
+  wsManager.registerMethod({
+    name: 'command.execute',
+    description: 'Execute a command',
+    params: {
+      command: { type: 'string', required: true, description: 'Command string' },
+    },
+    execute: async (params, context) => {
+      const commandBridge = new WebCommandBridge()
+      const command = params.command as string
+      return await commandBridge.executeCommand(command, context.sendEvent)
+    },
+  })
+}
+
+// ==================== Shutdown Handler ====================
+
 process.on('SIGINT', async () => {
-  console.log('Shutting down...')
+  console.log('\n[Server] Shutting down...')
+  
+  // Save all dirty sessions
   await sessionManager.saveAllDirtySessions()
+  
+  // Shutdown WebSocket manager
+  wsManager.shutdown()
+  
+  // Close database pool
   await closePool()
+  
+  console.log('[Server] Shutdown complete')
   process.exit(0)
 })
 
-startServer()
+process.on('uncaughtException', (error) => {
+  console.error('[Server] Uncaught exception:', error)
+})
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled rejection:', reason)
+})
+
+// ==================== Start Server ====================
+
+startServer().catch((error) => {
+  console.error('[Server] Failed to start:', error)
+  process.exit(1)
+})

@@ -231,9 +231,9 @@ export function getAskRules(context: ToolPermissionContext): PermissionRule[] {
 }
 
 /**
- * Check if the entire tool matches a rule
- * For example, this matches "Bash" but not "Bash(prefix:*)" for BashTool
- * This also matches MCP tools with a server name, e.g. the rule "mcp__server1"
+ * 检查整个工具是否匹配规则
+ * 例如，这匹配 "Bash" 但不匹配 BashTool 的 "Bash(prefix:*)"
+ * 这也匹配带有服务器名称的 MCP 工具，例如规则 "mcp__server1"
  */
 function toolMatchesRule(
   tool: Pick<Tool, 'name' | 'mcpInfo'>,
@@ -292,7 +292,7 @@ export function getDenyRuleForTool(
 }
 
 /**
- * Check if the tool is listed in the always ask rules
+ * 检查工具是否在始终询问规则中
  */
 export function getAskRuleForTool(
   context: ToolPermissionContext,
@@ -302,8 +302,8 @@ export function getAskRuleForTool(
 }
 
 /**
- * Check if a specific agent is denied via Agent(agentType) syntax.
- * For example, Agent(Explore) would deny the Explore agent.
+ * 检查特定的 agent 是否通过 Agent(agentType) 语法被拒绝。
+ * 例如，Agent(Explore) 会拒绝 Explore agent。
  */
 export function getDenyRuleForAgent(
   context: ToolPermissionContext,
@@ -320,7 +320,7 @@ export function getDenyRuleForAgent(
 }
 
 /**
- * Filter agents to exclude those that are denied via Agent(agentType) syntax.
+ * 过滤 agents 以排除通过 Agent(agentType) 语法被拒绝的 agents。
  */
 export function filterDeniedAgents<T extends { agentType: string }>(
   agents: T[],
@@ -956,9 +956,9 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
 }
 
 /**
- * Persist denial tracking state. For async subagents with localDenialTracking,
- * mutate the local state in place (since setAppState is a no-op). Otherwise,
- * write to appState as usual.
+ * 持久化拒绝跟踪状态。对于具有 localDenialTracking 的异步子代理，
+ * 就地修改本地状态（因为 setAppState 是空操作）。否则，
+ * 按常规写入 appState。
  */
 function persistDenialState(
   context: ToolUseContext,
@@ -978,8 +978,8 @@ function persistDenialState(
 }
 
 /**
- * Check if a denial limit was exceeded and return an 'ask' result
- * so the user can review. Returns null if no limit was hit.
+ * 检查是否超过了拒绝限制，如果是则返回 'ask' 结果
+ * 以便用户可以审查。如果未超过限制则返回 null。
  */
 function handleDenialLimitExceeded(
   denialState: DenialTrackingState,
@@ -1058,15 +1058,15 @@ function handleDenialLimitExceeded(
 }
 
 /**
- * Check only the rule-based steps of the permission pipeline — the subset
- * that bypassPermissions mode respects (everything that fires before step 2a).
+ * 仅检查权限管道的基于规则的步骤 — bypassPermissions 模式尊重的子集
+ *（在 step 2a 之前触发的所有内容）。
  *
- * Returns a deny/ask decision if a rule blocks the tool, or null if no rule
- * objects. Unlike hasPermissionsToUseTool, this does NOT run the auto mode classifier,
- * mode-based transformations (dontAsk/auto/asyncAgent), PermissionRequest hooks,
- * or bypassPermissions / always-allowed checks.
+ * 如果规则阻止了工具则返回 deny/ask 决定；如果没有规则
+ * 反对则返回 null。与 hasPermissionsToUseTool 不同，这不会运行自动模式分类器、
+ * 基于模式的转换（dontAsk/auto/asyncAgent）、PermissionRequest hooks、
+ * 或 bypassPermissions / always-allowed 检查。
  *
- * Caller must pre-check tool.requiresUserInteraction() — step 1e is not replicated.
+ * 调用者必须预先检查 tool.requiresUserInteraction() — step 1e 未复制。
  */
 export async function checkRuleBasedPermissions(
   tool: Tool,
@@ -1403,7 +1403,7 @@ function convertRulesToUpdates(
 }
 
 /**
- * Apply permission rules to context (additive - for initial setup)
+ * 将权限规则应用于上下文（附加的 - 用于初始设置）
  */
 export function applyPermissionRulesToPermissionContext(
   toolPermissionContext: ToolPermissionContext,
@@ -1471,8 +1471,8 @@ export function syncPermissionRulesFromDisk(
 }
 
 /**
- * Extract updatedInput from a permission result, falling back to the original input.
- * Handles the case where some PermissionResult variants don't have updatedInput.
+ * 从权限结果中提取 updatedInput，如果失败则回退到原始输入。
+ * 处理某些 PermissionResult 变体没有 updatedInput 的情况。
  */
 function getUpdatedInputOrFallback(
   permissionResult: PermissionResult,

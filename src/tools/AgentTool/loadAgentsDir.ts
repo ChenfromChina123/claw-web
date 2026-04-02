@@ -53,23 +53,23 @@ import {
 } from './agentMemorySnapshot.js'
 import { getBuiltInAgents } from './builtInAgents.js'
 
-// Type for MCP server specification in agent definitions
-// Can be either a reference to an existing server by name, or an inline definition as { [name]: config }
+// 代理定义中 MCP 服务器规范的类型
+// 可以是对现有服务器名称的引用，也可以是 { [name]: config } 形式的内联定义
 export type AgentMcpServerSpec =
-  | string // Reference to existing server by name (e.g., "slack")
-  | { [name: string]: McpServerConfig } // Inline definition as { name: config }
+  | string // 按名称引用（例如 "slack"）
+  | { [name: string]: McpServerConfig } // 内联定义为 { name: config }
 
-// Zod schema for agent MCP server specs
+// 代理 MCP 服务器规范的 Zod 模式
 const AgentMcpServerSpecSchema = lazySchema(() =>
   z.union([
-    z.string(), // Reference by name
-    z.record(z.string(), McpServerConfigSchema()), // Inline as { name: config }
+    z.string(), // 按名称引用
+    z.record(z.string(), McpServerConfigSchema()), // 内联为 { name: config }
   ]),
 )
 
-// Zod schemas for JSON agent validation
-// Note: HooksSchema is lazy so the circular chain AppState -> loadAgentsDir -> settings/types
-// is broken at module load time
+// JSON 代理验证的 Zod 模式
+// 注意：HooksSchema 是惰性的，因此循环链 AppState -> loadAgentsDir -> settings/types
+// 在模块加载时被打破
 const AgentJsonSchema = lazySchema(() =>
   z.object({
     description: z.string().min(1, 'Description cannot be empty'),
@@ -102,37 +102,37 @@ const AgentsJsonSchema = lazySchema(() =>
   z.record(z.string(), AgentJsonSchema()),
 )
 
-// Base type with common fields for all agents
+// 所有代理的共同字段的基本类型
 export type BaseAgentDefinition = {
   agentType: string
   whenToUse: string
   tools?: string[]
   disallowedTools?: string[]
-  skills?: string[] // Skill names to preload (parsed from comma-separated frontmatter)
-  mcpServers?: AgentMcpServerSpec[] // MCP servers specific to this agent
-  hooks?: HooksSettings // Session-scoped hooks registered when agent starts
+  skills?: string[] // 要预加载的技能名称（从逗号分隔的前端解析）
+  mcpServers?: AgentMcpServerSpec[] // 此代理特有的 MCP 服务器
+  hooks?: HooksSettings // 代理启动时注册会话范围的钩子
   color?: AgentColorName
   model?: string
   effort?: EffortValue
   permissionMode?: PermissionMode
-  maxTurns?: number // Maximum number of agentic turns before stopping
-  filename?: string // Original filename without .md extension (for user/project/managed agents)
+  maxTurns?: number // 停止前的最大代理轮次数
+  filename?: string // 不带 .md 扩展名的原始文件名（用于用户/项目/托管代理）
   baseDir?: string
-  criticalSystemReminder_EXPERIMENTAL?: string // Short message re-injected at every user turn
-  requiredMcpServers?: string[] // MCP server name patterns that must be configured for agent to be available
-  background?: boolean // Always run as background task when spawned
-  initialPrompt?: string // Prepended to the first user turn (slash commands work)
-  memory?: AgentMemoryScope // Persistent memory scope
-  isolation?: 'worktree' | 'remote' // Run in an isolated git worktree, or remotely in CCR (ant-only)
+  criticalSystemReminder_EXPERIMENTAL?: string // 在每个用户轮次重新注入的短消息
+  requiredMcpServers?: string[] // 必须配置的 MCP 服务器名称模式，代理才可用
+  background?: boolean // 生成时始终作为后台任务运行
+  initialPrompt?: string // 预置到第一个用户轮次（斜杠命令有效）
+  memory?: AgentMemoryScope // 持久内存作用域
+  isolation?: 'worktree' | 'remote' // 在隔离的 git worktree 中运行，或在 CCR 中远程运行（仅 ant）
   pendingSnapshotUpdate?: { snapshotTimestamp: string }
-  /** Omit CLAUDE.md hierarchy from the agent's userContext. Read-only agents
-   * (Explore, Plan) don't need commit/PR/lint guidelines — the main agent has
-   * full CLAUDE.md and interprets their output. Saves ~5-15 Gtok/week across
-   * 34M+ Explore spawns. Kill-switch: tengu_slim_subagent_claudemd. */
+  /** 从代理的 userContext 中省略 CLAUDE.md 层次结构。只读代理
+   *（Explore、Plan）不需要 commit/PR/lint 指南 —— 主代理有
+   * 完整的 CLAUDE.md 并解释它们的输出。在 34M+ Explore 生成中
+   * 节省约 5-15 Gtok/周。终止开关：tengu_slim_subagent_claudemd。 */
   omitClaudeMd?: boolean
 }
 
-// Built-in agents - dynamic prompts only, no static systemPrompt field
+// 内置代理 - 仅动态提示，没有静态 systemPrompt 字段
 export type BuiltInAgentDefinition = BaseAgentDefinition & {
   source: 'built-in'
   baseDir: 'built-in'
@@ -142,7 +142,7 @@ export type BuiltInAgentDefinition = BaseAgentDefinition & {
   }) => string
 }
 
-// Custom agents from user/project/policy settings - prompt stored via closure
+// 来自用户/项目/策略设置的自定义代理 - 通过闭包存储提示
 export type CustomAgentDefinition = BaseAgentDefinition & {
   getSystemPrompt: () => string
   source: SettingSource
@@ -150,7 +150,7 @@ export type CustomAgentDefinition = BaseAgentDefinition & {
   baseDir?: string
 }
 
-// Plugin agents - similar to custom but with plugin metadata, prompt stored via closure
+// 插件代理 - 类似于自定义但带有插件元数据，通过闭包存储提示
 export type PluginAgentDefinition = BaseAgentDefinition & {
   getSystemPrompt: () => string
   source: 'plugin'
@@ -158,13 +158,13 @@ export type PluginAgentDefinition = BaseAgentDefinition & {
   plugin: string
 }
 
-// Union type for all agent types
+// 所有代理类型的联合类型
 export type AgentDefinition =
   | BuiltInAgentDefinition
   | CustomAgentDefinition
   | PluginAgentDefinition
 
-// Type guards for runtime type checking
+// 运行时类型检查的类型守卫
 export function isBuiltInAgent(
   agent: AgentDefinition,
 ): agent is BuiltInAgentDefinition {
@@ -221,10 +221,10 @@ export function getActiveAgentsFromList(
 }
 
 /**
- * Checks if an agent's required MCP servers are available.
- * Returns true if no requirements or all requirements are met.
- * @param agent The agent to check
- * @param availableServers List of available MCP server names (e.g., from mcp.clients)
+ * 检查代理的必需 MCP 服务器是否可用。
+ * 如果没有要求或所有要求都满足则返回 true。
+ * @param agent 要检查的代理
+ * @param availableServers 可用 MCP 服务器名称列表（例如来自 mcp.clients）
  */
 export function hasRequiredMcpServers(
   agent: AgentDefinition,

