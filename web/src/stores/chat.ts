@@ -114,16 +114,100 @@ export const useChatStore = defineStore('chat', () => {
     isConnected.value = false
   }
   
-  function createSession(title?: string, model?: string) {
-    wsClient.createSession(title, model)
+  /**
+   * 创建新会话
+   * @param title 会话标题
+   * @param model 使用的模型
+   * @returns Promise，在会话创建成功后 resolve
+   */
+  function createSession(title?: string, model?: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = 10000
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+      let resolved = false
+      
+      const unsubscribe = wsClient.on('session_created', () => {
+        if (resolved) return
+        resolved = true
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+        }
+        unsubscribe()
+        resolve()
+      })
+      
+      timeoutId = setTimeout(() => {
+        if (resolved) return
+        resolved = true
+        unsubscribe()
+        reject(new Error('创建会话超时'))
+      }, timeout)
+      
+      wsClient.createSession(title, model)
+    })
   }
   
-  function loadSession(sessionId: string) {
-    wsClient.loadSession(sessionId)
+  /**
+   * 加载指定会话
+   * @param sessionId 会话 ID
+   * @returns Promise，在会话加载成功后 resolve
+   */
+  function loadSession(sessionId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = 10000
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+      let resolved = false
+      
+      const unsubscribe = wsClient.on('session_loaded', () => {
+        if (resolved) return
+        resolved = true
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+        }
+        unsubscribe()
+        resolve()
+      })
+      
+      timeoutId = setTimeout(() => {
+        if (resolved) return
+        resolved = true
+        unsubscribe()
+        reject(new Error('加载会话超时'))
+      }, timeout)
+      
+      wsClient.loadSession(sessionId)
+    })
   }
   
-  function listSessions() {
-    wsClient.listSessions()
+  /**
+   * 获取会话列表
+   * @returns Promise，在会话列表返回后 resolve
+   */
+  function listSessions(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = 10000
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+      let resolved = false
+      
+      const unsubscribe = wsClient.on('session_list', () => {
+        if (resolved) return
+        resolved = true
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+        }
+        unsubscribe()
+        resolve()
+      })
+      
+      timeoutId = setTimeout(() => {
+        if (resolved) return
+        resolved = true
+        unsubscribe()
+        reject(new Error('获取会话列表超时'))
+      }, timeout)
+      
+      wsClient.listSessions()
+    })
   }
   
   function sendMessage(content: string, model?: string) {
