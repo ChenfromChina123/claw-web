@@ -102,8 +102,8 @@ export const CronCreateTool = buildTool({
         errorCode: 3,
       }
     }
-    // Teammates don't persist across sessions, so a durable teammate cron
-    // would orphan on restart (agentId would point to a nonexistent teammate).
+    // 队友不会跨会话持久化，因此持久的队友 cron
+    // 会在重启时成为孤儿（agentId 会指向不存在的队友）。
     if (input.durable && getTeammateContext()) {
       return {
         result: false,
@@ -115,8 +115,8 @@ export const CronCreateTool = buildTool({
     return { result: true }
   },
   async call({ cron, prompt, recurring = true, durable = false }) {
-    // Kill switch forces session-only; schema stays stable so the model sees
-    // no validation errors when the gate flips mid-session.
+    // 终止开关强制会话唯一；模式保持稳定，因此模型在
+    // 开关在会话中途翻转时不会看到验证错误。
     const effectiveDurable = durable && isDurableCronEnabled()
     const id = await addCronTask(
       cron,
@@ -125,11 +125,11 @@ export const CronCreateTool = buildTool({
       effectiveDurable,
       getTeammateContext()?.agentId,
     )
-    // Enable the scheduler so the task fires in this session. The
-    // useScheduledTasks hook polls this flag and will start watching
-    // on the next tick. For durable: false tasks the file never changes
-    // — check() reads the session store directly — but the enable flag
-    // is still what starts the tick loop.
+    // 在此会话中启用调度器以便任务触发。
+    // useScheduledTasks 钩子轮询此标志并在下次 tick 时开始监视。
+    // 对于 durable: false 任务，文件永远不会更改
+    // —— check() 直接读取会话存储 —— 但启用标志
+    // 仍然是启动 tick 循环的关键。
     setScheduledTasksEnabled(true)
     return {
       data: {

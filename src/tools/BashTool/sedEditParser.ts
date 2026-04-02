@@ -34,8 +34,8 @@ export type SedEditInfo = {
 }
 
 /**
- * Check if a command is a sed in-place edit command
- * Returns true only for simple sed -i 's/pattern/replacement/flags' file commands
+ * 检查命令是否是 sed 就地编辑命令
+ * 仅对简单的 sed -i 's/pattern/replacement/flags' file 命令返回 true
  */
 export function isSedInPlaceEdit(command: string): boolean {
   const info = parseSedEditCommand(command)
@@ -43,8 +43,8 @@ export function isSedInPlaceEdit(command: string): boolean {
 }
 
 /**
- * Parse a sed edit command and extract the edit information
- * Returns null if the command is not a valid sed in-place edit
+ * 解析 sed 编辑命令并提取编辑信息
+ * 如果不是有效的 sed 就地编辑则返回 null
  */
 export function parseSedEditCommand(command: string): SedEditInfo | null {
   const trimmed = command.trim()
@@ -58,7 +58,7 @@ export function parseSedEditCommand(command: string): SedEditInfo | null {
   if (!parseResult.success) return null
   const tokens = parseResult.tokens
 
-  // Extract string tokens only
+  // 提取字符串标记
   const args: string[] = []
   for (const token of tokens) {
     if (typeof token === 'string') {
@@ -69,12 +69,12 @@ export function parseSedEditCommand(command: string): SedEditInfo | null {
       'op' in token &&
       token.op === 'glob'
     ) {
-      // Glob patterns are too complex for this simple parser
+      // Glob 模式对此简单解析器来说太复杂了
       return null
     }
   }
 
-  // Parse flags and arguments
+  // 解析标志和参数
   let hasInPlaceFlag = false
   let extendedRegex = false
   let expression: string | null = null
@@ -84,44 +84,44 @@ export function parseSedEditCommand(command: string): SedEditInfo | null {
   while (i < args.length) {
     const arg = args[i]!
 
-    // Handle -i flag (with or without backup suffix)
+    // 处理 -i 标志（带或不带备份后缀）
     if (arg === '-i' || arg === '--in-place') {
       hasInPlaceFlag = true
       i++
-      // On macOS, -i requires a suffix argument (even if empty string)
-      // Check if next arg looks like a backup suffix (empty, or starts with dot)
-      // Don't consume flags (-E, -r) or sed expressions (starting with s, y, d)
+      // 在 macOS 上，-i 需要后缀参数（即使为空字符串）
+      // 检查下一个参数是否看起来像备份后缀（空，或以点开头）
+      // 不要消耗标志（-E、-r）或 sed 表达式（以 s、y、d 开头）
       if (i < args.length) {
         const nextArg = args[i]
-        // If next arg is empty string or starts with dot, it's a backup suffix
+        // 如果下一个参数是空字符串或以点开头，那就是备份后缀
         if (
           typeof nextArg === 'string' &&
           !nextArg.startsWith('-') &&
           (nextArg === '' || nextArg.startsWith('.'))
         ) {
-          i++ // Skip the backup suffix
+          i++ // 跳过备份后缀
         }
       }
       continue
     }
     if (arg.startsWith('-i')) {
-      // -i.bak or similar (inline suffix)
+      // -i.bak 或类似（内联后缀）
       hasInPlaceFlag = true
       i++
       continue
     }
 
-    // Handle extended regex flags
+    // 处理扩展正则表达式标志
     if (arg === '-E' || arg === '-r' || arg === '--regexp-extended') {
       extendedRegex = true
       i++
       continue
     }
 
-    // Handle -e flag with expression
+    // 处理带表达式的 -e 标志
     if (arg === '-e' || arg === '--expression') {
       if (i + 1 < args.length && typeof args[i + 1] === 'string') {
-        // Only support single expression
+        // 只支持单个表达式
         if (expression !== null) return null
         expression = args[i + 1]!
         i += 2
@@ -136,42 +136,42 @@ export function parseSedEditCommand(command: string): SedEditInfo | null {
       continue
     }
 
-    // Skip other flags we don't understand
+    // 跳过我们不理解的其他标志
     if (arg.startsWith('-')) {
-      // Unknown flag - not safe to parse
+      // 未知标志 - 不安全解析
       return null
     }
 
-    // Non-flag argument
+    // 非标志参数
     if (expression === null) {
-      // First non-flag arg is the expression
+      // 第一个非标志参数是表达式
       expression = arg
     } else if (filePath === null) {
-      // Second non-flag arg is the file path
+      // 第二个非标志参数是文件路径
       filePath = arg
     } else {
-      // More than one file - not supported for simple rendering
+      // 超过一个文件 - 不支持简单渲染
       return null
     }
 
     i++
   }
 
-  // Must have -i flag, expression, and file path
+  // 必须有 -i 标志、表达式和文件路径
   if (!hasInPlaceFlag || !expression || !filePath) {
     return null
   }
 
-  // Parse the substitution expression: s/pattern/replacement/flags
-  // Only support / as delimiter for simplicity
+  // 解析替换表达式: s/pattern/replacement/flags
+  // 为简单起见，仅支持 / 作为分隔符
   const substMatch = expression.match(/^s\//)
   if (!substMatch) {
     return null
   }
 
-  const rest = expression.slice(2) // Skip 's/'
+  const rest = expression.slice(2) // 跳过 's/'
 
-  // Find pattern and replacement by tracking escaped characters
+  // 通过跟踪转义字符来查找模式和替换
   let pattern = ''
   let replacement = ''
   let flags = ''
@@ -182,7 +182,7 @@ export function parseSedEditCommand(command: string): SedEditInfo | null {
     const char = rest[j]!
 
     if (char === '\\' && j + 1 < rest.length) {
-      // Escaped character
+      // 转义字符
       if (state === 'pattern') {
         pattern += char + rest[j + 1]
       } else if (state === 'replacement') {
@@ -200,7 +200,7 @@ export function parseSedEditCommand(command: string): SedEditInfo | null {
       } else if (state === 'replacement') {
         state = 'flags'
       } else {
-        // Extra delimiter in flags - unexpected
+        // 标志中额外的分隔符 - 意外
         return null
       }
       j++
@@ -217,12 +217,12 @@ export function parseSedEditCommand(command: string): SedEditInfo | null {
     j++
   }
 
-  // Must have found all three parts (pattern, replacement delimiter, and optional flags)
+  // 必须找到所有三个部分（模式、替换分隔符和可选标志）
   if (state !== 'flags') {
     return null
   }
 
-  // Validate flags - only allow safe substitution flags
+  // 验证标志 - 只允许安全的替换标志
   const validFlags = /^[gpimIM1-9]*$/
   if (!validFlags.test(flags)) {
     return null
@@ -238,8 +238,8 @@ export function parseSedEditCommand(command: string): SedEditInfo | null {
 }
 
 /**
- * Apply a sed substitution to file content
- * Returns the new content after applying the substitution
+ * 对文件内容应用 sed 替换
+ * 返回应用替换后的新内容
  */
 export function applySedSubstitution(
   content: string,
@@ -268,27 +268,27 @@ export function applySedSubstitution(
     // Unescape \/ to /
     .replace(/\\\//g, '/')
 
-  // In BRE mode (no -E flag), metacharacters have opposite escaping:
-  // BRE: \+ means "one or more", + is literal
-  // ERE/JS: + means "one or more", \+ is literal
-  // We need to convert BRE escaping to ERE for JavaScript regex
+  // 在 BRE 模式下（无 -E 标志），元字符有相反的转义:
+  // BRE: \+ 表示 "一个或多个"，+ 是字面的
+  // ERE/JS: + 表示 "一个或多个"，\+ 是字面的
+  // 我们需要将 BRE 转义转换为 ERE 用于 JavaScript 正则表达式
   if (!sedInfo.extendedRegex) {
     jsPattern = jsPattern
-      // Step 1: Protect literal backslashes (\\) first - in both BRE and ERE, \\ is literal backslash
+      // 步骤 1: 保护字面反斜杠 (\\) - 在 BRE 和 ERE 中，\\ 都是字面反斜杠
       .replace(/\\\\/g, BACKSLASH_PLACEHOLDER)
-      // Step 2: Replace escaped metacharacters with placeholders (these should become unescaped in JS)
+      // 步骤 2: 用占位符替换转义的元字符（这些应该在 JS 中变成非转义）
       .replace(/\\\+/g, PLUS_PLACEHOLDER)
       .replace(/\\\?/g, QUESTION_PLACEHOLDER)
       .replace(/\\\|/g, PIPE_PLACEHOLDER)
       .replace(/\\\(/g, LPAREN_PLACEHOLDER)
       .replace(/\\\)/g, RPAREN_PLACEHOLDER)
-      // Step 3: Escape unescaped metacharacters (these are literal in BRE)
+      // 步骤 3: 转义未转义的元字符（这些在 BRE 中是字面的）
       .replace(/\+/g, '\\+')
       .replace(/\?/g, '\\?')
       .replace(/\|/g, '\\|')
       .replace(/\(/g, '\\(')
       .replace(/\)/g, '\\)')
-      // Step 4: Replace placeholders with their JS equivalents
+      // 步骤 4: 用它们的 JS 等价物替换占位符
       .replace(BACKSLASH_PLACEHOLDER_RE, '\\\\')
       .replace(PLUS_PLACEHOLDER_RE, '+')
       .replace(QUESTION_PLACEHOLDER_RE, '?')
@@ -297,9 +297,9 @@ export function applySedSubstitution(
       .replace(RPAREN_PLACEHOLDER_RE, ')')
   }
 
-  // Unescape sed-specific escapes in replacement
-  // Convert \n to newline, & to $& (match), etc.
-  // Use a unique placeholder with random salt to prevent injection attacks
+  // 在替换中取消转义 sed 特定转义
+  // 将 \n 转换为换行符，& 转换为 $&（匹配）等
+  // 使用随机盐的唯一占位符来防止注入攻击
   const salt = randomBytes(8).toString('hex')
   const ESCAPED_AMP_PLACEHOLDER = `___ESCAPED_AMPERSAND_${salt}___`
   const jsReplacement = sedInfo.replacement

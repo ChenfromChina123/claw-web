@@ -36,15 +36,14 @@ function getBackgroundUsageNote(): string | null {
   if (isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS)) {
     return null
   }
-  return "You can use the `run_in_background` parameter to run the command in the background. Only use this if you don't need the result immediately and are OK being notified when the command completes later. You do not need to check the output right away - you'll be notified when it finishes. You do not need to use '&' at the end of the command when using this parameter."
+  return "你可以使用 `run_in_background` 参数在后台运行命令。只有在不需要立即获取结果且可以接受在命令完成后收到通知时才使用此参数。不需要立即检查输出 — 命令完成后会通知你。在使用此参数时不需要在命令末尾使用 '&'。"
 }
 
 function getCommitAndPRInstructions(): string {
-  // Defense-in-depth: undercover instructions must survive even if the user
-  // has disabled git instructions entirely. Attribution stripping and model-ID
-  // hiding are mechanical and work regardless, but the explicit "don't blow
-  // your cover" instructions are the last line of defense against the model
-  // volunteering an internal codename in a commit message.
+  // 纵深防御: 即使用户完全禁用了 git 指令，undercover 指令也必须保持有效。
+  // 属性剥离和模型 ID 隐藏是机械性的，可以正常工作，
+  // 但明确的 "不要暴露身份" 指令是最后一道防线，
+  // 防止模型在提交消息中主动说出内部代号。
   const undercoverSection =
     process.env.USER_TYPE === 'ant' && isUndercover()
       ? getUndercoverInstructions() + '\n'
@@ -160,10 +159,11 @@ Important:
 - View comments on a Github PR: gh api repos/foo/bar/pulls/123/comments`
 }
 
-// SandboxManager merges config from multiple sources (settings layers, defaults,
-// CLI flags) without deduping, so paths like ~/.cache appear 3× in allowOnly.
-// Dedup here before inlining into the prompt — affects only what the model sees,
-// not sandbox enforcement. Saves ~150-200 tokens/request when sandbox is enabled.
+// SandboxManager 从多个来源合并配置（设置层、默认值、
+// CLI 标志），而不会去重，所以像 ~/.cache 这样的路径
+// 在 allowOnly 中出现 3 次。
+// 在内联到提示中之前在此处进行去重 — 仅影响模型看到的内容，
+// 不影响沙箱执行。启用沙箱时每次请求可节省约 150-200 个 token。
 function dedup<T>(arr: T[] | undefined): T[] | undefined {
   if (!arr || arr.length === 0) return arr
   return [...new Set(arr)]
@@ -273,8 +273,8 @@ function getSimpleSandboxSection(): string {
 }
 
 export function getSimplePrompt(): string {
-  // Ant-native builds alias find/grep to embedded bfs/ugrep in Claude's shell,
-  // so we don't steer away from them (and Glob/Grep tools are removed).
+  // Ant-native 构建在 Claude 的 shell 中将 find/grep 别名为嵌入式 bfs/ugrep，
+  // 因此我们不会偏离它们（Glob/Grep 工具已移除）。
   const embedded = hasEmbeddedSearchTools()
 
   const toolPreferenceItems = [
@@ -308,22 +308,22 @@ export function getSimplePrompt(): string {
   ]
 
   const sleepSubitems = [
-    'Do not sleep between commands that can run immediately — just run them.',
+    '不要在可以立即运行的命令之间 sleep — 直接运行即可。',
     ...(feature('MONITOR_TOOL')
       ? [
-          'Use the Monitor tool to stream events from a background process (each stdout line is a notification). For one-shot "wait until done," use Bash with run_in_background instead.',
+          '使用 Monitor 工具从后台进程流式传输事件（每个 stdout 行都是一个通知）。对于一次性的 "等待完成"，使用带 run_in_background 的 Bash。',
         ]
       : []),
-    'If your command is long running and you would like to be notified when it finishes — use `run_in_background`. No sleep needed.',
-    'Do not retry failing commands in a sleep loop — diagnose the root cause.',
-    'If waiting for a background task you started with `run_in_background`, you will be notified when it completes — do not poll.',
+    '如果你的命令运行时间很长且希望在其完成时收到通知 — 使用 `run_in_background`。不需要 sleep。',
+    '不要在 sleep 循环中重试失败的命令 — 诊断根本原因。',
+    '如果等待使用 `run_in_background` 启动的后台任务，任务完成时会通知你 — 不要轮询。',
     ...(feature('MONITOR_TOOL')
       ? [
-          '`sleep N` as the first command with N ≥ 2 is blocked. If you need a delay (rate limiting, deliberate pacing), keep it under 2 seconds.',
+          '作为第一个命令且 N ≥ 2 的 `sleep N` 被阻止。如果需要延迟（速率限制、故意放缓），保持在 2 秒以下。',
         ]
       : [
-          'If you must poll an external process, use a check command (e.g. `gh run view`) rather than sleeping first.',
-          'If you must sleep, keep the duration short (1-5 seconds) to avoid blocking the user.',
+          '如果必须轮询外部进程，使用检查命令（例如 `gh run view`）而不是先 sleep。',
+          '如果必须 sleep，保持时间简短（1-5 秒）以避免阻塞用户。',
         ]),
   ]
   const backgroundNote = getBackgroundUsageNote()
@@ -342,11 +342,11 @@ export function getSimplePrompt(): string {
     sleepSubitems,
     ...(embedded
       ? [
-          // bfs (which backs `find`) uses Oniguruma for -regex, which picks the
-          // FIRST matching alternative (leftmost-first), unlike GNU find's
-          // POSIX leftmost-longest. This silently drops matches when a shorter
-          // alternative is a prefix of a longer one.
-          "When using `find -regex` with alternation, put the longest alternative first. Example: use `'.*\\.\\(tsx\\|ts\\)'` not `'.*\\.\\(ts\\|tsx\\)'` — the second form silently skips `.tsx` files.",
+          // bfs（支持 `find`）使用 Oniguruma 进行 -regex，
+          // 它选择第一个匹配的可选项（最左优先），
+          // 而 GNU find 是 POSIX 最左最长匹配。
+          // 当较短的可选项是较长的前缀时，这会静默丢弃匹配。
+          "当使用 `find -regex` 与 alternation 时，将最长的可选项放在前面。例如，使用 `'.*\\.\\(tsx\\|ts\\)'` 而不是 `'.*\\.\\(ts\\|tsx\\)'` — 第二种形式会静默跳过 `.tsx` 文件。",
         ]
       : []),
   ]

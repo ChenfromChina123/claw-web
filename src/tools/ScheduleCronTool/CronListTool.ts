@@ -62,7 +62,7 @@ export const CronListTool = buildTool({
   },
   async call() {
     const allTasks = await listAllCronTasks()
-    // Teammates only see their own crons; team lead (no ctx) sees all.
+    // 队友只能看到他们自己的 cron；团队负责人（无 ctx）看到所有。
     const ctx = getTeammateContext()
     const tasks = ctx
       ? allTasks.filter(t => t.agentId === ctx.agentId)

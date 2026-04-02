@@ -73,7 +73,7 @@ export const outputSchema = lazySchema(() =>
       .string()
       .optional()
       .describe('Error message if the operation failed'),
-    // Fields for attribution tracking
+    // 用于归属跟踪的字段
     notebook_path: z.string().describe('The path to the notebook file'),
     original_file: z
       .string()
@@ -215,9 +215,9 @@ export const NotebookEditTool = buildTool({
       }
     }
 
-    // Require Read-before-Edit (matches FileEditTool/FileWriteTool). Without
-    // this, the model could edit a notebook it never saw, or edit against a
-    // stale view after an external change — silent data loss.
+    // 需要 Read-before-Edit（与 FileEditTool/FileWriteTool 一致）。没有
+    // 这个，模型可以编辑它从未见过的 notebook，或在外部分发
+    // 更改后根据过时视图进行编辑——静默数据丢失。
     const readTimestamp = toolUseContext.readFileState.get(fullPath)
     if (!readTimestamp) {
       return {
@@ -266,11 +266,11 @@ export const NotebookEditTool = buildTool({
         }
       }
     } else {
-      // First try to find the cell by its actual ID
+      // 首先尝试通过其实际 ID 找到单元格
       const cellIndex = notebook.cells.findIndex(cell => cell.id === cell_id)
 
       if (cellIndex === -1) {
-        // If not found, try to parse as a numeric index (cell-N format)
+          // 如果找不到，尝试解析为数字索引（cell-N 格式）
         const parsedCellIndex = parseCellId(cell_id)
         if (parsedCellIndex !== undefined) {
           if (!notebook.cells[parsedCellIndex]) {
@@ -317,17 +317,15 @@ export const NotebookEditTool = buildTool({
     }
 
     try {
-      // readFileSyncWithMetadata gives content + encoding + line endings in
-      // one safeResolvePath + readFileSync pass, replacing the previous
-      // detectFileEncoding + readFile + detectLineEndings chain (each of
-      // which redid safeResolvePath and/or a 4KB readSync).
+      // readFileSyncWithMetadata 在一次 safeResolvePath + readFileSync 中提供 content + encoding + line endings，
+      // 替换了之前的 detectFileEncoding + readFile + detectLineEndings 链（每个都重新做 safeResolvePath 和/或 4KB readSync）。
       const { content, encoding, lineEndings } =
         readFileSyncWithMetadata(fullPath)
-      // Must use non-memoized jsonParse here: safeParseJSON caches by content
-      // string and returns a shared object reference, but we mutate the
-      // notebook in place below (cells.splice, targetCell.source = ...).
-      // Using the memoized version poisons the cache for validateInput() and
-      // any subsequent call() with the same file content.
+      // 必须在此处使用非记忆化的 jsonParse：safeParseJSON 按 content
+      // 字符串缓存并返回共享对象引用，但我们在下面原地改变
+      // notebook（cells.splice, targetCell.source = ...）。
+      // 使用记忆化版本会污染 validateInput() 和任何具有相同文件内容的
+      // 后续 call() 的缓存。
       let notebook: NotebookContent
       try {
         notebook = jsonParse(content) as NotebookContent
@@ -349,12 +347,12 @@ export const NotebookEditTool = buildTool({
 
       let cellIndex
       if (!cell_id) {
-        cellIndex = 0 // Default to inserting at the beginning if no cell_id is provided
+        cellIndex = 0 // 如果没有提供 cell_id，默认为在开头插入
       } else {
-        // First try to find the cell by its actual ID
+        // 首先尝试通过其实际 ID 找到单元格
         cellIndex = notebook.cells.findIndex(cell => cell.id === cell_id)
 
-        // If not found, try to parse as a numeric index (cell-N format)
+        // 如果找不到，尝试解析为数字索引（cell-N 格式）
         if (cellIndex === -1) {
           const parsedCellIndex = parseCellId(cell_id)
           if (parsedCellIndex !== undefined) {
@@ -363,16 +361,16 @@ export const NotebookEditTool = buildTool({
         }
 
         if (originalEditMode === 'insert') {
-          cellIndex += 1 // Insert after the cell with this ID
+          cellIndex += 1 // 在此 ID 之后插入
         }
       }
 
-      // Convert replace to insert if trying to replace one past the end
+      // 如果尝试替换最后一个之后的单元格，则转换为插入
       let edit_mode = originalEditMode
       if (edit_mode === 'replace' && cellIndex === notebook.cells.length) {
-        edit_mode = 'insert'
-        if (!cell_type) {
-          cell_type = 'code' // Default to code if no cell_type specified
+          edit_mode = 'insert'
+          if (!cell_type) {
+            cell_type = 'code' // 如果未指定 cell_type，默认为 code
         }
       }
 
@@ -390,7 +388,7 @@ export const NotebookEditTool = buildTool({
       }
 
       if (edit_mode === 'delete') {
-        // Delete the specified cell
+        // 删除指定的单元格
         notebook.cells.splice(cellIndex, 1)
       } else if (edit_mode === 'insert') {
         let new_cell: NotebookCell
@@ -411,14 +409,14 @@ export const NotebookEditTool = buildTool({
             outputs: [],
           }
         }
-        // Insert the new cell
+        // 插入新单元格
         notebook.cells.splice(cellIndex, 0, new_cell)
       } else {
-        // Find the specified cell
-        const targetCell = notebook.cells[cellIndex]! // validateInput ensures cell_number is in bounds
+        // 找到指定的单元格
+        const targetCell = notebook.cells[cellIndex]! // validateInput 确保 cell_number 在范围内
         targetCell.source = new_source
         if (targetCell.cell_type === 'code') {
-          // Reset execution count and clear outputs since cell was modified
+          // 重置执行计数并清除输出，因为单元格已被修改
           targetCell.execution_count = null
           targetCell.outputs = []
         }
