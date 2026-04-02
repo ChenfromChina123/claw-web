@@ -28,7 +28,7 @@ async function segmentedCommandPermissionResult(
   ) => Promise<PermissionResult>,
   checkers: CommandIdentityCheckers,
 ): Promise<PermissionResult> {
-  // Check for multiple cd commands across all segments
+  // 检查所有段中的多个 cd 命令
   const cdCommands = segments.filter(segment => {
     const trimmed = segment.trim()
     return checkers.isNormalizedCdCommand(trimmed)
@@ -37,7 +37,7 @@ async function segmentedCommandPermissionResult(
     const decisionReason = {
       type: 'other' as const,
       reason:
-        'Multiple directory changes in one command require approval for clarity',
+        '一个命令中的多个目录更改需要批准以保持清晰',
     }
     return {
       behavior: 'ask',
@@ -46,12 +46,12 @@ async function segmentedCommandPermissionResult(
     }
   }
 
-  // SECURITY: Check for cd+git across pipe segments to prevent bare repo fsmonitor bypass.
-  // When cd and git are in different pipe segments (e.g., "cd sub && echo | git status"),
-  // each segment is checked independently and neither triggers the cd+git check in
-  // bashPermissions.ts. We must detect this cross-segment pattern here.
-  // Each pipe segment can itself be a compound command (e.g., "cd sub && echo"),
-  // so we split each segment into subcommands before checking.
+  // 安全性：检查管道段之间的 cd+git 以防止裸仓库 fsmonitor 绕过。
+  // 当 cd 和 git 在不同的管道段中时（例如 "cd sub && echo | git status"），
+  // 每个段独立检查，都不会触发 bashPermissions.ts 中的 cd+git 检查。
+  // 我们必须在此处检测此跨段模式。
+  // 每个管道段本身可以是复合命令（例如 "cd sub && echo"），
+  // 因此我们在检查之前将每个段拆分为子命令。
   {
     let hasCd = false
     let hasGit = false
@@ -71,7 +71,7 @@ async function segmentedCommandPermissionResult(
       const decisionReason = {
         type: 'other' as const,
         reason:
-          'Compound commands with cd and git require approval to prevent bare repository attacks',
+        '带有 cd 和 git 的复合命令需要批准以防止裸仓库攻击',
       }
       return {
         behavior: 'ask',
@@ -83,10 +83,10 @@ async function segmentedCommandPermissionResult(
 
   const segmentResults = new Map<string, PermissionResult>()
 
-  // Check each segment through the full permission system
+  // 通过完整权限系统检查每个段
   for (const segment of segments) {
     const trimmedSegment = segment.trim()
-    if (!trimmedSegment) continue // Skip empty segments
+    if (!trimmedSegment) continue // 跳过空段
 
     const segmentResult = await bashToolHasPermissionFn({
       ...input,
@@ -95,7 +95,7 @@ async function segmentedCommandPermissionResult(
     segmentResults.set(trimmedSegment, segmentResult)
   }
 
-  // Check if any segment is denied (after evaluating all)
+  // 检查是否有任何段被拒绝（评估所有之后）
   const deniedSegment = Array.from(segmentResults.entries()).find(
     ([, result]) => result.behavior === 'deny',
   )
