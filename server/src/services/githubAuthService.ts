@@ -219,3 +219,66 @@ export class GithubAuthService {
 
     // 4. 检查用户是否已存在
     const [existingUsers] = await pool.query(
+      'SELECT * FROM users WHERE github_id = ? OR email = ?',
+      [githubUser.id.toString(), email]
+    )
+
+    let userId: string
+    let username: string
+    let avatar: string
+
+    const users = existingUsers as any[]
+
+    if (users.length > 0) {
+      // 用户已存在，更新信息
+      const existingUser = users[0]
+      userId = existingUser.id
+      username = existingUser.username
+      avatar = githubUser.avatar_url || existingUser.avatar || '/avatars/default.png'
+
+      // 更新GitHub ID和头像（如果之前没有）
+      await pool.query(
+        `UPDATE users 
+         SET github_id = ?, avatar = ?, last_login = NOW() 
+         WHERE id = ?`,
+        [githubUser.id.toString(), avatar, userId]
+      )
+
+      console.log(`GitHub用户登录成功: ${email}`)
+    } else {
+      // 新用户，创建账号
+      userId = uuidv4()
+      // 使用GitHub用户名或生成随机用户名
+      const baseUsername = githubUser.login || githubUser.name || ''
+      username = await generateUniqueUsername(pool, baseUsername.replace(/[^a-zA-Z0-9_]/g, '_'))
+      avatar = githubUser.avatar_url || '/avatars/default.png'
+
+      await pool.query(
+        `INSERT INTO users (id, username, email, github_id, avatar, is_active, created_at, updated_at, last_login) 
+         VALUES (?, ?, ?, ?, ?, TRUE, NOW(), NOW(), NOW())`,
+        [userId, username, email, githubUser.id.toString(), avatar]
+      )
+
+      console.log(`GitHub用户注册成功: ${email}`)
+    }
+
+    // 5. 生成JWT令牌
+    const token = await generateToken({
+      userId,
+      email,
+      isAdmin: false,
+    })
+
+    return {
+      accessToken: token,
+      tokenType: 'Bearer',
+      userId,
+      username,
+      email,
+      isAdmin: false,
+      avatar,
+    }
+  }
+}
+
+export const githubAuthService = new GithubAuthService()

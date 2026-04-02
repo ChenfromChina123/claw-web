@@ -153,13 +153,9 @@ function getParameterPreview(input?: Record<string, unknown>): string[] {
             <span class="node-label">{{ node.label }}</span>
             <NTag 
               size="tiny" 
-              :color="{ 
-                completed: 'success',
-                error: 'error',
-                running: 'warning',
-                pending: 'default'
-              }[node.status] || 'default'}"
-            >
+              :type="node.status === 'completed' ? 'success' : 
+                     node.status === 'error' ? 'error' : 
+                     node.status === 'running' ? 'warning' : 'default'">
               {{ node.status === 'completed' ? '完成' : 
                  node.status === 'error' ? '错误' : 
                  node.status === 'running' ? '执行中' : '等待' }}

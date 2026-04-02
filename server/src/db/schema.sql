@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(100) NOT NULL,
   email VARCHAR(120) UNIQUE,
   password_hash VARCHAR(255),
+  github_id VARCHAR(50) UNIQUE,
   avatar VARCHAR(255) DEFAULT '/avatars/default.png',
   is_active BOOLEAN DEFAULT TRUE,
   is_admin BOOLEAN DEFAULT FALSE,
@@ -11,7 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   last_login TIMESTAMP NULL,
   INDEX idx_email (email),
-  INDEX idx_username (username)
+  INDEX idx_username (username),
+  INDEX idx_github_id (github_id)
 );
 
 -- 验证码表

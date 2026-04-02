@@ -15,6 +15,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { initDatabase, closePool } from './db/mysql'
 import { SessionManager } from './services/sessionManager'
 import { authService } from './services/authService'
+import { githubAuthService } from './services/githubAuthService'
 import { verifyToken, extractTokenFromHeader } from './services/jwtService'
 import { wsManager } from './integration/wsBridge'
 import { toolExecutor, EnhancedToolExecutor } from './integration/enhancedToolExecutor'
@@ -428,6 +429,69 @@ async function handleAuthRoutes(path: string, method: string, request: Request):
       return createErrorResponse('USER_NOT_FOUND', '用户不存在', 404)
     }
     return createSuccessResponse(user)
+  }
+
+  // GitHub OAuth 登录
+  if (path === '/api/auth/github' && method === 'GET') {
+    const authUrl = githubAuthService.getAuthUrl()
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': authUrl,
+        'Access-Control-Allow-Origin': '*',
+      },
+    })
+  }
+
+  // GitHub OAuth 回调
+  if (path === '/api/auth/github/callback' && method === 'GET') {
+    const url = new URL(request.url)
+    const code = url.searchParams.get('code')
+    const error = url.searchParams.get('error')
+    const errorDescription = url.searchParams.get('error_description')
+
+    if (error) {
+      // 重定向到前端登录页面，并带上错误信息
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+      return new Response(null, {
+        status: 302,
+        headers: {
+          'Location': `${frontendUrl}/login?error=${encodeURIComponent(errorDescription || error)}`,
+        },
+      })
+    }
+
+    if (!code) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+      return new Response(null, {
+        status: 302,
+        headers: {
+          'Location': `${frontendUrl}/login?error=${encodeURIComponent('未收到授权码')}`,
+        },
+      })
+    }
+
+    try {
+      const result = await githubAuthService.handleCallback(code)
+      // 重定向到前端，带上token
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+      const redirectUrl = `${frontendUrl}/oauth/callback?token=${encodeURIComponent(result.accessToken)}&userId=${encodeURIComponent(result.userId)}&username=${encodeURIComponent(result.username)}&email=${encodeURIComponent(result.email)}&avatar=${encodeURIComponent(result.avatar || '')}`
+      return new Response(null, {
+        status: 302,
+        headers: {
+          'Location': redirectUrl,
+        },
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'GitHub登录失败'
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+      return new Response(null, {
+        status: 302,
+        headers: {
+          'Location': `${frontendUrl}/login?error=${encodeURIComponent(message)}`,
+        },
+      })
+    }
   }
 
   return createErrorResponse('NOT_FOUND', `Route ${path} not found`, 404)
@@ -871,6 +935,8 @@ async function startServer() {
   console.log(`       POST /api/auth/forgot-password/send-code  - 发送重置密码验证码`)
   console.log(`       POST /api/auth/forgot-password     - 重置密码`)
   console.log(`       GET  /api/auth/me                  - 获取当前用户信息`)
+  console.log(`       GET  /api/auth/github              - GitHub OAuth登录`)
+  console.log(`       GET  /api/auth/github/callback     - GitHub OAuth回调`)
   console.log(`\n[API]  Info Endpoints:`)
   console.log(`       GET  /api/health       - 健康检查`)
   console.log(`       GET  /api/models       - 可用模型列表`)

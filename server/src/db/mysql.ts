@@ -133,6 +133,17 @@ export async function initDatabase(): Promise<void> {
       )
     `).catch(() => {})
 
+    // 添加 github_id 字段（如果不存在）
+    await tempPool.query(`
+      ALTER TABLE users 
+      ADD COLUMN github_id VARCHAR(50) UNIQUE AFTER password_hash
+    `).catch(() => {})
+
+    // 添加 github_id 索引
+    await tempPool.query(`
+      CREATE INDEX idx_github_id ON users(github_id)
+    `).catch(() => {})
+
     await tempPool.query(`
       DROP INDEX username ON users
     `).catch(() => {})

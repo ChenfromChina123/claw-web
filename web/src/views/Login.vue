@@ -56,11 +56,13 @@ function handleBlur(): void {
 
 /**
  * GitHub 登录
+ * 重定向到GitHub OAuth授权页面
  */
 function handleGithubLogin(): void {
-  message.info('GitHub 登录功能开发中...')
-  // TODO: 实现 GitHub OAuth 登录
-  // window.location.href = '/api/auth/github'
+  // 获取后端API基础URL
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+  // 重定向到GitHub OAuth授权端点
+  window.location.href = `${apiBaseUrl}/api/auth/github`
 }
 
 /**
