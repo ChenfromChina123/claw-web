@@ -1,8 +1,8 @@
 /**
- * Command semantics configuration for interpreting exit codes in different contexts.
+ * 命令语义配置，用于在不同上下文中解释退出代码。
  *
- * Many commands use exit codes to convey information other than just success/failure.
- * For example, grep returns 1 when no matches are found, which is not an error condition.
+ * 许多命令使用退出代码来传达成功/失败以外的信息。
+ * 例如，grep 在没有找到匹配项时返回 1，这不是错误条件。
  */
 
 import { splitCommand_DEPRECATED } from '../../utils/bash/commands.js'
@@ -17,7 +17,7 @@ export type CommandSemantic = (
 }
 
 /**
- * Default semantic: treat only 0 as success, everything else as error
+ * 默认语义：仅将 0 视为成功，其他一切都视为错误
  */
 const DEFAULT_SEMANTIC: CommandSemantic = (exitCode, _stdout, _stderr) => ({
   isError: exitCode !== 0,
@@ -26,10 +26,10 @@ const DEFAULT_SEMANTIC: CommandSemantic = (exitCode, _stdout, _stderr) => ({
 })
 
 /**
- * Command-specific semantics
+ * 特定于命令的语义
  */
 const COMMAND_SEMANTICS: Map<string, CommandSemantic> = new Map([
-  // grep: 0=matches found, 1=no matches, 2+=error
+  // grep: 0=找到匹配, 1=没有匹配, 2+=错误
   [
     'grep',
     (exitCode, _stdout, _stderr) => ({
@@ -38,7 +38,7 @@ const COMMAND_SEMANTICS: Map<string, CommandSemantic> = new Map([
     }),
   ],
 
-  // ripgrep has same semantics as grep
+  // ripgrep 与 grep 有相同的语义
   [
     'rg',
     (exitCode, _stdout, _stderr) => ({
@@ -47,7 +47,7 @@ const COMMAND_SEMANTICS: Map<string, CommandSemantic> = new Map([
     }),
   ],
 
-  // find: 0=success, 1=partial success (some dirs inaccessible), 2+=error
+  // find: 0=成功, 1=部分成功（某些目录不可访问）, 2+=错误
   [
     'find',
     (exitCode, _stdout, _stderr) => ({
@@ -57,7 +57,7 @@ const COMMAND_SEMANTICS: Map<string, CommandSemantic> = new Map([
     }),
   ],
 
-  // diff: 0=no differences, 1=differences found, 2+=error
+  // diff: 0=无差异, 1=发现差异, 2+=错误
   [
     'diff',
     (exitCode, _stdout, _stderr) => ({
@@ -66,7 +66,7 @@ const COMMAND_SEMANTICS: Map<string, CommandSemantic> = new Map([
     }),
   ],
 
-  // test/[: 0=condition true, 1=condition false, 2+=error
+  // test/[: 0=条件为真, 1=条件为假, 2+=错误
   [
     'test',
     (exitCode, _stdout, _stderr) => ({
@@ -75,7 +75,7 @@ const COMMAND_SEMANTICS: Map<string, CommandSemantic> = new Map([
     }),
   ],
 
-  // [ is an alias for test
+  // [ 是 test 的别名
   [
     '[',
     (exitCode, _stdout, _stderr) => ({
@@ -84,12 +84,12 @@ const COMMAND_SEMANTICS: Map<string, CommandSemantic> = new Map([
     }),
   ],
 
-  // wc, head, tail, cat, etc.: these typically only fail on real errors
-  // so we use default semantics
+  // wc、head、tail、cat 等：这些通常只在真正错误时失败
+  // 所以我们使用默认语义
 ])
 
 /**
- * Get the semantic interpretation for a command
+ * 获取命令的语义解释
  */
 function getCommandSemantic(command: string): CommandSemantic {
   // Extract the base command (first word, handling pipes)
