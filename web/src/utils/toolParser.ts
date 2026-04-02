@@ -542,15 +542,17 @@ function truncateString(str: string, maxLength: number): string {
 
 // 解析单个工具调用
 export function parseToolCall(toolCall: ToolCall): ParsedToolInfo {
-  const category = getToolCategory(toolCall.name)
+  // 处理空值情况
+  const toolName = toolCall.name || 'unknown'
+  const category = getToolCategory(toolName)
   const categoryInfo = TOOL_CATEGORIES[category]
   
   return {
-    toolName: toolCall.name,
+    toolName: toolName,
     category,
-    description: TOOL_DESCRIPTIONS[toolCall.name] || `${toolCall.name} 操作`,
-    parameters: parseToolParameters(toolCall.name, toolCall.input || {}),
-    expectedOutput: getExpectedOutput(toolCall.name)
+    description: TOOL_DESCRIPTIONS[toolName] || `${toolName} 操作`,
+    parameters: parseToolParameters(toolName, toolCall.input || {}),
+    expectedOutput: getExpectedOutput(toolName)
   }
 }
 

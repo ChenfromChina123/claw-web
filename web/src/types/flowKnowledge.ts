@@ -237,6 +237,11 @@ export const TOOL_CATEGORY_MAP: Record<string, string> = {
 
 // 获取工具分类
 export function getToolCategory(toolName: string): string {
+  // 处理空值情况
+  if (!toolName) {
+    return 'other'
+  }
+  
   // 尝试精确匹配
   if (TOOL_CATEGORY_MAP[toolName]) {
     return TOOL_CATEGORY_MAP[toolName]

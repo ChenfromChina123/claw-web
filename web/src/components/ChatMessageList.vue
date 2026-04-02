@@ -156,7 +156,7 @@ const statsSummary = computed(() => {
           </div>
           
           <!-- 消息列表 -->
-          <div v-for="(message, index) in messages" :key="index" class="message-wrapper">
+          <div v-for="(message, index) in messages" :key="message.id || index" class="message-wrapper">
             <!-- 用户消息 -->
             <div v-if="message.role === 'user'" class="message user-message">
               <div class="message-avatar">👤</div>
