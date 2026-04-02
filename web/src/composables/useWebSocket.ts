@@ -5,14 +5,14 @@
 
 import { ref, shallowRef } from 'vue'
 import type {
-  WSMessage,
-  RPCRequest,
   RPCResponse,
   Session,
   Message,
   ToolCall,
   ConnectionStatus,
   WebSocketState,
+  WebSocketMessage as WSMessage,
+  WebSocketMessageType,
 } from '@/types'
 
 type EventCallback = (data: unknown) => void
@@ -88,9 +88,9 @@ class EnhancedWebSocketClient {
           this.startHeartbeat()
 
           if (token) {
-            this.send({ type: 'login', token })
+            this.send({ type: 'login' as WebSocketMessageType, token })
           } else {
-            this.send({ type: 'register' })
+            this.send({ type: 'register' as WebSocketMessageType })
           }
 
           this.flushMessageQueue()
@@ -332,7 +332,7 @@ class EnhancedWebSocketClient {
    * 清空待处理的 RPC 请求
    */
   private clearPendingRPCs(reason: string): void {
-    for (const [id, pending] of this.pendingRPCs) {
+    for (const [, pending] of this.pendingRPCs) {
       clearTimeout(pending.timeoutId)
       pending.reject(new Error(reason))
     }
@@ -355,10 +355,10 @@ class EnhancedWebSocketClient {
           this.handleRPCResponse(message as unknown as RPCResponse)
           break
 
-        case 'event':
+        default:
           // 处理后端发送的事件消息格式：{type: 'event', event: 'eventName', data: {...}}
-          const eventName = (message as {event?: string}).event
-          const eventData = (message as {data?: unknown}).data
+          const eventName = (message as { event?: string }).event
+          const eventData = (message as { data?: unknown }).data
           if (eventName) {
             console.log(`[WS] Event received: ${eventName}`, eventData)
             this.emitEvent(eventName, eventData)
@@ -367,10 +367,6 @@ class EnhancedWebSocketClient {
             console.warn('[WS] Event message missing event field:', message)
           }
           break
-
-        default:
-          this.emitEvent(message.type, message)
-          this.handleBuiltInEvent(message)
       }
     } catch (error) {
       console.error('[WS] 消息解析失败:', error)
@@ -486,15 +482,6 @@ class EnhancedWebSocketClient {
   }
 
   /**
-   * 处理内容增量更新
-   * @deprecated 已移除内部处理逻辑，统一由 chat.ts 处理
-   */
-  private handleContentDelta(message: WSMessage): void {
-    // 此方法已废弃，不再使用
-    // 流式消息更新统一在 chat.ts 中处理
-  }
-
-  /**
    * 处理工具调用开始
    */
   private handleToolUseStart(message: WSMessage): void {
@@ -582,15 +569,15 @@ class EnhancedWebSocketClient {
   }
 
   getTools(): void {
-    this.send({ type: 'get_tools' })
+    this.send({ type: 'get_tools' as WebSocketMessageType })
   }
 
   getModels(): void {
-    this.send({ type: 'get_models' })
+    this.send({ type: 'get_models' as WebSocketMessageType })
   }
 
   executeCommand(command: string): void {
-    this.send({ type: 'execute_command', command })
+    this.send({ type: 'execute_command' as WebSocketMessageType, command })
   }
 }
 

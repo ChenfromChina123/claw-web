@@ -5,12 +5,11 @@
 import { ref, watch, nextTick, computed } from 'vue'
 import { NScrollbar, NSpin, NTag, NSwitch, NTooltip } from 'naive-ui'
 import type { Message, ToolCall } from '@/types'
-import type { FlowGraph, KnowledgeCard } from '@/types/flowKnowledge'
+import type { KnowledgeCard } from '@/types/flowKnowledge'
 import { parseToolCalls } from '@/utils/toolParser'
 import FlowVisualizer from './FlowVisualizer.vue'
 import KnowledgeCardComponent from './KnowledgeCard.vue'
 import ToolUseEnhanced from './ToolUseEnhanced.vue'
-import ToolResultEnhanced from './ToolResultEnhanced.vue'
 
 const props = defineProps<{
   messages: Message[]

@@ -3,16 +3,21 @@
  * 从 server/src/models/types.ts 迁移并扩展
  */
 
+import type { Message } from './message'
+import type { ToolCall } from './tool'
+
+export type ToolCallMap = Map<string, ToolCall[]>
+
 export interface Session {
   id: string
   userId: string
   title: string
   model: string
+  isPinned?: boolean
   createdAt: Date | string
   updatedAt: Date | string
   messageCount?: number
   lastMessageAt?: Date | string
-  isPinned?: boolean
 }
 
 export interface SessionListItem {

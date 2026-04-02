@@ -3,7 +3,11 @@
  * 从 server/src/integration/wsBridge.ts 迁移并扩展
  */
 
-export type MessageType =
+// 使用 message.ts 中的 MessageType，避免重复定义
+import type { MessageType as MessageMessageType } from './message'
+
+export type WebSocketMessageType =
+  | MessageMessageType
   | 'rpc_call'
   | 'rpc_response'
   | 'user_message'
@@ -64,7 +68,7 @@ export interface RPCResponse {
 }
 
 export interface WebSocketMessage {
-  type: MessageType
+  type: WebSocketMessageType
   id?: string
   method?: string
   params?: Record<string, unknown>

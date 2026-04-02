@@ -19,7 +19,7 @@ marked.setOptions({
     }
     return hljs.highlightAuto(code).value
   },
-})
+} as any)
 
 interface RenderOptions {
   inline?: boolean

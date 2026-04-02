@@ -119,6 +119,11 @@ class ApiClient {
     return this.instance.delete(url, config)
   }
 
+  patch<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+    this.retryCount = 0
+    return this.instance.patch(url, data, config)
+  }
+
   getInstance(): AxiosInstance {
     return this.instance
   }

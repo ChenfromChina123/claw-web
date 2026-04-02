@@ -3,9 +3,9 @@
  * 增强版工具调用展示组件 - 结构化展示工具输入
  */
 import { computed, ref } from 'vue'
-import { NTag, NCollapse, NCollapseItem, NTooltip } from 'naive-ui'
-import type { ToolCall, ParsedToolInfo } from '@/types/flowKnowledge'
-import { TOOL_CATEGORIES, getToolCategory } from '@/types/flowKnowledge'
+import { NTag } from 'naive-ui'
+import type { ParsedToolInfo } from '@/types/flowKnowledge'
+import type { ToolCall } from '@/types/tool'
 import { parseToolCall } from '@/utils/toolParser'
 
 const props = defineProps<{
@@ -18,12 +18,6 @@ const isExpanded = ref(props.expanded ?? false)
 // 解析工具信息
 const parsedInfo = computed((): ParsedToolInfo => {
   return parseToolCall(props.toolCall)
-})
-
-// 获取工具类别信息
-const categoryInfo = computed(() => {
-  const category = parsedInfo.value.category
-  return TOOL_CATEGORIES[category] || TOOL_CATEGORIES.other
 })
 
 // 获取状态标签
@@ -79,15 +73,15 @@ function toggleExpand() {
     <div class="tool-header" @click="toggleExpand">
       <div class="tool-main">
         <!-- 类别图标 -->
-        <div class="tool-icon" :style="{ background: categoryInfo.color }">
-          {{ categoryInfo.icon }}
+        <div class="tool-icon" :style="{ background: '#6366f1' }">
+          🔧
         </div>
         
         <!-- 工具信息 -->
         <div class="tool-info">
           <div class="tool-name-row">
-            <span class="tool-name">{{ toolCall.name }}</span>
-            <span class="tool-category">{{ categoryInfo.description }}</span>
+            <span class="tool-name">{{ toolCall.toolName }}</span>
+            <span class="tool-category">工具调用</span>
           </div>
           <div class="tool-desc">{{ parsedInfo.description }}</div>
         </div>

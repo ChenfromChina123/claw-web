@@ -41,14 +41,6 @@ function handleFocus() {
   emit('focus')
 }
 
-/**
- * 处理清空输入
- */
-function handleClear() {
-  inputValue.value = ''
-  inputRef.value?.focus()
-}
-
 // 暴露聚焦方法
 defineExpose({
   focus: () => inputRef.value?.focus()

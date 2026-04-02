@@ -77,5 +77,3 @@ export interface ToolCategoryInfo {
   color: string
   tools: ToolDefinition[]
 }
-
-export type ToolCallMap = Map<string, ToolCall[]>

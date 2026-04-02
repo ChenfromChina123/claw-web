@@ -54,13 +54,15 @@ function handleOAuthCallback(): void {
     return
   }
 
-  // 存储token和用户信息
+  // 存储 token 和用户信息
   authStore.token = token
   authStore.user = {
     id: userId,
     username: username || '',
     email: email || '',
     avatar: avatar || '/avatars/default.png',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }
   localStorage.setItem('token', token)
 

@@ -3,8 +3,8 @@
  * 流程可视化组件 - 以时间线形式展示工具执行流程
  */
 import { computed, ref } from 'vue'
-import { NCard, NTag, NProgress, NTooltip } from 'naive-ui'
-import type { FlowGraph, FlowNode, FlowEdge, ToolCall } from '@/types/flowKnowledge'
+import { NTag } from 'naive-ui'
+import type { FlowGraph, FlowNode } from '@/types/flowKnowledge'
 import { TOOL_CATEGORIES, getToolCategory } from '@/types/flowKnowledge'
 
 const props = defineProps<{

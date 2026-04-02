@@ -3,11 +3,10 @@
  * 增强版工具结果展示组件 - 深度解析工具输出
  */
 import { computed, ref } from 'vue'
-import { NTag, NCollapse, NCollapseItem, NTooltip, NProgress } from 'naive-ui'
-import type { ToolCall, ParsedResult, KnowledgeCard } from '@/types/flowKnowledge'
-import { TOOL_CATEGORIES, getToolCategory } from '@/types/flowKnowledge'
+import { NTag } from 'naive-ui'
+import type { ParsedResult } from '@/types/flowKnowledge'
+import type { ToolCall } from '@/types/tool'
 import { parseToolResult } from '@/utils/toolParser'
-import KnowledgeCardComponent from './KnowledgeCard.vue'
 
 const props = defineProps<{
   toolCall: ToolCall
@@ -19,12 +18,6 @@ const isExpanded = ref(true)
 // 解析结果
 const parsedResult = computed((): ParsedResult => {
   return parseToolResult(props.toolCall)
-})
-
-// 获取类别信息
-const categoryInfo = computed(() => {
-  const category = getToolCategory(props.toolCall.name)
-  return TOOL_CATEGORIES[category] || TOOL_CATEGORIES.other
 })
 
 // 获取类型配置
@@ -55,7 +48,7 @@ function truncateOutput(output: string, maxLines: number = 50): string {
 
 // 获取输出统计
 const outputStats = computed(() => {
-  const output = props.toolCall.output
+  const output = props.toolCall.toolOutput as Record<string, unknown> | string | null
   if (!output) return null
   
   const stats: {
@@ -76,7 +69,7 @@ const outputStats = computed(() => {
     // 提取文件
     const fileMatches = output.match(/[\w\-.\\\/]+\.(ts|tsx|js|jsx|json|md|txt|py|html|css|vue)/gi)
     if (fileMatches) {
-      stats.files = [...new Set(fileMatches)]
+      stats.files = [...new Set(fileMatches)] as string[]
     }
     
     // 统计错误/警告
@@ -104,7 +97,7 @@ const outputStats = computed(() => {
           <div class="result-title">
             <span class="result-type">{{ typeConfig.label }}</span>
             <NTag size="tiny" :bordered="false">
-              {{ toolCall.name }}
+              {{ toolCall.toolName }}
             </NTag>
           </div>
           <div class="result-summary">{{ parsedResult.summary }}</div>
@@ -151,13 +144,13 @@ const outputStats = computed(() => {
     </div>
     
     <!-- 输出内容 -->
-    <div v-if="toolCall.output" class="output-section">
+    <div v-if="toolCall.toolOutput" class="output-section">
       <div class="output-header" @click="isExpanded = !isExpanded">
         <span class="output-title">输出内容</span>
         <span class="expand-btn">{{ isExpanded ? '收起' : '展开' }}</span>
       </div>
       <div v-if="isExpanded" class="output-content">
-        <pre>{{ truncateOutput(formatOutput(toolCall.output), 100) }}</pre>
+        <pre>{{ truncateOutput(formatOutput(toolCall.toolOutput), 100) }}</pre>
       </div>
     </div>
     

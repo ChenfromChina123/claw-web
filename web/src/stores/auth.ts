@@ -22,6 +22,8 @@ export const useAuthStore = defineStore('auth', () => {
           username: response.data.username,
           email: response.data.email,
           avatar: response.data.avatar,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         }
         localStorage.setItem('token', response.data.accessToken)
         return true
@@ -126,6 +128,8 @@ export const useAuthStore = defineStore('auth', () => {
       username: oauthData.username,
       email: oauthData.email,
       avatar: oauthData.avatar || '/avatars/default.png',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }
     localStorage.setItem('token', oauthData.accessToken)
   }

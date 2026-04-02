@@ -3,7 +3,6 @@
  */
 
 import type {
-  ToolCall,
   ParsedToolInfo,
   ParsedResult,
   KnowledgeCard,
@@ -11,6 +10,7 @@ import type {
   FlowEdge,
   FlowGraph
 } from '@/types/flowKnowledge'
+import type { ToolCall } from '@/types/tool'
 import { getToolCategory, TOOL_CATEGORIES } from '@/types/flowKnowledge'
 
 // ==================== 工具描述模板 ====================
@@ -42,7 +42,7 @@ interface ParameterInfo {
 }
 
 // 解析工具输入参数
-function parseToolParameters(toolName: string, input: Record<string, unknown>): ParameterInfo[] {
+function parseToolParameters(_toolName: string, input: Record<string, unknown>): ParameterInfo[] {
   const params: ParameterInfo[] = []
   
   // 通用参数解析
@@ -227,7 +227,7 @@ interface OutputMetrics {
 }
 
 // 解析工具输出
-function parseToolOutput(toolName: string, output: unknown): {
+function parseToolOutput(_toolName: string, output: unknown): {
   summary: string
   details: string[]
   metrics?: OutputMetrics
@@ -399,11 +399,10 @@ function parseToolOutput(toolName: string, output: unknown): {
 // 从工具调用中提取知识
 function extractKnowledgeFromTool(toolCall: ToolCall): KnowledgeCard[] {
   const knowledge: KnowledgeCard[] = []
-  const category = getToolCategory(toolCall.name)
-  const categoryInfo = TOOL_CATEGORIES[category]
+  const category = getToolCategory(toolCall.toolName)
   
   // 提取文件路径
-  const input = toolCall.input || {}
+  const input = toolCall.toolInput || {}
   const filePaths: string[] = []
   
   if (input.path) filePaths.push(String(input.path))
@@ -419,7 +418,7 @@ function extractKnowledgeFromTool(toolCall: ToolCall): KnowledgeCard[] {
         type: 'fact',
         title: '文件操作目标',
         content: path,
-        source: { toolName: toolCall.name },
+        source: { toolName: toolCall.toolName },
         tags: ['file', category]
       })
     }
@@ -432,7 +431,7 @@ function extractKnowledgeFromTool(toolCall: ToolCall): KnowledgeCard[] {
       type: 'procedure',
       title: '执行的命令',
       content: String(input.command),
-      source: { toolName: toolCall.name },
+      source: { toolName: toolCall.toolName },
       tags: ['command', 'shell']
     })
   }
@@ -445,14 +444,14 @@ function extractKnowledgeFromTool(toolCall: ToolCall): KnowledgeCard[] {
       type: 'fact',
       title: '搜索查询',
       content: query,
-      source: { toolName: toolCall.name },
+      source: { toolName: toolCall.toolName },
       tags: ['search', 'query']
     })
   }
   
   // 解析输出中的知识
-  if (toolCall.output) {
-    const parsed = parseToolOutput(toolCall.name, toolCall.output)
+  if (toolCall.toolOutput) {
+    const parsed = parseToolOutput(toolCall.toolName, toolCall.toolOutput)
     knowledge.push(...parsed.knowledge)
   }
   
@@ -485,12 +484,12 @@ function buildFlowGraph(toolCalls: ToolCall[], sessionId?: string): FlowGraph {
     const node: FlowNode = {
       id: nodeId,
       type: 'tool',
-      label: TOOL_DESCRIPTIONS[tool.name] || tool.name,
+      label: TOOL_DESCRIPTIONS[tool.toolName] || tool.toolName,
       status: tool.status === 'completed' ? 'completed' : 
               tool.status === 'error' ? 'error' : 'pending',
-      toolName: tool.name,
-      input: tool.input,
-      output: tool.output
+      toolName: tool.toolName,
+      input: tool.toolInput,
+      output: tool.toolOutput
     }
     
     nodes.push(node)
@@ -543,15 +542,14 @@ function truncateString(str: string, maxLength: number): string {
 // 解析单个工具调用
 export function parseToolCall(toolCall: ToolCall): ParsedToolInfo {
   // 处理空值情况
-  const toolName = toolCall.name || 'unknown'
+  const toolName = toolCall.toolName || 'unknown'
   const category = getToolCategory(toolName)
-  const categoryInfo = TOOL_CATEGORIES[category]
   
   return {
     toolName: toolName,
     category,
     description: TOOL_DESCRIPTIONS[toolName] || `${toolName} 操作`,
-    parameters: parseToolParameters(toolName, toolCall.input || {}),
+    parameters: parseToolParameters(toolName, toolCall.toolInput || {}),
     expectedOutput: getExpectedOutput(toolName)
   }
 }
@@ -574,7 +572,7 @@ function getExpectedOutput(toolName: string): string {
 
 // 解析工具调用结果
 export function parseToolResult(toolCall: ToolCall): ParsedResult {
-  const parsed = parseToolOutput(toolCall.name, toolCall.output)
+  const parsed = parseToolOutput(toolCall.toolName, toolCall.toolOutput)
   
   let type: 'success' | 'failure' | 'partial' | 'info' = 'info'
   if (toolCall.status === 'completed') {

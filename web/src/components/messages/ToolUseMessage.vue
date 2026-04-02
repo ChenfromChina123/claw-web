@@ -19,7 +19,7 @@ const isCollapsed = defineModel<boolean>('collapsed', { default: false })
 const statusConfig = computed(() => {
   const configs = {
     pending: { color: 'warning', label: '等待中', icon: TimeOutline },
-    executing: { color: 'info', label: '执行中', icon: null },
+    executing: { color: 'info', label: '执行中', icon: TimeOutline },
     completed: { color: 'success', label: '已完成', icon: CheckmarkCircle },
     error: { color: 'error', label: '错误', icon: CloseCircle },
   }

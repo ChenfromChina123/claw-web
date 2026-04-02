@@ -78,7 +78,7 @@ export const mcpApi = {
    * 测试 MCP 服务器连接
    */
   async testConnection(serverId: string): Promise<{ success: boolean; error?: string }> {
-    const { data } = await apiClient.post(`/mcp/servers/${serverId}/test`)
+    const { data } = await apiClient.post<{ success: boolean; error?: string }>(`/mcp/servers/${serverId}/test`)
     return data
   },
 

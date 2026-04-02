@@ -73,10 +73,14 @@ export const useChatStore = defineStore('chat', () => {
       console.log('[Chat] message_start event received:', data)
       isLoading.value = true
       // 添加空的 assistant 消息
+      const sessionId = currentSessionId.value || ''
       messages.value.push({
         id: Date.now().toString(),
+        sessionId,
         role: 'assistant',
-        content: ''
+        type: 'text',
+        content: '',
+        createdAt: new Date().toISOString(),
       })
     })
     
@@ -86,13 +90,13 @@ export const useChatStore = defineStore('chat', () => {
      */
     wsClient.on('content_block_delta', (data: unknown) => {
       console.log('[Chat] content_block_delta event received:', data)
-      // 后端发送的消息格式: { type: 'event', event: 'content_block_delta', data: { text: '...' } }
+      // 后端发送的消息格式：{ type: 'event', event: 'content_block_delta', data: { text: '...' } }
       const message = data as { type: string; event: string; data: { text: string; sessionId?: string } }
       const msg = message.data
       const lastIndex = messages.value.length - 1
       const lastMsg = messages.value[lastIndex]
       
-      if (lastMsg && lastMsg.role === 'assistant') {
+      if (lastMsg && lastMsg.role === 'assistant' && lastMsg.type === 'text') {
         // 创建新数组以触发响应式更新
         const updatedMessages = [...messages.value]
         updatedMessages[lastIndex] = {
@@ -112,36 +116,41 @@ export const useChatStore = defineStore('chat', () => {
     })
     
     wsClient.on('tool_use', (data: unknown) => {
-      // 后端发送的消息格式: { type: 'event', event: 'tool_use', data: { id: '...', name: '...', input: {...} } }
+      // 后端发送的消息格式：{ type: 'event', event: 'tool_use', data: { id: '...', name: '...', input: {...} } }
       const message = data as { type: string; event: string; data: { id: string; name: string; input: Record<string, unknown> } }
       const msg = message.data
+      const sessionId = currentSessionId.value || ''
       toolCalls.value.push({
         id: msg.id,
-        name: msg.name,
-        input: msg.input,
-        status: 'pending'
+        messageId: Date.now().toString(),
+        sessionId,
+        toolName: msg.name,
+        toolInput: msg.input,
+        toolOutput: null,
+        status: 'pending',
+        createdAt: new Date().toISOString()
       })
     })
     
     wsClient.on('tool_end', (data: unknown) => {
-      // 后端发送的消息格式: { type: 'event', event: 'tool_end', data: { id: '...', result: {...} } }
+      // 后端发送的消息格式：{ type: 'event', event: 'tool_end', data: { id: '...', result: {...} } }
       const message = data as { type: string; event: string; data: { id: string; result: unknown } }
       const msg = message.data
       const tool = toolCalls.value.find(t => t.id === msg.id)
       if (tool) {
         tool.status = 'completed'
-        tool.output = msg.result
+        tool.toolOutput = msg.result as Record<string, unknown>
       }
     })
     
     wsClient.on('tool_error', (data: unknown) => {
-      // 后端发送的消息格式: { type: 'event', event: 'tool_error', data: { id: '...', error: '...' } }
+      // 后端发送的消息格式：{ type: 'event', event: 'tool_error', data: { id: '...', error: '...' } }
       const message = data as { type: string; event: string; data: { id: string; error: string } }
       const msg = message.data
       const tool = toolCalls.value.find(t => t.id === msg.id)
       if (tool) {
         tool.status = 'error'
-        tool.output = { error: msg.error }
+        tool.toolOutput = { error: msg.error }
       }
     })
   }
@@ -256,10 +265,14 @@ export const useChatStore = defineStore('chat', () => {
   
   function sendMessage(content: string, model?: string) {
     // 添加用户消息
+    const sessionId = currentSessionId.value || ''
     messages.value.push({
       id: Date.now().toString(),
+      sessionId,
       role: 'user',
-      content
+      type: 'text',
+      content,
+      createdAt: new Date().toISOString(),
     })
     
     wsClient.sendMessage(content, model)

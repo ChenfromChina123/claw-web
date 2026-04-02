@@ -45,7 +45,7 @@ onMounted(async () => {
   } catch (error: any) {
     console.error('初始化失败:', error)
     initError.value = error?.message || '初始化失败，请重试'
-    message.error(initError.value)
+    message.error(initError.value || '初始化失败')
   } finally {
     isInitializing.value = false
   }
@@ -98,7 +98,7 @@ async function handleRetry(): Promise<void> {
   } catch (error: any) {
     console.error('重新初始化失败:', error)
     initError.value = error?.message || '初始化失败，请重试'
-    message.error(initError.value)
+    message.error(initError.value || '初始化失败')
   } finally {
     isInitializing.value = false
   }

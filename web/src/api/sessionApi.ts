@@ -68,10 +68,10 @@ export const sessionApi = {
    * 导出会话
    */
   async exportSession(sessionId: string, format: 'json' | 'markdown' | 'txt' = 'json'): Promise<Blob> {
-    const { data } = await apiClient.get(`/sessions/${sessionId}/export`, {
+    const response = await apiClient.get(`/sessions/${sessionId}/export`, {
       params: { format },
       responseType: 'blob',
     })
-    return data
+    return response.data as Blob
   },
 }
