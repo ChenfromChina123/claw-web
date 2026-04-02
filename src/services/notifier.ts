@@ -133,8 +133,8 @@ async function isAppleTerminalBellDisabled(): Promise<boolean> {
       return false
     }
 
-    // Lazy-load plist (~280KB with xmlbuilder+@xmldom) — only hit on
-    // Apple_Terminal with auto-channel, which is a small fraction of users.
+    // 延迟加载plist（约280KB包含xmlbuilder+@xmldom）— 仅在
+    // 使用auto-channel的Apple_Terminal上触发，这是很小的用户群体。
     const plist = await import('plist')
     const parsed: Record<string, unknown> = plist.parse(defaultsOutput.stdout)
     const windowSettings = parsed?.['Window Settings'] as
