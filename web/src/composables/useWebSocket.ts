@@ -1,282 +1,563 @@
+/**
+ * 增强版 WebSocket 客户端
+ * 功能：自动重连、心跳检测、RPC 调用、消息队列、事件订阅
+ */
+
 import { ref, shallowRef } from 'vue'
-import type { WSMessage, Session, Message, ToolCall } from '@/types'
+import type {
+  WSMessage,
+  RPCRequest,
+  RPCResponse,
+  Session,
+  Message,
+  ToolCall,
+  ConnectionStatus,
+  WebSocketState,
+} from '@/types'
 
 type EventCallback = (data: unknown) => void
 
-class WebSocketClient {
+interface PendingRPC {
+  resolve: (value: RPCResponse) => void
+  reject: (reason?: unknown) => void
+  timeoutId: ReturnType<typeof setTimeout>
+}
+
+class EnhancedWebSocketClient {
   private ws: WebSocket | null = null
   private url: string
   private reconnectAttempts = 0
-  private maxReconnectAttempts = 5
-  private reconnectDelay = 1000
+  private maxReconnectAttempts = 10
+  private baseReconnectDelay = 1000
   private listeners: Map<string, Set<EventCallback>> = new Map()
   private messageQueue: WSMessage[] = []
-  
+  private pendingRPCs: Map<string, PendingRPC> = new Map()
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
+  private heartbeatTimeout: ReturnType<typeof setTimeout> | null = null
+  private lastPingTime = 0
+  private latency = ref(0)
+  private manualClose = false
+
+  public status = ref<ConnectionStatus>('disconnected')
   public isConnected = ref(false)
   public currentSession = ref<Session | null>(null)
   public messages = shallowRef<Message[]>([])
   public toolCalls = shallowRef<ToolCall[]>([])
-  
+  public connectionError = ref<string | null>(null)
+
   constructor() {
     this.url = this.getWebSocketUrl()
   }
-  
+
+  /**
+   * 获取 WebSocket URL
+   */
   private getWebSocketUrl(): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
     return `${protocol}//${host}/ws`
   }
-  
+
+  /**
+   * 建立 WebSocket 连接
+   */
   connect(token?: string): Promise<void> {
     return new Promise((resolve, reject) => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        resolve()
+        return
+      }
+
+      this.manualClose = false
+      this.status.value = 'connecting'
+      this.connectionError.value = null
+
       try {
         this.ws = new WebSocket(this.url)
-        
+
         this.ws.onopen = () => {
-          console.log('WebSocket connected')
+          console.log('[WS] Connected')
+          this.status.value = 'connected'
           this.isConnected.value = true
           this.reconnectAttempts = 0
-          
-          // 发送注册消息
+          this.connectionError.value = null
+
+          this.startHeartbeat()
+
           if (token) {
             this.send({ type: 'login', token })
           } else {
             this.send({ type: 'register' })
           }
-          
-          // 发送队列中的消息
-          while (this.messageQueue.length > 0) {
-            const msg = this.messageQueue.shift()
-            if (msg) {
-              this.ws?.send(JSON.stringify(msg))
-            }
-          }
-          
+
+          this.flushMessageQueue()
           resolve()
         }
-        
+
         this.ws.onmessage = (event) => {
           this.handleMessage(event.data)
         }
-        
+
         this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error)
+          console.error('[WS] Error:', error)
+          this.connectionError.value = '连接错误'
           reject(error)
         }
-        
-        this.ws.onclose = () => {
-          console.log('WebSocket disconnected')
+
+        this.ws.onclose = (event) => {
+          console.log(`[WS] Disconnected (code: ${event.code})`)
+          this.status.value = 'disconnected'
           this.isConnected.value = false
-          this.attemptReconnect()
+          this.stopHeartbeat()
+
+          if (!this.manualClose) {
+            this.attemptReconnect()
+          }
         }
       } catch (error) {
+        this.status.value = 'disconnected'
         reject(error)
       }
     })
   }
-  
-  private attemptReconnect(): void {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++
-      const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1)
-      console.log(`Attempting reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`)
-      
-      setTimeout(() => {
-        this.connect()
-      }, delay)
-    }
-  }
-  
+
+  /**
+   * 断开连接
+   */
   disconnect(): void {
+    this.manualClose = true
+    this.stopHeartbeat()
+    this.clearPendingRPCs('连接已断开')
+
     if (this.ws) {
-      this.ws.close()
+      this.ws.close(1000, '用户主动断开')
       this.ws = null
     }
+
+    this.status.value = 'disconnected'
+    this.isConnected.value = false
   }
-  
-  send(message: WSMessage): void {
+
+  /**
+   * 发送消息
+   */
+  send(message: WSMessage): boolean {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(message))
+      try {
+        this.ws.send(JSON.stringify(message))
+        return true
+      } catch (error) {
+        console.error('[WS] Send failed:', error)
+        this.messageQueue.push(message)
+        return false
+      }
     } else {
       this.messageQueue.push(message)
+      return false
     }
   }
-  
-  on(event: string, callback: EventCallback): void {
+
+  /**
+   * RPC 调用封装
+   */
+  async callRPC<T = unknown>(
+    method: string,
+    params?: Record<string, unknown>,
+    timeout: number = 30000
+  ): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const id = this.generateId()
+
+      const timeoutId = setTimeout(() => {
+        this.pendingRPCs.delete(id)
+        reject(new Error(`RPC 调用超时: ${method}`))
+      }, timeout)
+
+      this.pendingRPCs.set(id, {
+        resolve: resolve as (value: RPCResponse) => void,
+        reject,
+        timeoutId,
+      })
+
+      const success = this.send({
+        type: 'rpc_call',
+        id,
+        method,
+        params,
+      })
+
+      if (!success) {
+        clearTimeout(timeoutId)
+        this.pendingRPCs.delete(id)
+        reject(new Error('WebSocket 未连接'))
+      }
+    })
+  }
+
+  /**
+   * 事件订阅
+   */
+  on(event: string, callback: EventCallback): () => void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set())
     }
-    this.listeners.get(event)?.add(callback)
+    this.listeners.get(event)!.add(callback)
+
+    return () => this.off(event, callback)
   }
-  
+
+  /**
+   * 取消事件订阅
+   */
   off(event: string, callback: EventCallback): void {
     this.listeners.get(event)?.delete(callback)
   }
-  
+
+  /**
+   * 获取连接状态信息
+   */
+  getState(): WebSocketState {
+    return {
+      status: this.status.value,
+      connectionId: null,
+      reconnectAttempts: this.reconnectAttempts,
+      lastError: this.connectionError.value,
+      latency: this.latency.value,
+    }
+  }
+
+  // ==================== 私有方法 ====================
+
+  /**
+   * 尝试重连（指数退避）
+   */
+  private attemptReconnect(): void {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('[WS] 达到最大重连次数')
+      this.status.value = 'disconnected'
+      this.connectionError.value = `重连失败（已尝试 ${this.maxReconnectAttempts} 次）`
+      return
+    }
+
+    this.reconnectAttempts++
+    this.status.value = 'reconnecting'
+
+    const delay = Math.min(
+      this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
+      30000
+    )
+
+    console.log(`[WS] 将在 ${delay}ms 后重连 (第 ${this.reconnectAttempts} 次)`)
+
+    setTimeout(() => {
+      if (!this.manualClose) {
+        this.connect().catch((err) => {
+          console.error('[WS] Reconnect failed:', err)
+        })
+      }
+    }, delay)
+  }
+
+  /**
+   * 启动心跳检测
+   */
+  private startHeartbeat(): void {
+    this.stopHeartbeat()
+
+    this.heartbeatInterval = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.lastPingTime = Date.now()
+        this.send({ type: 'ping' })
+
+        this.heartbeatTimeout = setTimeout(() => {
+          console.warn('[WS] 心跳超时，关闭连接')
+          this.ws?.close(4001, '心跳超时')
+        }, 10000)
+      }
+    }, 30000)
+  }
+
+  /**
+   * 停止心跳检测
+   */
+  private stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval)
+      this.heartbeatInterval = null
+    }
+    if (this.heartbeatTimeout) {
+      clearTimeout(this.heartbeatTimeout)
+      this.heartbeatTimeout = null
+    }
+  }
+
+  /**
+   * 清空消息队列
+   */
+  private flushMessageQueue(): void {
+    while (this.messageQueue.length > 0) {
+      const msg = this.messageQueue.shift()
+      if (msg && this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify(msg))
+      }
+    }
+  }
+
+  /**
+   * 清空待处理的 RPC 请求
+   */
+  private clearPendingRPCs(reason: string): void {
+    for (const [id, pending] of this.pendingRPCs) {
+      clearTimeout(pending.timeoutId)
+      pending.reject(new Error(reason))
+    }
+    this.pendingRPCs.clear()
+  }
+
+  /**
+   * 处理收到的消息
+   */
   private handleMessage(data: string): void {
     try {
       const message: WSMessage = JSON.parse(data)
-      const event = message.type
-      
-      // 触发事件监听器
-      const callbacks = this.listeners.get(event)
-      if (callbacks) {
-        callbacks.forEach(callback => callback(message))
+
+      switch (message.type) {
+        case 'pong':
+          this.handlePong()
+          break
+
+        case 'rpc_response':
+          this.handleRPCResponse(message as unknown as RPCResponse)
+          break
+
+        default:
+          this.emitEvent(message.type, message)
+          this.handleBuiltInEvent(message)
       }
-      
-      // 触发所有监听器
-      const allCallbacks = this.listeners.get('*')
-      if (allCallbacks) {
-        allCallbacks.forEach(callback => callback(message))
-      }
-      
-      // 处理内置事件
-      this.handleBuiltInEvent(message)
     } catch (error) {
-      console.error('Failed to parse message:', error)
+      console.error('[WS] 消息解析失败:', error)
     }
   }
-  
+
+  /**
+   * 处理心跳响应
+   */
+  private handlePong(): void {
+    if (this.heartbeatTimeout) {
+      clearTimeout(this.heartbeatTimeout)
+      this.heartbeatTimeout = null
+    }
+    this.latency.value = Date.now() - this.lastPingTime
+  }
+
+  /**
+   * 处理 RPC 响应
+   */
+  private handleRPCResponse(response: RPCResponse): void {
+    const pending = this.pendingRPCs.get(response.id)
+    if (pending) {
+      clearTimeout(pending.timeoutId)
+      this.pendingRPCs.delete(response.id)
+
+      if (response.success) {
+        pending.resolve(response)
+      } else {
+        pending.reject(new Error(response.error?.message || 'RPC 调用失败'))
+      }
+    }
+  }
+
+  /**
+   * 触发事件监听器
+   */
+  private emitEvent(event: string, data: unknown): void {
+    const callbacks = this.listeners.get(event)
+    if (callbacks) {
+      callbacks.forEach((callback) => {
+        try {
+          callback(data)
+        } catch (error) {
+          console.error(`[WS] Event handler error (${event}):`, error)
+        }
+      })
+    }
+
+    const allCallbacks = this.listeners.get('*')
+    if (allCallbacks) {
+      allCallbacks.forEach((callback) => {
+        try {
+          callback(data)
+        } catch (error) {
+          console.error('[WS] Wildcard handler error:', error)
+        }
+      })
+    }
+  }
+
+  /**
+   * 处理内置事件
+   */
   private handleBuiltInEvent(message: WSMessage): void {
     switch (message.type) {
       case 'registered':
-        console.log('Registered:', message.userId)
+        console.log('[WS] Registered:', message.userId)
         break
-        
+
       case 'logged_in':
-        console.log('Logged in:', message.userId)
+        console.log('[WS] Logged in:', message.userId)
         break
-        
+
       case 'session_created':
         this.currentSession.value = message.session as Session
         this.messages.value = []
         this.toolCalls.value = []
         break
-        
+
       case 'session_loaded':
         this.currentSession.value = message.session as Session
         this.messages.value = (message.messages || []) as Message[]
         this.toolCalls.value = (message.toolCalls || []) as ToolCall[]
         break
-        
-      case 'session_list':
-        // 处理会话列表更新
-        break
-        
-      case 'message_start':
-        // AI 开始生成消息
-        break
-        
+
       case 'content_block_delta':
-        // AI 正在生成内容
-        const currentMessages = [...this.messages.value]
-        const lastMsg = currentMessages[currentMessages.length - 1]
-        if (lastMsg && lastMsg.role === 'assistant') {
-          lastMsg.content += message.text as string
-          this.messages.value = currentMessages
-        }
+        this.handleContentDelta(message)
         break
-        
-      case 'message_stop':
-        // AI 消息生成完成
-        break
-        
+
       case 'tool_use':
-        // 开始工具调用
-        const toolCall: ToolCall = {
-          id: message.id as string,
-          name: message.name as string,
-          input: message.input as Record<string, unknown>,
-          status: 'pending'
-        }
-        this.toolCalls.value = [...this.toolCalls.value, toolCall]
+        this.handleToolUseStart(message)
         break
-        
+
       case 'tool_end':
-        // 工具调用完成
-        const toolCalls = [...this.toolCalls.value]
-        const tool = toolCalls.find(t => t.id === message.id)
-        if (tool) {
-          tool.status = 'completed'
-          tool.output = message.result
-          this.toolCalls.value = toolCalls
-        }
-        break
-        
       case 'tool_error':
-        // 工具调用错误
-        const errorToolCalls = [...this.toolCalls.value]
-        const errorTool = errorToolCalls.find(t => t.id === message.id)
-        if (errorTool) {
-          errorTool.status = 'error'
-          errorTool.output = { error: message.error }
-          this.toolCalls.value = errorToolCalls
-        }
+        this.handleToolUseEnd(message)
         break
-        
+
       case 'error':
-        console.error('Server error:', message.message)
+        console.error('[WS] Server error:', message.message)
         break
     }
   }
-  
-  // 创建新会话
+
+  /**
+   * 处理内容增量更新
+   */
+  private handleContentDelta(message: WSMessage): void {
+    const text = message.text as string | undefined
+    if (!text) return
+
+    const currentMessages = [...this.messages.value]
+    const lastMsg = currentMessages[currentMessages.length - 1]
+
+    if (lastMsg && lastMsg.role === 'assistant') {
+      lastMsg.content += text
+      this.messages.value = currentMessages
+    } else {
+      this.messages.value = [
+        ...currentMessages,
+        {
+          id: this.generateId(),
+          sessionId: this.currentSession.value?.id || '',
+          role: 'assistant',
+          type: 'text',
+          content: text,
+          createdAt: new Date(),
+        },
+      ]
+    }
+  }
+
+  /**
+   * 处理工具调用开始
+   */
+  private handleToolUseStart(message: WSMessage): void {
+    const toolCall: ToolCall = {
+      id: message.id as string,
+      messageId: '',
+      sessionId: this.currentSession.value?.id || '',
+      toolName: message.name as string,
+      toolInput: (message.input as Record<string, unknown>) || {},
+      toolOutput: null,
+      status: 'pending',
+      createdAt: new Date(),
+    }
+    this.toolCalls.value = [...this.toolCalls.value, toolCall]
+  }
+
+  /**
+   * 处理工具调用结束
+   */
+  private handleToolUseEnd(message: WSMessage): void {
+    const toolCalls = [...this.toolCalls.value]
+    const tool = toolCalls.find((t) => t.id === message.id)
+    if (tool) {
+      tool.status = message.type === 'tool_error' ? 'error' : 'completed'
+      tool.toolOutput = (message.output as Record<string, unknown>) || { error: message.error }
+      tool.completedAt = new Date()
+      this.toolCalls.value = toolCalls
+    }
+  }
+
+  /**
+   * 生成唯一 ID
+   */
+  private generateId(): string {
+    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+  }
+
+  // ==================== 公共 API 方法 ====================
+
   createSession(title?: string, model?: string): void {
     this.send({
       type: 'create_session',
       title: title || '新对话',
-      model: model || 'qwen-plus'
+      model: model || 'qwen-plus',
     })
   }
-  
-  // 加载会话
+
   loadSession(sessionId: string): void {
-    this.send({
-      type: 'load_session',
-      sessionId
-    })
+    this.send({ type: 'load_session', sessionId })
   }
-  
-  // 获取会话列表
+
   listSessions(): void {
     this.send({ type: 'list_sessions' })
   }
-  
-  // 发送消息
+
   sendMessage(content: string, model?: string): void {
     this.send({
       type: 'user_message',
       content,
-      model: model || this.currentSession.value?.model || 'qwen-plus'
+      sessionId: this.currentSession.value?.id,
+      model: model || this.currentSession.value?.model || 'qwen-plus',
     })
   }
-  
-  // 删除会话
+
   deleteSession(sessionId: string): void {
-    this.send({
-      type: 'delete_session',
-      sessionId
-    })
+    this.send({ type: 'delete_session', sessionId })
   }
-  
-  // 重命名会话
+
   renameSession(sessionId: string, title: string): void {
-    this.send({
-      type: 'rename_session',
-      sessionId,
-      title
-    })
+    this.send({ type: 'rename_session', sessionId, title })
   }
-  
-  // 清除会话
+
   clearSession(sessionId?: string): void {
     this.send({
       type: 'clear_session',
-      sessionId: sessionId || this.currentSession.value?.id
+      sessionId: sessionId || this.currentSession.value?.id,
     })
+  }
+
+  getTools(): void {
+    this.send({ type: 'get_tools' })
+  }
+
+  getModels(): void {
+    this.send({ type: 'get_models' })
+  }
+
+  executeCommand(command: string): void {
+    this.send({ type: 'execute_command', command })
   }
 }
 
-// 导出单例
-export const wsClient = new WebSocketClient()
+export const wsClient = new EnhancedWebSocketClient()
 export default wsClient

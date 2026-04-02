@@ -1,0 +1,349 @@
+/**
+ * 特效样式
+ * 包含毛玻璃、渐变背景、光效等高级视觉效果
+ */
+
+/* ============================================
+   1. 毛玻璃效果 (Glassmorphism)
+   ============================================ */
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-strong {
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+              inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* ============================================
+   2. 渐变背景特效
+   ============================================ */
+
+/* ---- 流动渐变背景 ---- */
+.gradient-bg-animated {
+  background: linear-gradient(
+    -45deg,
+    var(--bg-primary),
+    var(--bg-secondary),
+    var(--bg-tertiary),
+    var(--bg-secondary)
+  );
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+/* ---- 径向渐变光晕 ---- */
+.radial-glow {
+  position: relative;
+}
+.radial-glow::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150%;
+  height: 150%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle,
+    var(--color-primary-light) 0%,
+    transparent 70%
+  );
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ---- 网格背景 ---- */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ---- 点阵背景 ---- */
+.dot-pattern {
+  background-image: radial-gradient(
+    circle,
+    var(--border-color) 1px,
+    transparent 1px
+  );
+  background-size: 20px 20px;
+}
+
+/* ============================================
+   3. 光效
+   ============================================ */
+
+/* ---- 发光按钮 ---- */
+.glow-button {
+  position: relative;
+  overflow: hidden;
+  transition: all var(--transition-normal, 250ms) ease;
+}
+.glow-button::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: var(--gradient-primary);
+  border-radius: inherit;
+  z-index: -1;
+  filter: blur(8px);
+  opacity: 0;
+  transition: opacity var(--transition-normal, 250ms) ease;
+}
+.glow-button:hover::before {
+  opacity: 0.6;
+}
+
+/* ---- 霓虹边框 ---- */
+.neon-border {
+  position: relative;
+  border: none;
+}
+.neon-border::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: var(--gradient-primary);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity var(--transition-normal, 250ms) ease;
+}
+.neon-border:hover::after {
+  opacity: 1;
+}
+
+/* ---- 内发光 ---- */
+.inner-glow {
+  box-shadow: inset 0 0 20px var(--color-primary-light);
+}
+
+/* ============================================
+   4. 卡片增强效果
+   ============================================ */
+
+/* ---- 悬浮卡片 ---- */
+.card-hover {
+  transition: transform var(--transition-normal, 250ms) ease,
+              box-shadow var(--transition-normal, 250ms) ease,
+              border-color var(--transition-normal, 250ms) ease;
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  border-color: var(--border-accent);
+}
+
+/* ---- 3D 翻转卡片 ---- */
+.card-3d {
+  perspective: 1000px;
+  transform-style: preserve-3d;
+  transition: transform var(--transition-slow, 350ms) ease;
+}
+.card-3d:hover {
+  transform: rotateX(5deg) rotateY(-5deg) scale(1.02);
+}
+
+/* ---- 渐变边框卡片 ---- */
+.gradient-border-card {
+  position: relative;
+  background: var(--bg-card);
+  border-radius: var(--border-radius);
+}
+.gradient-border-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: var(--gradient-primary);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ============================================
+   5. 文字特效
+   ============================================ */
+
+/* ---- 打字机光标 ---- */
+.typing-cursor::after {
+  content: '|';
+  animation: blink 1s step-end infinite;
+  color: var(--color-primary);
+  margin-left: 2px;
+}
+
+/* ---- 文字下划线动画 ---- */
+.animated-underline {
+  position: relative;
+  display: inline-block;
+}
+.animated-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--gradient-primary);
+  transition: width var(--transition-normal, 250ms) ease;
+}
+.animated-underline:hover::after {
+  width: 100%;
+}
+
+/* ---- 文字闪烁（用于重要提示） ---- */
+.text-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--text-accent) 25%,
+    var(--text-primary) 50%,
+    var(--text-accent) 75%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: textShimmer 3s linear infinite;
+}
+
+@keyframes textShimmer {
+  to { background-position: 200% center; }
+}
+
+/* ============================================
+   6. 背景装饰元素
+   ============================================ */
+
+/* ---- 浮动装饰圆球 ---- */
+.floating-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.3;
+  animation: float 20s ease-in-out infinite;
+  pointer-events: none;
+}
+.floating-orb-1 {
+  width: 300px;
+  height: 300px;
+  background: var(--color-primary);
+  top: -100px;
+  right: -100px;
+  animation-delay: 0s;
+}
+.floating-orb-2 {
+  width: 200px;
+  height: 200px;
+  background: var(--color-info);
+  bottom: -50px;
+  left: -50px;
+  animation-delay: -7s;
+}
+.floating-orb-3 {
+  width: 150px;
+  height: 150px;
+  background: var(--color-success);
+  top: 50%;
+  left: 30%;
+  animation-delay: -14s;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(30px, -30px) scale(1.05);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.95);
+  }
+}
+
+/* ---- 噪点纹理叠加 ---- */
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px 128px;
+}
+
+/* ============================================
+   7. 响应式特效调整
+   ============================================ */
+
+@media (max-width: 640px) {
+  /* 移动端减少动画复杂度 */
+  .floating-orb {
+    display: none;
+  }
+
+  .card-3d:hover {
+    transform: none;
+  }
+
+  /* 减少模糊以提升性能 */
+  .glass {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+}
+
+/* ============================================
+   8. 减少动画偏好支持
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .floating-orb {
+    animation: none;
+  }
+
+  .text-shimmer {
+    animation: none;
+    background: var(--text-accent);
+    -webkit-text-fill-color: var(--text-accent);
+  }
+}

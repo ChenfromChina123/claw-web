@@ -1,0 +1,284 @@
+/**
+ * 响应式设计样式
+ * 包含断点系统、移动端适配、触摸优化等
+ */
+
+/* ============================================
+   1. 断点系统
+   ============================================ */
+
+/* ---- 超小屏幕 (手机竖屏) ---- */
+@media screen and (max-width: 480px) {
+  :root {
+    --font-size-base: 14px;
+    --border-radius: 8px;
+    --space-md: 12px;
+    --space-lg: 16px;
+  }
+}
+
+/* ---- 小屏幕 (手机横屏) ---- */
+@media screen and (min-width: 481px) and (max-width: 640px) {
+  :root {
+    --font-size-base: 14px;
+  }
+}
+
+/* ---- 中等屏幕 (平板) ---- */
+@media screen and (min-width: 641px) and (max-width: 1024px) {
+  :root {
+    --font-size-base: 15px;
+  }
+}
+
+/* ---- 大屏幕 (桌面) ---- */
+@media screen and (min-width: 1025px) {
+  :root {
+    --font-size-base: 15px;
+  }
+}
+
+/* ============================================
+   2. 布局容器
+   ============================================ */
+
+.container {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 var(--space-md);
+}
+
+.container-sm { max-width: 640px; }
+.container-md { max-width: 768px; }
+.container-lg { max-width: 1024px; }
+.container-xl { max-width: 1280px; }
+
+@media (max-width: 640px) {
+  .container { padding: 0 var(--space-sm); }
+}
+
+/* ============================================
+   3. 网格系统
+   ============================================ */
+
+.grid {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+@media (max-width: 768px) {
+  .grid-cols-2,
+  .grid-cols-3,
+  .grid-cols-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .grid-cols-3,
+  .grid-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ============================================
+   4. 移动端适配
+   ============================================ */
+
+/* ---- 安全区域（刘海屏、底部横条） ---- */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.safe-area-left {
+  padding-left: env(safe-area-inset-left, 0);
+}
+.safe-area-right {
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+/* ---- 触摸优化 ---- */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ---- 移动端侧边栏 ---- */
+.mobile-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 280px;
+  height: 100vh;
+  z-index: var(--z-modal, 500);
+  transform: translateX(-100%);
+  transition: transform var(--transition-slow, 350ms) cubic-bezier(0.4, 0, 0.2, 1);
+}
+.mobile-drawer.open {
+  transform: translateX(0);
+}
+.mobile-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: calc(var(--z-modal, 500) - 1);
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--transition-normal, 250ms) ease;
+}
+.mobile-drawer-overlay.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ---- 移动端底部导航栏 ---- */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-top: 1px solid var(--border-color);
+  z-index: var(--z-fixed, 300);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* ============================================
+   5. 响应式显示/隐藏
+   ============================================ */
+
+/* 默认隐藏，小屏以上显示 */
+.hidden-until-sm {
+  display: none !important;
+}
+@media (min-width: 641px) {
+  .hidden-until-sm { display: initial !important; }
+}
+
+/* 小屏及以下隐藏 */
+.hide-on-mobile {
+  display: initial;
+}
+@media (max-width: 640px) {
+  .hide-on-mobile { display: none !important; }
+}
+
+/* 平板及以上隐藏 */
+.hide-on-tablet-up {
+  display: initial;
+}
+@media (min-width: 641px) {
+  .hide-on-tablet-up { display: none !important; }
+}
+
+/* 仅桌面显示 */
+.desktop-only {
+  display: none !important;
+}
+@media (min-width: 1025px) {
+  .desktop-only { display: initial !important; }
+}
+
+/* 仅移动端显示 */
+.mobile-only {
+  display: none !important;
+}
+@media (max-width: 640px) {
+  .mobile-only { display: initial !important; }
+}
+
+/* ============================================
+   6. 响应式间距
+   ============================================ */
+
+.responsive-padding {
+  padding: var(--space-lg);
+}
+@media (max-width: 640px) {
+  .responsive-padding { padding: var(--space-sm); }
+}
+
+.responsive-gap {
+  gap: var(--space-lg);
+}
+@media (max-width: 640px) {
+  .responsive-gap { gap: var(--space-sm); }
+}
+
+/* ============================================
+   7. 响应式字体
+   ============================================ */
+
+.fluid-text {
+  font-size: clamp(
+    var(--font-size-sm, 13px),
+    2vw,
+    var(--font-size-xl, 18px)
+  );
+}
+
+.fluid-heading {
+  font-size: clamp(
+    var(--font-size-xl, 18px),
+    3vw,
+    var(--font-size-4xl, 30px)
+  );
+}
+
+/* ============================================
+   8. 横屏模式适配
+   ============================================ */
+
+@media (orientation: landscape) and (max-height: 500px) {
+  /* 横屏时减小头部高度 */
+  .compact-header {
+    padding: var(--space-xs) var(--space-md);
+  }
+
+  /* 隐藏不必要的元素 */
+  .hide-in-landscape {
+    display: none !important;
+  }
+}
+
+/* ============================================
+   9. 高分辨率屏幕优化
+   ============================================ */
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  /* 高清屏使用更细的边框 */
+  .hairline-border {
+    border-width: 0.5px;
+  }
+}
+
+/* ============================================
+   10. 打印样式
+   ============================================ */
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  a[href]::after {
+    content: ' (' attr(href) ')';
+    color: #666;
+    font-size: smaller;
+  }
+}
