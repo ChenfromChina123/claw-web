@@ -336,7 +336,26 @@ function handleBlur(): void {
 
 .input-wrapper {
   position: relative;
+  width: 100%;
   margin-bottom: 4px;
+}
+
+/* 确保表单项占满宽度 */
+.login-form :deep(.n-form-item) {
+  width: 100%;
+}
+
+.login-form :deep(.n-form-item-blank) {
+  width: 100%;
+}
+
+/* 输入框宽度统一 */
+.login-form :deep(.n-input) {
+  width: 100% !important;
+}
+
+.login-form :deep(.n-input-wrapper) {
+  width: 100%;
 }
 
 .floating-label {
