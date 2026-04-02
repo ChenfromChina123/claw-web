@@ -14,7 +14,6 @@ const countdownActive = ref(false)
 
 const formValue = ref({
   email: '',
-  username: '',
   password: '',
   confirmPassword: '',
   code: ''
@@ -52,22 +51,23 @@ function onCountdownFinish() {
 }
 
 async function handleRegister() {
-  if (!formValue.value.email || !formValue.value.username || 
-      !formValue.value.password || !formValue.value.code) {
+  if (!formValue.value.email || !formValue.value.password || !formValue.value.code) {
     message.warning('请填写所有字段')
     return
   }
-  
+
   if (formValue.value.password !== formValue.value.confirmPassword) {
     message.error('两次密码输入不一致')
     return
   }
-  
+
   loading.value = true
   try {
+    // 使用邮箱前缀作为用户名，后端也可以自动生成
+    const username = formValue.value.email.split('@')[0]
     const success = await authStore.register(
       formValue.value.email,
-      formValue.value.username,
+      username,
       formValue.value.password,
       formValue.value.code
     )
@@ -98,14 +98,6 @@ async function handleRegister() {
             <NInput 
               v-model:value="formValue.email" 
               placeholder="请输入邮箱"
-              size="large"
-            />
-          </NFormItem>
-          
-          <NFormItem label="用户名" path="username">
-            <NInput 
-              v-model:value="formValue.username" 
-              placeholder="请输入用户名"
               size="large"
             />
           </NFormItem>
