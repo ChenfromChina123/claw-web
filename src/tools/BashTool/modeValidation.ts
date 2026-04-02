@@ -39,7 +39,7 @@ function validateCommandForMode(
     }
   }
 
-  // In Accept Edits mode, auto-allow filesystem operations
+  // 在接受编辑模式下，自动允许文件系统操作
   if (
     toolPermissionContext.mode === 'acceptEdits' &&
     isFilesystemCommand(baseCmd)
@@ -61,18 +61,18 @@ function validateCommandForMode(
 }
 
 /**
- * Checks if commands should be handled differently based on the current permission mode
+ * 根据当前权限模式检查命令是否应该以不同方式处理
  *
- * This is the main entry point for mode-based permission logic.
- * Currently handles Accept Edits mode for filesystem commands,
- * but designed to be extended for other modes.
+ * 这是模式权限逻辑的主入口点。
+ * 目前处理接受编辑模式的文件系统命令，
+ * 但设计为可扩展其他模式。
  *
- * @param input - The bash command input
- * @param toolPermissionContext - Context containing mode and permissions
+ * @param input - bash命令输入
+ * @param toolPermissionContext - 包含模式和权限的上下文
  * @returns
- * - 'allow' if the current mode permits auto-approval
- * - 'ask' if the command needs approval in current mode
- * - 'passthrough' if no mode-specific handling applies
+ * - 如果当前模式允许自动批准则返回 'allow'
+ * - 如果命令需要在当前模式下批准则返回 'ask'
+ * - 如果没有特定于模式的处理则返回 'passthrough'
  */
 export function checkPermissionMode(
   input: z.infer<typeof BashTool.inputSchema>,
@@ -86,7 +86,7 @@ export function checkPermissionMode(
     }
   }
 
-  // Skip if in dontAsk mode (handled in main permission flow)
+  // 如果处于dontAsk模式，则跳过（在主权限流程中处理）
   if (toolPermissionContext.mode === 'dontAsk') {
     return {
       behavior: 'passthrough',
@@ -96,17 +96,17 @@ export function checkPermissionMode(
 
   const commands = splitCommand_DEPRECATED(input.command)
 
-  // Check each subcommand
+  // 检查每个子命令
   for (const cmd of commands) {
     const result = validateCommandForMode(cmd, toolPermissionContext)
 
-    // If any command triggers mode-specific behavior, return that result
+    // 如果任何命令触发特定于模式的行为，返回该结果
     if (result.behavior !== 'passthrough') {
       return result
     }
   }
 
-  // No mode-specific handling needed
+  // 不需要特定于模式的处理
   return {
     behavior: 'passthrough',
     message: 'No mode-specific validation required',
