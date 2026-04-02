@@ -196,6 +196,7 @@ class SessionConversationManager {
         let assistantText = ''
         let pendingToolCalls: Array<{ id: string; name: string; input: string }> = []
         let currentTextBlock = ''
+        let executedToolCalls: ToolCall[] = []
 
         for await (const event of stream) {
           console.log(`[${sessionId}] Stream event: ${event.type}`)
@@ -239,7 +240,7 @@ class SessionConversationManager {
             case 'message_stop':
               console.log(`[${sessionId}] Message stream completed, processing ${pendingToolCalls.length} tool calls`)
               
-              const executedToolCalls: ToolCall[] = []
+              executedToolCalls = []
 
               for (const tool of pendingToolCalls) {
                 const toolInput = tool.input ? JSON.parse(tool.input) : {}
