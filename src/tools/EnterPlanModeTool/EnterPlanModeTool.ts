@@ -100,7 +100,7 @@ export const EnterPlanModeTool: Tool<InputSchema, Output> = buildTool({
     }
   },
   mapToolResultToToolResultBlockParam({ message }, toolUseID) {
-    const instructions = isPlanPlanModeInterviewPhaseEnabled()
+    const instructions = isPlanModeInterviewPhaseEnabled()
       ? `${message}
 
 请勿编写或编辑除计划文件之外的任何文件。详细的工作流程说明将随之而来。`
