@@ -111,29 +111,29 @@ defineExpose({
   align-items: center;
 }
 
-/* 统一按钮样式 */
+/* 统一按钮样式 - 使用 !important 确保优先级 */
 .input-actions :deep(.n-button) {
-  --n-color: #6366f1;
-  --n-color-hover: #818cf8;
-  --n-color-pressed: #4f46e5;
-  --n-color-focus: #818cf8;
-  --n-color-disabled: rgba(99, 102, 241, 0.5);
-  --n-text-color: #ffffff;
-  --n-text-color-hover: #ffffff;
-  --n-text-color-pressed: #ffffff;
-  --n-text-color-focus: #ffffff;
-  --n-text-color-disabled: rgba(255, 255, 255, 0.5);
-  --n-border: none;
-  --n-border-hover: none;
-  --n-border-pressed: none;
-  --n-border-focus: none;
-  --n-border-disabled: none;
-  --n-height: 40px;
-  --n-font-size: 14px;
-  --n-padding: 0 20px;
-  --n-border-radius: 10px;
-  font-weight: 500;
-  transition: all 0.2s ease;
+  --n-color: #6366f1 !important;
+  --n-color-hover: #818cf8 !important;
+  --n-color-pressed: #4f46e5 !important;
+  --n-color-focus: #818cf8 !important;
+  --n-color-disabled: rgba(99, 102, 241, 0.5) !important;
+  --n-text-color: #ffffff !important;
+  --n-text-color-hover: #ffffff !important;
+  --n-text-color-pressed: #ffffff !important;
+  --n-text-color-focus: #ffffff !important;
+  --n-text-color-disabled: rgba(255, 255, 255, 0.5) !important;
+  --n-border: none !important;
+  --n-border-hover: none !important;
+  --n-border-pressed: none !important;
+  --n-border-focus: none !important;
+  --n-border-disabled: none !important;
+  --n-height: 40px !important;
+  --n-font-size: 14px !important;
+  --n-padding: 0 20px !important;
+  --n-border-radius: 10px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
 }
 
 .input-actions :deep(.n-button:not(:disabled):hover) {

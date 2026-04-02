@@ -219,6 +219,7 @@ function handleCommandSelect(command: string): void {
   flex: 1;
   overflow-y: auto;
   padding: 0;
+  margin-bottom: 80px;
 }
 
 /* ---- 输入区域 ---- */
