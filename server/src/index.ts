@@ -602,6 +602,125 @@ async function startServer() {
         return createSuccessResponse({ commands: commandBridge.getCommandsList() })
       }
 
+      // ==================== Session API Routes ====================
+
+      // GET /api/sessions - 获取用户会话列表
+      if (path === '/api/sessions' && method === 'GET') {
+        const auth = await authMiddleware(req)
+        if (!auth.userId) {
+          return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
+        }
+        try {
+          const sessions = await sessionManager.getUserSessions(auth.userId)
+          return createSuccessResponse({ sessions })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取会话列表失败'
+          return createErrorResponse('GET_SESSIONS_FAILED', message, 500)
+        }
+      }
+
+      // POST /api/sessions - 创建新会话
+      if (path === '/api/sessions' && method === 'POST') {
+        const auth = await authMiddleware(req)
+        if (!auth.userId) {
+          return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
+        }
+        try {
+          const body = await req.json()
+          const title = body.title as string || '新对话'
+          const model = body.model as string || 'qwen-plus'
+          const session = await sessionManager.createSession(auth.userId, title, model)
+          return createSuccessResponse(session)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '创建会话失败'
+          return createErrorResponse('CREATE_SESSION_FAILED', message, 500)
+        }
+      }
+
+      // GET /api/sessions/:id - 加载会话详情
+      const loadSessionMatch = path.match(/^\/api\/sessions\/([^\/]+)$/)
+      if (loadSessionMatch && method === 'GET') {
+        const auth = await authMiddleware(req)
+        if (!auth.userId) {
+          return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
+        }
+        const sessionId = loadSessionMatch[1]
+        try {
+          const sessionData = await sessionManager.loadSession(sessionId)
+          if (!sessionData) {
+            return createErrorResponse('SESSION_NOT_FOUND', '会话不存在', 404)
+          }
+          return createSuccessResponse({
+            session: sessionData.session,
+            messages: sessionData.messages,
+            toolCalls: sessionData.toolCalls,
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '加载会话失败'
+          return createErrorResponse('LOAD_SESSION_FAILED', message, 500)
+        }
+      }
+
+      // PUT /api/sessions/:id - 更新会话信息
+      const updateSessionMatch = path.match(/^\/api\/sessions\/([^\/]+)$/)
+      if (updateSessionMatch && method === 'PUT') {
+        const auth = await authMiddleware(req)
+        if (!auth.userId) {
+          return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
+        }
+        const sessionId = updateSessionMatch[1]
+        try {
+          const body = await req.json()
+          const updates: { title?: string; model?: string; isPinned?: boolean } = {}
+          if (body.title !== undefined) updates.title = body.title
+          if (body.model !== undefined) updates.model = body.model
+          if (body.isPinned !== undefined) updates.isPinned = body.isPinned
+
+          const session = await sessionManager.updateSession(sessionId, updates)
+          if (!session) {
+            return createErrorResponse('SESSION_NOT_FOUND', '会话不存在', 404)
+          }
+          return createSuccessResponse(session)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '更新会话失败'
+          return createErrorResponse('UPDATE_SESSION_FAILED', message, 500)
+        }
+      }
+
+      // DELETE /api/sessions/:id - 删除会话
+      const deleteSessionMatch = path.match(/^\/api\/sessions\/([^\/]+)$/)
+      if (deleteSessionMatch && method === 'DELETE') {
+        const auth = await authMiddleware(req)
+        if (!auth.userId) {
+          return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
+        }
+        const sessionId = deleteSessionMatch[1]
+        try {
+          await sessionManager.deleteSession(sessionId)
+          return createSuccessResponse({ message: 'Session deleted' })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '删除会话失败'
+          return createErrorResponse('DELETE_SESSION_FAILED', message, 500)
+        }
+      }
+
+      // POST /api/sessions/:id/clear - 清空会话消息
+      const clearSessionMatch = path.match(/^\/api\/sessions\/([^\/]+)\/clear$/)
+      if (clearSessionMatch && method === 'POST') {
+        const auth = await authMiddleware(req)
+        if (!auth.userId) {
+          return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
+        }
+        const sessionId = clearSessionMatch[1]
+        try {
+          await sessionManager.clearSession(sessionId)
+          return createSuccessResponse({ message: 'Session cleared' })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '清空会话失败'
+          return createErrorResponse('CLEAR_SESSION_FAILED', message, 500)
+        }
+      }
+
       // Get server info
       if (path === '/api/info' && method === 'GET') {
         return createSuccessResponse({
@@ -944,6 +1063,13 @@ async function startServer() {
   console.log(`       GET  /api/mcp/servers  - MCP 服务器列表`)
   console.log(`       GET  /api/commands     - 命令列表`)
   console.log(`       GET  /api/info         - 服务器信息`)
+  console.log(`\n[API]  Session Endpoints:`)
+  console.log(`       GET    /api/sessions         - 获取用户会话列表`)
+  console.log(`       POST   /api/sessions         - 创建新会话`)
+  console.log(`       GET    /api/sessions/:id     - 加载会话详情`)
+  console.log(`       PUT    /api/sessions/:id     - 更新会话信息`)
+  console.log(`       DELETE /api/sessions/:id     - 删除会话`)
+  console.log(`       POST   /api/sessions/:id/clear - 清空会话消息`)
   console.log(`\n[WS]   WebSocket Events:`)
   console.log(`       create_session, load_session, list_sessions`)
   console.log(`       user_message, delete_session, rename_session`)

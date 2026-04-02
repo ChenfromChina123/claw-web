@@ -98,6 +98,12 @@ GITHUB_CALLBACK_URL=http://localhost:3000/api/auth/github/callback
 | `/api/health` | GET | 健康检查 |
 | `/api/models` | GET | 获取可用模型 |
 | `/api/tools` | GET | 获取可用工具 |
+| `/api/sessions` | GET | 获取用户会话列表 |
+| `/api/sessions` | POST | 创建新会话 |
+| `/api/sessions/:id` | GET | 加载会话详情 |
+| `/api/sessions/:id` | PUT | 更新会话信息 |
+| `/api/sessions/:id` | DELETE | 删除会话 |
+| `/api/sessions/:id/clear` | POST | 清空会话消息 |
 
 ### WebSocket API
 
