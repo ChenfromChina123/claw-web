@@ -831,13 +831,23 @@ async function startServer() {
                 const title = message.title as string || '新对话'
                 const model = message.model as string || 'qwen-plus'
 
-                sessionManager.createSession(userId, title, model).then(session => {
-                  wsData.sessionId = session.id
-                  console.log(`[WS] Session created: ${session.id} for user ${userId}`)
-                  ws.send(JSON.stringify({ type: 'session_created', session }))
+                sessionManager.hasEmptySession(userId).then(hasEmpty => {
+                  if (hasEmpty) {
+                    ws.send(JSON.stringify({ type: 'error', message: '您已有空会话,请先使用现有会话' }))
+                    return
+                  }
+
+                  sessionManager.createSession(userId, title, model).then(session => {
+                    wsData.sessionId = session.id
+                    console.log(`[WS] Session created: ${session.id} for user ${userId}`)
+                    ws.send(JSON.stringify({ type: 'session_created', session }))
+                  }).catch(err => {
+                    console.error('[WS] Failed to create session:', err)
+                    sendEvent('error', { message: 'Failed to create session' })
+                  })
                 }).catch(err => {
-                  console.error('[WS] Failed to create session:', err)
-                  sendEvent('error', { message: 'Failed to create session' })
+                  console.error('[WS] Failed to check empty session:', err)
+                  sendEvent('error', { message: 'Failed to check empty session' })
                 })
               }
               break
