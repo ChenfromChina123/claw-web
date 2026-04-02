@@ -37,6 +37,9 @@ class EnhancedWebSocketClient {
   private lastPingTime = 0
   private latency = ref(0)
   private manualClose = false
+  private connectResolve: (() => void) | null = null
+  private connectReject: ((reason?: unknown) => void) | null = null
+  private connectTimeout: ReturnType<typeof setTimeout> | null = null
 
   public status = ref<ConnectionStatus>('disconnected')
   public isConnected = ref(false)
@@ -91,7 +94,16 @@ class EnhancedWebSocketClient {
           }
 
           this.flushMessageQueue()
-          resolve()
+
+          this.connectTimeout = setTimeout(() => {
+            if (this.connectReject) {
+              this.connectReject(new Error('连接超时：未收到注册/登录响应'))
+              this.clearConnectPromise()
+            }
+          }, 10000)
+
+          this.connectResolve = resolve
+          this.connectReject = reject
         }
 
         this.ws.onmessage = (event) => {
@@ -128,6 +140,7 @@ class EnhancedWebSocketClient {
     this.manualClose = true
     this.stopHeartbeat()
     this.clearPendingRPCs('连接已断开')
+    this.clearConnectPromise()
 
     if (this.ws) {
       this.ws.close(1000, '用户主动断开')
@@ -227,6 +240,18 @@ class EnhancedWebSocketClient {
   }
 
   // ==================== 私有方法 ====================
+
+  /**
+   * 清理连接 Promise 相关状态
+   */
+  private clearConnectPromise(): void {
+    if (this.connectTimeout) {
+      clearTimeout(this.connectTimeout)
+      this.connectTimeout = null
+    }
+    this.connectResolve = null
+    this.connectReject = null
+  }
 
   /**
    * 尝试重连（指数退避）
@@ -401,10 +426,18 @@ class EnhancedWebSocketClient {
     switch (message.type) {
       case 'registered':
         console.log('[WS] Registered:', message.userId)
+        if (this.connectResolve) {
+          this.connectResolve()
+          this.clearConnectPromise()
+        }
         break
 
       case 'logged_in':
         console.log('[WS] Logged in:', message.userId)
+        if (this.connectResolve) {
+          this.connectResolve()
+          this.clearConnectPromise()
+        }
         break
 
       case 'session_created':

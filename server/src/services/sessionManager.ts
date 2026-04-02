@@ -177,6 +177,19 @@ export class SessionManager {
     }
   }
 
+  async updateSession(sessionId: string, updates: { title?: string; model?: string; isPinned?: boolean }): Promise<Session | null> {
+    const session = await this.sessionRepo.update(sessionId, updates)
+
+    if (session) {
+      const sessionData = this.sessions.get(sessionId)
+      if (sessionData) {
+        sessionData.session = session
+      }
+    }
+
+    return session
+  }
+
   async saveSession(sessionId: string): Promise<void> {
     const sessionData = this.sessions.get(sessionId)
     if (!sessionData || !sessionData.dirty) return

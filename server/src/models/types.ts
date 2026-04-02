@@ -16,6 +16,7 @@ export interface Session {
   userId: string
   title: string
   model: string
+  isPinned?: boolean
   createdAt: Date
   updatedAt: Date
 }

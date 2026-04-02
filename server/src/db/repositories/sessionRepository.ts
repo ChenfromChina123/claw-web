@@ -57,6 +57,45 @@ export class SessionRepository {
     )
   }
 
+  async updateIsPinned(id: string, isPinned: boolean): Promise<void> {
+    const pool = getPool()
+    await pool.query(
+      'UPDATE sessions SET is_pinned = ? WHERE id = ?',
+      [isPinned, id]
+    )
+  }
+
+  async update(id: string, updates: { title?: string; model?: string; isPinned?: boolean }): Promise<Session | null> {
+    const pool = getPool()
+    const setClauses: string[] = []
+    const values: (string | boolean)[] = []
+
+    if (updates.title !== undefined) {
+      setClauses.push('title = ?')
+      values.push(updates.title)
+    }
+    if (updates.model !== undefined) {
+      setClauses.push('model = ?')
+      values.push(updates.model)
+    }
+    if (updates.isPinned !== undefined) {
+      setClauses.push('is_pinned = ?')
+      values.push(updates.isPinned)
+    }
+
+    if (setClauses.length === 0) {
+      return this.findById(id)
+    }
+
+    values.push(id)
+    await pool.query(
+      `UPDATE sessions SET ${setClauses.join(', ')} WHERE id = ?`,
+      values
+    )
+
+    return this.findById(id)
+  }
+
   async touch(id: string): Promise<void> {
     const pool = getPool()
     await pool.query(
@@ -87,6 +126,7 @@ export class SessionRepository {
       userId: row.user_id,
       title: row.title,
       model: row.model,
+      isPinned: row.is_pinned ?? false,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }

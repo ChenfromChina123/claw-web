@@ -35,10 +35,12 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_id VARCHAR(36) NOT NULL,
   title VARCHAR(255) DEFAULT '新对话',
   model VARCHAR(50) DEFAULT 'qwen-plus',
+  is_pinned BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  INDEX idx_sessions_user_id (user_id)
+  INDEX idx_sessions_user_id (user_id),
+  INDEX idx_sessions_is_pinned (is_pinned)
 );
 
 -- 消息表

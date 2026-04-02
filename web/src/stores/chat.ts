@@ -15,14 +15,16 @@ export const useChatStore = defineStore('chat', () => {
     return sessions.value.find(s => s.id === currentSessionId.value)
   })
   
-  function connect(token?: string) {
-    wsClient.connect(token).then(() => {
+  async function connect(token?: string) {
+    try {
+      await wsClient.connect(token)
       isConnected.value = true
-    }).catch(() => {
+    } catch (error) {
+      console.error('[Chat] 连接失败:', error)
       isConnected.value = false
-    })
+      throw error
+    }
     
-    // 监听 WebSocket 事件
     wsClient.on('session_list', (data: unknown) => {
       const msg = data as { sessions: Session[] }
       sessions.value = msg.sessions
