@@ -830,25 +830,39 @@ async function startServer() {
 
                 const title = message.title as string || '新对话'
                 const model = message.model as string || 'qwen-plus'
+                const force = message.force as boolean || false
 
-                sessionManager.hasEmptySession(userId).then(hasEmpty => {
-                  if (hasEmpty) {
-                    ws.send(JSON.stringify({ type: 'error', message: '您已有空会话,请先使用现有会话' }))
-                    return
-                  }
+                // 如果不是强制创建，检查用户是否有空会话
+                if (!force) {
+                  sessionManager.hasEmptySession(userId).then(hasEmpty => {
+                    if (hasEmpty) {
+                      ws.send(JSON.stringify({ type: 'error', message: '您已有空会话,请先使用现有会话' }))
+                      return
+                    }
 
-                  sessionManager.createSession(userId, title, model).then(session => {
+                    sessionManager.createSession(userId, title, model).then(session => {
+                      wsData.sessionId = session.id
+                      console.log(`[WS] Session created: ${session.id} for user ${userId}`)
+                      ws.send(JSON.stringify({ type: 'session_created', session }))
+                    }).catch(err => {
+                      console.error('[WS] Failed to create session:', err)
+                      sendEvent('error', { message: 'Failed to create session' })
+                    })
+                  }).catch(err => {
+                    console.error('[WS] Failed to check empty session:', err)
+                    sendEvent('error', { message: 'Failed to check empty session' })
+                  })
+                } else {
+                  // 强制创建，跳过验证
+                  sessionManager.createSession(userId, title, model, true).then(session => {
                     wsData.sessionId = session.id
-                    console.log(`[WS] Session created: ${session.id} for user ${userId}`)
+                    console.log(`[WS] Session created (forced): ${session.id} for user ${userId}`)
                     ws.send(JSON.stringify({ type: 'session_created', session }))
                   }).catch(err => {
                     console.error('[WS] Failed to create session:', err)
                     sendEvent('error', { message: 'Failed to create session' })
                   })
-                }).catch(err => {
-                  console.error('[WS] Failed to check empty session:', err)
-                  sendEvent('error', { message: 'Failed to check empty session' })
-                })
+                }
               }
               break
 

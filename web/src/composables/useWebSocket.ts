@@ -521,11 +521,18 @@ class EnhancedWebSocketClient {
 
   // ==================== 公共 API 方法 ====================
 
-  createSession(title?: string, model?: string): void {
+  /**
+   * 创建新会话
+   * @param title 会话标题
+   * @param model 使用的模型
+   * @param force 是否强制创建（跳过验证）
+   */
+  createSession(title?: string, model?: string, force?: boolean): void {
     this.send({
       type: 'create_session',
       title: title || '新对话',
       model: model || 'qwen-plus',
+      force: force || false,
     })
   }
 

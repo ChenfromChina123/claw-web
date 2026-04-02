@@ -76,7 +76,9 @@ export const useChatStore = defineStore('chat', () => {
      * 使用响应式更新确保界面实时刷新
      */
     wsClient.on('content_block_delta', (data: unknown) => {
-      const msg = data as { text: string; sessionId?: string }
+      // 后端发送的消息格式: { type: 'event', event: 'content_block_delta', data: { text: '...' } }
+      const message = data as { type: string; event: string; data: { text: string; sessionId?: string } }
+      const msg = message.data
       const lastIndex = messages.value.length - 1
       const lastMsg = messages.value[lastIndex]
       
@@ -99,7 +101,9 @@ export const useChatStore = defineStore('chat', () => {
     })
     
     wsClient.on('tool_use', (data: unknown) => {
-      const msg = data as { id: string; name: string; input: Record<string, unknown> }
+      // 后端发送的消息格式: { type: 'event', event: 'tool_use', data: { id: '...', name: '...', input: {...} } }
+      const message = data as { type: string; event: string; data: { id: string; name: string; input: Record<string, unknown> } }
+      const msg = message.data
       toolCalls.value.push({
         id: msg.id,
         name: msg.name,
@@ -109,7 +113,9 @@ export const useChatStore = defineStore('chat', () => {
     })
     
     wsClient.on('tool_end', (data: unknown) => {
-      const msg = data as { id: string; result: unknown }
+      // 后端发送的消息格式: { type: 'event', event: 'tool_end', data: { id: '...', result: {...} } }
+      const message = data as { type: string; event: string; data: { id: string; result: unknown } }
+      const msg = message.data
       const tool = toolCalls.value.find(t => t.id === msg.id)
       if (tool) {
         tool.status = 'completed'
@@ -118,7 +124,9 @@ export const useChatStore = defineStore('chat', () => {
     })
     
     wsClient.on('tool_error', (data: unknown) => {
-      const msg = data as { id: string; error: string }
+      // 后端发送的消息格式: { type: 'event', event: 'tool_error', data: { id: '...', error: '...' } }
+      const message = data as { type: string; event: string; data: { id: string; error: string } }
+      const msg = message.data
       const tool = toolCalls.value.find(t => t.id === msg.id)
       if (tool) {
         tool.status = 'error'
@@ -136,11 +144,13 @@ export const useChatStore = defineStore('chat', () => {
    * 创建新会话
    * @param title 会话标题
    * @param model 使用的模型
+   * @param force 是否强制创建（跳过验证）
    * @returns Promise，在会话创建成功后 resolve
-   * @throws 如果当前会话没有消息，抛出错误
+   * @throws 如果当前会话没有消息且未强制创建，抛出错误
    */
-  function createSession(title?: string, model?: string): Promise<void> {
-    if (messages.value.length === 0) {
+  function createSession(title?: string, model?: string, force?: boolean): Promise<void> {
+    // 如果不是强制创建，检查当前会话是否有消息
+    if (!force && messages.value.length === 0) {
       return Promise.reject(new Error('当前会话没有消息，无法创建新会话'))
     }
     
@@ -166,7 +176,7 @@ export const useChatStore = defineStore('chat', () => {
         reject(new Error('创建会话超时'))
       }, timeout)
       
-      wsClient.createSession(title, model)
+      wsClient.createSession(title, model, force)
     })
   }
   

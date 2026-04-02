@@ -29,14 +29,13 @@ onMounted(async () => {
     // 获取会话列表
     await chatStore.listSessions()
     
-    // 创建默认会话（如果没有会话）
-    if (chatStore.sessions.length === 0) {
-      await chatStore.createSession()
-    } else if (chatStore.currentSessionId) {
-      await chatStore.loadSession(chatStore.currentSessionId)
-    } else if (chatStore.sessions.length > 0) {
-      // 有会话但没有当前会话，加载第一个
+    // 加载或创建会话
+    if (chatStore.sessions.length > 0) {
+      // 有会话，加载第一个
       await chatStore.loadSession(chatStore.sessions[0].id)
+    } else {
+      // 没有会话，强制创建第一个会话
+      await chatStore.createSession(undefined, undefined, true)
     }
     
     // 聚焦输入框
