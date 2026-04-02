@@ -179,7 +179,7 @@ function handleGoogleLogin(): void {
             <button class="footer-link" @click="router.push('/register')">
               注册账号 →
             </button>
-            <button class="footer-link">
+            <button class="footer-link" @click="router.push('/forgot-password')">
               忘记密码?
             </button>
           </NSpace>
