@@ -61,7 +61,8 @@ export const useChatStore = defineStore('chat', () => {
     /**
      * 处理消息开始事件
      */
-    wsClient.on('message_start', () => {
+    wsClient.on('message_start', (data: unknown) => {
+      console.log('[Chat] message_start event received:', data)
       isLoading.value = true
       // 添加空的 assistant 消息
       messages.value.push({
@@ -76,6 +77,7 @@ export const useChatStore = defineStore('chat', () => {
      * 使用响应式更新确保界面实时刷新
      */
     wsClient.on('content_block_delta', (data: unknown) => {
+      console.log('[Chat] content_block_delta event received:', data)
       // 后端发送的消息格式: { type: 'event', event: 'content_block_delta', data: { text: '...' } }
       const message = data as { type: string; event: string; data: { text: string; sessionId?: string } }
       const msg = message.data
@@ -90,6 +92,7 @@ export const useChatStore = defineStore('chat', () => {
           content: lastMsg.content + msg.text
         }
         messages.value = updatedMessages
+        console.log('[Chat] Updated message content:', updatedMessages[lastIndex].content)
       }
     })
     
