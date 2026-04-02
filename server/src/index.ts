@@ -1032,7 +1032,7 @@ async function startServer() {
                   uptime: process.uptime(),
                   memory: process.memoryUsage(),
                   connections: wsManager.getAllConnections().size,
-                  sessions: sessionManager.getAllSessions().length,
+                  sessions: wsManager.getActiveSessions().size,
                   models: AVAILABLE_MODELS,
                 }
                 ws.send(JSON.stringify(status))
@@ -1241,7 +1241,7 @@ function initializeRPCMethods() {
       code: { type: 'string', required: true },
     },
     execute: async (params) => {
-      return await authService.register(params as RegisterRequest)
+      return await authService.register(params as unknown as RegisterRequest)
     },
   })
 
@@ -1253,7 +1253,7 @@ function initializeRPCMethods() {
       password: { type: 'string', required: true },
     },
     execute: async (params) => {
-      return await authService.login(params as LoginRequest)
+      return await authService.login(params as unknown as LoginRequest)
     },
   })
 

@@ -212,6 +212,16 @@ export class WebSocketManager {
     return this.connections
   }
 
+  getActiveSessions(): Set<string> {
+    const sessions = new Set<string>()
+    for (const [, conn] of this.connections) {
+      if (conn.sessionId) {
+        sessions.add(conn.sessionId)
+      }
+    }
+    return sessions
+  }
+
   // ==================== Message Handling ====================
 
   private handleMessage(connection: WebSocketConnection, rawMessage: string | Buffer): void {

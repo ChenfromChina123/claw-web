@@ -19,6 +19,16 @@
     },
     "types": [
       "bun-types"
-    ]
-  }
+    ],
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "web",
+    "web/dist",
+    "**/*.js"
+  ]
 }
