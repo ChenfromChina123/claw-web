@@ -73,9 +73,9 @@ export const WebFetchTool = buildTool({
     const { url } = input as { url: string }
     try {
       const hostname = new URL(url).hostname
-      return `Claude wants to fetch content from ${hostname}`
+      return `Claude 想要从 ${hostname} 获取内容`
     } catch {
-      return `Claude wants to fetch content from this URL`
+      return `Claude 想要从这个 URL 获取内容`
     }
   },
   userFacingName() {
@@ -105,7 +105,7 @@ export const WebFetchTool = buildTool({
     const appState = context.getAppState()
     const permissionContext = appState.toolPermissionContext
 
-    // Check if the hostname is in the preapproved list
+    // 检查主机名是否在预批准列表中
     try {
       const { url } = input as { url: string }
       const parsedUrl = new URL(url)
@@ -117,10 +117,10 @@ export const WebFetchTool = buildTool({
         }
       }
     } catch {
-      // If URL parsing fails, continue with normal permission checks
+      // 如果 URL 解析失败，继续进行常规权限检查
     }
 
-    // Check for a rule specific to the tool input (matching hostname)
+    // 检查特定于工具输入的规则（匹配主机名）
     const ruleContent = webFetchToolInputToPermissionRuleContent(input)
 
     const denyRule = getRuleByContentsForTool(
@@ -147,7 +147,7 @@ export const WebFetchTool = buildTool({
     if (askRule) {
       return {
         behavior: 'ask',
-        message: `Claude requested permissions to use ${WebFetchTool.name}, but you haven't granted it yet.`,
+        message: `Claude 请求使用 ${WebFetchTool.name} 的权限，但您尚未授予。`,
         decisionReason: {
           type: 'rule',
           rule: askRule,
@@ -174,18 +174,18 @@ export const WebFetchTool = buildTool({
 
     return {
       behavior: 'ask',
-      message: `Claude requested permissions to use ${WebFetchTool.name}, but you haven't granted it yet.`,
+      message: `Claude 请求使用 ${WebFetchTool.name} 的权限，但您尚未授予。`,
       suggestions: buildSuggestions(ruleContent),
     }
   },
   async prompt(_options) {
-    // Always include the auth warning regardless of whether ToolSearch is
-    // currently in the tools list. Conditionally toggling this prefix based
-    // on ToolSearch availability caused the tool description to flicker
-    // between SDK query() calls (when ToolSearch enablement varies due to
-    // MCP tool count thresholds), invalidating the Anthropic API prompt
-    // cache on each toggle — two consecutive cache misses per flicker event.
-    return `IMPORTANT: WebFetch WILL FAIL for authenticated or private URLs. Before using this tool, check if the URL points to an authenticated service (e.g. Google Docs, Confluence, Jira, GitHub). If so, look for a specialized MCP tool that provides authenticated access.
+    // 始终包含认证警告，无论 ToolSearch 是否当前在工具列表中。
+    // 根据 ToolSearch 可用性条件性地切换此前缀会导致在 SDK query() 调用之间工具描述闪烁
+    //（当由于 MCP 工具数量阈值导致 ToolSearch 启用状态变化时），
+    // 从而在每次切换时使 Anthropic API 提示缓存失效——每次闪烁事件导致两次连续缓存未命中。
+    return `重要提示：WebFetch 对于已认证或私有的 URL 将失败。在使用此工具之前，
+    请检查 URL 是否指向已认证的服务（如 Google Docs、Confluence、Jira、GitHub）。
+    如果是，请寻找提供已认证访问的专用 MCP 工具。
 ${DESCRIPTION}`
   },
   async validateInput(input) {
@@ -213,7 +213,7 @@ ${DESCRIPTION}`
 
     const response = await getURLMarkdownContent(url, abortController)
 
-    // Check if we got a redirect to a different host
+    // 检查是否重定向到不同的主机
     if ('type' in response && response.type === 'redirect') {
       const statusText =
         response.statusCode === 301
@@ -277,11 +277,10 @@ To complete your request, I need to fetch content from the redirected URL. Pleas
       )
     }
 
-    // Binary content (PDFs, etc.) was additionally saved to disk with a
-    // mime-derived extension. Note it so Claude can inspect the raw file
-    // if the Haiku summary above isn't enough.
+    // 二进制内容（PDF 等）会被额外保存到磁盘，使用 mime 派生的扩展名。
+    // 注明这一点，以便 Claude 可以在 Haiku 摘要不够时检查原始文件。
     if (persistedPath) {
-      result += `\n\n[Binary content (${contentType}, ${formatFileSize(persistedSize ?? bytes)}) also saved to ${persistedPath}]`
+      result += `\n\n[二进制内容 (${contentType}, ${formatFileSize(persistedSize ?? bytes)}) 也已保存到 ${persistedPath}]`
     }
 
     const output: Output = {

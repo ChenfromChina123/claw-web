@@ -163,18 +163,18 @@ export const WebSearchTool = buildTool({
   getToolUseSummary,
   getActivityDescription(input) {
     const summary = getToolUseSummary(input)
-    return summary ? `Searching for ${summary}` : 'Searching the web'
+    return summary ? `正在搜索 ${summary}` : '正在搜索网络'
   },
   isEnabled() {
     const provider = getAPIProvider()
     const model = getMainLoopModel()
 
-    // Enable for firstParty
+    // 为第一个Party启用
     if (provider === 'firstParty') {
       return true
     }
 
-    // Enable for Vertex AI with supported models (Claude 4.0+)
+    // 为支持 Web Search 的 Vertex AI 启用（Claude 4.0+）
     if (provider === 'vertex') {
       const supportsWebSearch =
         model.includes('claude-opus-4') ||
@@ -209,7 +209,7 @@ export const WebSearchTool = buildTool({
   async checkPermissions(_input): Promise<PermissionResult> {
     return {
       behavior: 'passthrough',
-      message: 'WebSearchTool requires permission.',
+      message: 'WebSearchTool 需要权限。',
       suggestions: [
         {
           type: 'addRules',
@@ -227,9 +227,9 @@ export const WebSearchTool = buildTool({
   renderToolUseProgressMessage,
   renderToolResultMessage,
   extractSearchText() {
-    // renderToolResultMessage shows only "Did N searches in Xs" chrome —
-    // the results[] content never appears on screen. Heuristic would index
-    // string entries in results[] (phantom match). Nothing to search.
+    // renderToolResultMessage 只显示 "Did N searches in Xs" 效果 —
+    // results[] 内容从不显示在屏幕上。启发式会索引
+    // results[] 中的字符串条目（幽灵匹配）。没有可搜索的内容。
     return ''
   },
   async validateInput(input) {
@@ -255,7 +255,7 @@ export const WebSearchTool = buildTool({
     const startTime = performance.now()
     const { query } = input
     const userMessage = createUserMessage({
-      content: 'Perform a web search for the query: ' + query,
+      content: '为此查询执行网络搜索：' + query,
     })
     const toolSchema = makeToolSchema(input)
 
@@ -294,7 +294,7 @@ export const WebSearchTool = buildTool({
     let currentToolUseId = null
     let currentToolUseJson = ''
     let progressCounter = 0
-    const toolUseQueries = new Map() // Map of tool_use_id to query
+    const toolUseQueries = new Map() // 工具使用 ID 到查询的映射
 
     for await (const event of queryStream) {
       if (event.type === 'assistant') {
@@ -317,7 +317,7 @@ export const WebSearchTool = buildTool({
         }
       }
 
-      // Accumulate JSON for current tool use
+      // 为当前工具使用累积 JSON
       if (
         currentToolUseId &&
         event.type === 'stream_event' &&
@@ -327,9 +327,9 @@ export const WebSearchTool = buildTool({
         if (delta?.type === 'input_json_delta' && delta.partial_json) {
           currentToolUseJson += delta.partial_json
 
-          // Try to extract query from partial JSON for progress updates
+          // 尝试从部分 JSON 中提取查询以进行进度更新
           try {
-            // Look for a complete query field
+            // 查找完整的 query 字段
             const queryMatch = currentToolUseJson.match(
               /"query"\s*:\s*"((?:[^"\\]|\\.)*)"/,
             )
@@ -355,12 +355,12 @@ export const WebSearchTool = buildTool({
               }
             }
           } catch {
-            // Ignore parsing errors for partial JSON
+            // 忽略部分 JSON 的解析错误
           }
         }
       }
 
-      // Yield progress when search results come in
+      // 当搜索结果到来时产生进度
       if (
         event.type === 'stream_event' &&
         event.event?.type === 'content_block_start'
@@ -387,7 +387,7 @@ export const WebSearchTool = buildTool({
       }
     }
 
-    // Process the final result
+    // 处理最终结果
     const endTime = performance.now()
     const durationSeconds = (endTime - startTime) / 1000
 
@@ -401,11 +401,11 @@ export const WebSearchTool = buildTool({
   mapToolResultToToolResultBlockParam(output, toolUseID) {
     const { query, results } = output
 
-    let formattedOutput = `Web search results for query: "${query}"\n\n`
+    let formattedOutput = `网络搜索结果查询："${query}"\n\n`
 
-    // Process the results array - it can contain both string summaries and search result objects.
-    // Guard against null/undefined entries that can appear after JSON round-tripping
-    // (e.g., from compaction or transcript deserialization).
+    // 处理结果数组 — 它可以同时包含字符串摘要和搜索结果对象。
+    // 防止 JSON 往返后可能出现的空/未定义条目
+    //（例如来自压缩或转录反序列化）。
     ;(results ?? []).forEach(result => {
       if (result == null) {
         return
@@ -424,7 +424,7 @@ export const WebSearchTool = buildTool({
     })
 
     formattedOutput +=
-      '\nREMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks.'
+      '\n提醒：您必须在回复中使用 markdown 超链接包含上述来源。'
 
     return {
       tool_use_id: toolUseID,

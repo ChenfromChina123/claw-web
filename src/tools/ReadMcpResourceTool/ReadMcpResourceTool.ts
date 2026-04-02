@@ -79,16 +79,16 @@ export const ReadMcpResourceTool = buildTool({
 
     if (!client) {
       throw new Error(
-        `Server "${serverName}" not found. Available servers: ${mcpClients.map(c => c.name).join(', ')}`,
+        `未找到服务器 "${serverName}"。可用服务器：${mcpClients.map(c => c.name).join(', ')}`,
       )
     }
 
     if (client.type !== 'connected') {
-      throw new Error(`Server "${serverName}" is not connected`)
+      throw new Error(`服务器 "${serverName}" 未连接`)
     }
 
     if (!client.capabilities?.resources) {
-      throw new Error(`Server "${serverName}" does not support resources`)
+      throw new Error(`服务器 "${serverName}" 不支持资源`)
     }
 
     const connectedClient = await ensureConnectedClient(client)
@@ -100,9 +100,9 @@ export const ReadMcpResourceTool = buildTool({
       ReadResourceResultSchema,
     )) as ReadResourceResult
 
-    // Intercept any blob fields: decode, write raw bytes to disk with a
-    // mime-derived extension, and replace with a path. Otherwise the base64
-    // would be stringified straight into the context.
+    // 拦截任何 blob 字段：解码，将原始字节写入磁盘并使用
+    // mime 派生的扩展名，并用路径替换。否则 base64
+    // 将被直接字符串化到上下文中。
     const contents = await Promise.all(
       result.contents.map(async (c, i) => {
         if ('text' in c) {
@@ -121,7 +121,7 @@ export const ReadMcpResourceTool = buildTool({
           return {
             uri: c.uri,
             mimeType: c.mimeType,
-            text: `Binary content could not be saved to disk: ${persisted.error}`,
+            text: `二进制内容无法保存到磁盘：${persisted.error}`,
           }
         }
         return {
@@ -132,7 +132,7 @@ export const ReadMcpResourceTool = buildTool({
             persisted.filepath,
             c.mimeType,
             persisted.size,
-            `[Resource from ${serverName} at ${c.uri}] `,
+            `[来自 ${serverName} 于 ${c.uri} 的资源] `,
           ),
         }
       }),

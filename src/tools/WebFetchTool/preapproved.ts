@@ -130,9 +130,8 @@ export const PREAPPROVED_HOSTS = new Set([
   'httpd.apache.org', // Apache HTTP Server
 ])
 
-// Split once at module load so lookups are O(1) Set.has() for the common
-// hostname-only case, falling back to a small per-host path-prefix list
-// for the handful of path-scoped entries (e.g., "github.com/anthropics").
+// 在模块加载时拆分一次，这样查找对于纯主机名情况是 O(1) Set.has()，
+// 对于少数路径作用域条目（如 "github.com/anthropics"）则回退到每个主机的路径前缀列表。
 const { HOSTNAME_ONLY, PATH_PREFIXES } = (() => {
   const hosts = new Set<string>()
   const paths = new Map<string, string[]>()
@@ -156,9 +155,8 @@ export function isPreapprovedHost(hostname: string, pathname: string): boolean {
   const prefixes = PATH_PREFIXES.get(hostname)
   if (prefixes) {
     for (const p of prefixes) {
-      // Enforce path segment boundaries: "/anthropics" must not match
-      // "/anthropics-evil/malware". Only exact match or a "/" after the
-      // prefix is allowed.
+      // 强制执行路径段边界："/anthropics" 不能匹配
+      // "/anthropics-evil/malware"。只允许完全匹配或前缀后的 "/"。
       if (pathname === p || pathname.startsWith(p + '/')) return true
     }
   }

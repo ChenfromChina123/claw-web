@@ -17,7 +17,7 @@ import { asSystemPrompt } from '../../utils/systemPromptType.js'
 import { isPreapprovedHost } from './preapproved.js'
 import { makeSecondaryModelPrompt } from './prompt.js'
 
-// Custom error classes for domain blocking
+// 用于域名阻止的自定义错误类
 class DomainBlockedError extends Error {
   constructor(domain: string) {
     super(`Claude Code is unable to fetch from ${domain}`)
@@ -28,7 +28,7 @@ class DomainBlockedError extends Error {
 class DomainCheckFailedError extends Error {
   constructor(domain: string) {
     super(
-      `Unable to verify if domain ${domain} is safe to fetch. This may be due to network restrictions or enterprise security policies blocking claude.ai.`,
+      `无法验证域名 ${domain} 是否可以安全获取。这可能是由于网络限制或企业安全策略阻止了 claude.ai 的访问。`,
     )
     this.name = 'DomainCheckFailedError'
   }
@@ -47,7 +47,7 @@ class EgressBlockedError extends Error {
   }
 }
 
-// Cache for storing fetched URL content
+// 用于存储获取的 URL 内容的缓存
 type CacheEntry = {
   bytes: number
   code: number
@@ -58,9 +58,9 @@ type CacheEntry = {
   persistedSize?: number
 }
 
-// Cache with 15-minute TTL and 50MB size limit
-// LRUCache handles automatic expiration and eviction
-const CACHE_TTL_MS = 15 * 60 * 1000 // 15 minutes
+// 缓存配置：15分钟 TTL，50MB 大小限制
+// LRUCache 处理自动过期和驱逐
+const CACHE_TTL_MS = 15 * 60 * 1000 // 15 分钟
 const MAX_CACHE_SIZE_BYTES = 50 * 1024 * 1024 // 50MB
 
 const URL_CACHE = new LRUCache<string, CacheEntry>({
@@ -68,13 +68,13 @@ const URL_CACHE = new LRUCache<string, CacheEntry>({
   ttl: CACHE_TTL_MS,
 })
 
-// Separate cache for preflight domain checks. URL_CACHE is URL-keyed, so
-// fetching two paths on the same domain triggers two identical preflight
-// HTTP round-trips to api.anthropic.com. This hostname-keyed cache avoids
-// that. Only 'allowed' is cached — blocked/failed re-check on next attempt.
+// 单独用于域名预检检查的缓存。
+// URL_CACHE 按 URL 键控，因此在同一域上获取两个路径会触发两次相同的预检
+// 到 api.anthropic.com 的 HTTP 往返。此主机名键控缓存可避免这种情况。
+// 只缓存 'allowed' — blocked/failed 在下次尝试时重新检查。
 const DOMAIN_CHECK_CACHE = new LRUCache<string, true>({
   max: 128,
-  ttl: 5 * 60 * 1000, // 5 minutes — shorter than URL_CACHE TTL
+  ttl: 5 * 60 * 1000, // 5 分钟 — 比 URL_CACHE TTL 短
 })
 
 export function clearWebFetchCache(): void {
@@ -82,11 +82,11 @@ export function clearWebFetchCache(): void {
   DOMAIN_CHECK_CACHE.clear()
 }
 
-// Lazy singleton — defers the turndown → @mixmark-io/domino import (~1.4MB
-// retained heap) until the first HTML fetch, and reuses one instance across
-// calls (construction builds 15 rule objects; .turndown() is stateless).
-// @types/turndown ships only `export =` (no .d.mts), so TS types the import
-// as the class itself while Bun wraps CJS in { default } — hence the cast.
+// 延迟单例 — 将 turndown → @mixmark-io/domino 导入（~1.4MB 保留堆）
+// 延迟到第一次 HTML 获取，并在调用中重用一个实例
+//（构造构建 15 个规则对象；.turndown() 是无状态的）。
+// @types/turndown 只提供 `export =`（无 .d.mts），
+// 因此 TS 将导入类型化为类本身，而 Bun 在 { default } 中包装 CJS — 因此进行转换。
 type TurndownCtor = typeof import('turndown')
 let turndownServicePromise: Promise<InstanceType<TurndownCtor>> | undefined
 function getTurndownService(): Promise<InstanceType<TurndownCtor>> {
@@ -105,23 +105,22 @@ function getTurndownService(): Promise<InstanceType<TurndownCtor>> {
 // so I'm removing that length restriction. -ab
 const MAX_URL_LENGTH = 2000
 
-// Per PSR:
-// "Implement resource consumption controls because setting limits on CPU,
-// memory, and network usage for the Web Fetch tool can prevent a single
-// request or user from overwhelming the system."
+// 按 PSR：
+// "实施资源消耗控制，因为对 Web Fetch 工具设置 CPU、内存和网络使用限制
+// 可能无法防止单个请求或用户压垮系统。"
 const MAX_HTTP_CONTENT_LENGTH = 10 * 1024 * 1024
 
 // Timeout for the main HTTP fetch request (60 seconds).
 // Prevents hanging indefinitely on slow/unresponsive servers.
 const FETCH_TIMEOUT_MS = 60_000
 
-// Timeout for the domain blocklist preflight check (10 seconds).
+// 域名阻止列表预检检查的超时时间（10秒）。
 const DOMAIN_CHECK_TIMEOUT_MS = 10_000
 
-// Cap same-host redirect hops. Without this a malicious server can return
-// a redirect loop (/a → /b → /a …) and the per-request FETCH_TIMEOUT_MS
-// resets on every hop, hanging the tool until user interrupt. 10 matches
-// common client defaults (axios=5, follow-redirects=21, Chrome=20).
+// 限制同主机重定向跳跃次数。
+// 如果没有此限制，恶意服务器可以返回重定向循环（/a → /b → /a …），
+// 并且每次跳跃时重置 per-request FETCH_TIMEOUT_MS，
+// 会挂起工具直到用户中断。10 匹配常见客户端默认值（axios=5, follow-redirects=21, Chrome=20）。
 const MAX_REDIRECTS = 10
 
 // Truncate to not spend too many tokens
@@ -148,17 +147,17 @@ export function validateURL(url: string): boolean {
     return false
   }
 
-  // We don't need to check protocol here, as we'll upgrade http to https when making the request
+  // 我们不需要在这里检查协议，因为发出请求时会将 http 升级为 https
 
-  // As long as we aren't supporting aiming to cookies or internal domains,
-  // we should block URLs with usernames/passwords too, even though these
-  // seem exceedingly unlikely.
+  // 既然我们不支持以 cookies 或内部域为目标，
+  // 我们也应该阻止带有用户名/密码的 URL，
+  // 即使这些情况看起来非常不可能。
   if (parsed.username || parsed.password) {
     return false
   }
 
-  // Initial filter that this isn't a privileged, company-internal URL
-  // by checking that the hostname is publicly resolvable
+  // 通过检查主机名是否公开可解析来进行初始过滤，
+  // 确保这不是特权的企业内部 URL
   const hostname = parsed.hostname
   const parts = hostname.split('.')
   if (parts.length < 2) {
@@ -203,11 +202,11 @@ export async function checkDomainBlocklist(
 }
 
 /**
- * Check if a redirect is safe to follow
- * Allows redirects that:
- * - Add or remove "www." in the hostname
- * - Keep the origin the same but change path/query params
- * - Or both of the above
+ * 检查重定向是否可以安全跟随
+ * 允许以下重定向：
+ * - 在主机名中添加或删除 "www."
+ * - 保持来源相同但更改路径/查询参数
+ * - 或上述两者的组合
  */
 export function isPermittedRedirect(
   originalUrl: string,
@@ -243,14 +242,12 @@ export function isPermittedRedirect(
 }
 
 /**
- * Helper function to handle fetching URLs with custom redirect handling
- * Recursively follows redirects if they pass the redirectChecker function
+ * 使用自定义重定向处理帮助函数获取 URL
+ * 如果重定向通过 redirectChecker 函数则递归跟随重定向
  *
- * Per PSR:
- * "Do not automatically follow redirects because following redirects could
- * allow for an attacker to exploit an open redirect vulnerability in a
- * trusted domain to force a user to make a request to a malicious domain
- * unknowingly"
+ * 按 PSR：
+ * "不要自动跟随重定向，因为跟随重定向可能允许攻击者利用
+ * 信任域中的开放重定向漏洞，迫使用户在不知情的情况下向恶意域发出请求"
  */
 type RedirectInfo = {
   type: 'redirect'
@@ -291,7 +288,7 @@ export async function getWithPermittedRedirects(
         throw new Error('Redirect missing Location header')
       }
 
-      // Resolve relative URLs against the original URL
+      // 根据原始 URL 解析相对 URL
       const redirectUrl = new URL(redirectLocation, url).toString()
 
       if (redirectChecker(url, redirectUrl)) {
@@ -313,8 +310,8 @@ export async function getWithPermittedRedirects(
       }
     }
 
-    // Detect egress proxy blocks: the proxy returns 403 with
-    // X-Proxy-Error: blocked-by-allowlist when egress is restricted
+    // 检测出口代理阻止：代理返回 403 且
+    // X-Proxy-Error: blocked-by-allowlist 表示出口受限
     if (
       axios.isAxiosError(error) &&
       error.response?.status === 403 &&
@@ -380,15 +377,15 @@ export async function getURLMarkdownContent(
 
     const hostname = parsedUrl.hostname
 
-    // Check if the user has opted to skip the blocklist check
-    // This is for enterprise customers with restrictive security policies
-    // that prevent outbound connections to claude.ai
+    // 检查用户是否选择跳过阻止列表检查
+    // 这是针对具有限制性安全策略的企业客户
+    // 阻止与 claude.ai 的出站连接
     const settings = getSettings_DEPRECATED()
     if (!settings.skipWebFetchPreflight) {
       const checkResult = await checkDomainBlocklist(hostname)
       switch (checkResult.status) {
         case 'allowed':
-          // Continue with the fetch
+          // 继续获取
           break
         case 'blocked':
           throw new DomainBlockedError(hostname)
@@ -420,23 +417,23 @@ export async function getURLMarkdownContent(
     isPermittedRedirect,
   )
 
-  // Check if we got a redirect response
+  // 检查是否收到重定向响应
   if (isRedirectInfo(response)) {
     return response
   }
 
   const rawBuffer = Buffer.from(response.data)
-  // Release the axios-held ArrayBuffer copy; rawBuffer owns the bytes now.
-  // This lets GC reclaim up to MAX_HTTP_CONTENT_LENGTH (10MB) before Turndown
-  // builds its DOM tree (which can be 3-5x the HTML size).
+  // 释放 axios 持有的 ArrayBuffer 副本；rawBuffer 现在拥有这些字节。
+  // 这让 GC 可以在 Turndown 构建其 DOM 树之前回收最多 MAX_HTTP_CONTENT_LENGTH (10MB)。
+  //（DOM 树可能是 HTML 大小的 3-5 倍）。
   ;(response as { data: unknown }).data = null
   const contentType = response.headers['content-type'] ?? ''
 
-  // Binary content: save raw bytes to disk with a proper extension so Claude
-  // can inspect the file later. We still fall through to the utf-8 decode +
-  // Haiku path below — for PDFs in particular the decoded string has enough
-  // ASCII structure (/Title, text streams) that Haiku can summarize it, and
-  // the saved file is a supplement rather than a replacement.
+  // 二进制内容：将原始字节保存到磁盘并使用正确的扩展名，
+  // 以便 Claude 以后可以检查文件。
+  // 我们仍然继续下面的 utf-8 解码 + Haiku 路径 —
+  // 对于 PDF，特别是解码后的字符串有足够的 ASCII 结构（/Title、文本流）
+  // Haiku 可以总结它，保存的文件是补充而不是替代。
   let persistedPath: string | undefined
   let persistedSize: number | undefined
   if (isBinaryContentType(contentType)) {
@@ -457,16 +454,15 @@ export async function getURLMarkdownContent(
     markdownContent = (await getTurndownService()).turndown(htmlContent)
     contentBytes = Buffer.byteLength(markdownContent)
   } else {
-    // It's not HTML - just use it raw. The decoded string's UTF-8 byte
-    // length equals rawBuffer.length (modulo U+FFFD replacement on invalid
-    // bytes — negligible for cache eviction accounting), so skip the O(n)
-    // Buffer.byteLength scan.
+    // 不是 HTML — 直接使用。解码字符串的 UTF-8 字节长度等于 rawBuffer.length
+    //（模 U+FFFD 替换无效字节 — 对于缓存驱逐计算可以忽略不计），
+    // 所以跳过 O(n) 的 Buffer.byteLength 扫描。
     markdownContent = htmlContent
     contentBytes = bytes
   }
 
-  // Store the fetched content in cache. Note that it's stored under
-  // the original URL, not the upgraded or redirected URL.
+  // 存储获取的内容到缓存。请注意，它存储在原始 URL 下，
+  // 而不是升级或重定向的 URL。
   const entry: CacheEntry = {
     bytes,
     code: response.status,
@@ -476,7 +472,7 @@ export async function getURLMarkdownContent(
     persistedPath,
     persistedSize,
   }
-  // lru-cache requires positive integers; clamp to 1 for empty responses.
+  // lru-cache 要求正整数；对于空响应钳制为 1。
   URL_CACHE.set(url, entry, { size: Math.max(1, contentBytes) })
   return entry
 }
@@ -513,8 +509,9 @@ export async function applyPromptToMarkdown(
     },
   })
 
-  // We need to bubble this up, so that the tool call throws, causing us to return
-  // an is_error tool_use block to the server, and render a red dot in the UI.
+  // 我们需要冒泡这个错误，以便工具调用抛出，
+  // 导致我们向服务器返回一个 is_error tool_use 块，
+  // 并在 UI 中呈现一个红色圆点。
   if (signal.aborted) {
     throw new AbortError()
   }
@@ -526,5 +523,5 @@ export async function applyPromptToMarkdown(
       return contentBlock.text
     }
   }
-  return 'No response from model'
+  return '模型无响应'
 }

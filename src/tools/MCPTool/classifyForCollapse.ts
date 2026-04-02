@@ -1,13 +1,13 @@
 /**
- * Classify an MCP tool as a search/read operation for UI collapsing.
- * Returns { isSearch: false, isRead: false } for tools that should not
- * collapse (e.g., send_message, create_*, update_*).
+ * 将 MCP 工具分类为搜索/读取操作以进行 UI 折叠。
+ * 对于不应折叠的工具（例如 send_message、create_*、update_*）返回
+ * { isSearch: false, isRead: false }。
  *
- * Uses explicit per-tool allowlists for the most common MCP servers.
- * Tool names are stable across installs (even when the server name varies,
- * e.g., "slack" vs "claude_ai_Slack"), so matching is keyed on the tool
- * name alone after normalizing camelCase/kebab-case to snake_case.
- * Unknown tool names don't collapse (conservative).
+ * 为最常见的 MCP 服务器使用显式的每个工具允许列表。
+ * 工具名称在安装之间是稳定的（即使服务器名称不同，
+ * 例如 "slack" 与 "claude_ai_Slack"），因此匹配按键
+ * 名称进行键控，在将 camelCase/kebab-case 规范化为 snake_case 之后。
+ * 未知工具名称不折叠（保守）。
  */
 
 // prettier-ignore

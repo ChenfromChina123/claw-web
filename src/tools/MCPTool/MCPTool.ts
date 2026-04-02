@@ -10,7 +10,7 @@ import {
   renderToolUseProgressMessage,
 } from './UI.js'
 
-// Allow any input object since MCP tools define their own schemas
+// 允许任何输入对象，因为 MCP 工具定义自己的模式
 export const inputSchema = lazySchema(() => z.object({}).passthrough())
 type InputSchema = ReturnType<typeof inputSchema>
 
@@ -26,18 +26,18 @@ export type { MCPProgress } from '../../types/tools.js'
 
 export const MCPTool = buildTool({
   isMcp: true,
-  // Overridden in mcpClient.ts with the real MCP tool name + args
+  // 在 mcpClient.ts 中用真实的 MCP 工具名称 + 参数覆盖
   isOpenWorld() {
     return false
   },
-  // Overridden in mcpClient.ts
+  // 在 mcpClient.ts 中覆盖
   name: 'mcp',
   maxResultSizeChars: 100_000,
-  // Overridden in mcpClient.ts
+  // 在 mcpClient.ts 中覆盖
   async description() {
     return DESCRIPTION
   },
-  // Overridden in mcpClient.ts
+  // 在 mcpClient.ts 中覆盖
   async prompt() {
     return PROMPT
   },
@@ -47,7 +47,7 @@ export const MCPTool = buildTool({
   get outputSchema(): OutputSchema {
     return outputSchema()
   },
-  // Overridden in mcpClient.ts
+  // 在 mcpClient.ts 中覆盖
   async call() {
     return {
       data: '',
@@ -56,11 +56,11 @@ export const MCPTool = buildTool({
   async checkPermissions(): Promise<PermissionResult> {
     return {
       behavior: 'passthrough',
-      message: 'MCPTool requires permission.',
+      message: 'MCPTool 需要权限。',
     }
   },
   renderToolUseMessage,
-  // Overridden in mcpClient.ts
+  // 在 mcpClient.ts 中覆盖
   userFacingName: () => 'mcp',
   renderToolUseProgressMessage,
   renderToolResultMessage,
