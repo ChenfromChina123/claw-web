@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { NInput, NButton, NSpace, NTooltip } from 'naive-ui'
+import { NInput, NButton } from 'naive-ui'
 
 const props = defineProps<{
   disabled?: boolean
@@ -14,12 +14,19 @@ const emit = defineEmits<{
 const inputValue = ref('')
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
 
+/**
+ * 处理发送消息
+ */
 function handleSend() {
   if (!inputValue.value.trim() || props.disabled) return
   emit('send', inputValue.value)
   inputValue.value = ''
 }
 
+/**
+ * 处理键盘按下事件
+ * @param e 键盘事件对象
+ */
 function handleKeyDown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
@@ -27,10 +34,16 @@ function handleKeyDown(e: KeyboardEvent) {
   }
 }
 
+/**
+ * 处理输入框聚焦
+ */
 function handleFocus() {
   emit('focus')
 }
 
+/**
+ * 处理清空输入
+ */
 function handleClear() {
   inputValue.value = ''
   inputRef.value?.focus()
@@ -44,6 +57,16 @@ defineExpose({
 
 <template>
   <div class="chat-input">
+    <div class="input-actions">
+      <NButton 
+        type="primary" 
+        size="small"
+        :disabled="!inputValue.trim() || disabled"
+        @click="handleSend"
+      >
+        发送
+      </NButton>
+    </div>
     <div class="input-wrapper">
       <NInput
         ref="inputRef"
@@ -56,29 +79,6 @@ defineExpose({
         @focus="handleFocus"
       />
     </div>
-    <div class="input-actions">
-      <NSpace>
-        <NTooltip>
-          <template #trigger>
-            <NButton text size="small" @click="handleClear">
-              🗑️
-            </NButton>
-          </template>
-          清空输入
-        </NTooltip>
-      </NSpace>
-      <NButton 
-        type="primary" 
-        :disabled="!inputValue.trim() || disabled"
-        @click="handleSend"
-      >
-        发送
-      </NButton>
-    </div>
-    <div class="input-hint">
-      <span>按 Enter 发送，Shift+Enter 换行</span>
-      <span class="command-hint">输入 <code>/</code> 使用命令</span>
-    </div>
   </div>
 </template>
 
@@ -86,10 +86,13 @@ defineExpose({
 .chat-input {
   max-width: 900px;
   margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .input-wrapper {
-  margin-bottom: 8px;
+  flex: 1;
 }
 
 .input-wrapper :deep(.n-input) {
@@ -105,22 +108,40 @@ defineExpose({
 
 .input-actions {
   display: flex;
-  justify-content: space-between;
   align-items: center;
 }
 
-.input-hint {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-top: 8px;
+/* 统一按钮样式 */
+.input-actions :deep(.n-button) {
+  --n-color: #6366f1;
+  --n-color-hover: #818cf8;
+  --n-color-pressed: #4f46e5;
+  --n-color-focus: #818cf8;
+  --n-color-disabled: rgba(99, 102, 241, 0.5);
+  --n-text-color: #ffffff;
+  --n-text-color-hover: #ffffff;
+  --n-text-color-pressed: #ffffff;
+  --n-text-color-focus: #ffffff;
+  --n-text-color-disabled: rgba(255, 255, 255, 0.5);
+  --n-border: none;
+  --n-border-hover: none;
+  --n-border-pressed: none;
+  --n-border-focus: none;
+  --n-border-disabled: none;
+  --n-height: 40px;
+  --n-font-size: 14px;
+  --n-padding: 0 20px;
+  --n-border-radius: 10px;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
-.command-hint code {
-  background: var(--bg-tertiary);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: monospace;
+.input-actions :deep(.n-button:not(:disabled):hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.input-actions :deep(.n-button:not(:disabled):active) {
+  transform: translateY(0);
 }
 </style>

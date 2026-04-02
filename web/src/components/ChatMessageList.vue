@@ -132,7 +132,6 @@ const statsSummary = computed(() => {
         <div class="messages-container">
           <!-- 欢迎消息 -->
           <div v-if="messages.length === 0 && !isLoading" class="welcome">
-            <div class="welcome-icon">🤖</div>
             <h2>欢迎使用 Claude Code</h2>
             <p>我是您的 AI 助手，可以帮助您完成各种任务。</p>
             <div class="welcome-features">
@@ -360,11 +359,6 @@ const statsSummary = computed(() => {
 .welcome {
   text-align: center;
   padding: 60px 20px;
-}
-
-.welcome-icon {
-  font-size: 64px;
-  margin-bottom: 20px;
 }
 
 .welcome h2 {

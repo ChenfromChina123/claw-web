@@ -67,10 +67,9 @@ function formatTime(date: Date | string) {
     bordered
     :width="280"
     :collapsed-width="0"
-    :collapsed="collapsed"
+    v-model:collapsed="collapsed"
     show-trigger
     content-style="padding: 0;"
-    @update:collapsed="collapsed = !collapsed"
   >
     <div class="sidebar">
       <!-- 头部 -->

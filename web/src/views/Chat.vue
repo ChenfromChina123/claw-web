@@ -227,6 +227,11 @@ function handleCommandSelect(command: string): void {
   border-radius: 16px !important;
   padding: 4px !important;
   transition: all var(--transition-normal, 250ms) ease;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
 }
 
 .input-container:hover {
