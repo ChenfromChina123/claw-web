@@ -82,7 +82,7 @@ import {
   type ThinkingConfig,
 } from './utils/thinking.js'
 
-// Lazy: MessageSelector.tsx pulls React/ink; only needed for message filtering at query time
+// 延迟加载：MessageSelector.tsx 拉取 React/ink；仅在查询时需要用于消息过滤
 /* eslint-disable @typescript-eslint/no-require-imports */
 const messageSelector =
   (): typeof import('src/components/MessageSelector.js') =>
@@ -107,7 +107,7 @@ import {
   normalizeMessage,
 } from './utils/queryHelpers.js'
 
-// Dead code elimination: conditional import for coordinator mode
+// 死代码消除：协调器模式的条件导入
 /* eslint-disable @typescript-eslint/no-require-imports */
 const getCoordinatorUserContext: (
   mcpClients: ReadonlyArray<{ name: string }>,
@@ -117,7 +117,7 @@ const getCoordinatorUserContext: (
   : () => ({})
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-// Dead code elimination: conditional import for snip compaction
+// 死代码消除：snip 压缩的条件导入
 /* eslint-disable @typescript-eslint/no-require-imports */
 const snipModule = feature('HISTORY_SNIP')
   ? (require('./services/compact/snipCompact.js') as typeof import('./services/compact/snipCompact.js'))
@@ -149,22 +149,19 @@ export type QueryEngineConfig = {
   jsonSchema?: Record<string, unknown>
   verbose?: boolean
   replayUserMessages?: boolean
-  /** Handler for URL elicitations triggered by MCP tool -32042 errors. */
+  /** 处理由 MCP 工具 -32042 错误触发的 URL 引导。 */
   handleElicitation?: ToolUseContext['handleElicitation']
   includePartialMessages?: boolean
   setSDKStatus?: (status: SDKStatus) => void
   abortController?: AbortController
   orphanedPermission?: OrphanedPermission
   /**
-   * Snip-boundary handler: receives each yielded system message plus the
-   * current mutableMessages store. Returns undefined if the message is not a
-   * snip boundary; otherwise returns the replayed snip result. Injected by
-   * ask() when HISTORY_SNIP is enabled so feature-gated strings stay inside
-   * the gated module (keeps QueryEngine free of excluded strings and testable
-   * despite feature() returning false under bun test). SDK-only: the REPL
-   * keeps full history for UI scrollback and projects on demand via
-   * projectSnippedView; QueryEngine truncates here to bound memory in long
-   * headless sessions (no UI to preserve).
+   * Snip 边界处理程序：接收每个生成的系统消息加上当前的 mutableMessages 存储。
+   * 如果消息不是 snip 边界，则返回 undefined；否则返回重放的 snip 结果。
+   * 当启用 HISTORY_SNIP 时由 ask() 注入，以便特性门控字符串保持在门控模块内部
+   * （使 QueryEngine 不包含被排除的字符串，并在 bun 测试下 feature() 返回 false 时仍可测试）。
+   * 仅 SDK：REPL 保留完整历史记录用于 UI 回滚，并通过 projectSnippedView 按需投影；
+   * QueryEngine 在此处截断以限制长时间无头会话中的内存（没有要保留的 UI）。
    */
   snipReplay?: (
     yieldedSystemMsg: Message,
@@ -173,13 +170,12 @@ export type QueryEngineConfig = {
 }
 
 /**
- * QueryEngine owns the query lifecycle and session state for a conversation.
- * It extracts the core logic from ask() into a standalone class that can be
- * used by both the headless/SDK path and (in a future phase) the REPL.
+ * QueryEngine 拥有对话的查询生命周期和会话状态。
+ * 它将核心逻辑从 ask() 提取到一个独立的类中，可以被无头/SDK 路径
+ * 和（在未来阶段）REPL 使用。
  *
- * One QueryEngine per conversation. Each submitMessage() call starts a new
- * turn within the same conversation. State (messages, file cache, usage, etc.)
- * persists across turns.
+ * 每个对话一个 QueryEngine。每次 submitMessage() 调用在同一对话中开始一个新的回合。
+ * 状态（消息、文件缓存、使用情况等）在回合之间持久化。
  */
 export class QueryEngine {
   private config: QueryEngineConfig
@@ -189,11 +185,9 @@ export class QueryEngine {
   private totalUsage: NonNullableUsage
   private hasHandledOrphanedPermission = false
   private readFileState: FileStateCache
-  // Turn-scoped skill discovery tracking (feeds was_discovered on
-  // tengu_skill_tool_invocation). Must persist across the two
-  // processUserInputContext rebuilds inside submitMessage, but is cleared
-  // at the start of each submitMessage to avoid unbounded growth across
-  // many turns in SDK mode.
+  // 回合范围内的技能发现跟踪（在 tengu_skill_tool_invocation 上提供 was_discovered）。
+  // 必须在 submitMessage 内部的两个 processUserInputContext 重建之间持久化，
+  // 但在每个 submitMessage 开始时清除，以避免在 SDK 模式的多个回合中无限制增长。
   private discoveredSkillNames = new Set<string>()
   private loadedNestedMemoryPaths = new Set<string>()
 
