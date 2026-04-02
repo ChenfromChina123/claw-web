@@ -355,6 +355,19 @@ class EnhancedWebSocketClient {
           this.handleRPCResponse(message as unknown as RPCResponse)
           break
 
+        case 'event':
+          // 处理后端发送的事件消息格式：{type: 'event', event: 'eventName', data: {...}}
+          const eventName = (message as {event?: string}).event
+          const eventData = (message as {data?: unknown}).data
+          if (eventName) {
+            console.log(`[WS] Event received: ${eventName}`, eventData)
+            this.emitEvent(eventName, eventData)
+            this.handleBuiltInEvent(message)
+          } else {
+            console.warn('[WS] Event message missing event field:', message)
+          }
+          break
+
         default:
           this.emitEvent(message.type, message)
           this.handleBuiltInEvent(message)

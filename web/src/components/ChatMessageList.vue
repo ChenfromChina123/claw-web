@@ -72,7 +72,10 @@ const { flowGraph, knowledge } = computed(() => {
   }
 }).value
 
-// 工具分类统计
+// 当前激活的步骤（手风琴效果）
+const activeStep = ref<string | null>(null)
+
+// 工具统计
 const toolStats = computed(() => {
   const stats: Record<string, { count: number; success: number; error: number }> = {}
   
@@ -96,6 +99,77 @@ const statsSummary = computed(() => {
   
   return { total, completed, errors }
 })
+
+/**
+ * 根据工具名称返回对应的图标
+ * @param toolName - 工具名称
+ * @returns 工具图标 emoji
+ */
+function getToolIcon(toolName: string): string {
+  const iconMap: Record<string, string> = {
+    FileRead: '📄',
+    FileList: '📂',
+    Bash: '🐚',
+    Shell: '🐚',
+    Search: '🔍',
+    Grep: '🔍',
+    Edit: '📝',
+    Write: '✍️',
+    Delete: '🗑️',
+    Git: '🔀'
+  }
+  return iconMap[toolName] || '🔧'
+}
+
+/**
+ * 根据工具调用状态返回标签类型
+ * @param status - 工具调用状态
+ * @returns naivue-ui NTag 组件的 type 属性值
+ */
+function getStatusType(status: string): string {
+  const statusTypeMap: Record<string, string> = {
+    completed: 'success',
+    error: 'error',
+    executing: 'warning',
+    pending: 'info'
+  }
+  return statusTypeMap[status] || 'default'
+}
+
+/**
+ * 生成工具调用的智能摘要
+ * @param toolCall - 工具调用对象
+ * @returns 摘要文本
+ */
+function getShortSummary(toolCall: ToolCall): string {
+  switch (toolCall.name) {
+    case 'FileRead':
+      const readPath = (toolCall.input as any)?.path || '未知文件'
+      return `读取文件：${readPath}`
+    case 'FileList':
+      const listPath = (toolCall.input as any)?.path || '未知目录'
+      return `浏览目录：${listPath}`
+    case 'Bash':
+    case 'Shell':
+      const command = (toolCall.input as any)?.command || ''
+      const shortCmd = command.length > 50 ? command.substring(0, 50) + '...' : command
+      return `执行命令：${shortCmd}`
+    default:
+      return '点击查看详情'
+  }
+}
+
+/**
+ * 处理步骤点击事件，实现手风琴效果
+ * @param toolCallId - 工具调用 ID
+ */
+function handleStepClick(toolCallId: string) {
+  if (activeStep.value === toolCallId) {
+    activeStep.value = null
+  } else {
+    activeStep.value = toolCallId
+  }
+}
 </script>
 
 <template>
