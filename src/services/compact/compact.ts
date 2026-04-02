@@ -122,25 +122,24 @@ import {
 export const POST_COMPACT_MAX_FILES_TO_RESTORE = 5
 export const POST_COMPACT_TOKEN_BUDGET = 50_000
 export const POST_COMPACT_MAX_TOKENS_PER_FILE = 5_000
-// Skills can be large (verify=18.7KB, claude-api=20.1KB). Previously re-injected
-// unbounded on every compact → 5-10K tok/compact. Per-skill truncation beats
-// dropping — instructions at the top of a skill file are usually the critical
-// part. Budget sized to hold ~5 skills at the per-skill cap.
+// 技能可能很大（verify=18.7KB，claude-api=20.1KB）。之前每次压缩时无界重新注入
+// → 每次压缩5-10K令牌。按技能截断胜于丢弃
+// — 技能文件顶部的指令通常是关键部分。预算大小足以容纳约5个技能，每个技能达到上限。
 export const POST_COMPACT_MAX_TOKENS_PER_SKILL = 5_000
 export const POST_COMPACT_SKILLS_TOKEN_BUDGET = 25_000
 const MAX_COMPACT_STREAMING_RETRIES = 2
 
 /**
- * Strip image blocks from user messages before sending for compaction.
- * Images are not needed for generating a conversation summary and can
- * cause the compaction API call itself to hit the prompt-too-long limit,
- * especially in CCD sessions where users frequently attach images.
- * Replaces image blocks with a text marker so the summary still notes
- * that an image was shared.
+ * 在发送压缩之前，从用户消息中剥离图像块。
+ * 图像对于生成对话摘要不是必需的，并且可能导致
+ * 压缩API调用本身触及提示过长限制，
+ * 特别是在用户频繁附加图像的CCD会话中。
+ * 用文本标记替换图像块，以便摘要仍然注明
+ * 已共享图像。
  *
- * Note: Only user messages contain images (either directly attached or within
- * tool_result content from tools). Assistant messages contain text, tool_use,
- * and thinking blocks but not images.
+ * 注意：只有用户消息包含图像（直接或在图像内）
+ * 工具的tool_result内容）。助手消息包含文本、tool_use、
+ * 和思考块，但不包含图像。
  */
 export function stripImagesFromMessages(messages: Message[]): Message[] {
   return messages.map(message => {
@@ -200,13 +199,13 @@ export function stripImagesFromMessages(messages: Message[]): Message[] {
 }
 
 /**
- * Strip attachment types that are re-injected post-compaction anyway.
- * skill_discovery/skill_listing are re-surfaced by resetSentSkillNames()
- * + the next turn's discovery signal, so feeding them to the summarizer
- * wastes tokens and pollutes the summary with stale skill suggestions.
+ * 剥离在压缩后无论如何都会重新注入的附件类型。
+ * skill_discovery/skill_listing由resetSentSkillNames()重新浮出水面
+ * + 下一轮的发现信号，因此将它们提供给摘要生成器
+ * 会浪费令牌并用陈旧的技能建议污染摘要。
  *
- * No-op when EXPERIMENTAL_SKILL_SEARCH is off (the attachment types
- * don't exist on external builds).
+ * 当EXPERIMENTAL_SKILL_SEARCH关闭时为空操作（附件类型
+ * 在外部构建上不存在）。
  */
 export function stripReinjectedAttachments(messages: Message[]): Message[] {
   if (feature('EXPERIMENTAL_SKILL_SEARCH')) {
@@ -228,17 +227,16 @@ const MAX_PTL_RETRIES = 3
 const PTL_RETRY_MARKER = '[earlier conversation truncated for compaction retry]'
 
 /**
- * Drops the oldest API-round groups from messages until tokenGap is covered.
- * Falls back to dropping 20% of groups when the gap is unparseable (some
- * Vertex/Bedrock error formats). Returns null when nothing can be dropped
- * without leaving an empty summarize set.
+ * 从消息中删除最旧的API轮次组，直到覆盖tokenGap。
+ * 当差距不可解析时回退到删除20%的组（某些
+ * Vertex/Bedrock错误格式）。当不能在不留下空摘要集的情况下删除任何内容时返回null。
  *
- * This is the last-resort escape hatch for CC-1180 — when the compact request
- * itself hits prompt-too-long, the user is otherwise stuck. Dropping the
- * oldest context is lossy but unblocks them. The reactive-compact path
- * (compactMessages.ts) has the proper retry loop that peels from the tail;
- * this helper is the dumb-but-safe fallback for the proactive/manual path
- * that wasn't migrated in bfdb472f's unification.
+ * 这是CC-1180的最后手段逃生舱口 — 当压缩请求
+ * 本身触及提示过长时，用户就会被卡住。删除
+ * 最旧的上下文是有损的但可以解锁他们。反应性压缩路径
+ * （compactMessages.ts）有正确的重试循环从尾部剥离；
+ * 这个辅助函数是未被迁移的主动/手动路径的愚蠢但安全的回退
+ * 在bfdb472f的统一。
  */
 export function truncateHeadForPTLRetry(
   messages: Message[],
@@ -310,9 +308,9 @@ export interface CompactionResult {
 }
 
 /**
- * Diagnosis context passed from autoCompactIfNeeded into compactConversation.
- * Lets the tengu_compact event disambiguate same-chain loops (H2) from
- * cross-agent (H1/H5) and manual-vs-auto (H3) compactions without joins.
+ * 诊断上下文，从autoCompactIfNeeded传递到compactConversation。
+ * 让tengu_compact事件区分同链循环（H2）与
+ * 跨代理（H1/H5）和手动vs自动（H3）压缩，而无需连接。
  */
 export type RecompactionInfo = {
   isRecompactionInChain: boolean
@@ -338,13 +336,13 @@ export function buildPostCompactMessages(result: CompactionResult): Message[] {
 }
 
 /**
- * Annotate a compact boundary with relink metadata for messagesToKeep.
- * Preserved messages keep their original parentUuids on disk (dedup-skipped);
- * the loader uses this to patch head→anchor and anchor's-other-children→tail.
+ * 使用保留段的relink元数据注释压缩边界。
+ * 保留的消息在磁盘上保持其原始parentUuids（dedup-skipped）；
+ * 加载器使用它来修补head→anchor和anchor的其他子项→tail。
  *
- * `anchorUuid` = what sits immediately before keep[0] in the desired chain:
- *   - suffix-preserving (reactive/session-memory): last summary message
- *   - prefix-preserving (partial compact): the boundary itself
+ * `anchorUuid` = 在所需链中紧接在keep[0]之前的内容：
+ *   - 后缀保留（反应式/会话内存）：最后一个摘要消息
+ *   - 前缀保留（部分压缩）：边界本身
  */
 export function annotateBoundaryWithPreservedSegment(
   boundary: SystemCompactBoundaryMessage,
@@ -381,8 +379,7 @@ export function mergeHookInstructions(
 }
 
 /**
- * Creates a compact version of a conversation by summarizing older messages
- * and preserving recent conversation history.
+ * 通过总结旧消息并保留最近对话历史来创建对话的压缩版本。
  */
 export async function compactConversation(
   messages: Message[],
@@ -763,11 +760,11 @@ export async function compactConversation(
 }
 
 /**
- * Performs a partial compaction around the selected message index.
- * Direction 'from': summarizes messages after the index, keeps earlier ones.
- *   Prompt cache for kept (earlier) messages is preserved.
- * Direction 'up_to': summarizes messages before the index, keeps later ones.
- *   Prompt cache is invalidated since the summary precedes the kept messages.
+ * 在选定消息索引周围执行部分压缩。
+ * 方向'from'：总结索引后的消息，保留较早的消息。
+ *   保留消息（较早的消息）的提示缓存被保留。
+ * 方向'up_to'：总结索引前的消息，保留较晚的消息。
+ *   提示缓存无效，因为摘要位于保留消息之前。
  */
 export async function partialCompactConversation(
   allMessages: Message[],
@@ -1396,21 +1393,21 @@ async function streamCompactSummary({
 }
 
 /**
- * Creates attachment messages for recently accessed files to restore them after compaction.
- * This prevents the model from having to re-read files that were recently accessed.
- * Re-reads files using FileReadTool to get fresh content with proper validation.
- * Files are selected based on recency, but constrained by both file count and token budget limits.
+ * 为最近访问的文件创建附件消息，以便在压缩后恢复它们。
+ * 这可以防止模型必须重新读取最近访问过的文件。
+ * 使用FileReadTool重新读取文件以获取具有适当验证的新内容。
+ * 文件根据最新程度选择，但受到文件数量和令牌预算限制的约束。
  *
- * Files already present as Read tool results in preservedMessages are skipped —
- * re-injecting identical content the model can already see in the preserved tail
- * is pure waste (up to 25K tok/compact). Mirrors the diff-against-preserved
- * pattern that getDeferredToolsDeltaAttachment uses at the same call sites.
+ * 已作为Read工具结果存在于preservedMessages中的文件被跳过 —
+ * 重新注入模型在保留尾部已经可以看到的相同内容是纯粹的浪费
+ * （每次压缩最多25K令牌）。镜像在相同调用点使用的
+ * getDeferredToolsDeltaAttachment使用的差分对比保留模式。
  *
- * @param readFileState The current file state tracking recently read files
- * @param toolUseContext The tool use context for calling FileReadTool
- * @param maxFiles Maximum number of files to restore (default: 5)
- * @param preservedMessages Messages kept post-compact; Read results here are skipped
- * @returns Array of attachment messages for the most recently accessed files that fit within token budget
+ * @param readFileState 当前文件状态跟踪最近读取的文件
+ * @param toolUseContext 用于调用FileReadTool的工具使用上下文
+ * @param maxFiles 要恢复的最大文件数（默认：5）
+ * @param preservedMessages 压缩后保留的消息；此处跳过的Read结果
+ * @returns 适合在令牌预算内的大多数最近访问文件的附件消息数组
  */
 export async function createPostCompactFileAttachments(
   readFileState: Record<string, { content: string; timestamp: number }>,
@@ -1486,10 +1483,10 @@ export function createPlanAttachmentIfNeeded(
 }
 
 /**
- * Creates an attachment for invoked skills to preserve their content across compaction.
- * Only includes skills scoped to the given agent (or main session when agentId is null/undefined).
- * This ensures skill guidelines remain available after the conversation is summarized
- * without leaking skills from other agent contexts.
+ * 为调用的技能创建附件，以在压缩后保留其内容。
+ * 仅包括给定代理范围内的技能（或当agentId为null/undefined时的主会话）。
+ * 这确保技能指南在对话被总结后仍然可用，
+ * 而不会泄露其他代理上下文中的技能。
  */
 export function createSkillAttachmentIfNeeded(
   agentId?: string,
@@ -1560,10 +1557,10 @@ export async function createPlanModeAttachmentIfNeeded(
 }
 
 /**
- * Creates attachments for async agents so the model knows about them after
- * compaction. Covers both agents still running in the background (so the model
- * doesn't spawn a duplicate) and agents that have finished but whose results
- * haven't been retrieved yet.
+ * 为异步代理创建附件，以便模型在压缩后了解它们。
+ * 涵盖仍在后台运行的代理（因此模型
+ * 不会生成重复的）和已完成但其结果的代理
+ * 尚未检索到。
  */
 export async function createAsyncAgentAttachmentsIfNeeded(
   context: ToolUseContext,
@@ -1658,10 +1655,11 @@ const SKILL_TRUNCATION_MARKER =
   '\n\n[... skill content truncated for compaction; use Read on the skill path if you need the full text]'
 
 /**
- * Truncate content to roughly maxTokens, keeping the head. roughTokenCountEstimation
- * uses ~4 chars/token (its default bytesPerToken), so char budget = maxTokens * 4
- * minus the marker so the result stays within budget. Marker tells the model it
- * can Read the full file if needed.
+ * 将内容截断到大约maxTokens，保留头部。roughTokenCountEstimation
+ * 使用~4个字符/令牌（其默认bytesPerToken），
+ * 所以字符预算= maxTokens * 4减去标记，
+ * 所以结果保持在预算内。标记告诉模型它
+ * 如果需要完整文本可以Read完整文件。
  */
 function truncateToTokens(content: string, maxTokens: number): string {
   if (roughTokenCountEstimation(content) <= maxTokens) {
