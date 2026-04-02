@@ -78,41 +78,40 @@ import { checkPathConstraints } from './pathValidation.js'
 import { checkSedConstraints } from './sedValidation.js'
 import { shouldUseSandbox } from './shouldUseSandbox.js'
 
-// DCE cliff: Bun's feature() evaluator has a per-function complexity budget.
-// bashToolHasPermission is right at the limit. `import { X as Y }` aliases
-// inside the import block count toward this budget; when they push it over
-// the threshold Bun can no longer prove feature('BASH_CLASSIFIER') is a
-// constant and silently evaluates the ternaries to `false`, dropping every
-// pendingClassifierCheck spread. Keep aliases as top-level const rebindings
-// instead. (See also the comment on checkSemanticsDeny below.)
+// DCE 悬崖：Bun 的 feature() 求值器有每个函数的复杂性预算。
+// bashToolHasPermission 正好在限制处。`import { X as Y }` 别名
+// 在导入块内部计入此预算；当它们超过限制时，
+// Bun 无法再证明 feature('BASH_CLASSIFIER') 是一个常量，
+// 并将三元表达式静默求值为 `false`，删除每个
+// pendingClassifierCheck spread。将别名保留为顶层 const 重新绑定
+// 而不是。（另请参阅下面 checkSemanticsDeny 的注释。）
 const bashCommandIsSafeAsync = bashCommandIsSafeAsync_DEPRECATED
 const splitCommand = splitCommand_DEPRECATED
 
-// Env-var assignment prefix (VAR=value). Shared across three while-loops that
-// skip safe env vars before extracting the command name.
+// 环境变量赋值前缀（VAR=value）。在提取命令名称之前
+// 跳过安全环境变量的三个 while 循环之间共享。
 const ENV_VAR_ASSIGN_RE = /^[A-Za-z_]\w*=/
 
-// CC-643: On complex compound commands, splitCommand_DEPRECATED can produce a
-// very large subcommands array (possible exponential growth; #21405's ReDoS fix
-// may have been incomplete). Each subcommand then runs tree-sitter parse +
-// ~20 validators + logEvent (bashSecurity.ts), and with memoized metadata the
-// resulting microtask chain starves the event loop — REPL freeze at 100% CPU,
-// strace showed /proc/self/stat reads at ~127Hz with no epoll_wait. Fifty is
-// generous: legitimate user commands don't split that wide. Above the cap we
-// fall back to 'ask' (safe default — we can't prove safety, so we prompt).
+// CC-643：在复杂复合命令上，splitCommand_DEPRECATED 可能产生非常大的
+// subcommands 数组（可能的指数增长；#21405 的 ReDoS 修复可能不完整）。
+// 然后每个子命令运行 tree-sitter 解析 + ~20 个验证器 + logEvent (bashSecurity.ts)，
+// 并且通过记忆化元数据，产生的微任务链会使事件循环饿死 —— REPL 在 100% CPU 下冻结，
+// strace 显示 /proc/self/stat 读取约为 127Hz，没有 epoll_wait。五十是
+// 慷慨的：合法的用户命令不会分得那么宽。超过上限时我们
+// 回退到 'ask'（安全默认值 —— 我们无法证明安全性，所以我们提示）。
 export const MAX_SUBCOMMANDS_FOR_SECURITY_CHECK = 50
 
-// GH#11380: Cap the number of per-subcommand rules suggested for compound
-// commands. Beyond this, the "Yes, and don't ask again for X, Y, Z…" label
-// degrades to "similar commands" anyway, and saving 10+ rules from one prompt
-// is more likely noise than intent. Users chaining this many write commands
-// in one && list are rare; they can always approve once and add rules manually.
+// GH#11380：限制为复合命令建议的每个子命令规则数量。
+// 超过此数量，"是的，并且不要再问 X、Y、Z…" 标签
+// 无论如何都会降级为"类似命令"，并且从一个提示保存 10+ 条规则
+// 更有可能是噪音而不是意图。用户在一个 && 列表中链接这么多写命令是很少见的；
+// 他们可以一次批准并手动添加规则。
 export const MAX_SUGGESTED_RULES_FOR_COMPOUND = 5
 
 /**
- * [ANT-ONLY] Log classifier evaluation results for analysis.
- * This helps us understand which classifier rules are being evaluated
- * and how the classifier is deciding on commands.
+ * [仅限 ANT] 记录分类器评估结果以进行分析。
+ * 这帮助我们了解哪些分类器规则正在被评估，
+ * 以及分类器如何决定命令。
  */
 function logClassifierResultForAnts(
   command: string,
@@ -144,19 +143,18 @@ function logClassifierResultForAnts(
 }
 
 /**
- * Extract a stable command prefix (command + subcommand) from a raw command string.
- * Skips leading env var assignments only if they are in SAFE_ENV_VARS (or
- * ANT_ONLY_SAFE_ENV_VARS for ant users). Returns null if a non-safe env var is
- * encountered (to fall back to exact match), or if the second token doesn't look
- * like a subcommand (lowercase alphanumeric, e.g., "commit", "run").
+ * 从原始命令字符串中提取稳定的命令前缀（命令 + 子命令）。
+ * 仅当环境变量赋值在 SAFE_ENV_VARS 中（或对于 ant 用户在 ANT_ONLY_SAFE_ENV_VARS 中）时才跳过前导环境变量赋值。
+ * 如果遇到非安全环境变量则返回 null（以回退到精确匹配），
+ * 或者如果第二个标记看起来不像子命令（小写字母数字，例如 "commit"、"run"）。
  *
- * Examples:
+ * 示例：
  *   'git commit -m "fix typo"' → 'git commit'
- *   'NODE_ENV=prod npm run build' → 'npm run' (NODE_ENV is safe)
- *   'MY_VAR=val npm run build' → null (MY_VAR is not safe)
- *   'ls -la' → null (flag, not a subcommand)
- *   'cat file.txt' → null (filename, not a subcommand)
- *   'chmod 755 file' → null (number, not a subcommand)
+ *   'NODE_ENV=prod npm run build' → 'npm run' (NODE_ENV 是安全的)
+ *   'MY_VAR=val npm run build' → null (MY_VAR 不安全)
+ *   'ls -la' → null (标志，不是子命令)
+ *   'cat file.txt' → null (文件名，不是子命令)
+ *   'chmod 755 file' → null (数字，不是子命令)
  */
 export function getSimpleCommandPrefix(command: string): string | null {
   const tokens = command.trim().split(/\s+/).filter(Boolean)
