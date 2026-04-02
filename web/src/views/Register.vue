@@ -63,11 +63,10 @@ async function handleRegister() {
 
   loading.value = true
   try {
-    // 使用邮箱前缀作为用户名，后端也可以自动生成
-    const username = formValue.value.email.split('@')[0]
+    // 不再传递用户名，由后端自动生成
     const success = await authStore.register(
       formValue.value.email,
-      username,
+      '', // 空字符串，后端会自动生成随机用户名
       formValue.value.password,
       formValue.value.code
     )

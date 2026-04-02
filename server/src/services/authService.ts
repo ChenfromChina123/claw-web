@@ -15,6 +15,48 @@ function generateCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
+/**
+ * 生成随机用户名
+ * 格式: user_ + 8位随机字母数字
+ */
+function generateRandomUsername(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  let result = 'user_'
+  for (let i = 0; i < 8; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return result
+}
+
+/**
+ * 检查用户名是否已存在，如果存在则添加随机后缀
+ */
+async function generateUniqueUsername(pool: any, baseUsername?: string): Promise<string> {
+  let username = baseUsername || generateRandomUsername()
+  let isUnique = false
+  let attempts = 0
+  const maxAttempts = 10
+
+  while (!isUnique && attempts < maxAttempts) {
+    const [existing] = await pool.query('SELECT id FROM users WHERE username = ?', [username])
+    if ((existing as any[]).length === 0) {
+      isUnique = true
+    } else {
+      // 如果用户名已存在，添加随机后缀
+      const suffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0')
+      username = baseUsername ? `${baseUsername}_${suffix}` : generateRandomUsername()
+    }
+    attempts++
+  }
+
+  if (!isUnique) {
+    // 如果尝试多次仍未找到唯一用户名，使用 UUID 前8位
+    username = `user_${uuidv4().substring(0, 8)}`
+  }
+
+  return username
+}
+
 export class AuthService {
   async sendRegisterCode(email: string): Promise<void> {
     if (!emailRegex(email)) {
@@ -46,10 +88,6 @@ export class AuthService {
       throw new Error('邮箱格式不正确')
     }
 
-    if (username.length < 2 || username.length > 50) {
-      throw new Error('用户名长度必须在2-50个字符之间')
-    }
-
     if (password.length < 6) {
       throw new Error('密码至少6位')
     }
@@ -61,8 +99,8 @@ export class AuthService {
     }
 
     const [codes] = await pool.query(
-      `SELECT * FROM verification_codes 
-       WHERE email = ? AND usage_type = 'register' AND is_used = FALSE AND expires_at > NOW() 
+      `SELECT * FROM verification_codes
+       WHERE email = ? AND usage_type = 'register' AND is_used = FALSE AND expires_at > NOW()
        ORDER BY created_at DESC LIMIT 1`,
       [email]
     ) as [any[], unknown]
@@ -74,12 +112,18 @@ export class AuthService {
 
     await pool.query('UPDATE verification_codes SET is_used = TRUE WHERE id = ?', [validCode.id])
 
+    // 自动生成唯一用户名
+    // 如果前端传了username则使用，否则自动生成
+    const finalUsername = username && username.trim().length >= 2
+      ? await generateUniqueUsername(pool, username.trim())
+      : await generateUniqueUsername(pool)
+
     const passwordHash = await bcrypt.hash(password, 10)
     const userId = uuidv4()
 
     await pool.query(
       `INSERT INTO users (id, username, email, password_hash, is_active) VALUES (?, ?, ?, ?, TRUE)`,
-      [userId, username, email, passwordHash]
+      [userId, finalUsername, email, passwordHash]
     )
 
     const token = await generateToken({ userId, email })
@@ -90,7 +134,7 @@ export class AuthService {
       accessToken: token,
       tokenType: 'Bearer',
       userId,
-      username,
+      username: finalUsername,
       email,
       isAdmin: false,
       avatar: '/avatars/default.png',
