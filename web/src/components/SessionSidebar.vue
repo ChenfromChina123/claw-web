@@ -14,10 +14,10 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'select', sessionId: string): void
-  (e: 'create'): void
-  (e: 'delete', sessionId: string): void
-  (e: 'rename', sessionId: string): void
+  (_e: 'select', _sessionId: string): void
+  (_e: 'create'): void
+  (_e: 'delete', _sessionId: string): void
+  (_e: 'rename', _sessionId: string): void
 }>()
 
 const editingId = ref<string | null>(null)

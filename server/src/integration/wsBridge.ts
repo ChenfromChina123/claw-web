@@ -206,7 +206,7 @@ export class WebSocketManager {
     const connection = new WebSocketConnection(connectionId, ws as WebSocket, remoteAddress)
     this.connections.set(connectionId, connection)
     
-    connection.on('message', (msg) => this.handleMessage(connection, msg))
+    connection.on('message', (msg: unknown) => this.handleMessage(connection, msg as string))
     connection.on('close', () => this.handleClose(connection))
     connection.on('error', (err: unknown) => this.handleError(connection, err instanceof Error ? err : new Error(String(err))))
     
@@ -304,7 +304,7 @@ export class WebSocketManager {
       id: message.id || uuidv4(),
       method: message.method!,
       params: message.params,
-      timeout: message.timeout,
+      timeout: message.timeout as number | undefined,
     }
 
     const context: RPCContext = {
@@ -364,7 +364,7 @@ export class WebSocketManager {
             code: 'EXECUTION_ERROR',
             message: error instanceof Error ? error.message : String(error),
           },
-        } as RPCResponse & { type: 'rpc_response' })
+        } as unknown as WebSocketMessage)
       })
   }
 

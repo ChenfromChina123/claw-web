@@ -142,17 +142,20 @@ function getStatusType(status: string): string {
  */
 function getShortSummary(toolCall: ToolCall): string {
   switch (toolCall.toolName) {
-    case 'FileRead':
-      const readPath = (toolCall.toolInput as any)?.path || '未知文件'
+    case 'FileRead': {
+      const readPath = (toolCall.toolInput as Record<string, unknown>)?.path || '未知文件'
       return `读取文件：${readPath}`
-    case 'FileList':
-      const listPath = (toolCall.toolInput as any)?.path || '未知目录'
+    }
+    case 'FileList': {
+      const listPath = (toolCall.toolInput as Record<string, unknown>)?.path || '未知目录'
       return `浏览目录：${listPath}`
+    }
     case 'Bash':
-    case 'Shell':
-      const command = (toolCall.toolInput as any)?.command || ''
-      const shortCmd = command.length > 50 ? command.substring(0, 50) + '...' : command
+    case 'Shell': {
+      const command = (toolCall.toolInput as Record<string, unknown>)?.command || ''
+      const shortCmd = String(command).length > 50 ? String(command).substring(0, 50) + '...' : command
       return `执行命令：${shortCmd}`
+    }
     default:
       return '点击查看详情'
   }

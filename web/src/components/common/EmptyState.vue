@@ -26,7 +26,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  (e: 'action'): void;
+  (_e: 'action'): void;
 }>();
 </script>
 

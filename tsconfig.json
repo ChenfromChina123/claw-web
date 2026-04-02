@@ -28,6 +28,7 @@
     "web/dist",
     "server",
     "**/*.js",
-    "src/commands"
+    "src/commands",
+    "src"
   ]
 }

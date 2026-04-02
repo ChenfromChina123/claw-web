@@ -71,7 +71,7 @@ async function handleLogin() {
     } else {
       loginError.value = response.error?.message || '登录失败'
     }
-  } catch (e) {
+  } catch {
     loginError.value = '网络错误，请稍后重试'
   } finally {
     loginLoading.value = false
@@ -96,7 +96,7 @@ async function handleSendRegisterCode() {
     } else {
       registerError.value = response.error?.message || '发送验证码失败'
     }
-  } catch (e) {
+  } catch {
     registerError.value = '网络错误，请稍后重试'
   } finally {
     registerCodeSending.value = false
@@ -127,7 +127,7 @@ async function handleRegister() {
     } else {
       registerError.value = response.error?.message || '注册失败'
     }
-  } catch (e) {
+  } catch {
     registerError.value = '网络错误，请稍后重试'
   } finally {
     registerLoading.value = false
@@ -152,7 +152,7 @@ async function handleSendForgotCode() {
     } else {
       forgotError.value = response.error?.message || '发送验证码失败'
     }
-  } catch (e) {
+  } catch {
     forgotError.value = '网络错误，请稍后重试'
   } finally {
     forgotCodeSending.value = false
@@ -185,7 +185,7 @@ async function handleResetPassword() {
     } else {
       forgotError.value = response.error?.message || '重置密码失败'
     }
-  } catch (e) {
+  } catch {
     forgotError.value = '网络错误，请稍后重试'
   } finally {
     forgotLoading.value = false

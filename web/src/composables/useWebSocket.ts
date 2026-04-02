@@ -15,11 +15,11 @@ import type {
   WebSocketMessageType,
 } from '@/types'
 
-type EventCallback = (data: unknown) => void
+type EventCallback = (_data: unknown) => void
 
 interface PendingRPC {
   resolve: (value: RPCResponse) => void
-  reject: (reason?: unknown) => void
+  reject: (_reason?: unknown) => void
   timeoutId: ReturnType<typeof setTimeout>
 }
 
@@ -38,7 +38,7 @@ class EnhancedWebSocketClient {
   private latency = ref(0)
   private manualClose = false
   private connectResolve: (() => void) | null = null
-  private connectReject: ((reason?: unknown) => void) | null = null
+  private connectReject: ((_reason?: unknown) => void) | null = null
   private connectTimeout: ReturnType<typeof setTimeout> | null = null
 
   public status = ref<ConnectionStatus>('disconnected')
@@ -183,11 +183,11 @@ class EnhancedWebSocketClient {
 
       const timeoutId = setTimeout(() => {
         this.pendingRPCs.delete(id)
-        reject(new Error(`RPC 调用超时: ${method}`))
+        reject(new Error(`RPC 调用超时：${method}`))
       }, timeout)
 
       this.pendingRPCs.set(id, {
-        resolve: resolve as (value: RPCResponse) => void,
+        resolve: resolve as (_value: RPCResponse) => void,
         reject,
         timeoutId,
       })

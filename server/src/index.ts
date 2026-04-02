@@ -540,7 +540,7 @@ async function startServer() {
             sessionId: null,
             token: null,
             sendEvent: null,
-          },
+          } as any,
         })
 
         if (!success) {
