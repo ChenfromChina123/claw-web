@@ -17,6 +17,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/Register.vue')
   },
   {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: () => import('@/views/ForgotPassword.vue')
+  },
+  {
     path: '/chat',
     name: 'Chat',
     component: () => import('@/views/Chat.vue'),
@@ -41,7 +46,7 @@ router.beforeEach((to, _from, next) => {
   
   if (to.meta.requiresAuth && !token) {
     next('/login')
-  } else if ((to.path === '/login' || to.path === '/register') && token) {
+  } else if ((to.path === '/login' || to.path === '/register' || to.path === '/forgot-password') && token) {
     next('/chat')
   } else {
     next()

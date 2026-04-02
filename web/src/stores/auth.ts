@@ -62,6 +62,32 @@ export const useAuthStore = defineStore('auth', () => {
       return false
     }
   }
+
+  async function sendForgotPasswordCode(email: string) {
+    try {
+      const response = await authApi.sendForgotPasswordCode(email)
+      if (response.data.success) {
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Send forgot password code failed:', error)
+      return false
+    }
+  }
+
+  async function resetPassword(email: string, code: string, newPassword: string) {
+    try {
+      const response = await authApi.resetPassword({ email, code, newPassword })
+      if (response.data.success) {
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Reset password failed:', error)
+      return false
+    }
+  }
   
   async function fetchUser() {
     if (!token.value) return
@@ -90,6 +116,8 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     sendRegisterCode,
+    sendForgotPasswordCode,
+    resetPassword,
     fetchUser,
     logout
   }
