@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { NLayout, NLayoutContent, useMessage } from 'naive-ui'
+import { NLayout, NLayoutContent, NSpin, NButton, NEmpty, useMessage } from 'naive-ui'
 import ChatSidebar from '@/components/ChatSidebar.vue'
 import ChatMessageList from '@/components/ChatMessageList.vue'
 import ChatInput from '@/components/ChatInput.vue'
@@ -15,27 +15,42 @@ const authStore = useAuthStore()
 
 const showCommandPalette = ref(false)
 const inputRef = ref<InstanceType<typeof ChatInput> | null>(null)
+const isInitializing = ref(true)
+const initError = ref<string | null>(null)
 
 onMounted(async () => {
-  // 连接 WebSocket
-  chatStore.connect(authStore.token || undefined)
-  await chatStore.listSessions()
-
-  // 创建默认会话（如果没有会话）
-  if (chatStore.sessions.length === 0) {
-    await chatStore.createSession()
-  } else if (chatStore.currentSessionId) {
-    await chatStore.loadSession(chatStore.currentSessionId)
-  } else if (chatStore.sessions.length > 0) {
-    // 有会话但没有当前会话，加载第一个
-    await chatStore.loadSession(chatStore.sessions[0].id)
+  isInitializing.value = true
+  initError.value = null
+  
+  try {
+    // 连接 WebSocket
+    await chatStore.connect(authStore.token || undefined)
+    
+    // 获取会话列表
+    await chatStore.listSessions()
+    
+    // 创建默认会话（如果没有会话）
+    if (chatStore.sessions.length === 0) {
+      await chatStore.createSession()
+    } else if (chatStore.currentSessionId) {
+      await chatStore.loadSession(chatStore.currentSessionId)
+    } else if (chatStore.sessions.length > 0) {
+      // 有会话但没有当前会话，加载第一个
+      await chatStore.loadSession(chatStore.sessions[0].id)
+    }
+    
+    // 聚焦输入框
+    nextTick(() => {
+      inputRef.value?.focus()
+    })
+  } catch (error: any) {
+    console.error('初始化失败:', error)
+    initError.value = error?.message || '初始化失败，请重试'
+    message.error(initError.value)
+  } finally {
+    isInitializing.value = false
   }
-
-  // 聚焦输入框
-  nextTick(() => {
-    inputRef.value?.focus()
-  })
-
+  
   // 监听键盘事件
   document.addEventListener('keydown', handleKeyDown)
 })
@@ -54,6 +69,39 @@ function handleKeyDown(e: KeyboardEvent): void {
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault()
     showCommandPalette.value = !showCommandPalette.value
+  }
+}
+
+/**
+ * 重新初始化
+ */
+async function handleRetry(): Promise<void> {
+  isInitializing.value = true
+  initError.value = null
+  
+  try {
+    await chatStore.connect(authStore.token || undefined)
+    await chatStore.listSessions()
+    
+    if (chatStore.sessions.length === 0) {
+      await chatStore.createSession()
+    } else if (chatStore.currentSessionId) {
+      await chatStore.loadSession(chatStore.currentSessionId)
+    } else if (chatStore.sessions.length > 0) {
+      await chatStore.loadSession(chatStore.sessions[0].id)
+    }
+    
+    nextTick(() => {
+      inputRef.value?.focus()
+    })
+    
+    message.success('重新连接成功')
+  } catch (error: any) {
+    console.error('重新初始化失败:', error)
+    initError.value = error?.message || '初始化失败，请重试'
+    message.error(initError.value)
+  } finally {
+    isInitializing.value = false
   }
 }
 
@@ -110,8 +158,24 @@ function handleCommandSelect(command: string): void {
         <div class="bg-glow bg-glow-2"></div>
       </div>
 
+      <!-- 初始化加载状态 -->
+      <div v-if="isInitializing" class="initialization-container">
+        <NSpin size="large" />
+        <p class="initialization-text">正在初始化...</p>
+      </div>
+
+      <!-- 初始化错误状态 -->
+      <div v-else-if="initError" class="initialization-container">
+        <NEmpty description="初始化失败">
+          <template #extra>
+            <p class="error-text">{{ initError }}</p>
+            <NButton type="primary" @click="handleRetry">重试</NButton>
+          </template>
+        </NEmpty>
+      </div>
+
       <!-- 主内容容器 -->
-      <div class="chat-main">
+      <div v-else class="chat-main">
         <!-- 消息列表 -->
         <ChatMessageList 
           :messages="chatStore.messages" 
@@ -206,6 +270,31 @@ function handleCommandSelect(command: string): void {
   0%, 100% { transform: translate(0, 0); }
   33% { transform: translate(30px, -20px); }
   66% { transform: translate(-20px, 30px); }
+}
+
+/* ---- 初始化状态 ---- */
+.initialization-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  gap: 16px;
+}
+
+.initialization-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.error-text {
+  font-size: 14px;
+  color: var(--color-error);
+  margin: 8px 0 16px;
+  text-align: center;
 }
 
 /* ---- 主内容容器 ---- */
