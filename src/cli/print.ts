@@ -390,7 +390,7 @@ The user cannot receive your response until the team is completely shut down.
 
 Shut down your team and prepare your final response for the user.`
 
-// Track message UUIDs received during the current session runtime
+// 跟踪当前会话运行期间接收到的消息 UUID
 const MAX_RECEIVED_UUIDS = 10_000
 const receivedMessageUuids = new Set<UUID>()
 const receivedMessageUuidsOrder: UUID[] = []
@@ -401,7 +401,7 @@ function trackReceivedMessageUuid(uuid: UUID): boolean {
   }
   receivedMessageUuids.add(uuid)
   receivedMessageUuidsOrder.push(uuid)
-  // Evict oldest entries when at capacity
+  // 当容量满时清除最旧的条目
   if (receivedMessageUuidsOrder.length > MAX_RECEIVED_UUIDS) {
     const toEvict = receivedMessageUuidsOrder.splice(
       0,
@@ -520,8 +520,8 @@ export async function runHeadless(
   settingsChangeDetector.subscribe(source => {
     applySettingsChange(source, setAppState)
 
-    // In headless mode, also sync the denormalized fastMode field from
-    // settings. The TUI manages fastMode via the UI so it skips this.
+    // 在无头模式下，还要同步设置中的非规范化 fastMode 字段。
+// TUI 通过 UI 管理 fastMode，所以跳过这一步。
     if (isFastModeEnabled()) {
       setAppState(prev => {
         const s = prev.settings as Record<string, unknown>
@@ -531,10 +531,10 @@ export async function runHeadless(
     }
   })
 
-  // Proactive activation is now handled in main.tsx before getTools() so
-  // SleepTool passes isEnabled() filtering. This fallback covers the case
-  // where CLAUDE_CODE_PROACTIVE is set but main.tsx's check didn't fire
-  // (e.g. env was injected by the SDK transport after argv parsing).
+  // 主动激活现在在 main.tsx 的 getTools() 之前处理，
+// 以便 SleepTool 通过 isEnabled() 过滤。此回退覆盖了
+// 设置了 CLAUDE_CODE_PROACTIVE 但 main.tsx 的检查未触发的情况
+// （例如：env 在 argv 解析后由 SDK 传输注入）。
   if (
     (feature('PROACTIVE') || feature('KAIROS')) &&
     proactiveModule &&
@@ -544,7 +544,7 @@ export async function runHeadless(
     proactiveModule.activateProactive('command')
   }
 
-  // Periodically force a full GC to keep memory usage in check
+  // 定期强制执行完整 GC 以控制内存使用
   if (typeof Bun !== 'undefined') {
     const gcTimer = setInterval(Bun.gc, 1000)
     gcTimer.unref()
@@ -586,18 +586,18 @@ export async function runHeadless(
 
   const structuredIO = getStructuredIO(inputPrompt, options)
 
-  // When emitting NDJSON for SDK clients, any stray write to stdout (debug
-  // prints, dependency console.log, library banners) breaks the client's
-  // line-by-line JSON parser. Install a guard that diverts non-JSON lines to
-  // stderr so the stream stays clean. Must run before the first
-  // structuredIO.write below.
+  // 当为 SDK 客户端发送 NDJSON 时，任何意外的 stdout 写入（调试
+// 打印、依赖 console.log、库横幅）都会破坏客户端的
+// 按行解析 JSON 的解析器。安装一个守卫，将非 JSON 行转移到
+// stderr，以保持流干净。必须在第一次
+// structuredIO.write 之前运行。
   if (options.outputFormat === 'stream-json') {
     installStreamJsonStdoutGuard()
   }
 
-  // #34044: if user explicitly set sandbox.enabled=true but deps are missing,
-  // isSandboxingEnabled() returns false silently. Surface the reason so users
-  // know their security config isn't being enforced.
+  // #34044: 如果用户明确设置 sandbox.enabled=true 但依赖缺失，
+// isSandboxingEnabled() 会静默返回 false。显示原因以便用户
+// 知道他们的安全配置未生效。
   const sandboxUnavailableReason = SandboxManager.getSandboxUnavailableReason()
   if (sandboxUnavailableReason) {
     if (SandboxManager.isSandboxRequired()) {
@@ -613,9 +613,9 @@ export async function runHeadless(
         `  Commands will run WITHOUT sandboxing. Network and filesystem restrictions will NOT be enforced.\n\n`,
     )
   } else if (SandboxManager.isSandboxingEnabled()) {
-    // Initialize sandbox with a callback that forwards network permission
-    // requests to the SDK host via the can_use_tool control_request protocol.
-    // This must happen after structuredIO is created so we can send requests.
+    // 使用回调初始化沙箱，该回调将网络权限
+// 请求转发给 SDK 主机，方法是 can_use_tool control_request 协议。
+// 这必须在 structuredIO 创建后发生，以便我们可以发送请求。
     try {
       await SandboxManager.initialize(structuredIO.createSandboxAskCallback())
     } catch (err) {
@@ -704,8 +704,8 @@ export async function runHeadless(
     structuredIO.prependUserMessage(hookInitialUserMessage)
   }
 
-  // Restore agent setting from the resumed session (if not overridden by current --agent flag
-  // or settings-based agent, which would already have set mainThreadAgentType in main.tsx)
+  // 从恢复的会话中恢复 agent 设置（如果未被当前 --agent 标志覆盖，
+// 或基于设置的 agent，这些已在 main.tsx 中设置 mainThreadAgentType）
   if (!options.agent && !getMainThreadAgentType() && resumedAgentSetting) {
     const { agentDefinition: restoredAgent } = restoreAgentFromSession(
       resumedAgentSetting,
@@ -733,10 +733,10 @@ export async function runHeadless(
     return
   }
 
-  // Handle --rewind-files: restore filesystem and exit immediately
+  // 处理 --rewind-files：恢复文件系统并立即退出
   if (options.rewindFiles) {
-    // File history snapshots are only created for user messages,
-    // so we require the target to be a user message
+    // 文件历史快照仅针对用户消息创建，
+// 因此我们要求目标是用户消息
     const targetMessage = initialMessages.find(
       m => m.uuid === options.rewindFiles,
     )
@@ -770,7 +770,7 @@ export async function runHeadless(
     return
   }
 
-  // Check if we need input prompt - skip if we're resuming with a valid session ID/JSONL file or using SDK URL
+  // 检查是否需要输入提示 - 如果使用有效的会话 ID/JSONL 文件恢复或使用 SDK URL，则跳过
   const hasValidResumeSessionId =
     typeof options.resume === 'string' &&
     (Boolean(validateUuid(options.resume)) || options.resume.endsWith('.jsonl'))
@@ -831,23 +831,22 @@ export async function runHeadless(
     )
   }
 
-  // Install errors handlers to gracefully handle broken pipes (e.g., when parent process dies)
+  // 安装错误处理程序以优雅地处理管道破裂（例如，当父进程死亡时）
   registerProcessOutputErrorHandlers()
 
   headlessProfilerCheckpoint('after_loadInitialMessages')
 
-  // Ensure model strings are initialized before generating model options.
-  // For Bedrock users, this waits for the profile fetch to get correct region strings.
+  // 确保在生成模型选项之前初始化模型字符串。
+// 对于 Bedrock 用户，这会等待配置文件获取以获取正确的区域字符串。
   await ensureModelStringsInitialized()
   headlessProfilerCheckpoint('after_modelStrings')
 
   // UDS inbox store registration is deferred until after `run` is defined
   // so we can pass `run` as the onEnqueue callback (see below).
 
-  // Only `json` + `verbose` needs the full array (jsonStringify(messages) below).
-  // For stream-json (SDK/CCR) and default text output, only the last message is
-  // read for the exit code / final result. Avoid accumulating every message in
-  // memory for the entire session.
+  // 只有 `json` + `verbose` 需要完整数组（下面的 jsonStringify(messages)）。
+// 对于 stream-json（SDK/CCR）和默认文本输出，仅读取最后一条消息作为
+// 退出码/最终结果。避免在整个会话中将每条消息累积在内存中。
   const needsFullArray = options.outputFormat === 'json' && options.verbose
   const messages: SDKMessage[] = []
   let lastMessage: SDKMessage | undefined
@@ -884,11 +883,10 @@ export async function runHeadless(
     } else if (options.outputFormat === 'stream-json' && options.verbose) {
       await structuredIO.write(message)
     }
-    // Should not be getting control messages or stream events in non-stream mode.
-    // Also filter out streamlined types since they're only produced by the transformer.
-    // SDK-only system events are excluded so lastMessage stays at the result
-    // (session_state_changed(idle) and any late task_notification drain after
-    // result in the finally block).
+    // 在非流式模式下不应收到控制消息或流事件。
+// 还要过滤掉精简类型，因为它们仅由转换器生成。
+    // SDK 专用的系统事件被排除，以便 lastMessage 保持在结果处
+// （session_state_changed(idle) 以及 finally 块中任何延迟的 task_notification 排出后）。
     if (
       message.type !== 'control_response' &&
       message.type !== 'control_request' &&
@@ -956,7 +954,7 @@ export async function runHeadless(
       }
   }
 
-  // Log headless latency metrics for the final turn
+  // 记录最后一轮的 headless 延迟指标
   logHeadlessProfilerTurn()
 
   // Drain any in-flight memory extraction before shutdown. The response is
@@ -1021,9 +1019,9 @@ function runHeadlessStreaming(
   // Same queue sendRequest() enqueues to — one FIFO for everything.
   const output = structuredIO.outbound
 
-  // Ctrl+C in -p mode: abort the in-flight query, then shut down gracefully.
-  // gracefulShutdown persists session state and flushes analytics, with a
-  // failsafe timer that force-exits if cleanup hangs.
+  // -p 模式下的 Ctrl+C：中止正在进行的查询，然后优雅关闭。
+  // gracefulShutdown 持久化会话状态并刷新分析数据，
+// 如果清理挂起，还有一个安全计时器强制退出。
   const sigintHandler = () => {
     logForDiagnosticsNoPII('info', 'shutdown_signal', { signal: 'SIGINT' })
     if (abortController && !abortController.signal.aborted) {
@@ -1033,8 +1031,8 @@ function runHeadlessStreaming(
   }
   process.on('SIGINT', sigintHandler)
 
-  // Dump run()'s state at SIGTERM so a stuck session's healthsweep can name
-  // the do/while(waitingForAgents) poll without reading the transcript.
+  // 在 SIGTERM 时转储 run() 的状态，以便卡住的会话的健康检查可以命名
+// do/while(waitingForAgents) 轮询，而无需读取记录。
   registerCleanup(async () => {
     const bg: Record<string, number> = {}
     for (const t of getRunningTasks(getAppState())) {
@@ -1058,7 +1056,7 @@ function runHeadlessStreaming(
   // notifySessionMetadataChanged, both of which onChangeAppState now covers);
   // keeping it would double-emit status messages.
   setPermissionModeChangedListener(newMode => {
-    // Only emit for SDK-exposed modes.
+    // 仅对 SDK 公开的模式发出。
     if (
       newMode === 'default' ||
       newMode === 'acceptEdits' ||
@@ -1123,9 +1121,9 @@ function runHeadlessStreaming(
     })
   }
 
-  // Set up rate limit status listener to emit SDKRateLimitEvent for all status changes.
-  // Emitting for all statuses (including 'allowed') ensures consumers can clear warnings
-  // when rate limits reset. The upstream emitStatusChange already deduplicates via isEqual.
+  // 设置速率限制状态监听器，为所有状态变化发送 SDKRateLimitEvent。
+// 为所有状态（包括 'allowed'）发送确保消费者可以在速率限制重置时清除警告。
+// 上游 emitStatusChange 已经通过 isEqual 去重。
   const rateLimitListener = (limits: ClaudeAILimits) => {
     const rateLimitInfo = toSDKRateLimitInfo(limits)
     if (rateLimitInfo) {
@@ -1828,9 +1826,9 @@ function runHeadlessStreaming(
     })
   })
 
-  // Proactive mode: schedule a tick to keep the model looping autonomously.
-  // setTimeout(0) yields to the event loop so pending stdin messages
-  // (interrupts, user messages) are processed before the tick fires.
+  // 主动模式：调度一个 tick 以保持模型自主循环。
+// setTimeout(0) 让步给事件循环，以便在 tick 触发之前处理待处理的 stdin 消息
+// （中断、用户消息）。
   const scheduleProactiveTick =
     feature('PROACTIVE') || feature('KAIROS')
       ? () => {
@@ -2472,7 +2470,7 @@ function runHeadlessStreaming(
       idleTimeout.start()
     }
 
-    // Proactive tick: if proactive is active and queue is empty, inject a tick
+    // 主动 tick：如果主动模式处于活动状态且队列为空，则注入一个 tick
     if (
       (feature('PROACTIVE') || feature('KAIROS')) &&
       proactiveModule?.isProactiveActive() &&

@@ -853,11 +853,10 @@ async function getInputPrompt(prompt: string, inputFormat: 'text' | 'stream-json
       data += chunk;
     };
     process.stdin.on('data', onData);
-    // If no data arrives in 3s, stop waiting and warn. Stdin is likely an
-    // inherited pipe from a parent that isn't writing (subprocess spawned
-    // without explicit stdin handling). 3s covers slow producers like curl,
-    // jq on large files, python with import overhead. The warning makes
-    // silent data loss visible for the rare producer that's slower still.
+    // 如果 3 秒内没有数据到达，停止等待并发出警告。Stdin 可能是从
+// 一个没有写入的父进程继承的管道（生成子进程时没有明确的 stdin 处理）。
+// 3 秒覆盖了慢速生产者，如 curl、jq 处理大文件、python 的导入开销。
+// 对于更慢的罕见生产者，警告会使静默数据丢失可见。
     const timedOut = await peekForStdinData(process.stdin, 3000);
     process.stdin.off('data', onData);
     if (timedOut) {
@@ -888,8 +887,8 @@ async function run(): Promise<CommanderCommand> {
   const program = new CommanderCommand().configureHelp(createSortedHelpConfig()).enablePositionalOptions();
   profileCheckpoint('run_commander_initialized');
 
-  // Use preAction hook to run initialization only when executing a command,
-  // not when displaying help. This avoids the need for env variable signaling.
+  // 使用 preAction hook 仅在执行命令时运行初始化，
+// 而不是在显示帮助时运行。这避免了环境变量信号的需要。
   program.hook('preAction', async thisCommand => {
     profileCheckpoint('preAction_start');
     // Await async subprocess loads started at module evaluation (lines 12-20).
@@ -909,25 +908,25 @@ async function run(): Promise<CommanderCommand> {
       process.title = 'claude';
     }
 
-    // Attach logging sinks so subcommand handlers can use logEvent/logError.
-    // Before PR #11106 logEvent dispatched directly; after, events queue until
-    // a sink attaches. setup() attaches sinks for the default command, but
-    // subcommands (doctor, mcp, plugin, auth) never call setup() and would
-    // silently drop events on process.exit(). Both inits are idempotent.
+    // 附加日志接收器，以便子命令处理器可以使用 logEvent/logError。
+    // 在 PR #11106 之前，logEvent 直接分派；之后，事件排队直到
+    // 接收器附加。setup() 为默认命令附加接收器，但
+    // 子命令（doctor、mcp、plugin、auth）从不调用 setup()，会
+    // 在 process.exit() 时静默丢弃事件。两种初始化都是幂等的。
     const {
       initSinks
     } = await import('./utils/sinks.js');
     initSinks();
     profileCheckpoint('preAction_after_sinks');
 
-    // gh-33508: --plugin-dir is a top-level program option. The default
-    // action reads it from its own options destructure, but subcommands
-    // (plugin list, plugin install, mcp *) have their own actions and
-    // never see it. Wire it up here so getInlinePlugins() works everywhere.
-    // thisCommand.opts() is typed {} here because this hook is attached
-    // before .option('--plugin-dir', ...) in the chain — extra-typings
-    // builds the type as options are added. Narrow with a runtime guard;
-    // the collect accumulator + [] default guarantee string[] in practice.
+    // gh-33508: --plugin-dir 是一个顶级程序选项。默认
+    // 操作从自己的选项解构中读取它，但子命令
+    // （plugin list、plugin install、mcp *）有自己的操作，
+    // 从不看到它。在这里连接它，以便 getInlinePlugins() 在任何地方都能工作。
+    // thisCommand.opts() 在这里类型为 {}，因为这个 hook 附加在链中的
+    // .option('--plugin-dir', ...) 之前 —— extra-typings
+    // 随着选项添加而构建类型。使用运行时守卫缩小范围；
+    // 收集累加器 + [] 默认值在实践中保证 string[]。
     const pluginDir = thisCommand.getOptionValue('pluginDir');
     if (Array.isArray(pluginDir) && pluginDir.length > 0 && pluginDir.every(p => typeof p === 'string')) {
       setInlinePlugins(pluginDir);
@@ -936,10 +935,10 @@ async function run(): Promise<CommanderCommand> {
     runMigrations();
     profileCheckpoint('preAction_after_migrations');
 
-    // Load remote managed settings for enterprise customers (non-blocking)
-    // Fails open - if fetch fails, continues without remote settings
-    // Settings are applied via hot-reload when they arrive
-    // Must happen after init() to ensure config reading is allowed
+    // 为企业客户加载远程托管设置（非阻塞）
+    // 开放失败 - 如果获取失败，继续使用远程设置
+    // 设置通过热重载到达时应用
+    // 必须在 init() 之后发生，以确保允许配置读取
     void loadRemoteManagedSettings();
     void loadPolicyLimits();
     profileCheckpoint('preAction_after_remote_settings');
@@ -1026,9 +1025,9 @@ async function run(): Promise<CommanderCommand> {
     // kairosEnabled is computed once here and reused at the
     // getAssistantSystemPromptAddendum() call site further down.
     //
-    // Trust gate: .claude/settings.json is attacker-controllable in an
-    // untrusted clone. We run ~1000 lines before showSetupScreens() shows
-    // the trust dialog, and by then we've already appended
+    // 信任门控：.claude/settings.json 在不可信的克隆中可被攻击者控制。
+    // 我们在 showSetupScreens() 显示信任对话框之前运行了约 1000 行，
+    // 到那时我们已经附加了
     // .claude/agents/assistant.md to the system prompt. Refuse to activate
     // until the directory has been explicitly trusted.
     let kairosEnabled = false;
@@ -1054,9 +1053,9 @@ async function run(): Promise<CommanderCommand> {
         // biome-ignore lint/suspicious/noConsole:: intentional console output
         console.warn(chalk.yellow('Assistant mode disabled: directory is not trusted. Accept the trust dialog and restart.'));
       } else {
-        // Blocking gate check — returns cached `true` instantly; if disk
-        // cache is false/missing, lazily inits GrowthBook and fetches fresh
-        // (max ~5s). --assistant skips the gate entirely (daemon is
+        // 阻塞门控检查 —— 立即返回缓存的 `true`；如果磁盘
+    // 缓存为 false/缺失，延迟初始化 GrowthBook 并获取新的
+    // （最多约 5 秒）。--assistant 完全跳过门控（守护进程是
         // pre-entitled).
         kairosEnabled = assistantModule.isAssistantForced() || (await kairosGate.isKairosEnabled());
         if (kairosEnabled) {
@@ -1065,10 +1064,10 @@ async function run(): Promise<CommanderCommand> {
           };
           opts.brief = true;
           setKairosActive(true);
-          // Pre-seed an in-process team so Agent(name: "foo") spawns
-          // teammates without TeamCreate. Must run BEFORE setup() captures
-          // the teammateMode snapshot (initializeAssistantTeam calls
-          // setCliTeammateModeOverride internally).
+          // 预先种子化一个进程内团队，以便 Agent(name: "foo") 生成
+          // 队友而无需 TeamCreate。必须在 setup() 之前运行，捕捉
+          // teammateMode 快照（initializeAssistantTeam 调用
+          // setCliTeammateModeOverride 内部）。
           assistantTeamContext = await assistantModule.initializeAssistantTeam();
         }
       }
@@ -1095,7 +1094,7 @@ async function run(): Promise<CommanderCommand> {
       seedEarlyInput(options.prefill);
     }
 
-    // Promise for file downloads - started early, awaited before REPL renders
+    // 文件下载的 Promise - 提前开始，在 REPL 渲染之前等待
     let fileDownloadPromise: Promise<DownloadResult[]> | undefined;
     const agentsJson = options.agents;
     const agentCli = options.agent;
@@ -1151,7 +1150,7 @@ async function run(): Promise<CommanderCommand> {
       tmux?: boolean;
     }).tmux === true;
 
-    // Validate tmux option
+    // 验证 tmux 选项
     if (tmuxEnabled) {
       if (!worktreeEnabled) {
         process.stderr.write(chalk.red('Error: --tmux requires --worktree\n'));
@@ -1172,7 +1171,7 @@ async function run(): Promise<CommanderCommand> {
     let storedTeammateOpts: TeammateOptions | undefined;
     if (isAgentSwarmsEnabled()) {
       // Extract agent identity options (for tmux-spawned agents)
-      // These replace the CLAUDE_CODE_* environment variables
+      // 这些替换 CLAUDE_CODE_* 环境变量
       const teammateOpts = extractTeammateOptions(options);
       storedTeammateOpts = teammateOpts;
 
@@ -1196,8 +1195,8 @@ async function run(): Promise<CommanderCommand> {
         });
       }
 
-      // Set teammate mode CLI override if provided
-      // This must be done before setup() captures the snapshot
+      // 如果提供，则设置队友模式 CLI 覆盖
+    // 这必须在 setup() 捕获快照之前完成
       if (teammateOpts.teammateMode) {
         getTeammateModeSnapshot().setCliTeammateModeOverride?.(teammateOpts.teammateMode);
       }
