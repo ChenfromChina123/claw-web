@@ -355,6 +355,16 @@ class EnhancedWebSocketClient {
           this.handleRPCResponse(message as unknown as RPCResponse)
           break
 
+        case 'registered':
+        case 'logged_in':
+          // 处理注册和登录响应
+          console.log(`[WS] ${message.type === 'registered' ? 'Registered' : 'Logged in'}:`, (message as { userId?: string }).userId)
+          if (this.connectResolve) {
+            this.connectResolve()
+            this.clearConnectPromise()
+          }
+          break
+
         default: {
           // 处理后端发送的事件消息格式：{type: 'event', event: 'eventName', data: {...}}
           const eventName = (message as { event?: string }).event
