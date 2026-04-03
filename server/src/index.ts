@@ -869,6 +869,11 @@ async function startServer() {
             case 'load_session':
               {
                 const sessionId = message.sessionId as string
+                const userId = wsData.userId
+                if (!userId) {
+                  sendEvent('error', { message: 'User not authenticated' })
+                  break
+                }
 
                 sessionManager.loadSession(sessionId).then(sessionData => {
                   if (!sessionData) {
@@ -916,6 +921,11 @@ async function startServer() {
             case 'user_message':
               {
                 const sessionId = message.sessionId as string || wsData.sessionId
+                const userId = wsData.userId
+                if (!userId) {
+                  sendEvent('error', { message: 'User not authenticated' })
+                  break
+                }
                 if (!sessionId) {
                   sendEvent('error', { message: 'No active session' })
                   break
@@ -942,6 +952,11 @@ async function startServer() {
             case 'delete_session':
               {
                 const sessionId = message.sessionId as string
+                const userId = wsData.userId
+                if (!userId) {
+                  sendEvent('error', { message: 'User not authenticated' })
+                  break
+                }
                 sessionManager.deleteSession(sessionId).then(() => {
                   ws.send(JSON.stringify({ type: 'session_deleted', sessionId }))
                   if (wsData.sessionId === sessionId) {
@@ -957,6 +972,11 @@ async function startServer() {
             case 'rename_session':
               {
                 const sessionId = message.sessionId as string
+                const userId = wsData.userId
+                if (!userId) {
+                  sendEvent('error', { message: 'User not authenticated' })
+                  break
+                }
                 const title = message.title as string
                 sessionManager.renameSession(sessionId, title).then(() => {
                   ws.send(JSON.stringify({ type: 'session_renamed', sessionId, title }))
@@ -970,6 +990,11 @@ async function startServer() {
             case 'clear_session':
               {
                 const sessionId = message.sessionId as string || wsData.sessionId
+                const userId = wsData.userId
+                if (!userId) {
+                  sendEvent('error', { message: 'User not authenticated' })
+                  break
+                }
                 if (!sessionId) {
                   sendEvent('error', { message: 'No active session' })
                   break

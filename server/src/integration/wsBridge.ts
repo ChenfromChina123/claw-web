@@ -36,7 +36,8 @@ declare global {
 }
 
 import { v4 as uuidv4 } from 'uuid'
-import type { EventSender } from './webStore'
+import type { EventSender, Tool, ToolCall } from './webStore'
+import { toolExecutor } from './enhancedToolExecutor'
 
 // ==================== Message Protocol Types ====================
 
