@@ -368,6 +368,30 @@ class EnhancedWebSocketClient {
           }
           break
 
+        case 'connected':
+          console.log('[WS] Connected to server:', (message as { connectionId?: string }).connectionId)
+          break
+
+        case 'session_list':
+          console.log('[WS] Session list received:', (message as { sessions?: unknown }).sessions)
+          this.emitEvent('session_list', (message as { sessions?: unknown }).sessions)
+          break
+
+        case 'session_created':
+          console.log('[WS] Session created:', (message as { session?: unknown }).session)
+          this.emitEvent('session_created', (message as { session?: unknown }).session)
+          break
+
+        case 'session_loaded':
+          console.log('[WS] Session loaded:', (message as { session?: unknown }).session)
+          this.emitEvent('session_loaded', (message as { session?: unknown }).session)
+          break
+
+        case 'error':
+          console.error('[WS] Error from server:', (message as { message?: string }).message)
+          this.emitEvent('error', message)
+          break
+
         default: {
           // 处理后端发送的事件消息格式：{type: 'event', event: 'eventName', data: {...}}
           const eventName = (message as { event?: string }).event
