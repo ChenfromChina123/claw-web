@@ -52,15 +52,20 @@ export const useChatStore = defineStore('chat', () => {
     })
     
     wsClient.on('session_loaded', (data: unknown) => {
-      const msg = data as { session: Session; messages: Message[]; toolCalls: ToolCall[] }
-      currentSessionId.value = msg.session.id
-      messages.value = msg.messages || []
-      toolCalls.value = msg.toolCalls || []
+      if (!data) return
+      const msg = data as { session?: Session; messages?: Message[]; toolCalls?: ToolCall[] }
+      const session = msg?.session
+      if (!session || !session.id) return
+      currentSessionId.value = session.id
+      messages.value = msg?.messages || []
+      toolCalls.value = msg?.toolCalls || []
     })
     
     wsClient.on('session_deleted', (data: unknown) => {
-      const msg = data as { sessionId: string }
-      sessions.value = sessions.value.filter(s => s.id !== msg.sessionId)
+      if (!data) return
+      const msg = data as { sessionId?: string }
+      if (!msg?.sessionId) return
+      sessions.value = (sessions.value || []).filter(s => s.id !== msg.sessionId)
       if (currentSessionId.value === msg.sessionId) {
         currentSessionId.value = sessions.value[0]?.id || null
       }
