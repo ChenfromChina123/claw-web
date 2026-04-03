@@ -895,12 +895,15 @@ async function startServer() {
             case 'list_sessions':
               {
                 const userId = wsData.userId
+                console.log(`[WS] list_sessions: userId=${userId}`)
                 if (!userId) {
+                  console.log('[WS] list_sessions: userId is null, sending error')
                   sendEvent('error', { message: 'User not registered' })
                   break
                 }
 
                 sessionManager.getUserSessions(userId).then(sessions => {
+                  console.log(`[WS] list_sessions: found ${sessions.length} sessions`)
                   ws.send(JSON.stringify({ type: 'session_list', sessions }))
                 }).catch(err => {
                   console.error('[WS] Failed to list sessions:', err)
