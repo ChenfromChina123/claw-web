@@ -34,14 +34,19 @@ export const useChatStore = defineStore('chat', () => {
    */
   function setupEventListeners() {
     wsClient.on('session_list', (data: unknown) => {
-      const msg = data as { sessions: Session[] }
-      sessions.value = msg.sessions
+      if (!data) return
+      const msg = data as { sessions?: Session[] }
+      sessions.value = msg?.sessions || []
     })
     
     wsClient.on('session_created', (data: unknown) => {
-      const msg = data as { session: Session }
-      sessions.value.unshift(msg.session)
-      currentSessionId.value = msg.session.id
+      if (!data) return
+      const msg = data as { session?: Session }
+      const session = msg?.session || (data as Session)
+      if (!session || !session.id) return
+      sessions.value = sessions.value || []
+      sessions.value.unshift(session)
+      currentSessionId.value = session.id
       messages.value = []
       toolCalls.value = []
     })
