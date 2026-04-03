@@ -48,6 +48,7 @@ export type WebSocketMessageType =
   | 'unsubscribe'
   | 'broadcast'
   | 'command_result'
+  | 'connected'
 
 export interface RPCRequest {
   id: string
