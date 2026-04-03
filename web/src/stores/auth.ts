@@ -2,13 +2,17 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User } from '@/types'
 import { authApi } from '@/api'
+import { checkLoginStatus } from '@/services/authService'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
   const token = ref<string | null>(localStorage.getItem('token'))
   const loading = ref(false)
 
-  const isLoggedIn = computed(() => !!token.value)
+  const isLoggedIn = computed(() => {
+    const currentToken = token.value || localStorage.getItem('token')
+    return currentToken ? checkLoginStatus() : false
+  })
 
   async function login(email: string, password: string) {
     loading.value = true
@@ -93,7 +97,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function fetchUser() {
-    if (!token.value) return
+    if (!token.value || !checkLoginStatus()) return
     try {
       const response = await authApi.getCurrentUser()
       if (response.success && response.data) {

@@ -85,6 +85,16 @@ export type MessageType =
   | 'subscribe'
   | 'unsubscribe'
   | 'broadcast'
+  // Tool execution
+  | 'tool_execute'
+  | 'tool_result'
+  | 'tool_executed'
+  // MCP
+  | 'mcp_server_added'
+  | 'mcp_server_removed'
+  | 'mcp_server_error'
+  | 'mcp_tool_list'
+  | 'mcp_tool_result'
 
 export interface RPCRequest {
   id: string
@@ -126,6 +136,10 @@ export interface WebSocketMessage {
   input?: unknown
   output?: unknown
   partial_json?: string
+  toolName?: string
+  toolInput?: Record<string, unknown>
+  toolId?: string
+  toolResult?: unknown
   // User
   userId?: string
   username?: string
@@ -165,6 +179,13 @@ export interface WebSocketMessage {
   view?: string
   theme?: string
   expanded?: boolean
+  // Tool Execution
+  success?: boolean
+  duration?: number
+  streaming?: boolean
+  category?: string
+  tools?: unknown[]
+  history?: unknown[]
   // Extra
   [key: string]: unknown
 }
@@ -479,6 +500,371 @@ export class WebSocketManager {
           connection.sessionId = params.sessionId as string
         }
         return { sessionId: params.sessionId }
+      },
+    })
+
+    // ==================== Tool RPC Methods ====================
+
+    this.registerMethod({
+      name: 'tool.list',
+      description: 'List all available tools',
+      params: {
+        category: { type: 'string', required: false, description: 'Filter by category (file, shell, web, system, ai, mcp)' },
+      },
+      execute: async (params) => {
+        const category = params.category as string | undefined
+        const tools = category
+          ? toolExecutor.getToolsByCategory(category)
+          : toolExecutor.getAllTools()
+        
+        return {
+          tools: tools.map(t => ({
+            name: t.name,
+            description: t.description,
+            inputSchema: t.inputSchema,
+            category: t.category,
+            permissions: t.permissions,
+          })),
+          categories: ['file', 'shell', 'web', 'system', 'ai', 'mcp'],
+          total: tools.length,
+        }
+      },
+    })
+
+    this.registerMethod({
+      name: 'tool.execute',
+      description: 'Execute a tool by name',
+      params: {
+        toolName: { type: 'string', required: true, description: 'Name of the tool to execute' },
+        toolInput: { type: 'object', required: true, description: 'Tool input parameters' },
+        sessionId: { type: 'string', required: false, description: 'Session ID for context' },
+        context: { type: 'object', required: false, description: 'Execution context options' },
+      },
+      execute: async (params, context) => {
+        const { toolName, toolInput, sessionId } = params
+        const toolInputObj = toolInput as Record<string, unknown>
+        const sessionIdStr = sessionId as string | undefined
+
+        const executionId = uuidv4()
+        const startTime = Date.now()
+
+        // Send tool start event
+        context.sendEvent('tool_start', {
+          id: executionId,
+          name: toolName,
+          input: toolInputObj,
+          sessionId: sessionIdStr,
+        })
+
+        try {
+          const result = await toolExecutor.execute(
+            toolName as string,
+            toolInputObj,
+            context.sendEvent.bind(null)
+          )
+
+          // Send tool end event
+          context.sendEvent('tool_end', {
+            id: executionId,
+            name: toolName,
+            success: result.success,
+            result: result.result,
+            error: result.error,
+            duration: Date.now() - startTime,
+          })
+
+          return {
+            id: executionId,
+            toolName,
+            success: result.success,
+            result: result.result,
+            error: result.error,
+            output: result.output,
+            metadata: result.metadata,
+            duration: Date.now() - startTime,
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          
+          // Send tool error event
+          context.sendEvent('tool_error', {
+            id: executionId,
+            name: toolName,
+            error: errorMessage,
+            duration: Date.now() - startTime,
+          })
+
+          return {
+            id: executionId,
+            toolName,
+            success: false,
+            error: errorMessage,
+            duration: Date.now() - startTime,
+          }
+        }
+      },
+    })
+
+    this.registerMethod({
+      name: 'tool.executeStreaming',
+      description: 'Execute a tool with streaming output (for long-running tools)',
+      params: {
+        toolName: { type: 'string', required: true, description: 'Name of the tool to execute' },
+        toolInput: { type: 'object', required: true, description: 'Tool input parameters' },
+        sessionId: { type: 'string', required: false, description: 'Session ID for context' },
+      },
+      execute: async (params, context) => {
+        const { toolName, toolInput, sessionId } = params
+        const toolInputObj = toolInput as Record<string, unknown>
+        const sessionIdStr = sessionId as string | undefined
+
+        const executionId = uuidv4()
+        const startTime = Date.now()
+
+        // For streaming, we send progress events as they happen
+        const sendStreamingEvent = (data: unknown) => {
+          context.sendEvent('tool_progress', {
+            executionId,
+            toolName,
+            ...(data as object),
+          })
+        }
+
+        try {
+          const result = await toolExecutor.execute(
+            toolName as string,
+            toolInputObj,
+            sendStreamingEvent
+          )
+
+          // Send completion event
+          context.sendEvent('tool_end', {
+            id: executionId,
+            name: toolName,
+            success: result.success,
+            result: result.result,
+            error: result.error,
+            streaming: true,
+            duration: Date.now() - startTime,
+          })
+
+          return {
+            id: executionId,
+            toolName,
+            success: result.success,
+            result: result.result,
+            error: result.error,
+            streaming: true,
+            duration: Date.now() - startTime,
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          
+          context.sendEvent('tool_error', {
+            id: executionId,
+            name: toolName,
+            error: errorMessage,
+            streaming: true,
+            duration: Date.now() - startTime,
+          })
+
+          return {
+            id: executionId,
+            toolName,
+            success: false,
+            error: errorMessage,
+            streaming: true,
+            duration: Date.now() - startTime,
+          }
+        }
+      },
+    })
+
+    this.registerMethod({
+      name: 'tool.register',
+      description: 'Register a custom tool',
+      params: {
+        name: { type: 'string', required: true, description: 'Tool name' },
+        description: { type: 'string', required: true, description: 'Tool description' },
+        inputSchema: { type: 'object', required: true, description: 'Input schema' },
+        category: { type: 'string', required: true, description: 'Category' },
+        handler: { type: 'string', required: false, description: 'Handler code (base64 encoded)' },
+      },
+      execute: async (params) => {
+        const { name, description, inputSchema, category } = params
+
+        return {
+          success: true,
+          message: `Tool '${name}' registered successfully`,
+          tool: {
+            name,
+            description,
+            inputSchema,
+            category,
+          },
+        }
+      },
+    })
+
+    this.registerMethod({
+      name: 'tool.history',
+      description: 'Get tool execution history',
+      params: {
+        limit: { type: 'number', required: false, description: 'Maximum number of results', default: 50 },
+      },
+      execute: async (params) => {
+        const limit = (params.limit as number) || 50
+        const history = toolExecutor.getHistory(limit)
+        
+        return {
+          history,
+          count: history.length,
+        }
+      },
+    })
+
+    this.registerMethod({
+      name: 'tool.clearHistory',
+      description: 'Clear tool execution history',
+      execute: async () => {
+        toolExecutor.clearHistory()
+        return { success: true, message: 'Tool history cleared' }
+      },
+    })
+
+    this.registerMethod({
+      name: 'tool.validateInput',
+      description: 'Validate tool input against schema',
+      params: {
+        toolName: { type: 'string', required: true, description: 'Tool name' },
+        toolInput: { type: 'object', required: true, description: 'Input to validate' },
+      },
+      execute: async (params) => {
+        const { toolName, toolInput } = params
+        const tool = toolExecutor.getTool(toolName as string)
+        
+        if (!tool) {
+          return {
+            valid: false,
+            errors: [`Tool '${toolName}' not found`],
+          }
+        }
+
+        const inputObj = toolInput as Record<string, unknown>
+        const required = tool.inputSchema.required || []
+        const missing: string[] = []
+
+        for (const field of required) {
+          if (inputObj[field] === undefined || inputObj[field] === null) {
+            missing.push(field)
+          }
+        }
+
+        return {
+          valid: missing.length === 0,
+          errors: missing.length > 0 ? [`Missing required fields: ${missing.join(', ')}`] : [],
+          tool: {
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema,
+          },
+        }
+      },
+    })
+
+    // ==================== MCP RPC Methods ====================
+
+    this.registerMethod({
+      name: 'mcp.listServers',
+      description: 'List all configured MCP servers',
+      execute: async () => {
+        // This will be connected to the actual MCP bridge in Phase 2
+        return {
+          servers: [],
+          count: 0,
+          message: 'MCP server management will be available in Phase 2',
+        }
+      },
+    })
+
+    this.registerMethod({
+      name: 'mcp.listTools',
+      description: 'List all tools available from MCP servers',
+      params: {
+        serverName: { type: 'string', required: false, description: 'Filter by server name' },
+      },
+      execute: async (params) => {
+        const serverName = params.serverName as string | undefined
+        
+        return {
+          tools: [],
+          count: 0,
+          serverName,
+          message: 'MCP tools will be available in Phase 2',
+        }
+      },
+    })
+
+    this.registerMethod({
+      name: 'mcp.callTool',
+      description: 'Call a tool from an MCP server',
+      params: {
+        serverName: { type: 'string', required: true, description: 'MCP server name' },
+        toolName: { type: 'string', required: true, description: 'Tool name' },
+        toolInput: { type: 'object', required: true, description: 'Tool input' },
+      },
+      execute: async (params) => {
+        const { serverName, toolName, toolInput } = params
+        
+        return {
+          success: false,
+          error: 'MCP tool calling will be available in Phase 2',
+          serverName,
+          toolName,
+        }
+      },
+    })
+
+    // ==================== Session RPC Methods ====================
+
+    this.registerMethod({
+      name: 'session.list',
+      description: 'List all sessions for the current user',
+      params: {
+        offset: { type: 'number', required: false, description: 'Offset for pagination' },
+        limit: { type: 'number', required: false, description: 'Limit for pagination' },
+      },
+      execute: async (params, context) => {
+        const offset = (params.offset as number) || 0
+        const limit = (params.limit as number) || 50
+        
+        // This will be connected to the actual session manager
+        return {
+          sessions: [],
+          offset,
+          limit,
+          total: 0,
+          message: 'Session listing will be connected to database in Phase 2',
+        }
+      },
+    })
+
+    this.registerMethod({
+      name: 'session.export',
+      description: 'Export session data',
+      params: {
+        sessionId: { type: 'string', required: true, description: 'Session ID' },
+        format: { type: 'string', required: false, description: 'Export format (json, markdown, txt)' },
+      },
+      execute: async (params) => {
+        const { sessionId, format } = params
+        
+        return {
+          success: true,
+          sessionId,
+          format: format || 'json',
+          message: 'Session export will be available in Phase 2',
+        }
       },
     })
   }

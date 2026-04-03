@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
+import { checkLoginStatus } from '@/services/authService'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -48,10 +49,12 @@ const router = createRouter({
 // 路由守卫
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token')
+  const isTokenValid = token ? checkLoginStatus() : false
   
-  if (to.meta.requiresAuth && !token) {
+  if (to.meta.requiresAuth && !isTokenValid) {
+    localStorage.removeItem('token')
     next('/login')
-  } else if ((to.path === '/login' || to.path === '/register' || to.path === '/forgot-password') && token) {
+  } else if ((to.path === '/login' || to.path === '/register' || to.path === '/forgot-password') && isTokenValid) {
     next('/chat')
   } else {
     next()

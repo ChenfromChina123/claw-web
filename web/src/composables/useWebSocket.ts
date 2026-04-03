@@ -503,17 +503,27 @@ class EnhancedWebSocketClient {
         break
 
       case 'content_block_delta':
-        // 不在这里处理，让事件直接传递给外部监听器
-        // 避免与 chat.ts 中的处理逻辑冲突
+        break
+
+      // Tool events
+      case 'tool_start':
+        this.handleToolStart(message)
+        break
+
+      case 'tool_end':
+        this.handleToolEnd(message)
+        break
+
+      case 'tool_error':
+        this.handleToolError(message)
+        break
+
+      case 'tool_progress':
+        this.handleToolProgress(message)
         break
 
       case 'tool_use':
         this.handleToolUseStart(message)
-        break
-
-      case 'tool_end':
-      case 'tool_error':
-        this.handleToolUseEnd(message)
         break
 
       case 'error':
@@ -523,20 +533,132 @@ class EnhancedWebSocketClient {
   }
 
   /**
-   * 处理工具调用开始
+   * 处理工具开始执行
+   */
+  private handleToolStart(message: WSMessage): void {
+    const eventData = message.data as {
+      id?: string
+      name?: string
+      input?: Record<string, unknown>
+      sessionId?: string
+    } | undefined
+
+    if (!eventData) return
+
+    const toolCall: ToolCall = {
+      id: eventData.id || message.id || this.generateId(),
+      messageId: '',
+      sessionId: eventData.sessionId || this.currentSession.value?.id || '',
+      toolName: eventData.name || message.name || '',
+      toolInput: eventData.input || (message.input as Record<string, unknown>) || {},
+      toolOutput: null,
+      status: 'executing',
+      createdAt: new Date(),
+    }
+
+    this.toolCalls.value = [...this.toolCalls.value, toolCall]
+    this.emitEvent('tool_start', toolCall)
+  }
+
+  /**
+   * 处理工具执行结束
+   */
+  private handleToolEnd(message: WSMessage): void {
+    const eventData = message.data as {
+      id?: string
+      name?: string
+      success?: boolean
+      result?: unknown
+      error?: string
+      duration?: number
+    } | undefined
+
+    const toolId = eventData?.id || message.id
+    if (!toolId) return
+
+    const toolCalls = [...this.toolCalls.value]
+    const tool = toolCalls.find((t) => t.id === toolId)
+
+    if (tool) {
+      tool.status = (eventData?.success !== false) ? 'completed' : 'error'
+      tool.toolOutput = eventData?.result || message.result
+      tool.completedAt = new Date()
+
+      if (eventData?.error || message.error) {
+        tool.error = (eventData?.error || message.error) as string
+      }
+
+      this.toolCalls.value = toolCalls
+      this.emitEvent('tool_end', tool)
+    }
+  }
+
+  /**
+   * 处理工具执行错误
+   */
+  private handleToolError(message: WSMessage): void {
+    const eventData = message.data as {
+      id?: string
+      name?: string
+      error?: string
+      duration?: number
+    } | undefined
+
+    const toolId = eventData?.id || message.id
+    if (!toolId) return
+
+    const toolCalls = [...this.toolCalls.value]
+    const tool = toolCalls.find((t) => t.id === toolId)
+
+    if (tool) {
+      tool.status = 'error'
+      tool.error = eventData?.error || (message.error as string) || 'Unknown error'
+      tool.completedAt = new Date()
+      this.toolCalls.value = toolCalls
+      this.emitEvent('tool_error', tool)
+    }
+
+    console.error('[WS] Tool error:', eventData?.name || message.name, eventData?.error || message.error)
+  }
+
+  /**
+   * 处理工具执行进度
+   */
+  private handleToolProgress(message: WSMessage): void {
+    const eventData = message.data as {
+      executionId?: string
+      name?: string
+      output?: string
+      [key: string]: unknown
+    } | undefined
+
+    if (eventData) {
+      this.emitEvent('tool_progress', {
+        executionId: eventData.executionId || message.id,
+        toolName: eventData.name || message.name,
+        output: eventData.output,
+        ...eventData,
+      })
+    }
+  }
+
+  /**
+   * 处理工具调用开始 (来自 AI 响应)
    */
   private handleToolUseStart(message: WSMessage): void {
     const toolCall: ToolCall = {
-      id: message.id as string,
+      id: message.id as string || this.generateId(),
       messageId: '',
       sessionId: this.currentSession.value?.id || '',
-      toolName: message.name as string,
+      toolName: message.name as string || '',
       toolInput: (message.input as Record<string, unknown>) || {},
       toolOutput: null,
       status: 'pending',
       createdAt: new Date(),
     }
+
     this.toolCalls.value = [...this.toolCalls.value, toolCall]
+    this.emitEvent('tool_use', toolCall)
   }
 
   /**
@@ -561,6 +683,243 @@ class EnhancedWebSocketClient {
   }
 
   // ==================== 公共 API 方法 ====================
+
+  // ==================== Tool RPC Methods ====================
+
+  /**
+   * 获取工具列表
+   * @param category 可选的类别过滤
+   */
+  async listTools(category?: string): Promise<{
+    tools: Array<{
+      name: string
+      description: string
+      inputSchema: Record<string, unknown>
+      category: string
+      permissions?: { dangerous?: boolean; sandboxed?: boolean }
+    }>
+    categories: string[]
+    total: number
+  }> {
+    return this.callRPC('tool.list', { category })
+  }
+
+  /**
+   * 执行工具 (RPC)
+   * @param toolName 工具名称
+   * @param toolInput 工具输入参数
+   * @param sessionId 可选的会话 ID
+   * @param context 可选的执行上下文
+   */
+  async executeTool(
+    toolName: string,
+    toolInput: Record<string, unknown>,
+    sessionId?: string,
+    context?: Record<string, unknown>
+  ): Promise<{
+    id: string
+    toolName: string
+    success: boolean
+    result?: unknown
+    error?: string
+    output?: string
+    metadata?: { duration?: number; tokens?: number; cost?: number }
+    duration: number
+  }> {
+    return this.callRPC('tool.execute', { toolName, toolInput, sessionId, context })
+  }
+
+  /**
+   * 流式执行工具 (RPC)
+   * 用于长时间运行的工具，实时发送进度事件
+   */
+  async executeToolStreaming(
+    toolName: string,
+    toolInput: Record<string, unknown>,
+    sessionId?: string
+  ): Promise<{
+    id: string
+    toolName: string
+    success: boolean
+    result?: unknown
+    error?: string
+    streaming: boolean
+    duration: number
+  }> {
+    return this.callRPC('tool.executeStreaming', { toolName, toolInput, sessionId })
+  }
+
+  /**
+   * 获取工具执行历史
+   * @param limit 最大返回数量
+   */
+  async getToolHistory(limit?: number): Promise<{
+    history: Array<{
+      id: string
+      name: string
+      input: Record<string, unknown>
+      output?: unknown
+      status: string
+      startedAt?: number
+      completedAt?: number
+      error?: string
+    }>
+    count: number
+  }> {
+    return this.callRPC('tool.history', { limit })
+  }
+
+  /**
+   * 清空工具执行历史
+   */
+  async clearToolHistory(): Promise<{ success: boolean; message: string }> {
+    return this.callRPC('tool.clearHistory', {})
+  }
+
+  /**
+   * 验证工具输入
+   * @param toolName 工具名称
+   * @param toolInput 要验证的输入
+   */
+  async validateToolInput(
+    toolName: string,
+    toolInput: Record<string, unknown>
+  ): Promise<{
+    valid: boolean
+    errors: string[]
+    tool?: {
+      name: string
+      description: string
+      inputSchema: Record<string, unknown>
+    }
+  }> {
+    return this.callRPC('tool.validateInput', { toolName, toolInput })
+  }
+
+  // ==================== MCP RPC Methods ====================
+
+  /**
+   * 获取 MCP 服务器列表
+   */
+  async listMCPServers(): Promise<{
+    servers: Array<{
+      name: string
+      status: string
+      tools: string[]
+    }>
+    count: number
+    message?: string
+  }> {
+    return this.callRPC('mcp.listServers', {})
+  }
+
+  /**
+   * 获取 MCP 工具列表
+   * @param serverName 可选的服务器名称过滤
+   */
+  async listMCPTools(serverName?: string): Promise<{
+    tools: Array<{
+      name: string
+      description: string
+      serverName: string
+      inputSchema: Record<string, unknown>
+    }>
+    count: number
+    serverName?: string
+    message?: string
+  }> {
+    return this.callRPC('mcp.listTools', { serverName })
+  }
+
+  /**
+   * 调用 MCP 工具
+   * @param serverName MCP 服务器名称
+   * @param toolName 工具名称
+   * @param toolInput 工具输入
+   */
+  async callMCPTool(
+    serverName: string,
+    toolName: string,
+    toolInput: Record<string, unknown>
+  ): Promise<{
+    success: boolean
+    result?: unknown
+    error?: string
+    serverName: string
+    toolName: string
+  }> {
+    return this.callRPC('mcp.callTool', { serverName, toolName, toolInput })
+  }
+
+  // ==================== Session RPC Methods ====================
+
+  /**
+   * 获取会话列表 (RPC)
+   */
+  async listSessionsRPC(
+    offset?: number,
+    limit?: number
+  ): Promise<{
+    sessions: unknown[]
+    offset: number
+    limit: number
+    total: number
+    message?: string
+  }> {
+    return this.callRPC('session.list', { offset, limit })
+  }
+
+  /**
+   * 导出会话
+   * @param sessionId 会话 ID
+   * @param format 导出格式 (json, markdown, txt)
+   */
+  async exportSession(
+    sessionId: string,
+    format?: string
+  ): Promise<{
+    success: boolean
+    sessionId: string
+    format: string
+    message?: string
+  }> {
+    return this.callRPC('session.export', { sessionId, format })
+  }
+
+  // ==================== System RPC Methods ====================
+
+  /**
+   * Ping 服务器
+   */
+  async ping(): Promise<{ pong: boolean; timestamp: number }> {
+    return this.callRPC('system.ping', {}, 5000)
+  }
+
+  /**
+   * 获取服务器信息
+   */
+  async getSystemInfo(): Promise<{
+    version: string
+    uptime: number
+    platform: string
+    nodeVersion: string
+    memory: unknown
+    connections: number
+    registeredMethods: number
+  }> {
+    return this.callRPC('system.info', {})
+  }
+
+  /**
+   * 列出所有可用的 RPC 方法
+   */
+  async listMethods(): Promise<Array<{
+    name: string
+    description: string
+    params?: Record<string, unknown>
+  }>> {
+    return this.callRPC('system.listMethods', {})
+  }
 
   /**
    * 创建新会话

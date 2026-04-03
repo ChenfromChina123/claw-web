@@ -741,6 +741,164 @@ async function startServer() {
         })
       }
 
+      // ==================== Tools API ====================
+
+      // GET /api/tools - 获取所有工具列表
+      if (path === '/api/tools' && method === 'GET') {
+        const category = url.searchParams.get('category')
+        const tools = category
+          ? toolExecutor.getToolsByCategory(category)
+          : toolExecutor.getAllTools()
+
+        return createSuccessResponse({
+          tools: tools.map(t => ({
+            name: t.name,
+            description: t.description,
+            inputSchema: t.inputSchema,
+            category: t.category,
+            permissions: t.permissions,
+          })),
+          categories: ['file', 'shell', 'web', 'system', 'ai', 'mcp'],
+          total: tools.length,
+        })
+      }
+
+      // GET /api/tools/:name - 获取特定工具详情
+      if (path.startsWith('/api/tools/') && method === 'GET') {
+        const toolName = path.replace('/api/tools/', '')
+        const tool = toolExecutor.getTool(toolName)
+
+        if (!tool) {
+          return createErrorResponse('TOOL_NOT_FOUND', `Tool '${toolName}' not found`, 404)
+        }
+
+        return createSuccessResponse({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          category: tool.category,
+          permissions: tool.permissions,
+        })
+      }
+
+      // POST /api/tools/execute - 执行工具
+      if (path === '/api/tools/execute' && method === 'POST') {
+        try {
+          const body = await request.json() as {
+            toolName: string
+            toolInput: Record<string, unknown>
+            sessionId?: string
+            context?: Record<string, unknown>
+          }
+
+          const { toolName, toolInput, sessionId, context } = body
+
+          if (!toolName || !toolInput) {
+            return createErrorResponse('INVALID_PARAMS', 'toolName and toolInput are required', 400)
+          }
+
+          const result = await toolExecutor.execute(toolName, toolInput)
+
+          return createSuccessResponse({
+            success: result.success,
+            result: result.result,
+            error: result.error,
+            output: result.output,
+            metadata: result.metadata,
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Tool execution failed'
+          return createErrorResponse('TOOL_EXECUTION_FAILED', message, 500)
+        }
+      }
+
+      // GET /api/tools/history - 获取工具执行历史
+      if (path === '/api/tools/history' && method === 'GET') {
+        const limit = parseInt(url.searchParams.get('limit') || '50', 10)
+        const history = toolExecutor.getHistory(limit)
+
+        return createSuccessResponse({
+          history,
+          count: history.length,
+        })
+      }
+
+      // POST /api/tools/history/clear - 清空工具执行历史
+      if (path === '/api/tools/history/clear' && method === 'POST') {
+        toolExecutor.clearHistory()
+        return createSuccessResponse({ message: 'Tool history cleared' })
+      }
+
+      // POST /api/tools/validate - 验证工具输入
+      if (path === '/api/tools/validate' && method === 'POST') {
+        try {
+          const body = await request.json() as {
+            toolName: string
+            toolInput: Record<string, unknown>
+          }
+
+          const { toolName, toolInput } = body
+          const tool = toolExecutor.getTool(toolName)
+
+          if (!tool) {
+            return createSuccessResponse({
+              valid: false,
+              errors: [`Tool '${toolName}' not found`],
+            })
+          }
+
+          const required = tool.inputSchema.required || []
+          const missing: string[] = []
+
+          for (const field of required) {
+            if (toolInput[field] === undefined || toolInput[field] === null) {
+              missing.push(field)
+            }
+          }
+
+          return createSuccessResponse({
+            valid: missing.length === 0,
+            errors: missing.length > 0 ? [`Missing required fields: ${missing.join(', ')}`] : [],
+            tool: {
+              name: tool.name,
+              description: tool.description,
+              inputSchema: tool.inputSchema,
+            },
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Validation failed'
+          return createErrorResponse('VALIDATION_FAILED', message, 500)
+        }
+      }
+
+      // ==================== Models API ====================
+
+      // GET /api/models - 获取可用模型列表
+      if (path === '/api/models' && method === 'GET') {
+        return createSuccessResponse({
+          models: AVAILABLE_MODELS,
+          default: AVAILABLE_MODELS[0],
+        })
+      }
+
+      // ==================== MCP API (Placeholder for Phase 2) ====================
+
+      // GET /api/mcp/servers - 获取 MCP 服务器列表
+      if (path === '/api/mcp/servers' && method === 'GET') {
+        return createSuccessResponse({
+          servers: [],
+          message: 'MCP server management will be available in Phase 2',
+        })
+      }
+
+      // GET /api/mcp/tools - 获取 MCP 工具列表
+      if (path === '/api/mcp/tools' && method === 'GET') {
+        return createSuccessResponse({
+          tools: [],
+          message: 'MCP tools will be available in Phase 2',
+        })
+      }
+
       return createErrorResponse('NOT_FOUND', `Route ${path} not found`, 404)
     },
 
@@ -1123,11 +1281,27 @@ async function startServer() {
   console.log(`       PUT    /api/sessions/:id     - 更新会话信息`)
   console.log(`       DELETE /api/sessions/:id     - 删除会话`)
   console.log(`       POST   /api/sessions/:id/clear - 清空会话消息`)
+  console.log(`\n[API]  Tools Endpoints:`)
+  console.log(`       GET    /api/tools            - 获取工具列表`)
+  console.log(`       GET    /api/tools/:name       - 获取特定工具详情`)
+  console.log(`       POST   /api/tools/execute     - 执行工具`)
+  console.log(`       GET    /api/tools/history     - 获取工具执行历史`)
+  console.log(`       POST   /api/tools/history/clear - 清空历史`)
+  console.log(`       POST   /api/tools/validate    - 验证工具输入`)
+  console.log(`\n[API]  Models Endpoints:`)
+  console.log(`       GET    /api/models           - 获取可用模型列表`)
+  console.log(`\n[API]  MCP Endpoints:`)
+  console.log(`       GET    /api/mcp/servers      - 获取 MCP 服务器列表`)
+  console.log(`       GET    /api/mcp/tools        - 获取 MCP 工具列表`)
   console.log(`\n[WS]   WebSocket Events:`)
   console.log(`       create_session, load_session, list_sessions`)
   console.log(`       user_message, delete_session, rename_session`)
   console.log(`       clear_session, get_tools, execute_command`)
   console.log(`       get_models, get_status, rpc_call`)
+  console.log(`\n[WS]   Tool RPC Methods:`)
+  console.log(`       tool.list, tool.execute, tool.executeStreaming`)
+  console.log(`       tool.history, tool.clearHistory, tool.validateInput`)
+  console.log(`       mcp.listServers, mcp.listTools, mcp.callTool`)
   console.log(`\n${'='.repeat(60)}\n`)
 }
 
