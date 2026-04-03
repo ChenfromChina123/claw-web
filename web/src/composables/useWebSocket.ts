@@ -345,6 +345,7 @@ class EnhancedWebSocketClient {
   private handleMessage(data: string): void {
     try {
       const message: WSMessage = JSON.parse(data)
+      console.log('[WS] Raw message received:', message)
 
       switch (message.type) {
         case 'pong':
@@ -359,7 +360,9 @@ class EnhancedWebSocketClient {
         case 'logged_in':
           // 处理注册和登录响应
           console.log(`[WS] ${message.type === 'registered' ? 'Registered' : 'Logged in'}:`, (message as { userId?: string }).userId)
+          console.log('[WS] connectResolve exists:', !!this.connectResolve)
           if (this.connectResolve) {
+            console.log('[WS] Resolving connection promise')
             this.connectResolve()
             this.clearConnectPromise()
           }
