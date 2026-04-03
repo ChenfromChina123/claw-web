@@ -386,12 +386,12 @@ ink/:
 - [x] src/tools/BashTool/commandSemantics.ts
 - [x] src/tools/BashTool/destructiveCommandWarning.ts
 - [x] src/tools/FileReadTool/FileReadTool.ts
+- [x] 任务1：BashTool 工具目录
+- [x] 任务4：任务管理工具目录
 
 ### 进行中任务
-- [ ] 任务1：BashTool 工具目录
 - [ ] 任务2：文件操作工具目录
 - [ ] 任务3：Web 相关工具目录
-- [ ] 任务4：任务管理工具目录
 - [ ] 任务5：Agent 和协调器工具目录
 - [ ] 任务6：命令系统目录
 - [ ] 任务7：状态和工具函数目录
