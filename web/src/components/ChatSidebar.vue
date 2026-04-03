@@ -11,9 +11,10 @@ const searchValue = ref('')
 const collapsed = ref(false)
 
 const filteredSessions = computed(() => {
-  if (!searchValue.value) return chatStore.sessions
-  return chatStore.sessions.filter(s => 
-    s.title.toLowerCase().includes(searchValue.value.toLowerCase())
+  const sessions = chatStore.sessions || []
+  if (!searchValue.value) return sessions
+  return sessions.filter(s =>
+    (s.title || '').toLowerCase().includes(searchValue.value.toLowerCase())
   )
 })
 

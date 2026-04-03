@@ -39,9 +39,10 @@ onMounted(async () => {
     await chatStore.listSessions()
     
     // 加载或创建会话
-    if (chatStore.sessions.length > 0) {
+    const sessions = chatStore.sessions || []
+    if (sessions.length > 0) {
       // 有会话，加载第一个
-      await chatStore.loadSession(chatStore.sessions[0].id)
+      await chatStore.loadSession(sessions[0].id)
     } else {
       // 没有会话，强制创建第一个会话
       await chatStore.createSession(undefined, undefined, true)
@@ -97,13 +98,14 @@ async function handleRetry(): Promise<void> {
   try {
     await chatStore.connect(authStore.token || undefined)
     await chatStore.listSessions()
-    
-    if (chatStore.sessions.length === 0) {
+
+    const sessionsAfterList = chatStore.sessions || []
+    if (sessionsAfterList.length === 0) {
       await chatStore.createSession()
     } else if (chatStore.currentSessionId) {
       await chatStore.loadSession(chatStore.currentSessionId)
-    } else if (chatStore.sessions.length > 0) {
-      await chatStore.loadSession(chatStore.sessions[0].id)
+    } else if (sessionsAfterList.length > 0) {
+      await chatStore.loadSession(sessionsAfterList[0].id)
     }
     
     nextTick(() => {
