@@ -903,7 +903,8 @@ async function startServer() {
                 }
 
                 sessionManager.getUserSessions(userId).then(sessions => {
-                  console.log(`[WS] list_sessions: found ${sessions.length} sessions`)
+                  console.log(`[WS] list_sessions: found ${sessions.length} sessions for user ${userId}`)
+                  console.log(`[WS] list_sessions: sessions data:`, JSON.stringify(sessions, null, 2))
                   ws.send(JSON.stringify({ type: 'session_list', sessions }))
                 }).catch(err => {
                   console.error('[WS] Failed to list sessions:', err)

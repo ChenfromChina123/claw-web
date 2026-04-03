@@ -16,14 +16,16 @@ export const useChatStore = defineStore('chat', () => {
   })
   
   async function connect(token?: string) {
+    console.log('[ChatStore] 开始连接 WebSocket...')
     // 在连接之前设置事件监听器，避免错过事件
     setupEventListeners()
     
     try {
       await wsClient.connect(token)
       isConnected.value = true
+      console.log('[ChatStore] WebSocket 连接成功')
     } catch (error) {
-      console.error('[Chat] 连接失败:', error)
+      console.error('[ChatStore] 连接失败:', error)
       isConnected.value = false
       throw error
     }
@@ -36,6 +38,7 @@ export const useChatStore = defineStore('chat', () => {
     wsClient.on('session_list', (data: unknown) => {
       if (!data) return
       const msg = data as { sessions?: Session[] }
+      console.log('[ChatStore] 监听到 session_list 事件，sessions:', msg.sessions)
       sessions.value = msg?.sessions || []
     })
     
@@ -56,6 +59,7 @@ export const useChatStore = defineStore('chat', () => {
       const msg = data as { session?: Session; messages?: Message[]; toolCalls?: ToolCall[] }
       const session = msg?.session
       if (!session || !session.id) return
+      console.log('[ChatStore] 会话加载完成，sessionId:', session.id, 'messages:', msg.messages?.length, 'toolCalls:', msg.toolCalls?.length)
       currentSessionId.value = session.id
       messages.value = msg?.messages || []
       toolCalls.value = msg?.toolCalls || []
@@ -247,18 +251,24 @@ export const useChatStore = defineStore('chat', () => {
    * @returns Promise，在会话列表返回后 resolve
    */
   function listSessions(): Promise<void> {
+    console.log('[ChatStore] 发送 list_sessions 请求...')
     return new Promise((resolve, reject) => {
       const timeout = 10000
       let timeoutId: ReturnType<typeof setTimeout> | null = null
       let resolved = false
       
-      const unsubscribe = wsClient.on('session_list', () => {
+      const unsubscribe = wsClient.on('session_list', (data: unknown) => {
         if (resolved) return
         resolved = true
         if (timeoutId) {
           clearTimeout(timeoutId)
         }
         unsubscribe()
+        console.log('[ChatStore] 收到 session_list 事件，data:', data)
+        if (!data) return
+        const msg = data as { sessions?: Session[] }
+        sessions.value = msg?.sessions || []
+        console.log('[ChatStore] 会话列表更新，数量:', sessions.value.length)
         resolve()
       })
       
@@ -266,6 +276,7 @@ export const useChatStore = defineStore('chat', () => {
         if (resolved) return
         resolved = true
         unsubscribe()
+        console.error('[ChatStore] 获取会话列表超时')
         reject(new Error('获取会话列表超时'))
       }, timeout)
       

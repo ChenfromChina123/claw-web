@@ -375,16 +375,19 @@ class EnhancedWebSocketClient {
         case 'session_list':
           console.log('[WS] Session list received:', (message as { sessions?: unknown }).sessions)
           this.emitEvent('session_list', (message as { sessions?: unknown }).sessions)
+          console.log('[WS] Session list event emitted')
           break
 
         case 'session_created':
           console.log('[WS] Session created:', (message as { session?: unknown }).session)
           this.emitEvent('session_created', (message as { session?: unknown }).session)
+          console.log('[WS] Session created event emitted')
           break
 
         case 'session_loaded':
           console.log('[WS] Session loaded:', (message as { session?: unknown }).session)
           this.emitEvent('session_loaded', (message as { session?: unknown }).session)
+          console.log('[WS] Session loaded event emitted')
           break
 
         case 'error':

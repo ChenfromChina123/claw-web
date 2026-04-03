@@ -34,10 +34,12 @@ export class SessionRepository {
 
   async findByUserId(userId: string): Promise<Session[]> {
     const pool = getPool() as Pool
+    console.log(`[SessionRepo] findByUserId: userId=${userId}`)
     const [rows] = await pool.query(
       'SELECT * FROM sessions WHERE user_id = ? ORDER BY updated_at DESC',
       [userId]
     ) as [Session[], unknown]
+    console.log(`[SessionRepo] findByUserId: found ${rows.length} sessions for user ${userId}, rows:`, JSON.stringify(rows, null, 2))
 
     return rows.map(row => this.mapToSession(row))
   }

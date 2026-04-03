@@ -32,21 +32,32 @@ onMounted(async () => {
   initError.value = null
   
   try {
+    console.log('[Chat] 开始初始化...')
+    
     // 连接 WebSocket
+    console.log('[Chat] 连接 WebSocket...')
     await chatStore.connect(authStore.token || undefined)
+    console.log('[Chat] WebSocket 连接成功， isConnected:', chatStore.isConnected)
     
     // 获取会话列表
+    console.log('[Chat] 获取会话列表...')
     await chatStore.listSessions()
+    console.log('[Chat] 会话列表获取完成，sessions:', chatStore.sessions)
     
     // 加载或创建会话
     const sessions = chatStore.sessions || []
+    console.log('[Chat] 会话数量:', sessions.length)
     if (sessions.length > 0) {
       // 有会话，加载第一个
+      console.log('[Chat] 加载第一个会话:', sessions[0].id)
       await chatStore.loadSession(sessions[0].id)
     } else {
       // 没有会话，强制创建第一个会话
+      console.log('[Chat] 没有会话，创建新会话...')
       await chatStore.createSession(undefined, undefined, true)
     }
+    
+    console.log('[Chat] 初始化完成，currentSessionId:', chatStore.currentSessionId)
     
     // 聚焦输入框
     nextTick(() => {
@@ -96,10 +107,15 @@ async function handleRetry(): Promise<void> {
   initError.value = null
   
   try {
+    console.log('[Chat] 开始重新初始化...')
+    
     await chatStore.connect(authStore.token || undefined)
+    console.log('[Chat] WebSocket 重新连接成功')
     await chatStore.listSessions()
+    console.log('[Chat] 会话列表重新获取完成，sessions:', chatStore.sessions)
 
     const sessionsAfterList = chatStore.sessions || []
+    console.log('[Chat] 会话数量:', sessionsAfterList.length)
     if (sessionsAfterList.length === 0) {
       await chatStore.createSession()
     } else if (chatStore.currentSessionId) {
