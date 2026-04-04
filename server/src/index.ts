@@ -152,6 +152,10 @@ class SessionConversationManager {
     this.sessionBridge = new WebSessionBridge()
   }
 
+  /**
+   * 处理用户消息并启动 Agent Loop
+   * 使用清晰的迭代结构处理工具调用循环
+   */
   async processMessage(
     sessionId: string,
     userMessage: string,
@@ -159,7 +163,7 @@ class SessionConversationManager {
     sessionManager: SessionManager,
     sendEvent: (event: string, data: unknown) => void
   ): Promise<void> {
-    // Check if input is a command
+    // 1. 检查是否为命令
     const parsed = parseUserInput(userMessage)
     if (parsed.isCommand && parsed.command) {
       const result = await this.commandBridge.executeCommand(parsed.command, sendEvent)
@@ -167,7 +171,7 @@ class SessionConversationManager {
       return
     }
 
-    // Add user message to session
+    // 2. 保存用户消息到 session
     const savedUserMessage = sessionManager.addMessage(sessionId, 'user', userMessage)
 
     const sessionData = sessionManager.getInMemorySession(sessionId)
@@ -176,7 +180,7 @@ class SessionConversationManager {
       return
     }
 
-    // 通知前端用户消息已保存
+    // 3. 发送 message_saved 事件
     if (savedUserMessage) {
       sendEvent('message_saved', {
         sessionId,
@@ -185,188 +189,302 @@ class SessionConversationManager {
       })
     }
 
-    const messages = sessionData.messages
-    const client = getAnthropicClient()
-
-    console.log(`[${sessionId}] Starting streaming with model: ${model}`)
-    console.log(`[${sessionId}] Total messages in history: ${messages.length}`)
+    console.log(`[${sessionId}] Starting Agent Loop with model: ${model}`)
+    console.log(`[${sessionId}] Total messages in history: ${sessionData.messages.length}`)
 
     try {
-      let maxIterations = 10
-      let iteration = 0
+      // 4. 进入 Agent Loop (最多10次迭代)
+      const maxIterations = 10
+      for (let iteration = 0; iteration < maxIterations; iteration++) {
+        console.log(`[${sessionId}] Agent Loop iteration ${iteration + 1}/${maxIterations}`)
 
-      while (iteration < maxIterations) {
-        iteration++
-        console.log(`[${sessionId}] API iteration ${iteration}, messages: ${messages.length}`)
-
-        // 先创建助手消息，获取后端生成的ID（用于前端显示）
+        // 4.1 创建助手消息占位符
         const assistantMessage = sessionManager.addMessage(sessionId, 'assistant', '')
         if (!assistantMessage) {
           console.error(`[${sessionId}] Failed to create assistant message`)
           sendEvent('error', { message: 'Failed to create assistant message' })
           return
         }
-
-        // 保存助手消息ID，用于后续更新
         const assistantMessageId = assistantMessage.id
 
-        // 发送 message_start 事件，包含后端生成的ID
+        // 4.2 发送 message_start 事件
         sendEvent('message_start', { 
-          messageId: assistantMessageId,
-          iteration 
+          messageId: assistantMessageId, 
+          iteration: iteration + 1 
         })
 
-        const stream = client.messages.stream({
-          model,
-          max_tokens: 4096,
-          messages: messages.map(m => ({
-            role: m.role as 'user' | 'assistant',
-            content: m.content,
-          })),
-          tools: this.toolExecutor.getAnthropicTools() as Anthropic.Tool[],
-        })
+        // 4.3 调用 AI API (streaming)
+        const streamResult = await this.callAIWithStream(
+          sessionId, 
+          model, 
+          sessionManager, 
+          sendEvent
+        )
 
-        let assistantText = ''
-        let pendingToolCalls: Array<{ id: string; name: string; input: string }> = []
-        let currentTextBlock = ''
-        let executedToolCalls: ToolCall[] = []
-
-        for await (const event of stream) {
-          console.log(`[${sessionId}] Stream event: ${event.type}`)
-
-          switch (event.type) {
-            case 'content_block_start':
-              if (event.content_block.type === 'tool_use') {
-                const toolId = event.content_block.id || uuidv4()
-                const toolName = event.content_block.name || ''
-                console.log(`[${sessionId}] Tool use started: ${toolName}`)
-                pendingToolCalls.push({ id: toolId, name: toolName, input: '' })
-                sendEvent('tool_use', { id: toolId, name: toolName })
-              } else if (event.content_block.type === 'text') {
-                currentTextBlock = ''
-              }
-              break
-
-            case 'content_block_delta':
-              if (event.delta.type === 'text_delta') {
-                currentTextBlock += event.delta.text
-                assistantText += event.delta.text
-                sendEvent('content_block_delta', { text: event.delta.text })
-              } else if (event.delta.type === 'input_json_delta') {
-                if (pendingToolCalls.length > 0) {
-                  const lastTool = pendingToolCalls[pendingToolCalls.length - 1]
-                  lastTool.input += event.delta.partial_json
-                  sendEvent('tool_input_delta', { id: lastTool.id, partial_json: event.delta.partial_json })
-                }
-              }
-              break
-
-            case 'content_block_stop':
-              break
-
-            case 'message_delta':
-              if (event.delta.stop_reason) {
-                sendEvent('message_stop', { stop_reason: event.delta.stop_reason, iteration })
-              }
-              break
-
-            case 'message_stop':
-              console.log(`[${sessionId}] Message stream completed, processing ${pendingToolCalls.length} tool calls`)
-              
-              executedToolCalls = []
-
-              for (const tool of pendingToolCalls) {
-                const toolInput = tool.input ? JSON.parse(tool.input) : {}
-
-                const toolCall: ToolCall = {
-                  id: tool.id,
-                  messageId: '',
-                  sessionId,
-                  toolName: tool.name,
-                  toolInput,
-                  toolOutput: null,
-                  status: 'pending',
-                  createdAt: new Date(),
-                }
-
-                try {
-                  const result = await this.toolExecutor.execute(tool.name, toolInput, sendEvent, tool.id)
-
-                  toolCall.toolOutput = result.result as Record<string, unknown>
-                  toolCall.status = result.success ? 'completed' : 'error'
-
-                  sessionManager.addToolCall(sessionId, toolCall)
-                  sessionManager.addMessage(sessionId, 'user', JSON.stringify({
-                    tool_use_id: tool.id,
-                    name: tool.name,
-                    result: result.result,
-                    error: result.error,
-                  }))
-
-                  console.log(`[${sessionId}] Tool ${tool.name} completed`)
-                } catch (error) {
-                  const errorMessage = error instanceof Error ? error.message : String(error)
-                  console.error(`[${sessionId}] Tool ${tool.name} error:`, errorMessage)
-
-                  toolCall.toolOutput = { error: errorMessage }
-                  toolCall.status = 'error'
-
-                  sessionManager.addToolCall(sessionId, toolCall)
-                  sessionManager.addMessage(sessionId, 'user', JSON.stringify({
-                    tool_use_id: tool.id,
-                    name: tool.name,
-                    error: errorMessage,
-                  }))
-                }
-
-                executedToolCalls.push(toolCall)
-              }
-
-              pendingToolCalls = []
-              break
+        // 4.4 如果有工具调用
+        if (streamResult.toolCalls && streamResult.toolCalls.length > 0) {
+          console.log(`[${sessionId}] AI requested ${streamResult.toolCalls.length} tool(s)`)
+          
+          // 执行所有工具调用（包含完整的事件序列）
+          await this.executeToolCalls(
+            sessionId, 
+            streamResult.toolCalls, 
+            sessionManager, 
+            sendEvent
+          )
+          
+          // 更新助手消息内容（包含文本和工具调用信息）
+          if (streamResult.text || streamResult.toolCalls.length > 0) {
+            sessionManager.updateMessage(
+              sessionId, 
+              assistantMessageId, 
+              streamResult.text, 
+              streamResult.toolCalls.map(tc => ({
+                id: tc.id,
+                name: tc.name,
+                input: tc.input,
+              }))
+            )
           }
-        }
-
-        // 使用 updateMessage 更新助手消息内容，而不是再添加新消息
-        if (assistantText) {
-          sessionManager.updateMessage(sessionId, assistantMessageId, assistantText, executedToolCalls)
-        }
-
-        const finalSession = sessionManager.getInMemorySession(sessionId)
-        if (!finalSession) break
-
-        const lastMsg = finalSession.messages[finalSession.messages.length - 1]
-        if (lastMsg?.role !== 'assistant' || !lastMsg.toolCalls || lastMsg.toolCalls.length === 0) {
-          console.log(`[${sessionId}] Conversation completed, total messages: ${finalSession.messages.length}`)
-          // 通知前端助手消息已保存
-          sendEvent('message_saved', {
-            sessionId,
-            messageId: assistantMessageId,
-            role: 'assistant',
-          })
-          sendEvent('conversation_end', { totalMessages: finalSession.messages.length })
-          break
-        }
-
-        const lastTool = lastMsg.toolCalls[lastMsg.toolCalls.length - 1]
-        if (lastTool.status !== 'pending' && iteration < maxIterations) {
-          console.log(`[${sessionId}] Tool was used, continuing with ${finalSession.messages.length} messages...`)
+          
+          // 继续下一轮迭代（将工具结果作为上下文）
+          console.log(`[${sessionId}] Tool execution completed, continuing to next iteration...`)
           continue
         }
 
-        console.log(`[${sessionId}] Conversation completed`)
+        // 4.5 无工具调用（纯文本回复）- 更新消息并结束循环
+        if (streamResult.text) {
+          sessionManager.updateMessage(sessionId, assistantMessageId, streamResult.text, [])
+        }
+
+        // 发送结束事件
+        sendEvent('message_stop', { stop_reason: 'end_turn', iteration: iteration + 1 })
+        
+        // 通知前端助手消息已保存
+        sendEvent('message_saved', {
+          sessionId,
+          messageId: assistantMessageId,
+          role: 'assistant',
+        })
+        
+        const finalSession = sessionManager.getInMemorySession(sessionId)
+        sendEvent('conversation_end', { 
+          totalMessages: finalSession?.messages?.length || 0 
+        })
+        
+        console.log(`[${sessionId}] Conversation completed at iteration ${iteration + 1}`)
         break
       }
 
+      // 5. 检查是否达到最大迭代次数
       if (iteration >= maxIterations) {
-        console.log(`[${sessionId}] Max iterations reached`)
-        sendEvent('max_iterations_reached', { iterations: iteration })
+        console.warn(`[${sessionId}] Max iterations (${maxIterations}) reached`)
+        sendEvent('max_iterations_reached', { iterations: maxIterations })
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      console.error(`[${sessionId}] API call error:`, errorMessage)
+      console.error(`[${sessionId}] Agent Loop error:`, errorMessage)
       sendEvent('error', { message: errorMessage })
     }
+  }
+
+  /**
+   * 调用 AI API 并处理流式响应
+   * 返回结构化的结果对象，包含文本和工具调用
+   */
+  private async callAIWithStream(
+    sessionId: string,
+    model: string,
+    sessionManager: SessionManager,
+    sendEvent: (event: string, data: unknown) => void
+  ): Promise<{ text: string; toolCalls: Array<{id: string; name: string; input: any}> }> {
+    const messages = sessionManager.getInMemorySession(sessionId)?.messages || []
+    const client = getAnthropicClient()
+
+    let assistantText = ''
+    let pendingToolCalls: Array<{ id: string; name: string; input: string }> = []
+
+    console.log(`[${sessionId}] Calling AI API with ${messages.length} messages`)
+
+    const stream = client.messages.stream({
+      model,
+      max_tokens: 4096,
+      tools: this.toolExecutor.getAnthropicTools() as Anthropic.Tool[],
+      messages: messages.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
+    })
+
+    for await (const event of stream) {
+      switch (event.type) {
+        case 'content_block_start':
+          if (event.content_block.type === 'tool_use') {
+            const toolId = event.content_block.id || uuidv4()
+            const toolName = event.content_block.name || ''
+            console.log(`[${sessionId}] Tool use started: ${toolName}`)
+            pendingToolCalls.push({ id: toolId, name: toolName, input: '' })
+            
+            // 发送 tool_use 事件（AI 决策使用工具）
+            sendEvent('tool_use', { id: toolId, name: toolName })
+          }
+          break
+
+        case 'content_block_delta':
+          if (event.delta.type === 'text_delta') {
+            assistantText += event.delta.text
+            sendEvent('content_block_delta', { text: event.delta.text })
+          } else if (event.delta.type === 'input_json_delta') {
+            if (pendingToolCalls.length > 0) {
+              const lastTool = pendingToolCalls[pendingToolCalls.length - 1]
+              lastTool.input += event.delta.partial_json
+              sendEvent('tool_input_delta', { 
+                id: lastTool.id, 
+                partial_json: event.delta.partial_json 
+              })
+            }
+          }
+          break
+
+        case 'content_block_stop':
+          break
+
+        case 'message_delta':
+          if (event.delta.stop_reason) {
+            console.log(`[${sessionId}] Stream stop reason: ${event.delta.stop_reason}`)
+          }
+          break
+
+        case 'message_stop':
+          console.log(`[${sessionId}] Message stream completed`)
+          break
+      }
+    }
+
+    return {
+      text: assistantText,
+      toolCalls: pendingToolCalls.map(tc => ({
+        id: tc.id,
+        name: tc.name,
+        input: tc.input ? JSON.parse(tc.input) : {},
+      }))
+    }
+  }
+
+  /**
+   * 执行工具调用并发送完整的事件序列
+   * 关键修复：确保每个工具调用都发送 tool_start/tool_end/tool_error 事件
+   */
+  private async executeToolCalls(
+    sessionId: string,
+    toolCalls: Array<{id: string; name: string; input: any}>,
+    sessionManager: SessionManager,
+    sendEvent: (event: string, data: unknown) => void
+  ): Promise<void> {
+    for (const tool of toolCalls) {
+      console.log(`[${sessionId}] Executing tool: ${tool.name}`)
+
+      // 发送 tool_start 事件（开始执行）
+      sendEvent('tool_start', { 
+        id: tool.id, 
+        name: tool.name, 
+        input: tool.input,
+        sessionId 
+      })
+
+      const startTime = Date.now()
+      const toolCall: ToolCall = {
+        id: tool.id,
+        messageId: '',
+        sessionId,
+        toolName: tool.name,
+        toolInput: tool.input,
+        toolOutput: null,
+        status: 'executing',
+        createdAt: new Date(),
+      }
+
+      try {
+        // 设置超时保护（30秒）
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Tool execution timeout')), 30000)
+        )
+
+        const result = await Promise.race([
+          this.toolExecutor.execute(tool.name, tool.input, sendEvent, tool.id),
+          timeoutPromise
+        ])
+
+        const duration = Date.now() - startTime
+
+        // 更新工具状态
+        toolCall.toolOutput = result.result as Record<string, unknown>
+        toolCall.status = result.success ? 'completed' : 'error'
+        toolCall.completedAt = new Date()
+
+        // 保存到 session
+        sessionManager.addToolCall(sessionId, toolCall)
+        sessionManager.addMessage(sessionId, 'user', JSON.stringify({
+          tool_use_id: tool.id,
+          name: tool.name,
+          result: result.result,
+          error: result.error,
+        }))
+
+        // 发送 tool_end 事件（成功完成）
+        sendEvent('tool_end', {
+          id: tool.id,
+          name: tool.name,
+          success: true,
+          result: result.result,
+          duration,
+        })
+
+        console.log(`[${sessionId}] Tool ${tool.name} completed in ${duration}ms`)
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        const duration = Date.now() - startTime
+
+        // 更新工具状态为错误
+        toolCall.toolOutput = { error: errorMessage }
+        toolCall.status = 'error'
+        toolCall.completedAt = new Date()
+
+        // 保存错误状态到 session
+        sessionManager.addToolCall(sessionId, toolCall)
+        sessionManager.addMessage(sessionId, 'user', JSON.stringify({
+          tool_use_id: tool.id,
+          name: tool.name,
+          error: errorMessage,
+        }))
+
+        // 发送 tool_error 事件
+        sendEvent('tool_error', {
+          id: tool.id,
+          name: tool.name,
+          error: errorMessage,
+          errorType: this.classifyErrorType(error),
+          duration,
+        })
+
+        console.error(`[${sessionId}] Tool ${tool.name} error after ${duration}ms:`, errorMessage)
+      }
+    }
+  }
+
+  /**
+   * 分类错误类型，便于前端展示友好的提示
+   */
+  private classifyErrorType(error: unknown): string {
+    const msg = error instanceof Error ? error.message : String(error)
+    
+    if (msg.includes('ENOENT') || msg.includes('not found')) return 'NOT_FOUND'
+    if (msg.includes('EACCES') || msg.includes('permission')) return 'PERMISSION'
+    if (msg.includes('timeout') || msg.includes('TIMEOUT')) return 'TIMEOUT'
+    if (msg.includes('syntax') || msg.includes('parse')) return 'INVALID_INPUT'
+    
+    return 'UNKNOWN'
   }
 }
 
