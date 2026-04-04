@@ -496,39 +496,36 @@ function formatTime(date: Date | string) {
 
 /* 自定义折叠按钮 */
 .custom-collapse-trigger {
-  position: absolute;
+  position: fixed;
   top: 50%;
-  right: -20px;
+  right: 260px;
   transform: translateY(-50%);
-  width: 20px;
-  height: 60px;
+  width: 24px;
+  height: 64px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-left: none;
-  border-radius: 0 8px 8px 0;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 100;
+  z-index: 9999;
   transition: all 0.2s;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
 }
 
 .custom-collapse-trigger:hover {
   background: var(--primary-color);
-  right: -24px;
-  width: 24px;
+  right: 256px;
+  width: 28px;
   box-shadow: 2px 0 12px rgba(99, 102, 241, 0.3);
-  cursor: pointer;
 }
 
 .collapse-icon {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   color: var(--text-secondary);
   transition: transform 0.3s;
-  pointer-events: none;
 }
 
 .custom-collapse-trigger:hover .collapse-icon {
@@ -537,5 +534,9 @@ function formatTime(date: Date | string) {
 
 .collapse-icon.rotated {
   transform: rotate(180deg);
+}
+
+.chat-sidebar.collapsed ~ .custom-collapse-trigger {
+  right: 40px;
 }
 </style>
