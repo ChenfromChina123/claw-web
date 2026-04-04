@@ -186,13 +186,6 @@ function handleCommandSelect(command: string): void {
     <!-- 主内容区：内层滚动容器用 flex 占满高度，避免整页被消息撑高把输入区顶出视口 -->
     <NLayoutContent
       class="chat-content"
-      :content-style="{
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: '100%',
-        overflow: 'hidden',
-        boxSizing: 'border-box',
-      }"
     >
       <!-- 背景装饰 -->
       <div class="chat-bg-decoration">
@@ -256,15 +249,12 @@ function handleCommandSelect(command: string): void {
   height: 100vh;
   background: var(--bg-primary);
   position: relative;
-  min-height: 0;
 }
 
 .chat-content {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 0;
-  flex: 1;
   position: relative;
   overflow: hidden;
 }
@@ -329,7 +319,6 @@ function handleCommandSelect(command: string): void {
   position: relative;
   z-index: 1;
   gap: 16px;
-  min-height: 0;
 }
 
 .initialization-text {
@@ -373,12 +362,7 @@ function handleCommandSelect(command: string): void {
   border-radius: 16px !important;
   padding: 4px !important;
   transition: all var(--transition-normal, 250ms) ease;
-  position: fixed;
-  bottom: 0;
-  left: 280px;
-  right: 0;
   z-index: 100;
-  max-width: calc(100% - 320px);
 }
 
 .input-container:hover {
@@ -390,9 +374,6 @@ function handleCommandSelect(command: string): void {
 @media (max-width: 768px) {
   .input-container {
     margin: 12px 12px 12px;
-    left: 12px;
-    right: 12px;
-    max-width: none;
   }
 
   .bg-glow {

@@ -480,7 +480,7 @@ function toolsForMessage(messageId: string): ToolCall[] {
 
 .messages-container {
   padding: 20px;
-  padding-bottom: 120px;
+  padding-bottom: 20px;
   max-width: 900px;
   margin: 0 auto;
 }
