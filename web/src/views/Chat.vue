@@ -256,6 +256,7 @@ function handleCommandSelect(command: string): void {
   height: 100vh;
   background: var(--bg-primary);
   position: relative;
+  min-height: 0;
 }
 
 .chat-content {
@@ -328,6 +329,7 @@ function handleCommandSelect(command: string): void {
   position: relative;
   z-index: 1;
   gap: 16px;
+  min-height: 0;
 }
 
 .initialization-text {
@@ -360,6 +362,8 @@ function handleCommandSelect(command: string): void {
   min-height: 0;
   overflow: hidden;
   padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ---- 输入区域 ---- */

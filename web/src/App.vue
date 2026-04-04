@@ -60,10 +60,8 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   position: relative;
-  /* 路由页内容可高于视口（如集成工作台）；根布局 overflow:hidden 时需在此提供滚动 */
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
+  min-height: 0;
 }
 
 </style>
