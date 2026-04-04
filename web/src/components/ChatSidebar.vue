@@ -494,11 +494,11 @@ function formatTime(date: Date | string) {
   position: relative;
 }
 
-/* 自定义折叠按钮 - 独立于侧边栏 */
+/* 自定义折叠按钮 */
 .custom-collapse-trigger {
-  position: fixed;
+  position: absolute;
   top: 50%;
-  left: 280px;
+  right: -36px;
   transform: translateY(-50%);
   width: 28px;
   height: 72px;
@@ -509,8 +509,8 @@ function formatTime(date: Date | string) {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 1000;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
@@ -518,7 +518,8 @@ function formatTime(date: Date | string) {
   background: linear-gradient(135deg, var(--primary-color), var(--primary-color-hover));
   border-color: var(--primary-color);
   box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
-  transform: translateY(-50%) scale(1.05);
+  right: -40px;
+  width: 32px;
 }
 
 .collapse-icon {
@@ -535,11 +536,5 @@ function formatTime(date: Date | string) {
 
 .collapse-icon.rotated {
   transform: rotate(180deg);
-}
-
-/* 侧边栏折叠时按钮位置 */
-.chat-sidebar.collapsed ~ .custom-collapse-trigger,
-:deep(.n-layout-sider--collapsed) ~ .custom-collapse-trigger {
-  left: 8px;
 }
 </style>
