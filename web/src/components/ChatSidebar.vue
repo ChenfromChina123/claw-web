@@ -135,90 +135,98 @@ function formatTime(date: Date | string) {
       content-style="padding: 0;"
       class="chat-sidebar"
     >
-    <div class="sidebar">
-      <!-- 头部 -->
-      <div class="sidebar-header">
-        <h2>Claude Code</h2>
-        <NButton type="primary" size="small" @click="handleNewChat">
-          新对话
-        </NButton>
-      </div>
+      <div class="sidebar">
+        <!-- 头部 -->
+        <div class="sidebar-header">
+          <h2>Claude Code</h2>
+          <NButton type="primary" size="small" @click="handleNewChat">
+            新对话
+          </NButton>
+        </div>
 
-      <!-- 搜索 -->
-      <div class="sidebar-search">
-        <NInput
-          v-model:value="searchValue"
-          placeholder="搜索会话..."
-          size="small"
-          clearable
-        >
-          <template #prefix>
-            <span>🔍</span>
-          </template>
-        </NInput>
-      </div>
-
-      <!-- 会话列表 -->
-      <NScrollbar class="sidebar-list">
-        <div class="session-list">
-          <div
-            v-for="session in filteredSessions"
-            :key="session.id"
-            class="session-item"
-            :class="{ active: chatStore.currentSessionId === session.id }"
-            @click="handleSelectSession(session)"
+        <!-- 搜索 -->
+        <div class="sidebar-search">
+          <NInput
+            v-model:value="searchValue"
+            placeholder="搜索会话..."
+            size="small"
+            clearable
           >
-            <div class="session-content">
-              <div class="session-title">{{ session.title }}</div>
-              <div class="session-meta">
-                <span>{{ session.model }}</span>
-                <span>{{ formatTime(session.updatedAt) }}</span>
-              </div>
-            </div>
-            <NDropdown
-              :options="sessionOptions"
-              trigger="click"
-              @select="(key) => handleSessionContext(key as string, session)"
-            >
-              <NButton
-                class="session-menu-trigger"
-                quaternary
-                circle
-                size="medium"
-                aria-label="会话操作"
-                @click.stop
-              >
-                ⋮
-              </NButton>
-            </NDropdown>
-          </div>
+            <template #prefix>
+              <span>🔍</span>
+            </template>
+          </NInput>
+        </div>
 
-          <div v-if="filteredSessions.length === 0" class="empty-state">
-            <p>暂无会话</p>
-            <NButton size="small" @click="handleNewChat">
-              创建新对话
+        <!-- 会话列表 -->
+        <NScrollbar class="sidebar-list">
+          <div class="session-list">
+            <div
+              v-for="session in filteredSessions"
+              :key="session.id"
+              class="session-item"
+              :class="{ active: chatStore.currentSessionId === session.id }"
+              @click="handleSelectSession(session)"
+            >
+              <div class="session-content">
+                <div class="session-title">{{ session.title }}</div>
+                <div class="session-meta">
+                  <span>{{ session.model }}</span>
+                  <span>{{ formatTime(session.updatedAt) }}</span>
+                </div>
+              </div>
+              <NDropdown
+                :options="sessionOptions"
+                trigger="click"
+                @select="(key) => handleSessionContext(key as string, session)"
+              >
+                <NButton
+                  class="session-menu-trigger"
+                  quaternary
+                  circle
+                  size="medium"
+                  aria-label="会话操作"
+                  @click.stop
+                >
+                  ⋮
+                </NButton>
+              </NDropdown>
+            </div>
+
+            <div v-if="filteredSessions.length === 0" class="empty-state">
+              <p>暂无会话</p>
+              <NButton size="small" @click="handleNewChat">
+                创建新对话
+              </NButton>
+            </div>
+          </div>
+        </NScrollbar>
+
+        <!-- 底部 -->
+        <div class="sidebar-footer">
+          <div class="sidebar-footer-actions">
+            <NButton block quaternary size="small" @click="router.push('/integration')">
+              集成工作台
+            </NButton>
+            <NButton block quaternary size="small" @click="router.push('/settings')">
+              设置
             </NButton>
           </div>
-        </div>
-      </NScrollbar>
-
-      <!-- 底部 -->
-      <div class="sidebar-footer">
-        <div class="sidebar-footer-actions">
-          <NButton block quaternary size="small" @click="router.push('/integration')">
-            集成工作台
-          </NButton>
-          <NButton block quaternary size="small" @click="router.push('/settings')">
-            设置
-          </NButton>
-        </div>
-        <div class="connection-status">
-          <span :class="['status-dot', chatStore.isConnected ? 'online' : 'offline']"></span>
-          {{ chatStore.isConnected ? '已连接' : '未连接' }}
+          <div class="connection-status">
+            <span :class="['status-dot', chatStore.isConnected ? 'online' : 'offline']"></span>
+            {{ chatStore.isConnected ? '已连接' : '未连接' }}
+          </div>
         </div>
       </div>
+    </NLayoutSider>
+    
+    <!-- 自定义折叠按钮 -->
+    <div class="custom-collapse-trigger" @click="collapsed = !collapsed" title="折叠侧边栏">
+      <svg viewBox="0 0 24 24" fill="none" class="collapse-icon" :class="{ rotated: collapsed }">
+        <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </div>
-
+    
     <!-- 重命名（与应用主题一致的对话框） -->
     <NModal
       v-model:show="showRenameModal"
@@ -257,15 +265,6 @@ function formatTime(date: Date | string) {
       </p>
     </NModal>
   </div>
-  </NLayoutSider>
-  
-  <!-- 自定义折叠按钮 -->
-  <div class="custom-collapse-trigger" @click="collapsed = !collapsed" title="折叠侧边栏">
-    <svg viewBox="0 0 24 24" fill="none" class="collapse-icon" :class="{ rotated: collapsed }">
-      <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-  </div>
-</div>
 </template>
 
 <style scoped>
