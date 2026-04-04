@@ -23,6 +23,8 @@ const emit = defineEmits<{
 
 const searchValue = ref('')
 const collapsed = ref(false)
+const visibleSessionCount = ref(10)
+const SESSIONS_PER_PAGE = 10
 
 // 监听折叠状态变化并通知父组件
 watch(collapsed, (newVal) => {
@@ -43,6 +45,18 @@ const filteredSessions = computed(() => {
     (s.title || '').toLowerCase().includes(searchValue.value.toLowerCase())
   )
 })
+
+const visibleSessions = computed(() => {
+  return filteredSessions.value.slice(0, visibleSessionCount.value)
+})
+
+const hasMoreSessions = computed(() => {
+  return filteredSessions.value.length > visibleSessionCount.value
+})
+
+function loadMoreSessions() {
+  visibleSessionCount.value += SESSIONS_PER_PAGE
+}
 
 watch(showRenameModal, (open) => {
   if (!open) {
@@ -171,7 +185,7 @@ function formatTime(date: Date | string) {
         <NScrollbar class="sidebar-list">
           <div class="session-list">
             <div
-              v-for="session in filteredSessions"
+              v-for="session in visibleSessions"
               :key="session.id"
               class="session-item"
               :class="{ active: chatStore.currentSessionId === session.id }"
@@ -200,6 +214,19 @@ function formatTime(date: Date | string) {
                   ⋮
                 </NButton>
               </NDropdown>
+            </div>
+
+            <!-- 加载更多按钮 -->
+            <div v-if="hasMoreSessions" class="load-more-container">
+              <NButton
+                quaternary
+                size="small"
+                block
+                @click="loadMoreSessions"
+                class="load-more-btn"
+              >
+                加载更多会话 ({{ visibleSessionCount }}/{{ filteredSessions.length }})
+              </NButton>
             </div>
 
             <div v-if="filteredSessions.length === 0" class="empty-state">
@@ -451,6 +478,23 @@ function formatTime(date: Date | string) {
 
 .empty-state p {
   margin-bottom: 16px;
+}
+
+/* 加载更多按钮样式 */
+.load-more-container {
+  padding: 8px 12px;
+}
+
+.load-more-btn {
+  border-radius: 8px !important;
+  border: 1px dashed var(--border-color) !important;
+  background: transparent !important;
+  transition: all var(--transition-fast, 150ms) ease;
+}
+
+.load-more-btn:hover {
+  border-color: var(--border-accent) !important;
+  background: rgba(99, 102, 241, 0.05) !important;
 }
 
 .sidebar-footer {
