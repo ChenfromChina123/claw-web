@@ -125,16 +125,16 @@ function formatTime(date: Date | string) {
 </script>
 
 <template>
-  <div class="chat-sidebar-wrapper">
-    <NLayoutSider
-      v-model:collapsed="collapsed"
-      bordered
-      :width="280"
-      :collapsed-width="0"
-      content-style="padding: 0;"
-      class="chat-sidebar"
-    >
-      <div class="sidebar">
+  <NLayoutSider
+    v-model:collapsed="collapsed"
+    bordered
+    :width="280"
+    :collapsed-width="0"
+    :show-trigger="false"
+    content-style="padding: 0;"
+    class="chat-sidebar"
+  >
+    <div class="sidebar">
       <!-- 头部 -->
       <div class="sidebar-header">
         <h2>Claude Code</h2>
@@ -255,8 +255,6 @@ function formatTime(date: Date | string) {
         确定删除「{{ deleteTarget?.title || '未命名' }}」吗？聊天记录将一并删除，且不可恢复。
       </p>
     </NModal>
-      </div>
-    </NLayoutSider>
     
     <!-- 自定义折叠按钮 -->
     <div class="custom-collapse-trigger" @click="collapsed = !collapsed">
@@ -264,7 +262,7 @@ function formatTime(date: Date | string) {
         <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
-  </div>
+  </NLayoutSider>
 </template>
 
 <style scoped>
@@ -492,11 +490,6 @@ function formatTime(date: Date | string) {
   color: var(--text-secondary);
 }
 
-.chat-sidebar-wrapper {
-  position: relative;
-  height: 100%;
-}
-
 .chat-sidebar {
   position: relative;
 }
@@ -527,6 +520,7 @@ function formatTime(date: Date | string) {
   right: -24px;
   width: 24px;
   box-shadow: 2px 0 12px rgba(99, 102, 241, 0.3);
+  cursor: pointer;
 }
 
 .collapse-icon {
@@ -534,6 +528,7 @@ function formatTime(date: Date | string) {
   height: 16px;
   color: var(--text-secondary);
   transition: transform 0.3s;
+  pointer-events: none;
 }
 
 .custom-collapse-trigger:hover .collapse-icon {
