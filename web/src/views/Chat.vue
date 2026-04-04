@@ -19,6 +19,7 @@ const showCommandPalette = ref(false)
 const inputRef = ref<InstanceType<typeof ChatInput> | null>(null)
 const isInitializing = ref(true)
 const initError = ref<string | null>(null)
+const sidebarCollapsed = ref(false)
 
 onMounted(async () => {
   // 检查是否已登录
@@ -180,7 +181,7 @@ function handleCommandSelect(command: string): void {
 <template>
   <NLayout has-sider class="chat-layout">
     <!-- 侧边栏 -->
-    <ChatSidebar />
+    <ChatSidebar @update:collapsed="sidebarCollapsed = $event" />
     
     <!-- 主内容区：内层滚动容器用 flex 占满高度，避免整页被消息撑高把输入区顶出视口 -->
     <NLayoutContent
@@ -231,6 +232,7 @@ function handleCommandSelect(command: string): void {
           <ChatInput 
             ref="inputRef"
             :disabled="!chatStore.currentSessionId"
+            :sidebar-collapsed="sidebarCollapsed"
             @send="handleSendMessage"
             @focus="showCommandPalette = false"
           />

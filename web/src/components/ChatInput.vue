@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { NInput, NButton } from 'naive-ui'
 
 const props = defineProps<{
   disabled?: boolean
+  sidebarCollapsed?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -76,13 +77,14 @@ defineExpose({
 
 <style scoped>
 .chat-input {
-  max-width: 900px;
+  max-width: v-bind(props.sidebarCollapsed ? '95%' : '900px');
   margin: 0 auto;
   display: flex;
   flex-direction: row;
   align-items: flex-end;
   gap: 10px;
   padding: 10px;
+  transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .input-wrapper {

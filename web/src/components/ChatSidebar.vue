@@ -17,8 +17,17 @@ const router = useRouter()
 const chatStore = useChatStore()
 const message = useMessage()
 
+const emit = defineEmits<{
+  'update:collapsed': [value: boolean]
+}>()
+
 const searchValue = ref('')
 const collapsed = ref(false)
+
+// 监听折叠状态变化并通知父组件
+watch(collapsed, (newVal) => {
+  emit('update:collapsed', newVal)
+})
 
 const showRenameModal = ref(false)
 const renameTitleDraft = ref('')
