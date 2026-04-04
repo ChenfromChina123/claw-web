@@ -130,8 +130,9 @@ function formatTime(date: Date | string) {
     bordered
     :width="280"
     :collapsed-width="0"
-    show-trigger
+    show-trigger="bar"
     content-style="padding: 0;"
+    class="chat-sidebar"
   >
     <div class="sidebar">
       <!-- 头部 -->
@@ -480,5 +481,45 @@ function formatTime(date: Date | string) {
   font-size: 14px;
   line-height: 1.5;
   color: var(--text-secondary);
+}
+
+/* 自定义折叠按钮样式 */
+.chat-sidebar :deep(.n-layout-sider__trigger) {
+  width: 24px !important;
+  height: 48px !important;
+  border-radius: 0 8px 8px 0 !important;
+  background: var(--bg-tertiary) !important;
+  border: 1px solid var(--border-color) !important;
+  border-left: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s !important;
+  position: absolute !important;
+  right: -24px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  z-index: 10 !important;
+}
+
+.chat-sidebar :deep(.n-layout-sider__trigger:hover) {
+  background: var(--primary-color) !important;
+  width: 28px !important;
+  box-shadow: 2px 0 8px rgba(99, 102, 241, 0.3) !important;
+}
+
+.chat-sidebar :deep(.n-layout-sider__trigger .n-layout-sider__trigger-icon) {
+  width: 18px !important;
+  height: 18px !important;
+  color: var(--text-secondary) !important;
+  transition: transform 0.3s !important;
+}
+
+.chat-sidebar :deep(.n-layout-sider__trigger:hover .n-layout-sider__trigger-icon) {
+  color: #fff !important;
+}
+
+.chat-sidebar :deep(.n-layout-sider--collapsed .n-layout-sider__trigger) {
+  right: -24px !important;
 }
 </style>
