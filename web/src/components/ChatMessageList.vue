@@ -7,6 +7,7 @@ import { NScrollbar, NSpin, NTag, NSwitch, NTooltip } from 'naive-ui'
 import type { Message, ToolCall } from '@/types'
 import type { KnowledgeCard } from '@/types/flowKnowledge'
 import { parseToolCalls } from '@/utils/toolParser'
+import { useSettingsStore } from '@/stores/settings'
 import FlowVisualizer from './FlowVisualizer.vue'
 import KnowledgeCardComponent from './KnowledgeCard.vue'
 import ToolUseEnhanced from './ToolUseEnhanced.vue'
@@ -18,11 +19,12 @@ const props = defineProps<{
 }>()
 
 const scrollbarRef = ref<InstanceType<typeof NScrollbar> | null>(null)
+const settingsStore = useSettingsStore()
 
-// 流程知识展示开关
-const showFlowVisualization = ref(true)
-const showKnowledgeCards = ref(true)
-const useEnhancedToolDisplay = ref(true)
+// 流程知识展示开关 - 从设置 store 读取
+const showFlowVisualization = computed(() => settingsStore.preferences.showFlowVisualization)
+const showKnowledgeCards = computed(() => settingsStore.preferences.showKnowledgeCards)
+const useEnhancedToolDisplay = computed(() => settingsStore.preferences.useEnhancedToolDisplay)
 
 // 监听消息变化，自动滚动到底部
 watch(() => props.messages.length, async () => {
@@ -70,7 +72,7 @@ const showStandaloneLoadingRow = computed(() => {
 })
 
 // 解析工具调用序列，生成流程图和知识
-const { flowGraph, knowledge } = computed(() => {
+const flowKnowledgeData = computed(() => {
   if (props.toolCalls.length === 0) {
     return { flowGraph: null, knowledge: [] as KnowledgeCard[] }
   }
@@ -80,7 +82,10 @@ const { flowGraph, knowledge } = computed(() => {
     flowGraph: result.flowGraph,
     knowledge: result.knowledge
   }
-}).value
+})
+
+const flowGraph = computed(() => flowKnowledgeData.value.flowGraph)
+const knowledge = computed(() => flowKnowledgeData.value.knowledge)
 
 // 当前激活的步骤（手风琴效果）
 const activeStep = ref<string | null>(null)
@@ -229,32 +234,6 @@ function toolsForMessage(messageId: string): ToolCall[] {
 
 <template>
   <div class="message-list-wrapper">
-    <!-- 流程知识工具栏 -->
-    <div v-if="toolCalls.length > 0" class="visualization-toolbar">
-      <div class="toolbar-left">
-        <span class="toolbar-icon">📊</span>
-        <span class="toolbar-title">流程知识</span>
-        <NTag size="small" type="info">{{ statsSummary.total }} 个工具</NTag>
-        <NTag v-if="statsSummary.errors > 0" size="small" type="error">
-          {{ statsSummary.errors }} 错误
-        </NTag>
-      </div>
-      <div class="toolbar-right">
-        <div class="toolbar-toggle">
-          <span class="toggle-label">流程图</span>
-          <NSwitch v-model:value="showFlowVisualization" size="small" />
-        </div>
-        <div class="toolbar-toggle">
-          <span class="toggle-label">知识卡片</span>
-          <NSwitch v-model:value="showKnowledgeCards" size="small" />
-        </div>
-        <div class="toolbar-toggle">
-          <span class="toggle-label">增强展示</span>
-          <NSwitch v-model:value="useEnhancedToolDisplay" size="small" />
-        </div>
-      </div>
-    </div>
-    
     <!-- 主消息列表 -->
     <div class="message-list">
       <NScrollbar ref="scrollbarRef" class="scrollbar">
@@ -480,64 +459,28 @@ function toolsForMessage(messageId: string): ToolCall[] {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
-}
-
-/* 工具栏 */
-.visualization-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 20px;
-  background: rgba(30, 30, 60, 0.5);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.15);
-}
-
-.toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.toolbar-icon {
-  font-size: 16px;
-}
-
-.toolbar-title {
-  font-weight: 600;
-  font-size: 14px;
-  color: #e5e7eb;
-}
-
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.toolbar-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.toggle-label {
-  font-size: 12px;
-  color: #9ca3af;
 }
 
 /* 消息列表 */
 .message-list {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .scrollbar {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .messages-container {
   padding: 20px;
+  padding-bottom: 120px;
   max-width: 900px;
   margin: 0 auto;
 }

@@ -118,7 +118,7 @@ async function handleRetry(): Promise<void> {
     const sessionsAfterList = chatStore.sessions || []
     console.log('[Chat] 会话数量:', sessionsAfterList.length)
     if (sessionsAfterList.length === 0) {
-      await chatStore.createSession()
+      await chatStore.createSession(undefined, undefined, true)
     } else if (chatStore.currentSessionId) {
       await chatStore.loadSession(chatStore.currentSessionId)
     } else if (sessionsAfterList.length > 0) {
@@ -351,8 +351,8 @@ function handleCommandSelect(command: string): void {
   position: relative;
   z-index: 1;
   min-height: 0;
-  /* 为底部固定输入条留出可视区域，避免最后几条消息被挡住 */
-  padding-bottom: 100px;
+  height: 100%;
+  overflow: hidden;
 }
 
 .message-list-container {

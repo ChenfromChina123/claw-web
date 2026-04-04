@@ -64,7 +64,7 @@ function handleNewChat() {
     message.warning('请先在当前会话中发送消息')
     return
   }
-  chatStore.createSession()
+  chatStore.createSession(undefined, undefined, true)
 }
 
 function handleSelectSession(session: Session) {

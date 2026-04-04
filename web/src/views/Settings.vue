@@ -135,6 +135,22 @@ onMounted(() => {
         </NForm>
       </NCard>
 
+      <NCard v-show="activeSection === 'visualization'" title="可视化设置">
+        <NForm label-placement="left" label-width="140">
+          <NFormItem label="显示流程图">
+            <NSwitch v-model:value="preferences.showFlowVisualization" />
+          </NFormItem>
+
+          <NFormItem label="显示知识卡片">
+            <NSwitch v-model:value="preferences.showKnowledgeCards" />
+          </NFormItem>
+
+          <NFormItem label="增强工具展示">
+            <NSwitch v-model:value="preferences.useEnhancedToolDisplay" />
+          </NFormItem>
+        </NForm>
+      </NCard>
+
       <NCard v-show="activeSection === 'account'" title="账户">
         <NSpace vertical :size="16">
           <template v-if="authStore.isLoggedIn && authStore.user">
