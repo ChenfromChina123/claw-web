@@ -255,14 +255,14 @@ function formatTime(date: Date | string) {
         确定删除「{{ deleteTarget?.title || '未命名' }}」吗？聊天记录将一并删除，且不可恢复。
       </p>
     </NModal>
-    
-    <!-- 自定义折叠按钮 -->
-    <div class="custom-collapse-trigger" @click="collapsed = !collapsed">
-      <svg viewBox="0 0 24 24" fill="none" class="collapse-icon" :class="{ rotated: collapsed }">
-        <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </div>
   </NLayoutSider>
+  
+  <!-- 自定义折叠按钮 - 放在 NLayoutSider 外面 -->
+  <div class="custom-collapse-trigger" @click="collapsed = !collapsed" title="折叠侧边栏">
+    <svg viewBox="0 0 24 24" fill="none" class="collapse-icon" :class="{ rotated: collapsed }">
+      <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
 </template>
 
 <style scoped>
@@ -494,49 +494,52 @@ function formatTime(date: Date | string) {
   position: relative;
 }
 
-/* 自定义折叠按钮 */
+/* 自定义折叠按钮 - 独立于侧边栏 */
 .custom-collapse-trigger {
   position: fixed;
   top: 50%;
-  right: 260px;
+  left: 280px;
   transform: translateY(-50%);
-  width: 24px;
-  height: 64px;
+  width: 28px;
+  height: 72px;
   background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border: 2px solid var(--border-color);
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 9999;
-  transition: all 0.2s;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
 .custom-collapse-trigger:hover {
-  background: var(--primary-color);
-  right: 256px;
-  width: 28px;
-  box-shadow: 2px 0 12px rgba(99, 102, 241, 0.3);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-color-hover));
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+  transform: translateY(-50%) scale(1.05);
 }
 
 .collapse-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   color: var(--text-secondary);
-  transition: transform 0.3s;
+  transition: all 0.3s;
 }
 
 .custom-collapse-trigger:hover .collapse-icon {
-  color: #fff;
+  color: #ffffff;
+  transform: scale(1.1);
 }
 
 .collapse-icon.rotated {
   transform: rotate(180deg);
 }
 
-.chat-sidebar.collapsed ~ .custom-collapse-trigger {
-  right: 40px;
+/* 侧边栏折叠时按钮位置 */
+.chat-sidebar.collapsed ~ .custom-collapse-trigger,
+:deep(.n-layout-sider--collapsed) ~ .custom-collapse-trigger {
+  left: 8px;
 }
 </style>
