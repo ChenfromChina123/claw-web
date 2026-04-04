@@ -169,7 +169,7 @@ export class SessionManager {
     }
   }
 
-  addMessage(sessionId: string, role: 'user' | 'assistant', content: string, toolCalls?: ToolCall[], externalId?: string): Message | null {
+  addMessage(sessionId: string, role: 'user' | 'assistant', content: string | any[], toolCalls?: ToolCall[], externalId?: string): Message | null {
     const sessionData = this.sessions.get(sessionId)
     if (!sessionData) {
       console.error(`Session ${sessionId} not found in memory`)
@@ -191,9 +191,54 @@ export class SessionManager {
   }
 
   /**
+   * 添加工具结果到会话 (in-memory) - 使用正确的 Anthropic 格式
+   * 工具结果应该以特定的内容块格式添加，而不是简单的字符串消息
+   */
+  addToolResultMessage(
+    sessionId: string,
+    toolUseId: string,
+    toolName: string,
+    result?: unknown,
+    error?: string
+  ): Message | null {
+    const sessionData = this.sessions.get(sessionId)
+    if (!sessionData) {
+      console.error(`Session ${sessionId} not found in memory`)
+      return null
+    }
+
+    // 构建 Anthropic 格式的工具结果内容
+    const content = [
+      {
+        type: 'tool_result',
+        tool_use_id: toolUseId,
+        content: error 
+          ? JSON.stringify({ error: error })
+          : JSON.stringify(result)
+      }
+    ]
+
+    const message: Message = {
+      id: uuidv4(),
+      sessionId,
+      role: 'user',  // Anthropic API 要求工具结果用 user 角色，但内容是 tool_result 格式
+      content,
+      createdAt: new Date()
+    }
+
+    sessionData.messages.push(message)
+    sessionData.dirty = true
+
+    this.scheduleSave(sessionId)
+    
+    console.debug(`[SessionManager] Added tool result message for tool ${toolName} (${toolUseId}) to session ${sessionId}`)
+    return message
+  }
+
+  /**
    * 更新内存中的消息内容
    */
-  updateMessage(sessionId: string, messageId: string, content: string, toolCalls?: ToolCall[]): Message | null {
+  updateMessage(sessionId: string, messageId: string, content: string | any[], toolCalls?: ToolCall[]): Message | null {
     const sessionData = this.sessions.get(sessionId)
     if (!sessionData) {
       console.error(`Session ${sessionId} not found in memory`)

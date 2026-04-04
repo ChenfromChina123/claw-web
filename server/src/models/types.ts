@@ -25,7 +25,7 @@ export interface Message {
   id: string
   sessionId: string
   role: 'user' | 'assistant' | 'system'
-  content: string
+  content: string | any[]  // 支持字符串或 Anthropic 格式的内容数组
   createdAt: Date
   toolCalls?: ToolCall[]
 }

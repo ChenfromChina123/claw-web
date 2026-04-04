@@ -241,10 +241,36 @@ class SessionConversationManager {
           
           // 更新助手消息内容（包含文本和工具调用信息）
           if (streamResult.text || streamResult.toolCalls.length > 0) {
+            // 构建 Anthropic 格式的内容数组
+            const content: any[] = []
+            if (streamResult.text) {
+              content.push({
+                type: 'text',
+                text: streamResult.text
+              })
+            }
+            for (const tc of streamResult.toolCalls) {
+              let toolInput = tc.input || '{}'
+              // 安全解析 JSON - 如果已经是对象就直接使用
+              if (typeof toolInput === 'string') {
+                try {
+                  toolInput = JSON.parse(toolInput)
+                } catch (e) {
+                  console.warn(`[${sessionId}] Failed to parse tool input, using as string:`, toolInput)
+                }
+              }
+              content.push({
+                type: 'tool_use',
+                id: tc.id,
+                name: tc.name,
+                input: toolInput
+              })
+            }
+            
             sessionManager.updateMessage(
               sessionId, 
               assistantMessageId, 
-              streamResult.text, 
+              content, 
               streamResult.toolCalls.map(tc => ({
                 id: tc.id,
                 name: tc.name,
@@ -317,10 +343,17 @@ class SessionConversationManager {
       model,
       max_tokens: 4096,
       tools: this.toolExecutor.getAnthropicTools() as Anthropic.Tool[],
-      messages: messages.map(m => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })),
+      messages: messages.map(m => {
+        // 如果 content 已经是数组，直接使用；否则用字符串格式
+        const content = Array.isArray(m.content) 
+          ? m.content 
+          : m.content
+        
+        return {
+          role: m.role as 'user' | 'assistant',
+          content: content,
+        }
+      }),
     })
 
     for await (const event of stream) {
@@ -431,12 +464,13 @@ class SessionConversationManager {
 
         // 保存到 session
         sessionManager.addToolCall(sessionId, toolCall)
-        sessionManager.addMessage(sessionId, 'user', JSON.stringify({
-          tool_use_id: tool.id,
-          name: tool.name,
-          result: result.result,
-          error: result.error,
-        }))
+        sessionManager.addToolResultMessage(
+          sessionId,
+          tool.id,
+          tool.name,
+          result.result,
+          result.error
+        )
 
         // 发送 tool_end 事件（成功完成）
         sendEvent('tool_end', {
@@ -460,11 +494,13 @@ class SessionConversationManager {
 
         // 保存错误状态到 session
         sessionManager.addToolCall(sessionId, toolCall)
-        sessionManager.addMessage(sessionId, 'user', JSON.stringify({
-          tool_use_id: tool.id,
-          name: tool.name,
-          error: errorMessage,
-        }))
+        sessionManager.addToolResultMessage(
+          sessionId,
+          tool.id,
+          tool.name,
+          undefined,
+          errorMessage
+        )
 
         // 发送 tool_error 事件
         sendEvent('tool_error', {
