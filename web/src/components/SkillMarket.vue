@@ -397,29 +397,31 @@ onMounted(() => {
 .sidebar-toggle {
   position: absolute;
   top: 50%;
-  right: -12px;
+  right: -16px;
   transform: translateY(-50%);
-  width: 24px;
-  height: 48px;
+  width: 32px;
+  height: 64px;
   background: var(--n-color);
   border: 1px solid var(--n-border-color);
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 8px 8px 0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   z-index: 10;
   transition: all 0.2s;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
 }
 
 .sidebar-toggle:hover {
   background: var(--n-color-hover);
+  width: 36px;
 }
 
 .toggle-icon {
-  width: 16px;
-  height: 16px;
-  color: var(--n-text-color-3);
+  width: 20px;
+  height: 20px;
+  color: var(--n-text-color-2);
   transition: transform 0.3s ease;
 }
 
