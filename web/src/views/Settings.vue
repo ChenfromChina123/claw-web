@@ -11,13 +11,14 @@ const message = useMessage()
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 
-type SettingsSection = 'general' | 'model' | 'account'
+type SettingsSection = 'general' | 'model' | 'visualization' | 'account'
 
 const activeSection = ref<SettingsSection>('general')
 
 const navItems: { key: SettingsSection; label: string }[] = [
   { key: 'general', label: '通用' },
   { key: 'model', label: '模型' },
+  { key: 'visualization', label: '可视化' },
   { key: 'account', label: '账户' },
 ]
 
