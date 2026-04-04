@@ -348,17 +348,17 @@ function formatTime(date: Date | string) {
 .session-item {
   display: flex;
   align-items: center;
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: 12px 14px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  margin-bottom: 2px;
+  margin-bottom: 4px;
   border: 1px solid transparent;
   position: relative;
   overflow: hidden;
-  height: 48px !important;
-  min-height: 48px !important;
-  max-height: 48px !important;
+  height: 64px !important;
+  min-height: 64px !important;
+  max-height: 64px !important;
   box-sizing: border-box;
   flex-shrink: 0;
 }
@@ -409,16 +409,16 @@ function formatTime(date: Date | string) {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 6px;
 }
 
 .session-title {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.3;
+  line-height: 1.4;
   transition: color 0.2s;
 }
 
@@ -432,11 +432,11 @@ function formatTime(date: Date | string) {
 }
 
 .session-meta {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-tertiary);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .session-meta::before {
@@ -458,10 +458,10 @@ function formatTime(date: Date | string) {
 /* 三点菜单：更大点击区域与字号，避免误点会话项 */
 .session-menu-trigger {
   flex-shrink: 0;
-  min-width: 40px !important;
-  width: 40px !important;
-  height: 40px !important;
-  font-size: 20px !important;
+  min-width: 48px !important;
+  width: 48px !important;
+  height: 48px !important;
+  font-size: 24px !important;
   line-height: 1 !important;
   letter-spacing: -0.02em;
 }

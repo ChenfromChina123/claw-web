@@ -195,8 +195,10 @@ class SessionConversationManager {
     try {
       // 4. 进入 Agent Loop (最多10次迭代)
       const maxIterations = 10
+      let actualIterations = 0
       for (let iteration = 0; iteration < maxIterations; iteration++) {
-        console.log(`[${sessionId}] Agent Loop iteration ${iteration + 1}/${maxIterations}`)
+        actualIterations = iteration + 1
+        console.log(`[${sessionId}] Agent Loop iteration ${actualIterations}/${maxIterations}`)
 
         // 4.1 创建助手消息占位符
         const assistantMessage = sessionManager.addMessage(sessionId, 'assistant', '')
@@ -210,28 +212,32 @@ class SessionConversationManager {
         // 4.2 发送 message_start 事件
         sendEvent('message_start', { 
           messageId: assistantMessageId, 
-          iteration: iteration + 1 
+          iteration: actualIterations
         })
 
         // 4.3 调用 AI API (streaming)
+        console.log(`[${sessionId}] Calling AI API for iteration ${actualIterations}...`)
         const streamResult = await this.callAIWithStream(
           sessionId, 
           model, 
           sessionManager, 
           sendEvent
         )
+        console.log(`[${sessionId}] AI response received, text length: ${streamResult.text?.length || 0}, toolCalls: ${streamResult.toolCalls?.length || 0}`)
 
         // 4.4 如果有工具调用
         if (streamResult.toolCalls && streamResult.toolCalls.length > 0) {
           console.log(`[${sessionId}] AI requested ${streamResult.toolCalls.length} tool(s)`)
           
           // 执行所有工具调用（包含完整的事件序列）
+          console.log(`[${sessionId}] Starting tool execution...`)
           await this.executeToolCalls(
             sessionId, 
             streamResult.toolCalls, 
             sessionManager, 
             sendEvent
           )
+          console.log(`[${sessionId}] Tool execution completed`)
           
           // 更新助手消息内容（包含文本和工具调用信息）
           if (streamResult.text || streamResult.toolCalls.length > 0) {
@@ -253,12 +259,13 @@ class SessionConversationManager {
         }
 
         // 4.5 无工具调用（纯文本回复）- 更新消息并结束循环
+        console.log(`[${sessionId}] No tool calls requested, ending conversation`)
         if (streamResult.text) {
           sessionManager.updateMessage(sessionId, assistantMessageId, streamResult.text, [])
         }
 
         // 发送结束事件
-        sendEvent('message_stop', { stop_reason: 'end_turn', iteration: iteration + 1 })
+        sendEvent('message_stop', { stop_reason: 'end_turn', iteration: actualIterations })
         
         // 通知前端助手消息已保存
         sendEvent('message_saved', {
@@ -272,12 +279,12 @@ class SessionConversationManager {
           totalMessages: finalSession?.messages?.length || 0 
         })
         
-        console.log(`[${sessionId}] Conversation completed at iteration ${iteration + 1}`)
+        console.log(`[${sessionId}] Conversation completed at iteration ${actualIterations}`)
         break
       }
 
       // 5. 检查是否达到最大迭代次数
-      if (iteration >= maxIterations) {
+      if (actualIterations >= maxIterations) {
         console.warn(`[${sessionId}] Max iterations (${maxIterations}) reached`)
         sendEvent('max_iterations_reached', { iterations: maxIterations })
       }
