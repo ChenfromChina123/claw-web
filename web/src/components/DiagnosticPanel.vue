@@ -10,10 +10,9 @@
  * - PerformanceMonitor: 性能监控器
  */
 
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { 
-  NCard, NGrid, NGi, NTag, NStatistic, NNumber,
-  NProgress, NSpace, NText, NIcon, NSpin, NAlert,
+  NCard, NGrid, NGi, NTag, NText, NIcon, NSpin, NAlert,
   useMessage
 } from 'naive-ui'
 import { 
@@ -26,7 +25,7 @@ import {
   StarOutline,
   SpeedometerOutline
 } from '@vicons/ionicons5'
-import diagnosticsApi, { type ComponentHealth } from '@/api/diagnosticsApi'
+import diagnosticsApi from '@/api/diagnosticsApi'
 
 const message = useMessage()
 
@@ -267,8 +266,8 @@ onUnmounted(() => {
           <NCard :title="config.name" size="small" hoverable>
             <template #header-extra>
               <NIcon 
-                :component="getStatusIcon(healthStatus?.components[config.key]?.status || 'healthy')"
-                :color="getStatusColor(healthStatus?.components[config.key]?.status || 'healthy') === 'success' ? '#18a058' : getStatusColor(healthStatus?.components[config.key]?.status || 'healthy') === 'warning' ? '#f0a020' : '#d03050'"
+                :component="getStatusIcon((healthStatus?.components as any)[config.key]?.status || 'healthy')"
+                :color="getStatusColor((healthStatus?.components as any)[config.key]?.status || 'healthy') === 'success' ? '#18a058' : getStatusColor((healthStatus?.components as any)[config.key]?.status || 'healthy') === 'warning' ? '#f0a020' : '#d03050'"
                 size="18"
               />
             </template>
@@ -281,14 +280,14 @@ onUnmounted(() => {
               >
                 <NText depth="3" class="metric-label">{{ metric.label }}</NText>
                 <NText depth="1" class="metric-value">
-                  {{ formatMetricValue(getMetricValue(healthStatus?.components[config.key], metric.key), metric.format) }}
+                  {{ formatMetricValue(getMetricValue((healthStatus?.components as any)[config.key], metric.key), metric.format) }}
                 </NText>
               </div>
             </div>
 
             <template #footer>
               <NText depth="3" style="font-size: 12px">
-                状态：{{ getStatusText(healthStatus?.components[config.key]?.status || 'unknown') }}
+                状态：{{ getStatusText((healthStatus?.components as any)[config.key]?.status || 'unknown') }}
               </NText>
             </template>
           </NCard>

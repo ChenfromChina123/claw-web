@@ -49,6 +49,18 @@ defineExpose({
 
 <template>
   <div class="chat-input">
+    <div class="input-wrapper">
+      <NInput
+        ref="inputRef"
+        v-model:value="inputValue"
+        type="textarea"
+        placeholder="输入消息... (Shift+Enter 换行)"
+        :autosize="{ minRows: 3, maxRows: 8 }"
+        :disabled="disabled"
+        @keydown="handleKeyDown"
+        @focus="handleFocus"
+      />
+    </div>
     <div class="input-actions">
       <NButton
         type="primary"
@@ -58,18 +70,6 @@ defineExpose({
       >
         发送
       </NButton>
-    </div>
-    <div class="input-wrapper">
-      <NInput
-        ref="inputRef"
-        v-model:value="inputValue"
-        type="textarea"
-        placeholder="输入消息... (Shift+Enter 换行)"
-        :autosize="{ minRows: 1, maxRows: 6 }"
-        :disabled="disabled"
-        @keydown="handleKeyDown"
-        @focus="handleFocus"
-      />
     </div>
   </div>
 </template>
@@ -81,7 +81,8 @@ defineExpose({
   display: flex;
   flex-direction: row;
   align-items: flex-end;
-  gap: 12px;
+  gap: 10px;
+  padding: 10px;
 }
 
 .input-wrapper {
@@ -95,29 +96,51 @@ defineExpose({
 }
 
 .input-wrapper :deep(.n-input__input-el) {
-  padding: 12px 16px !important;
+  padding: 14px 18px !important;
   font-size: 15px;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .input-actions {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   flex-shrink: 0;
+  padding-bottom: 2px;
 }
 
 /* 发送按钮样式 */
 .send-button {
-  height: 40px !important;
-  padding: 0 24px !important;
-  font-size: 14px !important;
-  font-weight: 500 !important;
-  border-radius: 10px !important;
-  background: #6366f1 !important;
+  height: 56px !important;
+  min-height: 56px !important;
+  padding: 0 32px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
   color: #ffffff !important;
   border: none !important;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.send-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+}
+
+.send-button:active:not(:disabled) {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.send-button:disabled {
+  background: linear-gradient(135deg, #a5a6f6 0%, #818cf8 100%) !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .send-button:hover:not(:disabled) {

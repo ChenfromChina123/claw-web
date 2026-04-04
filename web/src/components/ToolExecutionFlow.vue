@@ -11,19 +11,16 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { 
   NTimeline, NTimelineItem, NCard, NTag, NText, NSpace, 
-  NButton, NCollapseTransition, NCode, NIcon, NSpin,
-  useMessage
+  NButton, NCollapseTransition, NCode, NIcon, NSpin
 } from 'naive-ui'
+import { h } from 'vue'
 import { 
   PlayOutline, 
   CheckmarkCircleOutline, 
   CloseCircleOutline, 
   TimeOutline,
-  TerminalOutline,
-  ChevronDownOutline,
-  ChevronUpOutline
+  TerminalOutline
 } from '@vicons/ionicons5'
-import { useWebSocket } from '@/composables/useWebSocket'
 
 interface ExecutionStep {
   id: string
@@ -42,12 +39,9 @@ interface ActiveExecution {
   duration?: number
 }
 
-const message = useMessage()
-
 // 状态
 const executions = ref<Map<string, ActiveExecution>>(new Map())
 const maxExecutions = ref(10) // 最多显示多少个执行记录
-const autoScroll = ref(true)
 
 // 计算执行列表
 const executionList = computed(() => {
@@ -125,90 +119,7 @@ const getStepTitle = (type: string): string => {
   }
 }
 
-// 处理工具执行开始事件
-const handleExecutionStarted = (data: any) => {
-  console.log('[ToolExecutionFlow] 执行开始:', data)
-  
-  const execution: ActiveExecution = {
-    executionId: data.executionId,
-    toolName: data.toolName,
-    toolInput: data.input || data.toolInput || {},
-    startTime: Date.now(),
-    steps: [{
-      id: `${data.executionId}-start`,
-      type: 'start',
-      timestamp: Date.now(),
-      data: data,
-    }],
-    status: 'running',
-  }
-  
-  executions.value.set(data.executionId, execution)
-  
-  // 清理旧的执行记录
-  if (executions.value.size > maxExecutions.value * 2) {
-    const sorted = Array.from(executions.value.entries())
-      .sort((a, b) => a[1].startTime - b[1].startTime)
-    for (let i = 0; i < maxExecutions.value; i++) {
-      if (sorted[i]) {
-        executions.value.delete(sorted[i][0])
-      }
-    }
-  }
-}
 
-// 处理工具执行进度事件
-const handleExecutionProgress = (data: any) => {
-  console.log('[ToolExecutionFlow] 执行进度:', data)
-  
-  const execution = executions.value.get(data.executionId)
-  if (!execution) return
-  
-  execution.steps.push({
-    id: `${data.executionId}-progress-${execution.steps.length}`,
-    type: 'progress',
-    timestamp: Date.now(),
-    data: data,
-  })
-}
-
-// 处理工具执行完成事件
-const handleExecutionCompleted = (data: any) => {
-  console.log('[ToolExecutionFlow] 执行完成:', data)
-  
-  const execution = executions.value.get(data.executionId)
-  if (!execution) return
-  
-  execution.steps.push({
-    id: `${data.executionId}-complete`,
-    type: 'complete',
-    timestamp: Date.now(),
-    data: data,
-  })
-  
-  execution.status = 'completed'
-  execution.duration = data.duration || (Date.now() - execution.startTime)
-}
-
-// 处理工具执行失败事件
-const handleExecutionFailed = (data: any) => {
-  console.log('[ToolExecutionFlow] 执行失败:', data)
-  
-  const execution = executions.value.get(data.executionId)
-  if (!execution) return
-  
-  execution.steps.push({
-    id: `${data.executionId}-error`,
-    type: 'error',
-    timestamp: Date.now(),
-    data: data,
-  })
-  
-  execution.status = 'failed'
-  execution.duration = data.duration || (Date.now() - execution.startTime)
-  
-  message.error(`工具 ${data.toolName} 执行失败：${data.error?.message || data.error}`)
-}
 
 // 清除执行记录
 const clearExecution = (executionId: string) => {
@@ -224,23 +135,9 @@ const clearCompleted = () => {
   }
 }
 
-// 展开/收起执行详情
-const toggleExpanded = (executionId: string) => {
-  const execution = executions.value.get(executionId)
-  if (execution) {
-    // 这里可以添加展开状态管理
-  }
-}
-
 // 生命周期
 onMounted(() => {
-  // 监听 WebSocket 事件
-  const ws = useWebSocket()
-  
-  ws.on('tool.execution_started', handleExecutionStarted)
-  ws.on('tool.execution_progress', handleExecutionProgress)
-  ws.on('tool.execution_completed', handleExecutionCompleted)
-  ws.on('tool.execution_failed', handleExecutionFailed)
+  // TODO: 监听 WebSocket 事件
 })
 
 onUnmounted(() => {
@@ -300,7 +197,7 @@ onUnmounted(() => {
             v-for="step in execution.steps" 
             :key="step.id"
             :type="getStepColor(step.type)"
-            :icon="renderIcon(getStepIcon(step.type))"
+            :icon="() => h(NIcon, { component: getStepIcon(step.type) })"
             :title="getStepTitle(step.type)"
             :time="formatTime(step.timestamp)"
           >
@@ -404,8 +301,5 @@ onUnmounted(() => {
   }
 }
 
-// 渲染图标函数
-function renderIcon(icon: any) {
-  return () => h(NIcon, { component: icon })
-}
+
 </style>

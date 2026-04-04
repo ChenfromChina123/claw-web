@@ -118,7 +118,7 @@ export interface ComponentsDetailResponse {
  * 获取系统健康状态
  */
 export async function getHealthStatus(): Promise<HealthStatusResponse> {
-  const response = await apiClient.get('/diagnostics/health')
+  const response: any = await apiClient.get('/diagnostics/health')
   return unwrapApiData<HealthStatusResponse>(response)
 }
 
@@ -126,7 +126,7 @@ export async function getHealthStatus(): Promise<HealthStatusResponse> {
  * 获取组件详细信息
  */
 export async function getComponentsDetail(): Promise<ComponentsDetailResponse> {
-  const response = await apiClient.get('/diagnostics/components')
+  const response: any = await apiClient.get('/diagnostics/components')
   return unwrapApiData<ComponentsDetailResponse>(response)
 }
 

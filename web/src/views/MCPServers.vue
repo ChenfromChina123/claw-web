@@ -17,7 +17,6 @@ import {
 import { 
   CheckmarkCircleOutline, 
   TimeOutline, 
-  WarningOutline, 
   CloseCircleOutline,
   WifiOutline
 } from '@vicons/ionicons5'
@@ -60,7 +59,7 @@ const loadServers = async () => {
       if (server.status === 'connected') {
         serverStats.value.set(server.id, {
           lastHeartbeat: Date.now(),
-          responseTime: server.latency || Math.floor(Math.random() * 100), // 模拟响应时间
+          responseTime: (server as any).latency || Math.floor(Math.random() * 100), // 模拟响应时间
         })
       }
     })

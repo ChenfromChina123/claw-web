@@ -8,7 +8,7 @@ import { ref, computed, onMounted } from 'vue'
 import {
   NCard, NButton, NSpace, NTag, NInput, NGrid, NGridItem,
   NEmpty, NModal, NDescriptions, NDescriptionsItem, NPopover,
-  NScrollbar, useMessage, NSpin, NCheckbox, NBadge
+  NScrollbar, useMessage, NSpin, NBadge
 } from 'naive-ui'
 import skillApi from '@/api/skillApi'
 import type { SkillDefinition, SkillCategory } from '@/api/skillApi'
@@ -23,6 +23,11 @@ const selectedCategory = ref<string | null>(null)
 const selectedSkill = ref<SkillDefinition | null>(null)
 const showDetailModal = ref(false)
 const viewMode = ref<'grid' | 'list'>('grid')
+const sidebarCollapsed = ref(false)
+
+const toggleSidebar = () => {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+}
 
 const filteredSkills = computed(() => {
   return skills.value.filter(skill => {
@@ -103,10 +108,7 @@ const getCategoryLabel = (categoryId: string): string => {
   return category?.name || categoryId
 }
 
-const getCategoryIcon = (categoryId: string): string => {
-  const category = categories.value.find(c => c.id === categoryId)
-  return category?.icon || 'box'
-}
+
 
 const formatInputSchema = (schema: Record<string, unknown> | undefined): string => {
   if (!schema) return '无'
@@ -157,11 +159,22 @@ onMounted(() => {
     </div>
 
     <div class="market-content">
-      <div class="category-sidebar">
-        <div class="category-list">
+      <div class="category-sidebar" :class="{ collapsed: sidebarCollapsed }">
+        <div class="sidebar-toggle" @click="toggleSidebar">
+          <svg 
+            class="toggle-icon" 
+            :class="{ rotated: sidebarCollapsed }"
+            viewBox="0 0 16 16" 
+            fill="none" 
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path d="M5.64645 3.14645C5.45118 3.34171 5.45118 3.65829 5.64645 3.85355L9.79289 8L5.64645 12.1464C5.45118 12.3417 5.45118 12.6583 5.64645 12.8536C5.84171 13.0488 6.15829 13.0488 6.35355 12.8536L10.8536 8.35355C11.0488 8.15829 11.0488 7.84171 10.8536 7.64645L6.35355 3.14645C6.15829 2.95118 5.84171 2.95118 5.64645 3.14645Z" fill="currentColor"></path>
+          </svg>
+        </div>
+        <div v-show="!sidebarCollapsed" class="category-list">
           <NBadge 
             :value="skills.length" 
-            :type="!selectedCategory ? 'primary' : 'default'"
+            :type="!selectedCategory ? 'info' : 'default'"
             class="category-item"
             :class="{ active: !selectedCategory }"
             @click="selectedCategory = null"
@@ -173,7 +186,7 @@ onMounted(() => {
             v-for="cat in categories"
             :key="cat.id"
             :value="categoryStats[cat.id] || 0"
-            :type="selectedCategory === cat.id ? 'primary' : 'default'"
+            :type="selectedCategory === cat.id ? 'info' : 'default'"
             class="category-item"
             :class="{ active: selectedCategory === cat.id }"
             @click="selectedCategory = cat.id"
@@ -373,6 +386,45 @@ onMounted(() => {
   border-right: 1px solid var(--n-border-color);
   background: var(--n-color);
   overflow-y: auto;
+  position: relative;
+  transition: flex 0.3s ease;
+}
+
+.category-sidebar.collapsed {
+  flex: 0 0 48px;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: 50%;
+  right: -12px;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 48px;
+  background: var(--n-color);
+  border: 1px solid var(--n-border-color);
+  border-radius: 0 6px 6px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s;
+}
+
+.sidebar-toggle:hover {
+  background: var(--n-color-hover);
+}
+
+.toggle-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--n-text-color-3);
+  transition: transform 0.3s ease;
+}
+
+.toggle-icon.rotated {
+  transform: rotate(180deg);
 }
 
 .category-list {
@@ -488,6 +540,15 @@ onMounted(() => {
     border-right: none;
     border-bottom: 1px solid var(--n-border-color);
     max-height: 200px;
+  }
+
+  .category-sidebar.collapsed {
+    flex: none;
+    max-height: 48px;
+  }
+
+  .sidebar-toggle {
+    display: none;
   }
 
   .category-list {

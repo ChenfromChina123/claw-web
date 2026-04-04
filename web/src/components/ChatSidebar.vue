@@ -296,51 +296,112 @@ function formatTime(date: Date | string) {
 }
 
 .session-list {
-  padding: 8px;
+  padding: 4px;
 }
 
 .session-item {
   display: flex;
   align-items: center;
-  padding: 12px;
-  border-radius: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 4px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.session-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--primary-color);
+  transform: scaleY(0);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
 }
 
 .session-item:hover {
   background: var(--bg-tertiary);
+  border-color: var(--border-hover);
+  transform: translateX(2px);
+}
+
+.session-item:hover::before {
+  transform: scaleY(0.5);
+  opacity: 0.6;
 }
 
 .session-item.active {
-  background: var(--primary-color);
-  color: white;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(79, 70, 229, 0.08) 100%);
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.12);
+  color: var(--text-primary);
+}
+
+.session-item.active::before {
+  transform: scaleY(1);
+  opacity: 1;
+}
+
+.session-item.active:hover {
+  transform: translateX(0);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
 }
 
 .session-content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .session-title {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.3;
+  transition: color 0.2s;
+}
+
+.session-item:hover .session-title {
+  color: var(--primary-color);
+}
+
+.session-item.active .session-title {
+  color: var(--primary-color);
+  font-weight: 700;
 }
 
 .session-meta {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-tertiary);
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 4px;
+}
+
+.session-meta::before {
+  content: '';
+  width: 12px;
+  height: 1px;
+  background: var(--border-color);
+  flex-shrink: 0;
 }
 
 .session-item.active .session-meta {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
+}
+
+.session-item.active .session-meta::before {
+  background: rgba(99, 102, 241, 0.3);
 }
 
 /* 三点菜单：更大点击区域与字号，避免误点会话项 */

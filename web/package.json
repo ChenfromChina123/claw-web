@@ -31,6 +31,7 @@
     "eslint-plugin-vue": "^10.8.0",
     "globals": "^17.4.0",
     "prettier": "^3.8.1",
+    "sass-embedded": "^1.99.0",
     "typescript": "^5.4.2",
     "vite": "^5.1.6",
     "vue-tsc": "^2.0.6"
