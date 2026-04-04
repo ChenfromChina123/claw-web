@@ -509,12 +509,15 @@ function formatTime(date: Date | string) {
 .chat-sidebar-container {
   position: relative;
   height: 100%;
-  overflow: visible;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .chat-sidebar {
   position: relative;
-  overflow: visible !important;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* 自定义折叠按钮 */
