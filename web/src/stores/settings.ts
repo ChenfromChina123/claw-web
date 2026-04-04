@@ -16,6 +16,9 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   language: 'zh-CN',
   streamResponse: true,
   soundEnabled: false,
+  showFlowVisualization: true,
+  showKnowledgeCards: true,
+  useEnhancedToolDisplay: true,
 }
 
 const DEFAULT_MODEL: ModelSettings = {

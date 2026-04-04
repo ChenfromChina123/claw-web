@@ -15,6 +15,12 @@ export interface UserPreferences {
   streamResponse: boolean
   /** 是否启用声音提示 */
   soundEnabled: boolean
+  /** 是否显示流程图 */
+  showFlowVisualization: boolean
+  /** 是否显示知识卡片 */
+  showKnowledgeCards: boolean
+  /** 是否使用增强工具展示 */
+  useEnhancedToolDisplay: boolean
 }
 
 /**

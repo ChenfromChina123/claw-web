@@ -329,6 +329,11 @@ function formatTime(date: Date | string) {
   border: 1px solid transparent;
   position: relative;
   overflow: hidden;
+  height: 48px !important;
+  min-height: 48px !important;
+  max-height: 48px !important;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .session-item::before {
