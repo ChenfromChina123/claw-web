@@ -614,6 +614,7 @@ class PerformanceMonitor {
   getMetrics(): PerformanceMetrics {
     const mem = process.memoryUsage()
     const requestStats = this.requestTracer.getStats()
+    const cpuUsage = this.calculateCpuUsage()
 
     return {
       uptime: Date.now() - this.startTime,
@@ -624,8 +625,8 @@ class PerformanceMonitor {
         rss: mem.rss,
       },
       cpu: {
-        usage: 0, // 需要实现 CPU 监控
-        cores: require('os').cpus().length,
+        usage: cpuUsage,
+        cores: os.cpus().length,
       },
       requests: {
         total: requestStats.total,
@@ -642,8 +643,108 @@ class PerformanceMonitor {
           : 0,
       },
       connections: {
-        websocket: 0, // 需要从 wsBridge 获取
-        activeSessions: 0, // 需要从 sessionManager 获取
+        websocket: this.websocketConnections,
+        activeSessions: this.activeSessions,
+      },
+    }
+  }
+
+  /**
+   * 计算 CPU 使用率
+   */
+  private calculateCpuUsage(): number {
+    const cpus = os.cpus()
+    let totalIdle = 0
+    let totalTick = 0
+
+    for (const cpu of cpus) {
+      const times = cpu.times
+      totalIdle += times.idle
+      totalTick += times.user + times.nice + times.sys + times.irq + times.idle
+    }
+
+    const currentIdle = totalIdle
+    const currentTick = totalTick
+    const now = Date.now()
+
+    const idleDiff = currentIdle - this.previousCpuUsage
+    const tickDiff = currentTick - this.previousCpuTime
+
+    this.previousCpuUsage = currentIdle
+    this.previousCpuTime = currentTick
+
+    if (tickDiff <= 0) {
+      return 0
+    }
+
+    return Math.round((1 - idleDiff / tickDiff) * 100 * 100) / 100
+  }
+
+  /**
+   * 获取健康状态
+   * @param dbConnected 数据库连接状态
+   * @returns 健康状态信息
+   */
+  getHealthStatus(dbConnected: boolean): HealthStatus {
+    const mem = process.memoryUsage()
+    const totalMemory = os.totalmem()
+    const memoryUsagePercent = (mem.heapUsed / totalMemory) * 100
+    const cpuUsage = this.calculateCpuUsage()
+
+    // 确定内存状态
+    let memoryStatus: 'healthy' | 'degraded' | 'unhealthy' = 'healthy'
+    if (memoryUsagePercent > 80) {
+      memoryStatus = 'unhealthy'
+    } else if (memoryUsagePercent > 60) {
+      memoryStatus = 'degraded'
+    }
+
+    // 确定 CPU 状态
+    let cpuStatus: 'healthy' | 'degraded' = 'healthy'
+    if (cpuUsage > 70) {
+      cpuStatus = 'degraded'
+    }
+
+    // 确定 WebSocket 状态
+    let websocketStatus: 'healthy' | 'degraded' = 'healthy'
+    if (this.websocketConnections > 100) {
+      websocketStatus = 'degraded'
+    }
+
+    // 确定整体状态
+    let overallStatus: 'healthy' | 'degraded' | 'unhealthy' = 'healthy'
+    if (memoryStatus === 'unhealthy' || !dbConnected) {
+      overallStatus = 'unhealthy'
+    } else if (memoryStatus === 'degraded' || cpuStatus === 'degraded' || websocketStatus === 'degraded') {
+      overallStatus = 'degraded'
+    }
+
+    return {
+      status: overallStatus,
+      version: '1.0.0',
+      timestamp: new Date().toISOString(),
+      uptime: Date.now() - this.startTime,
+      components: {
+        database: {
+          status: dbConnected ? 'healthy' : 'unhealthy',
+          connected: dbConnected,
+        },
+        websocket: {
+          status: websocketStatus,
+          connections: this.websocketConnections,
+          activeSessions: this.activeSessions,
+        },
+        memory: {
+          status: memoryStatus,
+          usagePercent: Math.round(memoryUsagePercent * 100) / 100,
+          heapUsed: mem.heapUsed,
+          heapTotal: mem.heapTotal,
+        },
+        cpu: {
+          status: cpuStatus,
+          usagePercent: cpuUsage,
+          cores: os.cpus().length,
+        },
       },
     }
   }

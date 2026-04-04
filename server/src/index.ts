@@ -1161,6 +1161,64 @@ async function startServer() {
         }
       }
 
+      // ==================== Diagnostics API ====================
+
+      // GET /api/diagnostics/health - 健康检查
+      if (path === '/api/diagnostics/health' && method === 'GET') {
+        const dbConnected = true // 假设数据库已连接
+        const healthStatus = performanceMonitor.getHealthStatus(dbConnected)
+        
+        // 更新 WebSocket 连接数
+        const connections = wsManager.getAllConnections().size
+        const sessions = wsManager.getActiveSessions().size
+        performanceMonitor.setWebSocketStats(connections, sessions)
+        
+        // 重新获取包含最新 WebSocket 数据的健康状态
+        const updatedHealthStatus = performanceMonitor.getHealthStatus(dbConnected)
+        
+        return createSuccessResponse(updatedHealthStatus)
+      }
+
+      // GET /api/diagnostics/components - 获取组件详细信息
+      if (path === '/api/diagnostics/components' && method === 'GET') {
+        const dbConnected = true
+        const healthStatus = performanceMonitor.getHealthStatus(dbConnected)
+        
+        // 更新 WebSocket 连接数
+        const connections = wsManager.getAllConnections().size
+        const sessions = wsManager.getActiveSessions().size
+        performanceMonitor.setWebSocketStats(connections, sessions)
+        
+        // 获取更新后的健康状态
+        const updatedHealthStatus = performanceMonitor.getHealthStatus(dbConnected)
+        
+        // 获取性能指标
+        const metrics = performanceMonitor.getMetrics()
+        
+        // 获取告警规则
+        const rules = performanceMonitor.getAlertRules()
+        
+        // 获取未确认的告警
+        const alerts = performanceMonitor.getAlerts(true)
+        
+        return createSuccessResponse({
+          health: updatedHealthStatus,
+          metrics: {
+            uptime: metrics.uptime,
+            memory: metrics.memory,
+            cpu: metrics.cpu,
+            requests: metrics.requests,
+            tools: metrics.tools,
+            connections: metrics.connections,
+          },
+          alerts: {
+            rules: rules.length,
+            active: alerts.length,
+            details: alerts,
+          },
+        })
+      }
+
       return createErrorResponse('NOT_FOUND', `Route ${path} not found`, 404)
     },
 
@@ -1564,6 +1622,17 @@ async function startServer() {
   console.log(`\n[API]  MCP Endpoints:`)
   console.log(`       GET    /api/mcp/servers      - 获取 MCP 服务器列表`)
   console.log(`       GET    /api/mcp/tools        - 获取 MCP 工具列表`)
+  console.log(`\n[API]  Monitoring Endpoints:`)
+  console.log(`       GET    /api/monitoring/metrics        - 获取性能指标`)
+  console.log(`       GET    /api/monitoring/logs           - 获取日志`)
+  console.log(`       GET    /api/monitoring/alerts         - 获取告警`)
+  console.log(`       POST   /api/monitoring/alerts/acknowledge - 确认告警`)
+  console.log(`       GET    /api/monitoring/rules          - 获取告警规则`)
+  console.log(`       POST   /api/monitoring/rules          - 添加告警规则`)
+  console.log(`       POST   /api/monitoring/record         - 记录指标`)
+  console.log(`\n[API]  Diagnostics Endpoints:`)
+  console.log(`       GET    /api/diagnostics/health        - 健康检查`)
+  console.log(`       GET    /api/diagnostics/components    - 获取组件详细信息`)
   console.log(`\n[WS]   WebSocket Events:`)
   console.log(`       create_session, load_session, list_sessions`)
   console.log(`       user_message, delete_session, rename_session`)

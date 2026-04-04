@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 集中展示 INTEGRATION.md 中 Phase 3 的 Web 组件（工具 / MCP / 监控）
+ * 集中展示 INTEGRATION.md 中 Phase 3 的 Web 组件（工具 / MCP / 监控 / 技能）
  */
 import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -8,11 +8,12 @@ import { NTabs, NTabPane, NButton, NSpace } from 'naive-ui'
 import ToolPanel from '@/components/ToolPanel.vue'
 import MCPServersPage from '@/views/MCPServers.vue'
 import MonitoringPanel from '@/components/MonitoringPanel.vue'
+import SkillMarket from '@/components/SkillMarket.vue'
 
 const router = useRouter()
 const route = useRoute()
 
-const validTabs = ['tools', 'mcp', 'monitoring'] as const
+const validTabs = ['tools', 'mcp', 'skills', 'monitoring'] as const
 type TabName = (typeof validTabs)[number]
 
 function isTabName(v: unknown): v is TabName {
@@ -56,6 +57,11 @@ function goChat() {
       <NTabPane name="mcp" tab="MCP 服务器" display-directive="show:lazy">
         <div class="hub-pane">
           <MCPServersPage />
+        </div>
+      </NTabPane>
+      <NTabPane name="skills" tab="技能市场" display-directive="show:lazy">
+        <div class="hub-pane">
+          <SkillMarket />
         </div>
       </NTabPane>
       <NTabPane name="monitoring" tab="性能监控" display-directive="show:lazy">
