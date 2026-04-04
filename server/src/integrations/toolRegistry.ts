@@ -50,6 +50,24 @@ export interface ToolExecutionResult {
   timestamp: number
 }
 
+/**
+ * 工具执行事件数据类型
+ */
+export interface ToolExecutionEvent {
+  toolName: string
+  executionId: string
+  sessionId?: string
+  input?: Record<string, unknown>
+  result?: ToolExecutionResult
+  error?: string
+  duration?: number
+  progress?: {
+    type: 'start' | 'progress' | 'complete' | 'error'
+    data?: unknown
+  }
+  timestamp: number
+}
+
 export interface ToolPermission {
   toolName: string
   allow: boolean
@@ -153,6 +171,31 @@ export class ToolRegistry {
         console.error(`[ToolRegistry] Event handler error for ${event}:`, error)
       }
     })
+  }
+  
+  /**
+   * 广播工具执行事件到 WebSocket 客户端
+   */
+  private broadcastExecutionEvent(
+    eventType: 'tool.execution_started' | 'tool.execution_progress' | 'tool.execution_completed' | 'tool.execution_failed',
+    eventData: ToolExecutionEvent
+  ): void {
+    // 发射内部事件
+    this.emit(eventType, eventData)
+    
+    // 通过 WebSocket 广播到客户端（如果 wsManager 可用）
+    try {
+      // 动态导入以避免循环依赖
+      import('./wsBridge').then(({ wsManager }) => {
+        wsManager.broadcastToolEvent(eventType, eventData)
+      }).catch(() => {
+        // wsBridge 可能不存在，忽略错误
+      })
+    } catch (error) {
+      console.error('[ToolRegistry] WebSocket broadcast error:', error)
+    }
+    
+    console.log(`[ToolRegistry] 广播事件：${eventType} for ${eventData.toolName}`)
   }
   
   // ==================== 初始化 ====================
@@ -774,6 +817,22 @@ export class ToolRegistry {
     const startTime = Date.now()
     
     this.emit('tool_start', { id, ...request })
+    
+    // 创建执行事件数据
+    const eventBase: Omit<ToolExecutionEvent, 'progress' | 'timestamp'> = {
+      toolName: request.toolName,
+      executionId: id,
+      sessionId: request.sessionId,
+      input: request.toolInput,
+    }
+    
+    // 触发 tool.execution_started 事件
+    const startEvent: ToolExecutionEvent = {
+      ...eventBase,
+      timestamp: startTime,
+      progress: { type: 'start', data: request.toolInput },
+    }
+    this.broadcastExecutionEvent('tool.execution_started', startEvent)
     
     const tool = this.getTool(request.toolName)
     

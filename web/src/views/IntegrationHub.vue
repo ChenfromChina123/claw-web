@@ -9,6 +9,7 @@ import ToolPanel from '@/components/ToolPanel.vue'
 import MCPServersPage from '@/views/MCPServers.vue'
 import MonitoringPanel from '@/components/MonitoringPanel.vue'
 import SkillMarket from '@/components/SkillMarket.vue'
+import DiagnosticPanel from '@/components/DiagnosticPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -48,6 +49,11 @@ function goChat() {
       </NSpace>
     </div>
 
+    <!-- 诊断面板（顶部） -->
+    <div class="hub-diagnostic">
+      <DiagnosticPanel />
+    </div>
+
     <NTabs v-model:value="activeTab" type="line" animated class="hub-tabs">
       <NTabPane name="tools" tab="工具面板" display-directive="show:lazy">
         <div class="hub-pane">
@@ -83,6 +89,10 @@ function goChat() {
 
 .hub-header {
   margin-bottom: 12px;
+}
+
+.hub-diagnostic {
+  margin-bottom: 16px;
 }
 
 .hub-tabs :deep(.n-tabs-nav) {

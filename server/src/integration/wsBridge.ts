@@ -444,6 +444,32 @@ export class WebSocketManager {
     return count
   }
 
+  /**
+   * 广播工具执行事件到所有连接的客户端
+   */
+  broadcastToolEvent(
+    eventType: 'tool.execution_started' | 'tool.execution_progress' | 'tool.execution_completed' | 'tool.execution_failed',
+    eventData: any
+  ): void {
+    const message: WebSocketMessage = {
+      type: 'event',
+      event: eventType,
+      data: eventData,
+    }
+
+    let sentCount = 0
+    for (const [, connection] of this.connections) {
+      if (connection.isConnected()) {
+        connection.send(message)
+        sentCount++
+      }
+    }
+
+    if (sentCount > 0) {
+      console.log(`[WebSocket] 广播工具事件 ${eventType} 到 ${sentCount} 个客户端`)
+    }
+  }
+
   // ==================== Default RPC Methods ====================
 
   private registerDefaultMethods(): void {

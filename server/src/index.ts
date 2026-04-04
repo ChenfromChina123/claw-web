@@ -612,6 +612,111 @@ async function startServer() {
         })
       }
 
+      // ==================== Diagnostics API Routes ====================
+
+      // GET /api/diagnostics/health - 获取系统健康状态
+      if (path === '/api/diagnostics/health' && method === 'GET') {
+        try {
+          // 获取性能监控器的健康状态
+          const dbConnected = true // 实际应该检查数据库连接
+          const healthStatus = performanceMonitor.getHealthStatus(dbConnected)
+          
+          // 添加工具注册中心状态
+          const toolRegistryHealth = {
+            status: 'healthy' as const,
+            toolCount: toolExecutor.getAllTools().length,
+            sources: {
+              builtin: toolExecutor.getToolsByCategory('file').length + toolExecutor.getToolsByCategory('shell').length + toolExecutor.getToolsByCategory('web').length,
+              cli: 0, // 实际应该从 CLI Tool Loader 获取
+              mcp: 0, // 实际应该从 MCP Bridge 获取
+              custom: 0,
+            },
+          }
+          
+          // 添加 MCP 桥接状态
+          const mcpBridgeHealth = {
+            status: 'healthy' as const,
+            serverCount: 0, // 实际应该从 MCP Bridge 获取
+            activeConnections: 0,
+          }
+          
+          // 添加 CLI Tool Loader 状态
+          const cliToolLoaderHealth = {
+            status: 'healthy' as const,
+            loadedTools: 0, // 实际应该从 CLI Tool Loader 获取
+            lastScan: new Date().toISOString(),
+          }
+          
+          // 添加 Skill Loader 状态
+          const skillLoaderHealth = {
+            status: 'healthy' as const,
+            skillCount: 0, // 实际应该从 Skill Loader 获取
+            categories: {},
+          }
+          
+          return createSuccessResponse({
+            overall: healthStatus.status,
+            components: {
+              toolRegistry: toolRegistryHealth,
+              mcpBridge: mcpBridgeHealth,
+              cliToolLoader: cliToolLoaderHealth,
+              skillLoader: skillLoaderHealth,
+              performanceMonitor: {
+                status: healthStatus.components.memory.status === 'healthy' && healthStatus.components.cpu.status === 'healthy' ? 'healthy' : 'degraded',
+                memoryUsage: `${healthStatus.components.memory.usagePercent}%`,
+                cpuUsage: `${healthStatus.components.cpu.usagePercent}%`,
+                wsConnections: healthStatus.components.websocket.connections,
+              },
+            },
+            timestamp: new Date().toISOString(),
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '健康检查失败'
+          return createErrorResponse('HEALTH_CHECK_FAILED', message, 500)
+        }
+      }
+
+      // GET /api/diagnostics/components - 获取组件详细信息
+      if (path === '/api/diagnostics/components' && method === 'GET') {
+        try {
+          const metrics = performanceMonitor.getMetrics()
+          
+          return createSuccessResponse({
+            toolRegistry: {
+              totalTools: toolExecutor.getAllTools().length,
+              byCategory: toolExecutor.getToolsGroupedByCategory(),
+              historySize: toolExecutor.getHistory().length,
+            },
+            mcpBridge: {
+              // 实际应该从 MCP Bridge 获取详细状态
+              servers: [],
+              totalTools: 0,
+            },
+            cliToolLoader: {
+              loadedTools: 0,
+              lastScan: new Date().toISOString(),
+              errors: [],
+            },
+            skillLoader: {
+              loadedSkills: 0,
+              byCategory: {},
+            },
+            performanceMonitor: {
+              metrics,
+              alerts: performanceMonitor.getAlerts(10),
+            },
+            websocket: {
+              totalConnections: wsManager.getAllConnections().size,
+              activeSessions: wsManager.getActiveSessions().size,
+            },
+            timestamp: new Date().toISOString(),
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取组件信息失败'
+          return createErrorResponse('COMPONENTS_INFO_FAILED', message, 500)
+        }
+      }
+
       // List available models
       if (path === '/api/models' && method === 'GET') {
         return createSuccessResponse({ models: AVAILABLE_MODELS })
