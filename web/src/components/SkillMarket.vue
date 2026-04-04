@@ -160,16 +160,20 @@ onMounted(() => {
 
     <div class="market-content">
       <div class="category-sidebar" :class="{ collapsed: sidebarCollapsed }">
-        <div class="sidebar-toggle" @click="toggleSidebar">
-          <svg 
-            class="toggle-icon" 
-            :class="{ rotated: sidebarCollapsed }"
-            viewBox="0 0 16 16" 
-            fill="none" 
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path d="M5.64645 3.14645C5.45118 3.34171 5.45118 3.65829 5.64645 3.85355L9.79289 8L5.64645 12.1464C5.45118 12.3417 5.45118 12.6583 5.64645 12.8536C5.84171 13.0488 6.15829 13.0488 6.35355 12.8536L10.8536 8.35355C11.0488 8.15829 11.0488 7.84171 10.8536 7.64645L6.35355 3.14645C6.15829 2.95118 5.84171 2.95118 5.64645 3.14645Z" fill="currentColor"></path>
-          </svg>
+        <div class="sidebar-header">
+          <span v-show="!sidebarCollapsed" class="sidebar-title">技能分类</span>
+          <div class="sidebar-toggle" @click="toggleSidebar">
+            <div class="toggle-button">
+              <svg 
+                class="toggle-icon" 
+                :class="{ rotated: sidebarCollapsed }"
+                viewBox="0 0 24 24" 
+                fill="none"
+              >
+                <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
         </div>
         <div v-show="!sidebarCollapsed" class="category-list">
           <NBadge 
@@ -382,7 +386,7 @@ onMounted(() => {
 }
 
 .category-sidebar {
-  flex: 0 0 200px;
+  flex: 0 0 220px;
   border-right: 1px solid var(--n-border-color);
   background: var(--n-color);
   overflow-y: auto;
@@ -391,42 +395,72 @@ onMounted(() => {
 }
 
 .category-sidebar.collapsed {
-  flex: 0 0 48px;
+  flex: 0 0 56px;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--n-border-color);
+  position: sticky;
+  top: 0;
+  background: var(--n-color);
+  z-index: 5;
+}
+
+.sidebar-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--n-text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  transition: opacity 0.2s;
 }
 
 .sidebar-toggle {
-  position: absolute;
-  top: 50%;
-  right: -16px;
-  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toggle-button {
   width: 32px;
-  height: 64px;
-  background: var(--n-color);
-  border: 1px solid var(--n-border-color);
-  border-radius: 0 8px 8px 0;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--n-color-hover);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 10;
   transition: all 0.2s;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  color: var(--n-text-color-2);
 }
 
-.sidebar-toggle:hover {
-  background: var(--n-color-hover);
-  width: 36px;
+.toggle-button:hover {
+  background: var(--primary-color);
+  color: #fff;
+  transform: scale(1.1);
 }
 
 .toggle-icon {
-  width: 20px;
-  height: 20px;
-  color: var(--n-text-color-2);
+  width: 18px;
+  height: 18px;
   transition: transform 0.3s ease;
 }
 
 .toggle-icon.rotated {
   transform: rotate(180deg);
+}
+
+.category-sidebar.collapsed .sidebar-header {
+  justify-content: center;
+  padding: 12px 8px;
+}
+
+.category-sidebar.collapsed .sidebar-title {
+  display: none;
 }
 
 .category-list {
