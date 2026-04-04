@@ -182,8 +182,17 @@ function handleCommandSelect(command: string): void {
     <!-- 侧边栏 -->
     <ChatSidebar />
     
-    <!-- 主内容区 -->
-    <NLayoutContent class="chat-content">
+    <!-- 主内容区：内层滚动容器用 flex 占满高度，避免整页被消息撑高把输入区顶出视口 -->
+    <NLayoutContent
+      class="chat-content"
+      :content-style="{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100%',
+        overflow: 'hidden',
+        boxSizing: 'border-box',
+      }"
+    >
       <!-- 背景装饰 -->
       <div class="chat-bg-decoration">
         <div class="bg-grid-pattern"></div>
@@ -251,6 +260,8 @@ function handleCommandSelect(command: string): void {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
+  flex: 1;
   position: relative;
   overflow: hidden;
 }
@@ -338,17 +349,20 @@ function handleCommandSelect(command: string): void {
   position: relative;
   z-index: 1;
   min-height: 0;
+  /* 为底部固定输入条留出可视区域，避免最后几条消息被挡住 */
   padding-bottom: 100px;
 }
 
 .message-list-container {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   padding: 0;
 }
 
 /* ---- 输入区域 ---- */
 .input-container {
+  flex-shrink: 0;
   margin: 0 20px 20px;
   border-radius: 16px !important;
   padding: 4px !important;
@@ -370,6 +384,9 @@ function handleCommandSelect(command: string): void {
 @media (max-width: 768px) {
   .input-container {
     margin: 12px 12px 12px;
+    left: 12px;
+    right: 12px;
+    max-width: none;
   }
 
   .bg-glow {

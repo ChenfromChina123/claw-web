@@ -38,6 +38,13 @@ declare global {
 import { v4 as uuidv4 } from 'uuid'
 import type { EventSender, Tool, ToolCall } from './webStore'
 import { toolExecutor } from './enhancedToolExecutor'
+import { WebMCPBridge, type MCPServerConfig, type MCPTool } from '../integrations/mcpBridge'
+
+// 创建 MCP Bridge 实例
+const mcpBridge = new WebMCPBridge()
+
+// 导出 MCP Bridge 以便在其他模块使用
+export { mcpBridge }
 
 // ==================== Message Protocol Types ====================
 
@@ -778,11 +785,97 @@ export class WebSocketManager {
       name: 'mcp.listServers',
       description: 'List all configured MCP servers',
       execute: async () => {
-        // This will be connected to the actual MCP bridge in Phase 2
+        const servers = mcpBridge.getServers()
+        const serverRuntimes = (mcpBridge as any).serverRuntimes
+        
         return {
-          servers: [],
-          count: 0,
-          message: 'MCP server management will be available in Phase 2',
+          servers: servers.map(s => {
+            const runtime = serverRuntimes?.get(s.id)
+            return {
+              id: s.id,
+              name: s.name,
+              command: s.command,
+              args: s.args,
+              enabled: s.enabled,
+              status: runtime?.status || 'disconnected',
+              tools: runtime?.tools?.length || 0,
+              connectedAt: runtime?.connectedAt,
+              error: runtime?.error,
+            }
+          }),
+          count: servers.length,
+        }
+      },
+    })
+
+    this.registerMethod({
+      name: 'mcp.addServer',
+      description: 'Add a new MCP server',
+      params: {
+        name: { type: 'string', required: true, description: 'Server name' },
+        command: { type: 'string', required: true, description: 'Command to start server' },
+        args: { type: 'array', required: false, description: 'Command arguments' },
+        env: { type: 'object', required: false, description: 'Environment variables' },
+        transport: { type: 'string', required: false, description: 'Transport type (stdio, websocket, sse, streamable-http)' },
+        url: { type: 'string', required: false, description: 'Server URL (for websocket/sse/http)' },
+      },
+      execute: async (params) => {
+        const { name, command, args, env, transport, url } = params
+        
+        const server = mcpBridge.addServer({
+          name: name as string,
+          command: command as string,
+          args: (args as string[]) || [],
+          env: env as Record<string, string> || {},
+          enabled: true,
+          transport: transport as 'stdio' | 'websocket' | 'sse' | 'streamable-http' || 'stdio',
+          url: url as string,
+        })
+
+        return {
+          success: true,
+          server: {
+            id: server.id,
+            name: server.name,
+            command: server.command,
+            enabled: server.enabled,
+          },
+          message: `MCP server '${name}' added successfully`,
+        }
+      },
+    })
+
+    this.registerMethod({
+      name: 'mcp.removeServer',
+      description: 'Remove an MCP server',
+      params: {
+        serverId: { type: 'string', required: true, description: 'Server ID' },
+      },
+      execute: async (params) => {
+        const { serverId } = params
+        const removed = mcpBridge.removeServer(serverId as string)
+        
+        return {
+          success: removed,
+          message: removed ? `Server removed successfully` : `Server not found: ${serverId}`,
+        }
+      },
+    })
+
+    this.registerMethod({
+      name: 'mcp.toggleServer',
+      description: 'Enable or disable an MCP server',
+      params: {
+        serverId: { type: 'string', required: true, description: 'Server ID' },
+        enabled: { type: 'boolean', required: true, description: 'Enable or disable' },
+      },
+      execute: async (params) => {
+        const { serverId, enabled } = params
+        const success = mcpBridge.toggleServer(serverId as string, enabled as boolean)
+        
+        return {
+          success,
+          message: success ? `Server ${enabled ? 'enabled' : 'disabled'}` : `Server not found: ${serverId}`,
         }
       },
     })
@@ -791,16 +884,31 @@ export class WebSocketManager {
       name: 'mcp.listTools',
       description: 'List all tools available from MCP servers',
       params: {
+        serverId: { type: 'string', required: false, description: 'Filter by server ID' },
         serverName: { type: 'string', required: false, description: 'Filter by server name' },
       },
       execute: async (params) => {
-        const serverName = params.serverName as string | undefined
+        const { serverId, serverName } = params
+        let tools = mcpBridge.getAllTools()
         
+        if (serverId) {
+          tools = tools.filter(t => t.serverId === serverId)
+        }
+        if (serverName) {
+          tools = tools.filter(t => t.serverName === serverName)
+        }
+
         return {
-          tools: [],
-          count: 0,
+          tools: tools.map(t => ({
+            name: t.name,
+            description: t.description,
+            inputSchema: t.inputSchema,
+            serverId: t.serverId,
+            serverName: t.serverName,
+          })),
+          count: tools.length,
+          serverId,
           serverName,
-          message: 'MCP tools will be available in Phase 2',
         }
       },
     })
@@ -809,19 +917,49 @@ export class WebSocketManager {
       name: 'mcp.callTool',
       description: 'Call a tool from an MCP server',
       params: {
-        serverName: { type: 'string', required: true, description: 'MCP server name' },
         toolName: { type: 'string', required: true, description: 'Tool name' },
         toolInput: { type: 'object', required: true, description: 'Tool input' },
+        serverId: { type: 'string', required: false, description: 'Server ID (optional, auto-detected)' },
       },
-      execute: async (params) => {
-        const { serverName, toolName, toolInput } = params
+      execute: async (params, context) => {
+        const { toolName, toolInput, serverId } = params
+
+        const sendEvent = (event: string, data: unknown) => {
+          context.sendEvent(event, data)
+        }
         
+        const result = await mcpBridge.callTool(
+          toolName as string,
+          toolInput as Record<string, unknown>,
+          sendEvent
+        )
+
         return {
-          success: false,
-          error: 'MCP tool calling will be available in Phase 2',
-          serverName,
+          success: result.success,
+          result: result.result,
+          error: result.error,
           toolName,
         }
+      },
+    })
+
+    this.registerMethod({
+      name: 'mcp.getStatus',
+      description: 'Get MCP system status',
+      execute: async () => {
+        return mcpBridge.getStatus()
+      },
+    })
+
+    this.registerMethod({
+      name: 'mcp.testConnection',
+      description: 'Test connection to an MCP server',
+      params: {
+        serverId: { type: 'string', required: true, description: 'Server ID' },
+      },
+      execute: async (params) => {
+        const { serverId } = params
+        return await mcpBridge.testConnection(serverId as string)
       },
     })
 

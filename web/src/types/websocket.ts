@@ -22,11 +22,15 @@ export type WebSocketMessageType =
   | 'message_stop'
   | 'message_delta'
   | 'tool_use'
+  | 'tool_use_end'
   | 'tool_start'
   | 'tool_input_delta'
   | 'tool_end'
   | 'tool_error'
   | 'tool_progress'
+  | 'tool_execute'
+  | 'tool_result'
+  | 'tool_executed'
   | 'session_created'
   | 'session_loaded'
   | 'session_list'
@@ -49,6 +53,18 @@ export type WebSocketMessageType =
   | 'broadcast'
   | 'command_result'
   | 'connected'
+  // MCP types
+  | 'mcp_server_added'
+  | 'mcp_server_removed'
+  | 'mcp_server_error'
+  | 'mcp_tool_list'
+  | 'mcp_tool_result'
+  // Session types
+  | 'session_export'
+  | 'user_question'
+  // Message sync types
+  | 'message_saved'
+  | 'session_saved'
 
 export interface RPCRequest {
   id: string
@@ -116,6 +132,22 @@ export interface WebSocketMessage {
   theme?: string
   expanded?: boolean
   iteration?: number
+  success?: boolean
+  duration?: number
+  streaming?: boolean
+  category?: string
+  tools?: unknown[]
+  history?: unknown[]
+  // Tool execution
+  toolName?: string
+  toolId?: string
+  toolInput?: Record<string, unknown>
+  toolResult?: unknown
+  executionId?: string
+  // MCP
+  mcpServers?: unknown[]
+  mcpTools?: unknown[]
+  // Extra
   [key: string]: unknown
 }
 
@@ -136,6 +168,20 @@ export interface ConnectionInfo {
   uptime: number
   queuedMessages: number
   remoteAddress?: string
+}
+
+export interface MessageSavedEvent {
+  type: 'message_saved'
+  sessionId: string
+  tempId?: string
+  messageId: string
+  role: string
+}
+
+export interface SessionSavedEvent {
+  type: 'session_saved'
+  sessionId: string
+  messageCount: number
 }
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnecting' | 'disconnected' | 'reconnecting'

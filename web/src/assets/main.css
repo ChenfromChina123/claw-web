@@ -14,3 +14,26 @@
 
 /* 4. 响应式样式 */
 @import url('/src/styles/responsive.css');
+
+/* ============================================
+   Naive UI：抵消 Chromium/Edge 自动填充的默认浅色底
+   （与 design tokens 中的背景、文字色一致）
+   ============================================ */
+.n-input__input-el:-webkit-autofill,
+.n-input__input-el:-webkit-autofill:hover,
+.n-input__input-el:-webkit-autofill:focus,
+.n-input__input-el:-webkit-autofill:active,
+.n-input__textarea-el:-webkit-autofill,
+.n-input__textarea-el:-webkit-autofill:hover,
+.n-input__textarea-el:-webkit-autofill:focus,
+.n-input__textarea-el:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-tertiary) inset !important;
+  box-shadow: 0 0 0 1000px var(--bg-tertiary) inset !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+  caret-color: var(--text-primary);
+}
+
+.n-input__input-el:-webkit-autofill,
+.n-input__textarea-el:-webkit-autofill {
+  transition: background-color 99999s ease-out 0s;
+}

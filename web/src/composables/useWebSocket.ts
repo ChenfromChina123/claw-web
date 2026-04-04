@@ -372,11 +372,14 @@ class EnhancedWebSocketClient {
           console.log('[WS] Connected to server:', (message as { connectionId?: string }).connectionId)
           break
 
-        case 'session_list':
-          console.log('[WS] Session list received:', (message as { sessions?: unknown }).sessions)
-          this.emitEvent('session_list', (message as { sessions?: unknown }).sessions)
+        case 'session_list': {
+          const sessions = (message as { sessions?: Session[] }).sessions ?? []
+          console.log('[WS] Session list received:', sessions.length)
+          // 与 chat store 约定：{ sessions }，勿只传数组（否则 store 读不到 .sessions）
+          this.emitEvent('session_list', { sessions })
           console.log('[WS] Session list event emitted')
           break
+        }
 
         case 'session_created':
           console.log('[WS] Session created:', (message as { session?: unknown }).session)
@@ -384,11 +387,36 @@ class EnhancedWebSocketClient {
           console.log('[WS] Session created event emitted')
           break
 
-        case 'session_loaded':
-          console.log('[WS] Session loaded:', (message as { session?: unknown }).session)
-          this.emitEvent('session_loaded', (message as { session?: unknown }).session)
+        case 'session_loaded': {
+          const m = message as {
+            session?: Session
+            messages?: Message[]
+            toolCalls?: ToolCall[]
+          }
+          console.log('[WS] Session loaded:', m.session?.id, 'messages:', m.messages?.length)
+          this.emitEvent('session_loaded', {
+            session: m.session,
+            messages: m.messages,
+            toolCalls: m.toolCalls,
+          })
           console.log('[WS] Session loaded event emitted')
           break
+        }
+
+        case 'session_deleted': {
+          const m = message as { sessionId?: string }
+          this.emitEvent('session_deleted', { sessionId: m.sessionId })
+          break
+        }
+
+        case 'session_renamed': {
+          const m = message as { sessionId?: string; title?: string }
+          this.emitEvent('session_renamed', {
+            sessionId: m.sessionId,
+            title: m.title,
+          })
+          break
+        }
 
         case 'error':
           console.error('[WS] Error from server:', (message as { message?: string }).message)
@@ -526,6 +554,10 @@ class EnhancedWebSocketClient {
         this.handleToolUseStart(message)
         break
 
+      case 'tool_use_end':
+        this.handleToolUseEnd(message)
+        break
+
       case 'error':
         console.error('[WS] Server error:', message.message)
         break
@@ -581,7 +613,14 @@ class EnhancedWebSocketClient {
 
     if (tool) {
       tool.status = (eventData?.success !== false) ? 'completed' : 'error'
-      tool.toolOutput = eventData?.result || message.result
+      const raw = eventData?.result ?? message.result
+      if (raw === null || raw === undefined) {
+        tool.toolOutput = null
+      } else if (typeof raw === 'object' && !Array.isArray(raw)) {
+        tool.toolOutput = raw as Record<string, unknown>
+      } else {
+        tool.toolOutput = { value: raw as unknown }
+      }
       tool.completedAt = new Date()
 
       if (eventData?.error || message.error) {
@@ -954,11 +993,25 @@ class EnhancedWebSocketClient {
   }
 
   deleteSession(sessionId: string): void {
-    this.send({ type: 'delete_session', sessionId })
+    console.log('[WS] deleteSession called, readyState:', this.ws?.readyState, 'ws:', !!this.ws)
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      const payload = { type: 'delete_session', sessionId }
+      console.log('[WS] Sending delete_session:', payload)
+      this.ws.send(JSON.stringify(payload))
+    } else {
+      console.warn('[WS] Cannot delete session: WebSocket not open, readyState:', this.ws?.readyState)
+    }
   }
 
   renameSession(sessionId: string, title: string): void {
-    this.send({ type: 'rename_session', sessionId, title })
+    console.log('[WS] renameSession called, readyState:', this.ws?.readyState, 'ws:', !!this.ws)
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      const payload = { type: 'rename_session', sessionId, title }
+      console.log('[WS] Sending rename_session:', payload)
+      this.ws.send(JSON.stringify(payload))
+    } else {
+      console.warn('[WS] Cannot rename session: WebSocket not open, readyState:', this.ws?.readyState)
+    }
   }
 
   clearSession(sessionId?: string): void {

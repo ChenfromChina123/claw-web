@@ -5,9 +5,9 @@ import { MessageRepository } from '../db/repositories/messageRepository'
 import { ToolCallRepository } from '../db/repositories/toolCallRepository'
 import type { Session, Message, ConversationMessage, ToolCall } from '../models/types'
 
-interface InMemorySession {
+export interface InMemorySession {
   session: Session
-  messages: ConversationMessage[]
+  messages: Message[]  // 使用完整 Message 类型
   toolCalls: ToolCall[]
   dirty: boolean
 }
@@ -86,6 +86,10 @@ export class SessionManager {
   async loadSession(sessionId: string): Promise<InMemorySession | null> {
     const cached = this.sessions.get(sessionId)
     if (cached) {
+      // getUserSessions 会先把会话放进缓存且 messages=[]、dirty=false，若直接 return 会永远读不到库里的历史消息
+      if (!cached.dirty && cached.messages.length === 0 && cached.toolCalls.length === 0) {
+        await this.hydrateSessionFromDb(sessionId, cached)
+      }
       return cached
     }
 
@@ -95,10 +99,8 @@ export class SessionManager {
     const dbMessages = await this.messageRepo.findBySessionId(sessionId)
     const dbToolCalls = await this.toolCallRepo.findBySessionId(sessionId)
 
-    const messages: ConversationMessage[] = dbMessages.map(m => ({
-      role: m.role,
-      content: m.content,
-    }))
+    // 返回完整的 Message 对象，包含 id, sessionId, createdAt 等
+    const messages: Message[] = dbMessages
 
     const sessionData: InMemorySession = {
       session,
@@ -116,6 +118,19 @@ export class SessionManager {
     }
 
     return sessionData
+  }
+
+  /** 从数据库填充仅由列表接口放入缓存、尚未加载过消息的会话 */
+  private async hydrateSessionFromDb(sessionId: string, cached: InMemorySession): Promise<void> {
+    const dbMessages = await this.messageRepo.findBySessionId(sessionId)
+    if (dbMessages.length > 0) {
+      // 返回完整的 Message 对象
+      cached.messages = dbMessages
+    }
+    const dbToolCalls = await this.toolCallRepo.findBySessionId(sessionId)
+    if (dbToolCalls.length > 0) {
+      cached.toolCalls = dbToolCalls
+    }
   }
 
   async getUserSessions(userId: string): Promise<Session[]> {
@@ -139,14 +154,31 @@ export class SessionManager {
     return this.sessions.get(sessionId)
   }
 
-  addMessage(sessionId: string, role: 'user' | 'assistant', content: string, toolCalls?: ToolCall[]): void {
+  /**
+   * 切换会话前强制保存当前会话
+   * @param currentSessionId 当前会话ID
+   * @param newSessionId 新会话ID
+   */
+  async switchSession(currentSessionId: string, newSessionId: string): Promise<void> {
+    if (currentSessionId && this.sessions.has(currentSessionId)) {
+      const sessionData = this.sessions.get(currentSessionId)
+      if (sessionData && sessionData.dirty) {
+        console.log(`[SwitchSession] Saving dirty session ${currentSessionId} before switching`)
+        await this.saveSession(currentSessionId)
+      }
+    }
+  }
+
+  addMessage(sessionId: string, role: 'user' | 'assistant', content: string, toolCalls?: ToolCall[], externalId?: string): Message | null {
     const sessionData = this.sessions.get(sessionId)
     if (!sessionData) {
       console.error(`Session ${sessionId} not found in memory`)
-      return
+      return null
     }
 
-    const message: Message = { id: uuidv4(), sessionId, role, content, createdAt: new Date() }
+    // 如果提供了外部ID（来自前端），使用它；否则生成新的UUID
+    const messageId = externalId || uuidv4()
+    const message: Message = { id: messageId, sessionId, role, content, createdAt: new Date() }
     if (role === 'assistant' && toolCalls && toolCalls.length > 0) {
       message.toolCalls = toolCalls
     }
@@ -154,6 +186,33 @@ export class SessionManager {
     sessionData.dirty = true
 
     this.scheduleSave(sessionId)
+    
+    return message
+  }
+
+  /**
+   * 更新内存中的消息内容
+   */
+  updateMessage(sessionId: string, messageId: string, content: string, toolCalls?: ToolCall[]): Message | null {
+    const sessionData = this.sessions.get(sessionId)
+    if (!sessionData) {
+      console.error(`Session ${sessionId} not found in memory`)
+      return null
+    }
+
+    const message = sessionData.messages.find(m => m.id === messageId)
+    if (!message) {
+      console.error(`Message ${messageId} not found in session ${sessionId}`)
+      return null
+    }
+
+    message.content = content
+    if (toolCalls) {
+      message.toolCalls = toolCalls
+    }
+    sessionData.dirty = true
+
+    return message
   }
 
   addToolCall(sessionId: string, toolCall: ToolCall): void {
@@ -182,16 +241,30 @@ export class SessionManager {
     }
   }
 
-  async deleteSession(sessionId: string): Promise<void> {
-    const sessionData = this.sessions.get(sessionId)
-    if (sessionData) {
-      await this.sessionRepo.delete(sessionId)
-      this.sessions.delete(sessionId)
-
-      const userSessionList = this.userSessions.get(sessionData.session.userId) || []
-      const updatedList = userSessionList.filter(id => id !== sessionId)
-      this.userSessions.set(sessionData.session.userId, updatedList)
+  /**
+   * 删除会话（始终落库；不再依赖内存缓存，否则仅 DB 有记录时会「删不掉」）
+   * @param requestingUserId 若传入则校验归属，防止跨用户删除
+   */
+  async deleteSession(sessionId: string, requestingUserId?: string): Promise<void> {
+    const existing = await this.sessionRepo.findById(sessionId)
+    if (!existing) {
+      throw new Error('Session not found')
     }
+    if (requestingUserId && existing.userId !== requestingUserId) {
+      throw new Error('Forbidden: cannot delete another user\'s session')
+    }
+
+    await this.messageRepo.deleteBySessionId(sessionId)
+    await this.toolCallRepo.deleteBySessionId(sessionId)
+    await this.sessionRepo.delete(sessionId)
+
+    this.sessions.delete(sessionId)
+
+    const userSessionList = this.userSessions.get(existing.userId) || []
+    this.userSessions.set(
+      existing.userId,
+      userSessionList.filter((id) => id !== sessionId)
+    )
   }
 
   async renameSession(sessionId: string, title: string): Promise<void> {
@@ -225,15 +298,19 @@ export class SessionManager {
     await this.sessionRepo.touch(sessionId)
 
     const existingMessages = await this.messageRepo.findBySessionId(sessionId)
-    const existingMessageCount = existingMessages.length
+    const existingMessageIds = new Set(existingMessages.map(m => m.id))
 
-    if (sessionData.messages.length > existingMessageCount) {
-      const newMessages = sessionData.messages.slice(existingMessageCount)
-      for (const msg of newMessages) {
-        await this.messageRepo.create(sessionId, msg.role, msg.content)
+    // 只保存新消息（不在数据库中的消息）
+    for (const msg of sessionData.messages) {
+      // 如果消息已经有ID且在数据库中存在，跳过
+      if (msg.id && existingMessageIds.has(msg.id)) {
+        continue
       }
+      // 创建新消息（数据库会生成ID）
+      await this.messageRepo.create(sessionId, msg.role, msg.content)
     }
 
+    // 处理工具调用
     for (const toolCall of sessionData.toolCalls) {
       if (!toolCall.id || !toolCall.messageId) continue
 

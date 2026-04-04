@@ -19,6 +19,7 @@ import { githubAuthService } from './services/githubAuthService'
 import { verifyToken, extractTokenFromHeader } from './services/jwtService'
 import { wsManager } from './integration/wsBridge'
 import { toolExecutor, EnhancedToolExecutor } from './integration/enhancedToolExecutor'
+import { performanceMonitor } from './integration/performanceMonitor'
 import { WebCommandBridge, parseUserInput } from './integrations/commandBridge'
 import { WebMCPBridge } from './integrations/mcpBridge'
 import { WebAgentRunner } from './integrations/agentRunner'
@@ -47,6 +48,16 @@ interface SessionConversationState {
 }
 
 // ==================== Configuration ====================
+
+// MCP Bridge 全局实例
+let mcpBridgeInstance: WebMCPBridge | null = null
+
+function getMCPBridge(): WebMCPBridge {
+  if (!mcpBridgeInstance) {
+    mcpBridgeInstance = new WebMCPBridge()
+  }
+  return mcpBridgeInstance
+}
 
 const AVAILABLE_MODELS = [
   { id: 'qwen-plus', name: '通义千问 Plus', provider: 'aliyun', description: '最适合编程和复杂推理' },
@@ -131,14 +142,12 @@ function createEventSender(ws: unknown): (event: string, data: unknown) => void 
 class SessionConversationManager {
   private toolExecutor: EnhancedToolExecutor
   private commandBridge: WebCommandBridge
-  private mcpBridge: WebMCPBridge
   private agentRunner: WebAgentRunner
   private sessionBridge: WebSessionBridge
 
   constructor() {
     this.toolExecutor = toolExecutor
     this.commandBridge = new WebCommandBridge()
-    this.mcpBridge = new WebMCPBridge()
     this.agentRunner = new WebAgentRunner()
     this.sessionBridge = new WebSessionBridge()
   }
@@ -159,12 +168,21 @@ class SessionConversationManager {
     }
 
     // Add user message to session
-    sessionManager.addMessage(sessionId, 'user', userMessage)
+    const savedUserMessage = sessionManager.addMessage(sessionId, 'user', userMessage)
 
     const sessionData = sessionManager.getInMemorySession(sessionId)
     if (!sessionData) {
       sendEvent('error', { message: 'Session not found' })
       return
+    }
+
+    // 通知前端用户消息已保存
+    if (savedUserMessage) {
+      sendEvent('message_saved', {
+        sessionId,
+        messageId: savedUserMessage.id,
+        role: 'user',
+      })
     }
 
     const messages = sessionData.messages
@@ -181,7 +199,22 @@ class SessionConversationManager {
         iteration++
         console.log(`[${sessionId}] API iteration ${iteration}, messages: ${messages.length}`)
 
-        sendEvent('message_start', { iteration })
+        // 先创建助手消息，获取后端生成的ID（用于前端显示）
+        const assistantMessage = sessionManager.addMessage(sessionId, 'assistant', '')
+        if (!assistantMessage) {
+          console.error(`[${sessionId}] Failed to create assistant message`)
+          sendEvent('error', { message: 'Failed to create assistant message' })
+          return
+        }
+
+        // 保存助手消息ID，用于后续更新
+        const assistantMessageId = assistantMessage.id
+
+        // 发送 message_start 事件，包含后端生成的ID
+        sendEvent('message_start', { 
+          messageId: assistantMessageId,
+          iteration 
+        })
 
         const stream = client.messages.stream({
           model,
@@ -244,7 +277,6 @@ class SessionConversationManager {
 
               for (const tool of pendingToolCalls) {
                 const toolInput = tool.input ? JSON.parse(tool.input) : {}
-                sendEvent('tool_start', { name: tool.name, input: toolInput })
 
                 const toolCall: ToolCall = {
                   id: tool.id,
@@ -258,7 +290,7 @@ class SessionConversationManager {
                 }
 
                 try {
-                  const result = await this.toolExecutor.execute(tool.name, toolInput, sendEvent)
+                  const result = await this.toolExecutor.execute(tool.name, toolInput, sendEvent, tool.id)
 
                   toolCall.toolOutput = result.result as Record<string, unknown>
                   toolCall.status = result.success ? 'completed' : 'error'
@@ -295,8 +327,9 @@ class SessionConversationManager {
           }
         }
 
+        // 使用 updateMessage 更新助手消息内容，而不是再添加新消息
         if (assistantText) {
-          sessionManager.addMessage(sessionId, 'assistant', assistantText, executedToolCalls)
+          sessionManager.updateMessage(sessionId, assistantMessageId, assistantText, executedToolCalls)
         }
 
         const finalSession = sessionManager.getInMemorySession(sessionId)
@@ -305,6 +338,12 @@ class SessionConversationManager {
         const lastMsg = finalSession.messages[finalSession.messages.length - 1]
         if (lastMsg?.role !== 'assistant' || !lastMsg.toolCalls || lastMsg.toolCalls.length === 0) {
           console.log(`[${sessionId}] Conversation completed, total messages: ${finalSession.messages.length}`)
+          // 通知前端助手消息已保存
+          sendEvent('message_saved', {
+            sessionId,
+            messageId: assistantMessageId,
+            role: 'assistant',
+          })
           sendEvent('conversation_end', { totalMessages: finalSession.messages.length })
           break
         }
@@ -578,24 +617,6 @@ async function startServer() {
         return createSuccessResponse({ models: AVAILABLE_MODELS })
       }
 
-      // Get available tools
-      if (path === '/api/tools' && method === 'GET') {
-        return createSuccessResponse({
-          tools: toolExecutor.getAllTools().map(t => ({
-            name: t.name,
-            description: t.description,
-            inputSchema: t.inputSchema,
-            category: t.category,
-          })),
-        })
-      }
-
-      // Get MCP servers
-      if (path === '/api/mcp/servers' && method === 'GET') {
-        const mcpBridge = new WebMCPBridge()
-        return createSuccessResponse({ servers: mcpBridge.getServers() })
-      }
-
       // Get commands
       if (path === '/api/commands' && method === 'GET') {
         const commandBridge = new WebCommandBridge()
@@ -696,11 +717,14 @@ async function startServer() {
         }
         const sessionId = deleteSessionMatch[1]
         try {
-          await sessionManager.deleteSession(sessionId)
+          await sessionManager.deleteSession(sessionId, auth.userId)
           return createSuccessResponse({ message: 'Session deleted' })
         } catch (error) {
           const message = error instanceof Error ? error.message : '删除会话失败'
-          return createErrorResponse('DELETE_SESSION_FAILED', message, 500)
+          const code =
+            message.includes('not found') ? 'SESSION_NOT_FOUND' : message.includes('Forbidden') ? 'FORBIDDEN' : 'DELETE_SESSION_FAILED'
+          const status = message.includes('Forbidden') ? 403 : message.includes('not found') ? 404 : 500
+          return createErrorResponse(code, message, status)
         }
       }
 
@@ -784,7 +808,7 @@ async function startServer() {
       // POST /api/tools/execute - 执行工具
       if (path === '/api/tools/execute' && method === 'POST') {
         try {
-          const body = await request.json() as {
+          const body = await req.json() as {
             toolName: string
             toolInput: Record<string, unknown>
             sessionId?: string
@@ -832,7 +856,7 @@ async function startServer() {
       // POST /api/tools/validate - 验证工具输入
       if (path === '/api/tools/validate' && method === 'POST') {
         try {
-          const body = await request.json() as {
+          const body = await req.json() as {
             toolName: string
             toolInput: Record<string, unknown>
           }
@@ -881,22 +905,260 @@ async function startServer() {
         })
       }
 
-      // ==================== MCP API (Placeholder for Phase 2) ====================
+      // ==================== MCP API ====================
 
       // GET /api/mcp/servers - 获取 MCP 服务器列表
       if (path === '/api/mcp/servers' && method === 'GET') {
+        const servers = getMCPBridge().getServers()
+        const serverRuntimes = (getMCPBridge() as any).serverRuntimes
+
         return createSuccessResponse({
-          servers: [],
-          message: 'MCP server management will be available in Phase 2',
+          servers: servers.map(s => {
+            const runtime = serverRuntimes?.get(s.id)
+            return {
+              id: s.id,
+              name: s.name,
+              command: s.command,
+              args: s.args,
+              enabled: s.enabled,
+              status: runtime?.status || 'disconnected',
+              tools: runtime?.tools?.length || 0,
+            }
+          }),
+          count: servers.length,
         })
+      }
+
+      // POST /api/mcp/servers - 添加 MCP 服务器
+      if (path === '/api/mcp/servers' && method === 'POST') {
+        try {
+          const body = await req.json() as {
+            name: string
+            command: string
+            args?: string[]
+            env?: Record<string, string>
+            transport?: 'stdio' | 'websocket' | 'sse' | 'streamable-http'
+            url?: string
+          }
+
+          const { name, command, args, env, transport, url } = body
+
+          if (!name || !command) {
+            return createErrorResponse('INVALID_PARAMS', 'name and command are required', 400)
+          }
+
+          const server = getMCPBridge().addServer({
+            name,
+            command,
+            args: args || [],
+            env: env || {},
+            enabled: true,
+            transport: transport || 'stdio',
+            url,
+          })
+
+          return createSuccessResponse({
+            success: true,
+            server: {
+              id: server.id,
+              name: server.name,
+              command: server.command,
+              enabled: server.enabled,
+            },
+            message: `MCP server '${name}' added successfully`,
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to add MCP server'
+          return createErrorResponse('MCP_ADD_FAILED', message, 500)
+        }
+      }
+
+      // DELETE /api/mcp/servers/:id - 移除 MCP 服务器
+      if (path.startsWith('/api/mcp/servers/') && method === 'DELETE') {
+        const serverId = path.replace('/api/mcp/servers/', '')
+        const removed = getMCPBridge().removeServer(serverId)
+
+        if (!removed) {
+          return createErrorResponse('SERVER_NOT_FOUND', `Server not found: ${serverId}`, 404)
+        }
+
+        return createSuccessResponse({
+          success: true,
+          message: 'Server removed successfully',
+        })
+      }
+
+      // PUT /api/mcp/servers/:id/toggle - 启用/禁用 MCP 服务器
+      if (path.match(/^\/api\/mcp\/servers\/[^/]+\/toggle$/) && method === 'PUT') {
+        try {
+          const serverId = path.split('/')[4]
+          const body = await req.json() as { enabled: boolean }
+
+          const success = getMCPBridge().toggleServer(serverId, body.enabled)
+
+          if (!success) {
+            return createErrorResponse('SERVER_NOT_FOUND', `Server not found: ${serverId}`, 404)
+          }
+
+          return createSuccessResponse({
+            success: true,
+            enabled: body.enabled,
+            message: body.enabled ? 'Server enabled' : 'Server disabled',
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to toggle server'
+          return createErrorResponse('TOGGLE_FAILED', message, 500)
+        }
+      }
+
+      // GET /api/mcp/servers/:id/test - 测试 MCP 服务器连接
+      if (path.match(/^\/api\/mcp\/servers\/[^/]+\/test$/) && method === 'POST') {
+        const serverId = path.split('/')[4]
+        const result = await getMCPBridge().testConnection(serverId)
+
+        return createSuccessResponse(result)
       }
 
       // GET /api/mcp/tools - 获取 MCP 工具列表
       if (path === '/api/mcp/tools' && method === 'GET') {
+        const serverId = url.searchParams.get('serverId') || undefined
+        const serverName = url.searchParams.get('serverName') || undefined
+
+        let tools = getMCPBridge().getAllTools()
+
+        if (serverId) {
+          tools = tools.filter(t => t.serverId === serverId)
+        }
+        if (serverName) {
+          tools = tools.filter(t => t.serverName === serverName)
+        }
+
         return createSuccessResponse({
-          tools: [],
-          message: 'MCP tools will be available in Phase 2',
+          tools: tools.map(t => ({
+            name: t.name,
+            description: t.description,
+            inputSchema: t.inputSchema,
+            serverId: t.serverId,
+            serverName: t.serverName,
+          })),
+          count: tools.length,
+          serverId,
+          serverName,
         })
+      }
+
+      // POST /api/mcp/call - 调用 MCP 工具
+      if (path === '/api/mcp/call' && method === 'POST') {
+        try {
+          const body = await req.json() as {
+            toolName: string
+            toolInput: Record<string, unknown>
+            serverId?: string
+          }
+
+          const { toolName, toolInput, serverId } = body
+
+          if (!toolName || !toolInput) {
+            return createErrorResponse('INVALID_PARAMS', 'toolName and toolInput are required', 400)
+          }
+
+          const result = await getMCPBridge().callTool(toolName, toolInput)
+
+          return createSuccessResponse({
+            success: result.success,
+            result: result.result,
+            error: result.error,
+            toolName,
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'MCP tool call failed'
+          return createErrorResponse('MCP_CALL_FAILED', message, 500)
+        }
+      }
+
+      // GET /api/mcp/status - 获取 MCP 状态
+      if (path === '/api/mcp/status' && method === 'GET') {
+        return createSuccessResponse(getMCPBridge().getStatus())
+      }
+
+      // ==================== Monitoring API ====================
+
+      // GET /api/monitoring/metrics - 获取性能指标
+      if (path === '/api/monitoring/metrics' && method === 'GET') {
+        return createSuccessResponse(performanceMonitor.getMetrics())
+      }
+
+      // GET /api/monitoring/logs - 获取日志
+      if (path === '/api/monitoring/logs' && method === 'GET') {
+        const limit = parseInt(url.searchParams.get('limit') || '100', 10)
+        const level = url.searchParams.get('level') as 'debug' | 'info' | 'warn' | 'error' | 'fatal' | undefined
+        const logs = performanceMonitor.getLogs(limit, level)
+        return createSuccessResponse({ logs, count: logs.length })
+      }
+
+      // GET /api/monitoring/alerts - 获取告警
+      if (path === '/api/monitoring/alerts' && method === 'GET') {
+        const unacknowledgedOnly = url.searchParams.get('unacknowledged') === 'true'
+        const alerts = performanceMonitor.getAlerts(unacknowledgedOnly)
+        return createSuccessResponse({ alerts, count: alerts.length })
+      }
+
+      // POST /api/monitoring/alerts/acknowledge - 确认告警
+      if (path === '/api/monitoring/alerts/acknowledge' && method === 'POST') {
+        try {
+          const body = await req.json() as { alertId: string }
+          const success = performanceMonitor.acknowledgeAlert(body.alertId)
+          return createSuccessResponse({ success, message: success ? 'Alert acknowledged' : 'Alert not found' })
+        } catch (error) {
+          return createErrorResponse('INVALID_REQUEST', 'Failed to acknowledge alert', 400)
+        }
+      }
+
+      // GET /api/monitoring/rules - 获取告警规则
+      if (path === '/api/monitoring/rules' && method === 'GET') {
+        const rules = performanceMonitor.getAlertRules()
+        return createSuccessResponse({ rules, count: rules.length })
+      }
+
+      // POST /api/monitoring/rules - 添加告警规则
+      if (path === '/api/monitoring/rules' && method === 'POST') {
+        try {
+          const body = await req.json() as {
+            name: string
+            condition: 'gt' | 'lt' | 'eq' | 'gte' | 'lte'
+            metric: string
+            threshold: number
+            enabled?: boolean
+            cooldown?: number
+          }
+          const rule = performanceMonitor.addAlertRule({
+            name: body.name,
+            condition: body.condition,
+            metric: body.metric,
+            threshold: body.threshold,
+            enabled: body.enabled ?? true,
+            cooldown: body.cooldown ?? 60000,
+          })
+          return createSuccessResponse({ rule })
+        } catch (error) {
+          return createErrorResponse('INVALID_REQUEST', 'Failed to add alert rule', 400)
+        }
+      }
+
+      // POST /api/monitoring/record - 记录指标
+      if (path === '/api/monitoring/record' && method === 'POST') {
+        try {
+          const body = await req.json() as {
+            name: string
+            value: number
+            unit?: string
+            tags?: Record<string, string>
+          }
+          performanceMonitor.metricsCollector.record(body.name, body.value, body.unit || '', body.tags)
+          return createSuccessResponse({ recorded: true })
+        } catch (error) {
+          return createErrorResponse('INVALID_REQUEST', 'Failed to record metric', 400)
+        }
       }
 
       return createErrorResponse('NOT_FOUND', `Route ${path} not found`, 404)
@@ -1033,6 +1295,14 @@ async function startServer() {
                   break
                 }
 
+                const currentSessionId = wsData.sessionId
+
+                // 如果切换会话，先保存当前会话
+                if (currentSessionId && currentSessionId !== sessionId) {
+                  console.log(`[WS] Switching from session ${currentSessionId} to ${sessionId}, saving first`)
+                  await sessionManager.switchSession(currentSessionId, sessionId)
+                }
+
                 sessionManager.loadSession(sessionId).then(sessionData => {
                   if (!sessionData) {
                     ws.send(JSON.stringify({ type: 'error', message: 'Session not found' }))
@@ -1040,7 +1310,7 @@ async function startServer() {
                   }
 
                   wsData.sessionId = sessionId
-                  console.log(`[WS] Session loaded: ${sessionId}`)
+                  console.log(`[WS] Session loaded: ${sessionId}, messages: ${sessionData.messages.length}`)
 
                   ws.send(JSON.stringify({
                     type: 'session_loaded',
@@ -1115,14 +1385,15 @@ async function startServer() {
                   sendEvent('error', { message: 'User not authenticated' })
                   break
                 }
-                sessionManager.deleteSession(sessionId).then(() => {
+                sessionManager.deleteSession(sessionId, userId).then(() => {
                   ws.send(JSON.stringify({ type: 'session_deleted', sessionId }))
                   if (wsData.sessionId === sessionId) {
                     wsData.sessionId = null
                   }
                 }).catch(err => {
                   console.error('[WS] Failed to delete session:', err)
-                  sendEvent('error', { message: 'Failed to delete session' })
+                  const msg = err instanceof Error ? err.message : 'Failed to delete session'
+                  sendEvent('error', { message: msg })
                 })
               }
               break
@@ -1493,8 +1764,7 @@ function initializeRPCMethods() {
     name: 'mcp.listServers',
     description: 'List MCP servers',
     execute: async () => {
-      const mcpBridge = new WebMCPBridge()
-      return mcpBridge.getServers()
+      return getMCPBridge().getServers()
     },
   })
 
@@ -1502,8 +1772,7 @@ function initializeRPCMethods() {
     name: 'mcp.getStatus',
     description: 'Get MCP status',
     execute: async () => {
-      const mcpBridge = new WebMCPBridge()
-      return mcpBridge.getStatus()
+      return getMCPBridge().getStatus()
     },
   })
 

@@ -50,7 +50,7 @@ defineExpose({
 <template>
   <div class="chat-input">
     <div class="input-actions">
-      <NButton 
+      <NButton
         type="primary"
         :disabled="!inputValue.trim() || disabled"
         class="send-button"
@@ -79,12 +79,14 @@ defineExpose({
   max-width: 900px;
   margin: 0 auto;
   display: flex;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: flex-end;
   gap: 12px;
 }
 
 .input-wrapper {
   flex: 1;
+  min-width: 0;
 }
 
 .input-wrapper :deep(.n-input) {
@@ -101,6 +103,7 @@ defineExpose({
 .input-actions {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 /* 发送按钮样式 */

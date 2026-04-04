@@ -2,9 +2,10 @@
 import { NConfigProvider, NMessageProvider, NDialogProvider, NNotificationProvider, darkTheme, lightTheme } from 'naive-ui'
 import { computed, onMounted } from 'vue'
 import { useTheme } from '@/composables/useTheme'
-import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const { currentTheme, getNaiveUiOverrides } = useTheme()
+const authStore = useAuthStore()
 
 /** 根据当前主题选择 Naive UI 主题 */
 const naiveUiTheme = computed(() => currentTheme.value.isDark ? darkTheme : lightTheme)
@@ -13,8 +14,11 @@ const naiveUiTheme = computed(() => currentTheme.value.isDark ? darkTheme : ligh
 const themeOverrides = computed(() => getNaiveUiOverrides(currentTheme.value))
 
 onMounted(() => {
-  // 应用初始主题
   document.documentElement.classList.add(currentTheme.value.isDark ? 'dark' : 'light')
+  authStore.syncUserFromToken()
+  if (authStore.isLoggedIn) {
+    void authStore.fetchUser()
+  }
 })
 </script>
 
@@ -28,11 +32,6 @@ onMounted(() => {
       <NDialogProvider>
         <NNotificationProvider>
           <div class="app-layout">
-            <!-- 主题切换器（固定在右上角） -->
-            <div class="theme-switcher-container">
-              <ThemeSwitcher />
-            </div>
-            
             <!-- 主内容区 -->
             <main class="app-main">
               <router-view />
@@ -61,12 +60,10 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   position: relative;
+  /* 路由页内容可高于视口（如集成工作台）；根布局 overflow:hidden 时需在此提供滚动 */
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
-.theme-switcher-container {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: var(--z-fixed, 300);
-}
 </style>

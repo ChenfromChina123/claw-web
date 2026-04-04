@@ -29,6 +29,9 @@ export interface ToolExecutionContext {
   sandboxed?: boolean
   allowedPaths?: string[]
   deniedPaths?: string[]
+  allowedTools?: string[]
+  deniedTools?: string[]
+  maxExecutionTime?: number
 }
 
 export interface ToolResult {
@@ -41,6 +44,43 @@ export interface ToolResult {
     tokens?: number
     cost?: number
   }
+}
+
+// 权限级别
+export type PermissionLevel = 'none' | 'read' | 'write' | 'execute' | 'admin'
+
+// 用户权限配置
+export interface UserPermissions {
+  level: PermissionLevel
+  allowedTools: string[]
+  deniedTools: string[]
+  allowedPaths: string[]
+  deniedPaths: string[]
+  canExecuteDangerous: boolean
+  canAccessNetwork: boolean
+  maxExecutionTime: number
+}
+
+// 沙箱配置
+export interface SandboxConfig {
+  enabled: boolean
+  allowedPaths: string[]
+  deniedPaths: string[]
+  maxFileSize: number
+  maxExecutionTime: number
+  allowNetwork: boolean
+  allowChildProcess: boolean
+}
+
+// 默认沙箱配置
+const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
+  enabled: false,
+  allowedPaths: [],
+  deniedPaths: ['**/node_modules/**', '**/.git/**', '**/windows/**', '**/System32/**'],
+  maxFileSize: 10 * 1024 * 1024, // 10MB
+  maxExecutionTime: 60000, // 1 minute
+  allowNetwork: true,
+  allowChildProcess: false,
 }
 
 // ==================== Tool Registry ====================
@@ -111,17 +151,165 @@ export class EnhancedToolExecutor {
 
   // ==================== Tool Execution ====================
 
+  /**
+   * 检查用户是否有权执行指定工具
+   */
+  canExecuteTool(toolName: string, userId?: string): { allowed: boolean; reason?: string } {
+    // 管理员可以执行任何工具
+    if (userId === 'admin') {
+      return { allowed: true }
+    }
+
+    const tool = this.tools.get(toolName)
+    if (!tool) {
+      return { allowed: false, reason: `Tool '${toolName}' not found` }
+    }
+
+    // 检查是否在沙箱模式且工具需要特殊权限
+    if (this.context.sandboxed) {
+      if (tool.permissions?.dangerous) {
+        return { allowed: false, reason: `Tool '${toolName}' is not allowed in sandboxed mode` }
+      }
+    }
+
+    // 检查用户是否被拒绝使用该工具
+    if (this.context.deniedTools?.includes(toolName)) {
+      return { allowed: false, reason: `Tool '${toolName}' is denied for this user` }
+    }
+
+    // 如果用户有 allowedTools 列表，检查是否在列表中
+    if (this.context.allowedTools && this.context.allowedTools.length > 0) {
+      if (!this.context.allowedTools.includes(toolName)) {
+        return { allowed: false, reason: `Tool '${toolName}' is not in the allowed tools list` }
+      }
+    }
+
+    return { allowed: true }
+  }
+
+  /**
+   * 检查路径是否在允许范围内
+   */
+  isPathAllowed(filePath: string): boolean {
+    const { allowedPaths, deniedPaths } = this.context
+
+    // 如果有拒绝路径配置
+    if (deniedPaths && deniedPaths.length > 0) {
+      for (const pattern of deniedPaths) {
+        if (this.matchPathPattern(filePath, pattern)) {
+          return false
+        }
+      }
+    }
+
+    // 如果有允许路径配置
+    if (allowedPaths && allowedPaths.length > 0) {
+      for (const pattern of allowedPaths) {
+        if (this.matchPathPattern(filePath, pattern)) {
+          return true
+        }
+      }
+      return false
+    }
+
+    return true
+  }
+
+  /**
+   * 简单的路径模式匹配
+   */
+  private matchPathPattern(path: string, pattern: string): boolean {
+    // 将 glob 模式转换为正则表达式
+    const regexPattern = pattern
+      .replace(/\./g, '\\.')
+      .replace(/\*\*/g, '{{DOUBLE_STAR}}')
+      .replace(/\*/g, '[^/\\\\]*')
+      .replace(/\{\{DOUBLE_STAR\}\}/g, '.*')
+
+    try {
+      const regex = new RegExp(regexPattern, 'i')
+      return regex.test(path)
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * 在沙箱中执行工具
+   */
+  private async executeInSandbox(
+    tool: ToolDefinition,
+    input: Record<string, unknown>,
+    toolId: string,
+    startTime: number,
+    sendEvent?: EventSender
+  ): Promise<ToolResult> {
+    const sandboxConfig = this.getSandboxConfig()
+
+    // 检查路径访问权限
+    if (input.path && typeof input.path === 'string') {
+      if (!this.isPathAllowed(input.path)) {
+        return { success: false, error: `Access to path '${input.path}' is denied` }
+      }
+    }
+
+    // 检查文件大小限制（如果适用）
+    if (input.content && typeof input.content === 'string') {
+      if (input.content.length > sandboxConfig.maxFileSize) {
+        return { success: false, error: `Content size exceeds maximum allowed (${sandboxConfig.maxFileSize} bytes)` }
+      }
+    }
+
+    try {
+      sendEvent?.('tool_progress', { id: toolId, output: '[Sandbox] Executing in restricted mode...\n' })
+
+      const result = await tool.handler(input, {
+        ...this.context,
+        sandboxed: true,
+      }, sendEvent)
+
+      return {
+        ...result,
+        metadata: {
+          ...result.metadata,
+          duration: Date.now() - startTime,
+          sandboxed: true,
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }
+
+  /**
+   * 获取沙箱配置
+   */
+  private getSandboxConfig(): SandboxConfig {
+    // 可以从环境变量或配置文件中读取
+    return {
+      ...DEFAULT_SANDBOX_CONFIG,
+      enabled: process.env.SANDBOX_ENABLED === 'true',
+      allowedPaths: process.env.ALLOWED_PATHS?.split(',') || [],
+      deniedPaths: process.env.DENIED_PATHS?.split(',') || DEFAULT_SANDBOX_CONFIG.deniedPaths,
+      maxExecutionTime: parseInt(process.env.SANDBOX_MAX_EXECUTION_TIME || '60000', 10),
+    }
+  }
+
   async execute(
     name: string,
     input: Record<string, unknown>,
-    sendEvent?: EventSender
+    sendEvent?: EventSender,
+    streamToolUseId?: string
   ): Promise<ToolResult> {
     const tool = this.tools.get(name)
     if (!tool) {
       return { success: false, error: `Tool not found: ${name}` }
     }
 
-    const toolId = uuidv4()
+    const toolId = streamToolUseId || uuidv4()
     const startTime = Date.now()
 
     sendEvent?.('tool_start', { id: toolId, name, input })
@@ -135,9 +323,19 @@ export class EnhancedToolExecutor {
     }
 
     try {
-      // Check permissions
-      if (tool.permissions?.dangerous && this.context.sandboxed) {
-        throw new Error(`Tool '${name}' is not allowed in sandboxed mode`)
+      // 权限检查
+      const permissionCheck = this.canExecuteTool(name, this.context.userId)
+      if (!permissionCheck.allowed) {
+        throw new Error(permissionCheck.reason)
+      }
+
+      // 沙箱检查
+      const sandboxConfig = this.getSandboxConfig()
+      if (sandboxConfig.enabled || this.context.sandboxed) {
+        if (tool.permissions?.dangerous) {
+          throw new Error(`Tool '${name}' requires elevated permissions`)
+        }
+        return await this.executeInSandbox(tool, input, toolId, startTime, sendEvent)
       }
 
       toolCall.status = 'executing'
@@ -294,6 +492,15 @@ export class EnhancedToolExecutor {
         const limit = input.limit as number
         const offset = input.offset as number
         const encoding = (input.encoding as string) || 'utf-8'
+
+        const st = await stat(filePath)
+        if (st.isDirectory()) {
+          return {
+            success: false,
+            error:
+              '路径是文件夹，无法按文件打开。请在文件浏览器中选择具体文件，或使用 FileList 查看目录内容。',
+          }
+        }
 
         const content = await readFile(filePath, encoding as BufferEncoding)
         

@@ -58,6 +58,17 @@ const completedToolCalls = computed(() => {
   return props.toolCalls.filter(tc => tc.status === 'completed' || tc.status === 'error')
 })
 
+/**
+ * Store 在 message_start 时已推入 assistant 占位消息，流式内容由同一条气泡展示。
+ * 若仍用 isLoading 再画一整行「助手 + 转圈」，会出现第二个头像（与截图一致的多余图标）。
+ */
+const showStandaloneLoadingRow = computed(() => {
+  if (!props.isLoading) return false
+  const last = props.messages[props.messages.length - 1]
+  if (last?.role === 'assistant') return false
+  return true
+})
+
 // 解析工具调用序列，生成流程图和知识
 const { flowGraph, knowledge } = computed(() => {
   if (props.toolCalls.length === 0) {
@@ -172,6 +183,23 @@ function handleStepClick(toolCallId: string) {
     activeStep.value = toolCallId
   }
 }
+
+/**
+ * 返回属于指定助手消息的工具调用列表
+ * - 优先按 messageId 精确匹配
+ * - 兜底：若全列表 messageId 为空，则仅归属给最后一条助手消息（兼容历史会话）
+ */
+function toolsForMessage(messageId: string): ToolCall[] {
+  const match = props.toolCalls.filter(t => t.messageId === messageId)
+  if (match.length > 0) return match
+
+  // 兜底：全为空时，仅最后一条助手可见
+  const allEmpty = props.toolCalls.every(t => !t.messageId)
+  if (!allEmpty) return []
+  const lastAssistant = props.messages.filter(m => m.role === 'assistant').at(-1)
+  if (lastAssistant?.id === messageId) return [...props.toolCalls]
+  return []
+}
 </script>
 
 <template>
@@ -241,95 +269,97 @@ function handleStepClick(toolCallId: string) {
               </div>
             </div>
             
-            <!-- 助手消息 -->
-            <div v-else-if="message.role === 'assistant'" class="message assistant-message">
-              <div class="message-avatar">🤖</div>
-              <div class="message-content">
-                <div class="message-text" v-html="(message as any).content.replace(/\n/g, '<br>')"></div>
-              </div>
-            </div>
-            
-            <!-- 工具调用 - 步骤化增强版 -->
-            <div v-if="props.toolCalls && props.toolCalls.length > 0 && useEnhancedToolDisplay" class="tool-sequence-container">
-              <div class="tool-section-header">
-                <span class="section-icon">🔧</span>
-                <span class="section-title">工具调用 ({{ props.toolCalls.length }})</span>
+            <!-- 助手消息 + 归属的工具调用（仅助手消息下展示，user 消息下不再重复） -->
+            <template v-else-if="message.role === 'assistant'">
+              <div class="message assistant-message">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                  <div class="message-text" v-html="(message as any).content.replace(/\n/g, '<br>')"></div>
+                </div>
               </div>
               
-              <!-- 引导线 -->
-              <div class="sequence-line"></div>
-              
-              <!-- 工具步骤列表 -->
-              <div 
-                v-for="(toolCall, idx) in props.toolCalls" 
-                :key="toolCall.id"
-                class="tool-step-item"
-                :class="[toolCall.status, { 'is-active': activeStep === toolCall.id }]"
-              >
-                <!-- 步骤序号徽章 -->
-                <div class="step-badge">{{ idx + 1 }}</div>
+              <!-- 工具调用 - 步骤化增强版 -->
+              <div v-if="toolsForMessage(message.id).length > 0 && useEnhancedToolDisplay" class="tool-sequence-container">
+                <div class="tool-section-header">
+                  <span class="section-icon">🔧</span>
+                  <span class="section-title">工具调用 ({{ toolsForMessage(message.id).length }})</span>
+                </div>
                 
-                <!-- 步骤卡片 -->
-                <div class="step-card">
-                  <!-- 步骤头部 -->
-                  <div class="step-header" @click="handleStepClick(toolCall.id)">
-                    <div class="step-header-left">
-                      <span class="step-tool-icon">{{ getToolIcon(toolCall.toolName) }}</span>
-                      <span class="step-tool-name">{{ toolCall.toolName }}</span>
-                    </div>
-                    <div class="step-header-right">
-                      <NTooltip>
-                        <template #trigger>
-                          <NTag size="small" :type="getStatusType(toolCall.status) as any">
-                            {{ toolCall.status === 'pending' ? '等待中' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
-                          </NTag>
-                        </template>
-                        {{ toolCall.status }}
-                      </NTooltip>
-                    </div>
-                  </div>
+                <!-- 引导线 -->
+                <div class="sequence-line"></div>
+                
+                <!-- 工具步骤列表 -->
+                <div 
+                  v-for="(toolCall, idx) in toolsForMessage(message.id)" 
+                  :key="toolCall.id"
+                  class="tool-step-item"
+                  :class="[toolCall.status, { 'is-active': activeStep === toolCall.id }]"
+                >
+                  <!-- 步骤序号徽章 -->
+                  <div class="step-badge">{{ idx + 1 }}</div>
                   
-                  <!-- 展开内容：显示详细工具调用组件 -->
-                  <div v-if="activeStep === toolCall.id" class="step-content">
-                    <ToolUseEnhanced 
-                      :tool-call="toolCall"
-                      :expanded="true"
-                    />
-                  </div>
-                  
-                  <!-- 收起内容：显示智能摘要 -->
-                  <div v-else class="step-summary">
-                    {{ getShortSummary(toolCall) }}
-                    <span class="summary-hint">（点击展开）</span>
+                  <!-- 步骤卡片 -->
+                  <div class="step-card">
+                    <!-- 步骤头部 -->
+                    <div class="step-header" @click="handleStepClick(toolCall.id)">
+                      <div class="step-header-left">
+                        <span class="step-tool-icon">{{ getToolIcon(toolCall.toolName) }}</span>
+                        <span class="step-tool-name">{{ toolCall.toolName }}</span>
+                      </div>
+                      <div class="step-header-right">
+                        <NTooltip>
+                          <template #trigger>
+                            <NTag size="small" :type="getStatusType(toolCall.status) as any">
+                              {{ toolCall.status === 'pending' ? '等待中' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
+                            </NTag>
+                          </template>
+                          {{ toolCall.status }}
+                        </NTooltip>
+                      </div>
+                    </div>
+                    
+                    <!-- 展开内容：显示详细工具调用组件 -->
+                    <div v-if="activeStep === toolCall.id" class="step-content">
+                      <ToolUseEnhanced 
+                        :tool-call="toolCall"
+                        :expanded="true"
+                      />
+                    </div>
+                    
+                    <!-- 收起内容：显示智能摘要 -->
+                    <div v-else class="step-summary">
+                      {{ getShortSummary(toolCall) }}
+                      <span class="summary-hint">（点击展开）</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-            
-            <!-- 工具调用 - 原始版 -->
-            <div v-if="props.toolCalls && props.toolCalls.length > 0 && !useEnhancedToolDisplay" class="tool-calls">
-              <div 
-                v-for="toolCall in props.toolCalls" 
-                :key="toolCall.id"
-                class="tool-call"
-                :class="toolCall.status"
-              >
-                <div class="tool-header">
-                  <span class="tool-name">{{ toolCall.toolName }}</span>
-                  <span class="tool-status">{{ toolCall.status === 'pending' ? '执行中...' : toolCall.status }}</span>
-                </div>
-                <div class="tool-input">
-                  <pre>{{ JSON.stringify(toolCall.toolInput, null, 2) }}</pre>
-                </div>
-                <div v-if="toolCall.toolOutput" class="tool-output">
-                  <pre>{{ formatToolOutput(toolCall.toolOutput) }}</pre>
+              
+              <!-- 工具调用 - 原始版 -->
+              <div v-if="toolsForMessage(message.id).length > 0 && !useEnhancedToolDisplay" class="tool-calls">
+                <div 
+                  v-for="toolCall in toolsForMessage(message.id)" 
+                  :key="toolCall.id"
+                  class="tool-call"
+                  :class="toolCall.status"
+                >
+                  <div class="tool-header">
+                    <span class="tool-name">{{ toolCall.toolName }}</span>
+                    <span class="tool-status">{{ toolCall.status === 'pending' ? '执行中...' : toolCall.status }}</span>
+                  </div>
+                  <div class="tool-input">
+                    <pre>{{ JSON.stringify(toolCall.toolInput, null, 2) }}</pre>
+                  </div>
+                  <div v-if="toolCall.toolOutput" class="tool-output">
+                    <pre>{{ formatToolOutput(toolCall.toolOutput) }}</pre>
+                  </div>
                 </div>
               </div>
-            </div>
+            </template>
           </div>
           
-          <!-- 加载状态 -->
-          <div v-if="isLoading" class="message-wrapper">
+          <!-- 加载状态（无 assistant 占位时兜底，避免与流式消息重复一行头像） -->
+          <div v-if="showStandaloneLoadingRow" class="message-wrapper">
             <div class="message assistant-message">
               <div class="message-avatar">🤖</div>
               <div class="message-content">

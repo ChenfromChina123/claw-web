@@ -1,92 +1,125 @@
 /**
- * MCP (Model Context Protocol) 相关 API 接口
+ * MCP (Model Context Protocol) 管理 API 接口
  */
 
 import apiClient from './client'
+import { unwrapApiData } from './unwrapApiResponse'
+import type { ApiResponse } from '@/types'
 
 export interface MCPServer {
   id: string
   name: string
-  type: 'stdio' | 'http'
-  command?: string
+  status: 'connected' | 'disconnected' | 'connecting' | 'error'
+  command: string
   args?: string[]
-  url?: string
-  enabled: boolean
-  status: 'connected' | 'disconnected' | 'error'
-  tools?: MCPTool[]
-  error?: string
+  env?: Record<string, string>
+  /** 服务端返回该服务器下的工具数量 */
+  tools: number
+  enabled?: boolean
+  createdAt?: string
+  lastConnected?: string
 }
 
 export interface MCPTool {
   name: string
   description: string
-  inputSchema: Record<string, unknown>
-  serverId: string
   serverName: string
+  serverId?: string
+  inputSchema: {
+    type: 'object'
+    properties: Record<string, unknown>
+    required?: string[]
+  }
 }
 
-export interface CreateMCPServerRequest {
+export interface MCPServerListResponse {
+  servers: MCPServer[]
+  count: number
+  message?: string
+}
+
+export interface MCPToolListResponse {
+  tools: MCPTool[]
+  count: number
+  serverName?: string
+  message?: string
+}
+
+export interface MCPToolCallRequest {
+  serverName: string
+  toolName: string
+  toolInput: Record<string, unknown>
+}
+
+export interface MCPToolCallResponse {
+  success: boolean
+  result?: unknown
+  error?: string
+  serverName: string
+  toolName: string
+}
+
+export interface MCPServerAddRequest {
   name: string
-  type: 'stdio' | 'http'
-  command?: string
+  command: string
   args?: string[]
-  url?: string
   env?: Record<string, string>
-  headers?: Record<string, string>
+  transport?: 'stdio' | 'websocket' | 'sse' | 'streamable-http'
+  url?: string
 }
 
 export const mcpApi = {
-  /**
-   * 获取 MCP 服务器列表
-   */
-  async listServers(): Promise<MCPServer[]> {
-    const { data } = await apiClient.get<{ servers: MCPServer[] }>('/mcp/servers')
-    return data.servers
+  async listServers(): Promise<MCPServerListResponse> {
+    const { data } = await apiClient.get<ApiResponse<MCPServerListResponse>>('/mcp/servers')
+    return unwrapApiData(data)
   },
 
-  /**
-   * 创建 MCP 服务器配置
-   */
-  async createServer(request: CreateMCPServerRequest): Promise<MCPServer> {
-    const { data } = await apiClient.post<MCPServer>('/mcp/servers', request)
-    return data
+  async listTools(serverName?: string): Promise<MCPToolListResponse> {
+    const params = serverName ? { serverName } : {}
+    const { data } = await apiClient.get<ApiResponse<MCPToolListResponse>>('/mcp/tools', { params })
+    return unwrapApiData(data)
   },
 
-  /**
-   * 更新 MCP 服务器配置
-   */
-  async updateServer(serverId: string, updates: Partial<CreateMCPServerRequest>): Promise<MCPServer> {
-    const { data } = await apiClient.put<MCPServer>(`/mcp/servers/${serverId}`, updates)
-    return data
+  async callTool(request: MCPToolCallRequest): Promise<MCPToolCallResponse> {
+    const { data } = await apiClient.post<ApiResponse<MCPToolCallResponse>>('/mcp/call', request)
+    return unwrapApiData(data)
   },
 
-  /**
-   * 删除 MCP 服务器
-   */
-  async deleteServer(serverId: string): Promise<void> {
-    await apiClient.delete(`/mcp/servers/${serverId}`)
+  async addServer(request: MCPServerAddRequest): Promise<{
+    success: boolean
+    server?: { id: string; name: string; command: string; enabled: boolean }
+    message?: string
+  }> {
+    const { data } = await apiClient.post<
+      ApiResponse<{
+        success: boolean
+        server?: { id: string; name: string; command: string; enabled: boolean }
+        message?: string
+      }>
+    >('/mcp/servers', request)
+    return unwrapApiData(data)
   },
 
-  /**
-   * 启用/禁用 MCP 服务器
-   */
-  async toggleServer(serverId: string, enabled: boolean): Promise<void> {
-    await apiClient.patch(`/mcp/servers/${serverId}/toggle`, { enabled })
+  async removeServer(serverId: string): Promise<{ success: boolean; message?: string }> {
+    const { data } = await apiClient.delete<ApiResponse<{ success: boolean; message?: string }>>(
+      `/mcp/servers/${encodeURIComponent(serverId)}`
+    )
+    return unwrapApiData(data)
   },
 
-  /**
-   * 测试 MCP 服务器连接
-   */
-  async testConnection(serverId: string): Promise<{ success: boolean; error?: string }> {
-    const { data } = await apiClient.post<{ success: boolean; error?: string }>(`/mcp/servers/${serverId}/test`)
-    return data
+  async testConnection(serverId: string): Promise<{ success: boolean; message?: string; latency?: number }> {
+    const { data } = await apiClient.post<ApiResponse<{ success: boolean; message?: string; latency?: number }>>(
+      `/mcp/servers/${encodeURIComponent(serverId)}/test`
+    )
+    return unwrapApiData(data)
   },
 
-  /**
-   * 获取服务器的工具列表
-   */
-  async getServerTools(serverId: string): Promise<MCPTool[]> {
-    const { data } = await apiClient.get<{ tools: MCPTool[] }>(`/mcp/servers/${serverId}/tools`)
-    return data.tools
+  async getServerStatus(serverId: string): Promise<MCPServer> {
+    const { data } = await apiClient.get<ApiResponse<MCPServer>>(
+      `/mcp/servers/${encodeURIComponent(serverId)}/status`
+    )
+    return unwrapApiData(data)
   },
 }
+
+export default mcpApi

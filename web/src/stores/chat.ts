@@ -3,6 +3,9 @@ import { ref, computed } from 'vue'
 import type { Session, Message, ToolCall } from '@/types'
 import wsClient from '@/composables/useWebSocket'
 
+/** 避免每次 connect() 重复注册 WS 监听，导致同一事件触发多次（重复 unshift 会话、错误 resolve loadSession 等） */
+let wsListenersAttached = false
+
 export const useChatStore = defineStore('chat', () => {
   const sessions = ref<Session[]>([])
   const currentSessionId = ref<string | null>(null)
@@ -10,6 +13,8 @@ export const useChatStore = defineStore('chat', () => {
   const toolCalls = ref<ToolCall[]>([])
   const isLoading = ref(false)
   const isConnected = ref(false)
+  /** 当前正在流式输出的助手消息 id，用于将 toolCall 归属到对应轮次 */
+  const currentStreamingAssistantId = ref<string | null>(null)
   
   const currentSession = computed(() => {
     return sessions.value.find(s => s.id === currentSessionId.value)
@@ -35,6 +40,9 @@ export const useChatStore = defineStore('chat', () => {
    * 设置所有事件监听器
    */
   function setupEventListeners() {
+    if (wsListenersAttached) return
+    wsListenersAttached = true
+
     wsClient.on('session_list', (data: unknown) => {
       if (!data) return
       const msg = data as { sessions?: Session[] }
@@ -48,7 +56,9 @@ export const useChatStore = defineStore('chat', () => {
       const session = msg?.session || (data as Session)
       if (!session || !session.id) return
       sessions.value = sessions.value || []
-      sessions.value.unshift(session)
+      if (!sessions.value.some((s) => s.id === session.id)) {
+        sessions.value.unshift(session)
+      }
       currentSessionId.value = session.id
       messages.value = []
       toolCalls.value = []
@@ -59,20 +69,49 @@ export const useChatStore = defineStore('chat', () => {
       const msg = data as { session?: Session; messages?: Message[]; toolCalls?: ToolCall[] }
       const session = msg?.session
       if (!session || !session.id) return
+      
+      // 防止竞态条件：只处理当前正在加载的会话
+      const targetSessionId = session.id
+      if (targetSessionId !== currentSessionId.value) {
+        console.warn('[ChatStore] session_loaded: ignoring event for session', targetSessionId, 'current:', currentSessionId.value)
+        return
+      }
+      
       console.log('[ChatStore] 会话加载完成，sessionId:', session.id, 'messages:', msg.messages?.length, 'toolCalls:', msg.toolCalls?.length)
-      currentSessionId.value = session.id
       messages.value = msg?.messages || []
       toolCalls.value = msg?.toolCalls || []
     })
     
-    wsClient.on('session_deleted', (data: unknown) => {
+    wsClient.on('session_deleted', async (data: unknown) => {
       if (!data) return
       const msg = data as { sessionId?: string }
       if (!msg?.sessionId) return
-      sessions.value = (sessions.value || []).filter(s => s.id !== msg.sessionId)
-      if (currentSessionId.value === msg.sessionId) {
-        currentSessionId.value = sessions.value[0]?.id || null
+      const deletedId = msg.sessionId
+      const wasCurrent = currentSessionId.value === deletedId
+      sessions.value = (sessions.value || []).filter((s) => s.id !== deletedId)
+      if (wasCurrent) {
+        const nextId = sessions.value[0]?.id ?? null
+        currentSessionId.value = nextId
+        if (nextId) {
+          try {
+            await loadSession(nextId)
+          } catch (e) {
+            console.error('[ChatStore] 删除后加载下一会话失败:', e)
+            messages.value = []
+            toolCalls.value = []
+          }
+        } else {
+          messages.value = []
+          toolCalls.value = []
+        }
       }
+    })
+
+    wsClient.on('session_renamed', (data: unknown) => {
+      const msg = data as { sessionId?: string; title?: string }
+      if (!msg?.sessionId || msg.title === undefined) return
+      const s = sessions.value.find((x) => x.id === msg.sessionId)
+      if (s) s.title = msg.title
     })
     
     wsClient.on('session_cleared', () => {
@@ -81,16 +120,17 @@ export const useChatStore = defineStore('chat', () => {
     })
     
     /**
-     * 处理消息开始事件
+     * 处理消息开始事件 - 后端会发送完整的消息ID
      */
     wsClient.on('message_start', (data: unknown) => {
       console.log('[Chat] message_start event received:', data)
       isLoading.value = true
-      // 添加空的 assistant 消息
-      const sessionId = currentSessionId.value || ''
+      const payload = data as { messageId?: string; iteration?: number }
+      const messageId = payload?.messageId || ''
+      currentStreamingAssistantId.value = messageId
       messages.value.push({
-        id: Date.now().toString(),
-        sessionId,
+        id: messageId,
+        sessionId: currentSessionId.value || '',
         role: 'assistant',
         type: 'text',
         content: '',
@@ -104,21 +144,26 @@ export const useChatStore = defineStore('chat', () => {
      */
     wsClient.on('content_block_delta', (data: unknown) => {
       console.log('[Chat] content_block_delta event received:', data)
-      // 后端发送的消息格式：{ type: 'event', event: 'content_block_delta', data: { text: '...' } }
-      const message = data as { type: string; event: string; data: { text: string; sessionId?: string } }
-      const msg = message.data
+      // WS 已解包为 payload：{ text }（见服务端 createEventSender）
+      const payload = data as { text?: string; delta?: string }
+      const chunk =
+        typeof payload?.text === 'string'
+          ? payload.text
+          : typeof payload?.delta === 'string'
+            ? payload.delta
+            : ''
+      if (!chunk) return
+
       const lastIndex = messages.value.length - 1
       const lastMsg = messages.value[lastIndex]
-      
+
       if (lastMsg && lastMsg.role === 'assistant' && lastMsg.type === 'text') {
-        // 创建新数组以触发响应式更新
         const updatedMessages = [...messages.value]
         updatedMessages[lastIndex] = {
           ...lastMsg,
-          content: lastMsg.content + msg.text
+          content: lastMsg.content + chunk,
         }
         messages.value = updatedMessages
-        console.log('[Chat] Updated message content:', updatedMessages[lastIndex].content)
       }
     })
     
@@ -127,45 +172,77 @@ export const useChatStore = defineStore('chat', () => {
      */
     wsClient.on('message_stop', () => {
       isLoading.value = false
+      currentStreamingAssistantId.value = null
     })
     
     wsClient.on('tool_use', (data: unknown) => {
-      // 后端发送的消息格式：{ type: 'event', event: 'tool_use', data: { id: '...', name: '...', input: {...} } }
-      const message = data as { type: string; event: string; data: { id: string; name: string; input: Record<string, unknown> } }
-      const msg = message.data
+      const msg = data as {
+        id: string
+        name: string
+        input?: Record<string, unknown>
+      }
+      if (!msg?.id || !msg?.name) return
       const sessionId = currentSessionId.value || ''
       toolCalls.value.push({
         id: msg.id,
-        messageId: Date.now().toString(),
+        messageId: currentStreamingAssistantId.value || '',
         sessionId,
         toolName: msg.name,
-        toolInput: msg.input,
+        toolInput: msg.input ?? {},
         toolOutput: null,
         status: 'pending',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       })
     })
     
     wsClient.on('tool_end', (data: unknown) => {
-      // 后端发送的消息格式：{ type: 'event', event: 'tool_end', data: { id: '...', result: {...} } }
-      const message = data as { type: string; event: string; data: { id: string; result: unknown } }
-      const msg = message.data
-      const tool = toolCalls.value.find(t => t.id === msg.id)
+      const msg = data as { id: string; result?: unknown }
+      if (!msg?.id) return
+      const tool = toolCalls.value.find((t) => t.id === msg.id)
       if (tool) {
         tool.status = 'completed'
-        tool.toolOutput = msg.result as Record<string, unknown>
+        const r = msg.result
+        if (r === null || r === undefined) {
+          tool.toolOutput = null
+        } else if (typeof r === 'object' && !Array.isArray(r)) {
+          tool.toolOutput = r as Record<string, unknown>
+        } else {
+          tool.toolOutput = { value: r as unknown }
+        }
       }
     })
-    
+
     wsClient.on('tool_error', (data: unknown) => {
-      // 后端发送的消息格式：{ type: 'event', event: 'tool_error', data: { id: '...', error: '...' } }
-      const message = data as { type: string; event: string; data: { id: string; error: string } }
-      const msg = message.data
-      const tool = toolCalls.value.find(t => t.id === msg.id)
+      const msg = data as { id: string; error: string }
+      if (!msg?.id) return
+      const tool = toolCalls.value.find((t) => t.id === msg.id)
       if (tool) {
         tool.status = 'error'
         tool.toolOutput = { error: msg.error }
       }
+    })
+
+    // 会话保存完成事件
+    wsClient.on('session_saved', (data: unknown) => {
+      const msg = data as { sessionId?: string; messageCount?: number }
+      if (msg?.sessionId) {
+        console.log('[ChatStore] Session saved:', msg.sessionId, 'messages:', msg.messageCount)
+      }
+    })
+
+    // 消息保存确认事件
+    wsClient.on('message_saved', (data: unknown) => {
+      const msg = data as { sessionId?: string; messageId?: string; role?: string }
+      if (!msg?.sessionId || !msg?.messageId || !msg?.role) return
+      
+      // 只处理当前会话的消息
+      if (msg.sessionId !== currentSessionId.value) return
+      
+      console.log('[ChatStore] Message saved:', msg.role, msg.messageId)
+      
+      // 如果是用户消息且还没有在UI中（正常流程），不应该出现这种情况
+      // 如果是助手消息，也已经通过 message_start 添加到UI了
+      // 这里主要用于日志记录，不需要额外操作
     })
   }
   
@@ -174,6 +251,46 @@ export const useChatStore = defineStore('chat', () => {
     isConnected.value = false
   }
   
+  /**
+   * 加载指定会话
+   * @param sessionId 会话 ID
+   * @returns Promise，在会话加载成功后 resolve
+   */
+  function loadSession(sessionId: string): Promise<void> {
+    // 先设置当前会话ID，防止竞态条件
+    currentSessionId.value = sessionId
+    // 清空当前消息，避免看到旧会话的数据
+    messages.value = []
+    toolCalls.value = []
+    
+    return new Promise((resolve, reject) => {
+      const timeout = 10000
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+      let resolved = false
+
+      const unsubscribe = wsClient.on('session_loaded', (data: unknown) => {
+        const msg = data as { session?: Session }
+        if (msg?.session?.id !== sessionId) return
+        if (resolved) return
+        resolved = true
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+        }
+        unsubscribe()
+        resolve()
+      })
+
+      timeoutId = setTimeout(() => {
+        if (resolved) return
+        resolved = true
+        unsubscribe()
+        reject(new Error('加载会话超时'))
+      }, timeout)
+
+      wsClient.loadSession(sessionId)
+    })
+  }
+
   /**
    * 创建新会话
    * @param title 会话标题
@@ -213,39 +330,7 @@ export const useChatStore = defineStore('chat', () => {
       wsClient.createSession(title, model, force)
     })
   }
-  
-  /**
-   * 加载指定会话
-   * @param sessionId 会话 ID
-   * @returns Promise，在会话加载成功后 resolve
-   */
-  function loadSession(sessionId: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const timeout = 10000
-      let timeoutId: ReturnType<typeof setTimeout> | null = null
-      let resolved = false
-      
-      const unsubscribe = wsClient.on('session_loaded', () => {
-        if (resolved) return
-        resolved = true
-        if (timeoutId) {
-          clearTimeout(timeoutId)
-        }
-        unsubscribe()
-        resolve()
-      })
-      
-      timeoutId = setTimeout(() => {
-        if (resolved) return
-        resolved = true
-        unsubscribe()
-        reject(new Error('加载会话超时'))
-      }, timeout)
-      
-      wsClient.loadSession(sessionId)
-    })
-  }
-  
+
   /**
    * 获取会话列表
    * @returns Promise，在会话列表返回后 resolve
@@ -265,9 +350,13 @@ export const useChatStore = defineStore('chat', () => {
         }
         unsubscribe()
         console.log('[ChatStore] 收到 session_list 事件，data:', data)
-        if (!data) return
-        const msg = data as { sessions?: Session[] }
-        sessions.value = msg?.sessions || []
+        if (!data) {
+          sessions.value = []
+          resolve()
+          return
+        }
+        const msg = data as { sessions?: Session[] } | Session[]
+        sessions.value = Array.isArray(msg) ? msg : msg.sessions ?? []
         console.log('[ChatStore] 会话列表更新，数量:', sessions.value.length)
         resolve()
       })
@@ -285,25 +374,18 @@ export const useChatStore = defineStore('chat', () => {
   }
   
   function sendMessage(content: string, model?: string) {
-    // 添加用户消息
-    const sessionId = currentSessionId.value || ''
-    messages.value.push({
-      id: Date.now().toString(),
-      sessionId,
-      role: 'user',
-      type: 'text',
-      content,
-      createdAt: new Date().toISOString(),
-    })
-    
+    // 前端不生成ID，只发送内容给后端
+    // 后端保存后会返回 message_saved 事件
     wsClient.sendMessage(content, model)
   }
   
   function deleteSession(sessionId: string) {
+    console.log('[ChatStore] deleteSession called, id:', sessionId, 'isConnected:', isConnected.value)
     wsClient.deleteSession(sessionId)
   }
   
   function renameSession(sessionId: string, title: string) {
+    console.log('[ChatStore] renameSession called, id:', sessionId, 'title:', title, 'isConnected:', isConnected.value)
     wsClient.renameSession(sessionId, title)
     const session = sessions.value.find(s => s.id === sessionId)
     if (session) {

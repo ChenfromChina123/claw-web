@@ -7,7 +7,15 @@ import { ref, computed } from 'vue';
 import { useTheme } from '@/composables/useTheme';
 import type { ThemeConfig } from '@/themes/types';
 
-const { currentThemeId, themes, setTheme } = useTheme();
+const props = withDefaults(
+  defineProps<{
+    /** toolbar：右上角快捷样式；settings：嵌入设置页，面板左对齐、触发器显示当前主题名 */
+    variant?: 'toolbar' | 'settings';
+  }>(),
+  { variant: 'toolbar' }
+);
+
+const { currentThemeId, currentTheme, themes, setTheme } = useTheme();
 
 const showPicker = ref(false);
 const searchQuery = ref('');
@@ -39,15 +47,23 @@ function getPreviewStyle(theme: ThemeConfig): Record<string, string> {
 </script>
 
 <template>
-  <div class="theme-switcher">
+  <div class="theme-switcher" :class="{ 'theme-switcher--settings': props.variant === 'settings' }">
     <!-- 触发按钮 -->
     <button
+      type="button"
       class="theme-trigger"
-      :title="`当前主题: ${themes.find(t => t.id === currentThemeId)?.name}`"
+      :class="{ 'theme-trigger--settings': props.variant === 'settings' }"
+      :title="`当前主题: ${currentTheme.name}`"
       @click="showPicker = !showPicker"
     >
-      <span class="theme-icon">{{ themes.find(t => t.id === currentThemeId)?.icon }}</span>
-      <span class="theme-label">主题</span>
+      <template v-if="props.variant === 'settings'">
+        <span class="theme-icon">{{ currentTheme.icon }}</span>
+        <span class="theme-current-name">{{ currentTheme.name }}</span>
+      </template>
+      <template v-else>
+        <span class="theme-icon">{{ currentTheme.icon }}</span>
+        <span class="theme-label">主题</span>
+      </template>
       <svg class="chevron" :class="{ open: showPicker }" viewBox="0 0 24 24" fill="none">
         <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
@@ -55,7 +71,12 @@ function getPreviewStyle(theme: ThemeConfig): Record<string, string> {
 
     <!-- 主题选择面板 -->
     <Transition name="fade">
-      <div v-if="showPicker" class="theme-picker glass-strong" @click.stop>
+      <div
+        v-if="showPicker"
+        class="theme-picker glass-strong"
+        :class="{ 'theme-picker--settings': props.variant === 'settings' }"
+        @click.stop
+      >
         <!-- 头部 -->
         <div class="picker-header">
           <h3>选择主题</h3>
@@ -120,6 +141,12 @@ function getPreviewStyle(theme: ThemeConfig): Record<string, string> {
   position: relative;
 }
 
+/* 嵌入设置：整块贴左，不随表单项拉伸到最右侧 */
+.theme-switcher--settings {
+  display: inline-flex;
+  vertical-align: top;
+}
+
 .theme-trigger {
   display: flex;
   align-items: center;
@@ -141,6 +168,20 @@ function getPreviewStyle(theme: ThemeConfig): Record<string, string> {
 
 .theme-icon {
   font-size: 16px;
+}
+
+.theme-current-name {
+  font-size: var(--font-size-sm, 13px);
+  font-weight: 500;
+  color: var(--text-primary);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-trigger--settings {
+  min-width: 0;
 }
 
 .chevron {
@@ -165,6 +206,12 @@ function getPreviewStyle(theme: ThemeConfig): Record<string, string> {
   z-index: var(--z-dropdown, 100);
   overflow: hidden;
   box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.5));
+}
+
+/* 设置页：下拉与触发器左缘对齐，避免面板贴视口右侧 */
+.theme-picker--settings {
+  left: 0;
+  right: auto;
 }
 
 .picker-header {

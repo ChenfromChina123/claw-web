@@ -1,14 +1,31 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { NLayoutSider, NButton, NInput, NScrollbar, NDropdown, useMessage } from 'naive-ui'
+import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import {
+  NLayoutSider,
+  NButton,
+  NInput,
+  NScrollbar,
+  NDropdown,
+  NModal,
+  useMessage,
+} from 'naive-ui'
 import { useChatStore } from '@/stores/chat'
 import type { Session } from '@/types'
 
+const router = useRouter()
 const chatStore = useChatStore()
 const message = useMessage()
 
 const searchValue = ref('')
 const collapsed = ref(false)
+
+const showRenameModal = ref(false)
+const renameTitleDraft = ref('')
+const renameTarget = ref<Session | null>(null)
+
+const showDeleteModal = ref(false)
+const deleteTarget = ref<Session | null>(null)
 
 const filteredSessions = computed(() => {
   const sessions = chatStore.sessions || []
@@ -16,6 +33,17 @@ const filteredSessions = computed(() => {
   return sessions.filter(s =>
     (s.title || '').toLowerCase().includes(searchValue.value.toLowerCase())
   )
+})
+
+watch(showRenameModal, (open) => {
+  if (!open) {
+    renameTarget.value = null
+    renameTitleDraft.value = ''
+  }
+})
+
+watch(showDeleteModal, (open) => {
+  if (!open) deleteTarget.value = null
 })
 
 /**
@@ -34,29 +62,53 @@ function handleSelectSession(session: Session) {
   chatStore.loadSession(session.id)
 }
 
-function handleDeleteSession(session: Session, e: Event) {
-  e.stopPropagation()
-  chatStore.deleteSession(session.id)
+function openDeleteModal(session: Session) {
+  deleteTarget.value = session
+  showDeleteModal.value = true
 }
 
-function handleRenameSession(session: Session, e: Event) {
-  e.stopPropagation()
-  const newTitle = prompt('请输入新的会话标题:', session.title)
-  if (newTitle && newTitle !== session.title) {
-    chatStore.renameSession(session.id, newTitle)
+function confirmDelete(): boolean {
+  const s = deleteTarget.value
+  console.log('[Sidebar] confirmDelete, target:', s?.id, 'ws connected:', chatStore.isConnected)
+  if (!s) return true
+  chatStore.deleteSession(s.id)
+  message.success('已删除会话')
+  return true
+}
+
+function openRenameModal(session: Session) {
+  renameTarget.value = session
+  renameTitleDraft.value = session.title || ''
+  showRenameModal.value = true
+}
+
+function confirmRename(): boolean {
+  const s = renameTarget.value
+  const title = renameTitleDraft.value.trim()
+  console.log('[Sidebar] confirmRename, target:', s?.id, 'title:', title, 'ws connected:', chatStore.isConnected)
+  if (!s) return true
+  if (!title) {
+    message.warning('标题不能为空')
+    return false
   }
+  if (title === s.title) {
+    return true
+  }
+  chatStore.renameSession(s.id, title)
+  message.success('已重命名')
+  return true
 }
 
 const sessionOptions = [
   { label: '重命名', key: 'rename' },
-  { label: '删除', key: 'delete' }
+  { label: '删除', key: 'delete' },
 ]
 
 function handleSessionContext(key: string, session: Session) {
   if (key === 'rename') {
-    handleRenameSession(session, new Event('click'))
+    openRenameModal(session)
   } else if (key === 'delete') {
-    handleDeleteSession(session, new Event('click'))
+    openDeleteModal(session)
   }
 }
 
@@ -64,7 +116,7 @@ function formatTime(date: Date | string) {
   const d = new Date(date)
   const now = new Date()
   const diff = now.getTime() - d.getTime()
-  
+
   if (diff < 60000) return '刚刚'
   if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
@@ -89,10 +141,10 @@ function formatTime(date: Date | string) {
           新对话
         </NButton>
       </div>
-      
+
       <!-- 搜索 -->
       <div class="sidebar-search">
-        <NInput 
+        <NInput
           v-model:value="searchValue"
           placeholder="搜索会话..."
           size="small"
@@ -103,11 +155,11 @@ function formatTime(date: Date | string) {
           </template>
         </NInput>
       </div>
-      
+
       <!-- 会话列表 -->
       <NScrollbar class="sidebar-list">
         <div class="session-list">
-          <div 
+          <div
             v-for="session in filteredSessions"
             :key="session.id"
             class="session-item"
@@ -124,14 +176,21 @@ function formatTime(date: Date | string) {
             <NDropdown
               :options="sessionOptions"
               trigger="click"
-              @select="(key) => handleSessionContext(key, session)"
+              @select="(key) => handleSessionContext(key as string, session)"
             >
-              <NButton text size="tiny" @click.stop>
+              <NButton
+                class="session-menu-trigger"
+                quaternary
+                circle
+                size="medium"
+                aria-label="会话操作"
+                @click.stop
+              >
                 ⋮
               </NButton>
             </NDropdown>
           </div>
-          
+
           <div v-if="filteredSessions.length === 0" class="empty-state">
             <p>暂无会话</p>
             <NButton size="small" @click="handleNewChat">
@@ -140,15 +199,61 @@ function formatTime(date: Date | string) {
           </div>
         </div>
       </NScrollbar>
-      
+
       <!-- 底部 -->
       <div class="sidebar-footer">
+        <div class="sidebar-footer-actions">
+          <NButton block quaternary size="small" @click="router.push('/integration')">
+            集成工作台
+          </NButton>
+          <NButton block quaternary size="small" @click="router.push('/settings')">
+            设置
+          </NButton>
+        </div>
         <div class="connection-status">
           <span :class="['status-dot', chatStore.isConnected ? 'online' : 'offline']"></span>
           {{ chatStore.isConnected ? '已连接' : '未连接' }}
         </div>
       </div>
     </div>
+
+    <!-- 重命名（与应用主题一致的对话框） -->
+    <NModal
+      v-model:show="showRenameModal"
+      preset="dialog"
+      title="重命名会话"
+      positive-text="保存"
+      negative-text="取消"
+      :show-icon="false"
+      class="session-dialog"
+      @positive-click="confirmRename"
+    >
+      <div class="dialog-field">
+        <label class="dialog-label">会话标题</label>
+        <NInput
+          v-model:value="renameTitleDraft"
+          placeholder="输入新标题"
+          maxlength="120"
+          show-count
+          @keydown.enter.prevent="confirmRename"
+        />
+      </div>
+    </NModal>
+
+    <!-- 删除确认 -->
+    <NModal
+      v-model:show="showDeleteModal"
+      preset="dialog"
+      title="删除会话"
+      type="warning"
+      positive-text="删除"
+      negative-text="取消"
+      @positive-click="confirmDelete"
+    >
+      <p class="delete-hint">
+        确定删除「{{ deleteTarget?.title || '未命名' }}」吗？聊天记录将一并删除，且不可恢复。
+      </p>
+    </NModal>
   </NLayoutSider>
 </template>
 
@@ -238,6 +343,21 @@ function formatTime(date: Date | string) {
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* 三点菜单：更大点击区域与字号，避免误点会话项 */
+.session-menu-trigger {
+  flex-shrink: 0;
+  min-width: 40px !important;
+  width: 40px !important;
+  height: 40px !important;
+  font-size: 20px !important;
+  line-height: 1 !important;
+  letter-spacing: -0.02em;
+}
+
+.session-item.active .session-menu-trigger {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
 .empty-state {
   text-align: center;
   padding: 40px 20px;
@@ -251,6 +371,13 @@ function formatTime(date: Date | string) {
 .sidebar-footer {
   padding: 12px 16px;
   border-top: 1px solid var(--border-color);
+}
+
+.sidebar-footer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .connection-status {
@@ -273,5 +400,24 @@ function formatTime(date: Date | string) {
 
 .status-dot.offline {
   background: var(--error-color);
+}
+
+.dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.dialog-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.delete-hint {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
 }
 </style>

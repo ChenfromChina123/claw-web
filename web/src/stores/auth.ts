@@ -2,11 +2,12 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User } from '@/types'
 import { authApi } from '@/api'
-import { checkLoginStatus } from '@/services/authService'
+import { checkLoginStatus, getCurrentUserFromToken } from '@/services/authService'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<User | null>(null)
   const token = ref<string | null>(localStorage.getItem('token'))
+  /** 刷新页面后从 JWT 恢复基础资料，避免「已登录但设置页显示未登录」 */
+  const user = ref<User | null>(getCurrentUserFromToken())
   const loading = ref(false)
 
   const isLoggedIn = computed(() => {
@@ -97,7 +98,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function fetchUser() {
-    if (!token.value || !checkLoginStatus()) return
+    const t = token.value || localStorage.getItem('token')
+    if (!t || !checkLoginStatus()) return
+    token.value = t
     try {
       const response = await authApi.getCurrentUser()
       if (response.success && response.data) {
@@ -105,7 +108,10 @@ export const useAuthStore = defineStore('auth', () => {
       }
     } catch (error) {
       console.error('Fetch user failed:', error)
-      logout()
+      const status = (error as { response?: { status?: number } })?.response?.status
+      if (status === 401) {
+        logout()
+      }
     }
   }
 
@@ -113,6 +119,13 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     token.value = null
     localStorage.removeItem('token')
+  }
+
+  /** 与 localStorage 中的 token 同步 user（例如其它标签页改动了 token） */
+  function syncUserFromToken() {
+    const t = localStorage.getItem('token')
+    token.value = t
+    user.value = getCurrentUserFromToken()
   }
 
   /**
@@ -150,6 +163,7 @@ export const useAuthStore = defineStore('auth', () => {
     resetPassword,
     fetchUser,
     logout,
-    handleOAuthLogin
+    handleOAuthLogin,
+    syncUserFromToken,
   }
 })

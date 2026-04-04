@@ -38,6 +38,12 @@ const routes: RouteRecordRaw[] = [
     name: 'Settings',
     component: () => import('@/views/Settings.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/integration',
+    name: 'Integration',
+    component: () => import('@/views/IntegrationHub.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 
