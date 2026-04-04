@@ -458,16 +458,14 @@ function toolsForMessage(messageId: string): ToolCall[] {
 .message-list-wrapper {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  width: 100%;
   min-height: 0;
-  overflow: hidden;
 }
 
 /* 消息列表 */
 .message-list {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -475,7 +473,6 @@ function toolsForMessage(messageId: string): ToolCall[] {
 .scrollbar {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
 }
 
 .messages-container {

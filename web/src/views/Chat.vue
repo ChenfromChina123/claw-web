@@ -186,6 +186,8 @@ function handleCommandSelect(command: string): void {
     <!-- 主内容区：内层滚动容器用 flex 占满高度，避免整页被消息撑高把输入区顶出视口 -->
     <NLayoutContent
       class="chat-content"
+      :native-scrollbar="false"
+      content-style="display: flex; flex-direction: column; height: 100%;"
     >
       <!-- 背景装饰 -->
       <div class="chat-bg-decoration">
@@ -213,23 +215,25 @@ function handleCommandSelect(command: string): void {
       <!-- 主内容容器 -->
       <div v-else class="chat-main">
         <!-- 消息列表 -->
-        <ChatMessageList 
-          :messages="chatStore.messages" 
+        <ChatMessageList
+          :messages="chatStore.messages"
           :tool-calls="chatStore.toolCalls"
           :is-loading="chatStore.isLoading"
           class="message-list-container"
         />
-        
-        <!-- 输入区 -->
-        <GlassPanel variant="normal" bordered class="input-container">
-          <ChatInput 
-            ref="inputRef"
-            :disabled="!chatStore.currentSessionId"
-            :sidebar-collapsed="sidebarCollapsed"
-            @send="handleSendMessage"
-            @focus="showCommandPalette = false"
-          />
-        </GlassPanel>
+
+        <!-- 输入区包装器 -->
+        <div class="input-wrapper">
+          <GlassPanel variant="normal" bordered class="input-container">
+            <ChatInput
+              ref="inputRef"
+              :disabled="!chatStore.currentSessionId"
+              :sidebar-collapsed="sidebarCollapsed"
+              @send="handleSendMessage"
+              @focus="showCommandPalette = false"
+            />
+          </GlassPanel>
+        </div>
       </div>
     </NLayoutContent>
     
@@ -245,18 +249,18 @@ function handleCommandSelect(command: string): void {
 </template>
 
 <style scoped>
+/* 确保最外层容器铺满全屏且不产生外部滚动条 */
 .chat-layout {
   height: 100vh;
+  width: 100%;
+  overflow: hidden;
   background: var(--bg-primary);
-  position: relative;
 }
 
 .chat-content {
-  display: flex;
-  flex-direction: column;
+  flex: 1;
   height: 100%;
   position: relative;
-  overflow: hidden;
 }
 
 /* ---- 背景装饰 ---- */
@@ -336,33 +340,34 @@ function handleCommandSelect(command: string): void {
 
 /* ---- 主内容容器 ---- */
 .chat-main {
-  flex: 1;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  width: 100%;
   position: relative;
   z-index: 1;
-  min-height: 0;
-  height: 100%;
   overflow: hidden;
 }
 
+/* 消息列表容器：必须能够收缩且拥有独立滚动条 */
 .message-list-container {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
+  overflow-y: auto;
+  padding: 20px 0;
 }
 
-/* ---- 输入区域 ---- */
-.input-container {
+/* 输入区域包装器：确保它始终固定在底部 */
+.input-wrapper {
   flex-shrink: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.input-container {
   margin: 0 20px 20px;
   border-radius: 16px !important;
   padding: 4px !important;
   transition: all var(--transition-normal, 250ms) ease;
-  z-index: 100;
 }
 
 .input-container:hover {
