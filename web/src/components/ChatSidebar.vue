@@ -496,50 +496,52 @@ function formatTime(date: Date | string) {
 .chat-sidebar-container {
   position: relative;
   height: 100%;
+  overflow: visible;
 }
 
 .chat-sidebar {
   position: relative;
+  overflow: visible !important;
 }
 
 /* 自定义折叠按钮 */
 .custom-collapse-trigger {
   position: absolute;
   top: 50%;
-  right: -36px;
+  right: -40px;
   transform: translateY(-50%);
-  width: 28px;
-  height: 72px;
-  background: var(--bg-tertiary);
-  border: 2px solid var(--border-color);
-  border-radius: 6px;
+  width: 32px;
+  height: 80px;
+  background: #f0f0f0;
+  border: 2px solid #d0d0d0;
+  border-radius: 0 8px 8px 0;
+  border-left: none;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 100;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  z-index: 1000;
+  transition: all 0.3s;
+  box-shadow: 3px 0 10px rgba(0, 0, 0, 0.1);
 }
 
 .custom-collapse-trigger:hover {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-color-hover));
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
-  right: -40px;
-  width: 32px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border-color: #6366f1;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.5);
+  right: -44px;
+  width: 36px;
 }
 
 .collapse-icon {
   width: 20px;
   height: 20px;
-  color: var(--text-secondary);
+  color: #666;
   transition: all 0.3s;
 }
 
 .custom-collapse-trigger:hover .collapse-icon {
   color: #ffffff;
-  transform: scale(1.1);
 }
 
 .collapse-icon.rotated {
