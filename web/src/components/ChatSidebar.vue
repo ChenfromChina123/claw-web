@@ -125,15 +125,15 @@ function formatTime(date: Date | string) {
 </script>
 
 <template>
-  <NLayoutSider
-    v-model:collapsed="collapsed"
-    bordered
-    :width="280"
-    :collapsed-width="0"
-    show-trigger="bar"
-    content-style="padding: 0;"
-    class="chat-sidebar"
-  >
+  <div class="chat-sidebar-wrapper">
+    <NLayoutSider
+      v-model:collapsed="collapsed"
+      bordered
+      :width="280"
+      :collapsed-width="0"
+      content-style="padding: 0;"
+      class="chat-sidebar"
+    >
     <div class="sidebar">
       <!-- 头部 -->
       <div class="sidebar-header">
@@ -255,7 +255,14 @@ function formatTime(date: Date | string) {
         确定删除「{{ deleteTarget?.title || '未命名' }}」吗？聊天记录将一并删除，且不可恢复。
       </p>
     </NModal>
-  </NLayoutSider>
+    
+    <!-- 自定义折叠按钮 -->
+    <div class="custom-collapse-trigger" @click="collapsed = !collapsed">
+      <svg viewBox="0 0 24 24" fill="none" class="collapse-icon" :class="{ rotated: collapsed }">
+        <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -483,43 +490,55 @@ function formatTime(date: Date | string) {
   color: var(--text-secondary);
 }
 
-/* 自定义折叠按钮样式 */
-.chat-sidebar :deep(.n-layout-sider__trigger) {
-  width: 24px !important;
-  height: 48px !important;
-  border-radius: 0 8px 8px 0 !important;
-  background: var(--bg-tertiary) !important;
-  border: 1px solid var(--border-color) !important;
-  border-left: none !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  transition: all 0.2s !important;
-  position: absolute !important;
-  right: -24px !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  z-index: 10 !important;
+.chat-sidebar-wrapper {
+  position: relative;
+  height: 100%;
 }
 
-.chat-sidebar :deep(.n-layout-sider__trigger:hover) {
-  background: var(--primary-color) !important;
-  width: 28px !important;
-  box-shadow: 2px 0 8px rgba(99, 102, 241, 0.3) !important;
+.chat-sidebar {
+  position: relative;
 }
 
-.chat-sidebar :deep(.n-layout-sider__trigger .n-layout-sider__trigger-icon) {
-  width: 18px !important;
-  height: 18px !important;
-  color: var(--text-secondary) !important;
-  transition: transform 0.3s !important;
+/* 自定义折叠按钮 */
+.custom-collapse-trigger {
+  position: absolute;
+  top: 50%;
+  right: -20px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 60px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 100;
+  transition: all 0.2s;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
 }
 
-.chat-sidebar :deep(.n-layout-sider__trigger:hover .n-layout-sider__trigger-icon) {
-  color: #fff !important;
+.custom-collapse-trigger:hover {
+  background: var(--primary-color);
+  right: -24px;
+  width: 24px;
+  box-shadow: 2px 0 12px rgba(99, 102, 241, 0.3);
 }
 
-.chat-sidebar :deep(.n-layout-sider--collapsed .n-layout-sider__trigger) {
-  right: -24px !important;
+.collapse-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+  transition: transform 0.3s;
+}
+
+.custom-collapse-trigger:hover .collapse-icon {
+  color: #fff;
+}
+
+.collapse-icon.rotated {
+  transform: rotate(180deg);
 }
 </style>
