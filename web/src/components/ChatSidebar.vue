@@ -125,15 +125,16 @@ function formatTime(date: Date | string) {
 </script>
 
 <template>
-  <NLayoutSider
-    v-model:collapsed="collapsed"
-    bordered
-    :width="280"
-    :collapsed-width="0"
-    :show-trigger="false"
-    content-style="padding: 0;"
-    class="chat-sidebar"
-  >
+  <div class="chat-sidebar-container">
+    <NLayoutSider
+      v-model:collapsed="collapsed"
+      bordered
+      :width="280"
+      :collapsed-width="0"
+      :show-trigger="false"
+      content-style="padding: 0;"
+      class="chat-sidebar"
+    >
     <div class="sidebar">
       <!-- 头部 -->
       <div class="sidebar-header">
@@ -255,14 +256,16 @@ function formatTime(date: Date | string) {
         确定删除「{{ deleteTarget?.title || '未命名' }}」吗？聊天记录将一并删除，且不可恢复。
       </p>
     </NModal>
+    </div>
   </NLayoutSider>
   
-  <!-- 自定义折叠按钮 - 放在 NLayoutSider 外面 -->
+  <!-- 自定义折叠按钮 -->
   <div class="custom-collapse-trigger" @click="collapsed = !collapsed" title="折叠侧边栏">
     <svg viewBox="0 0 24 24" fill="none" class="collapse-icon" :class="{ rotated: collapsed }">
       <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   </div>
+</div>
 </template>
 
 <style scoped>
@@ -488,6 +491,11 @@ function formatTime(date: Date | string) {
   font-size: 14px;
   line-height: 1.5;
   color: var(--text-secondary);
+}
+
+.chat-sidebar-container {
+  position: relative;
+  height: 100%;
 }
 
 .chat-sidebar {
