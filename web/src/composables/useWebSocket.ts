@@ -588,6 +588,8 @@ class EnhancedWebSocketClient {
       createdAt: new Date(),
     }
 
+    console.log('[WS] Tool start:', toolCall.toolName, 'id:', toolCall.id, 'status:', toolCall.status)
+
     this.toolCalls.value = [...this.toolCalls.value, toolCall]
     this.emitEvent('tool_start', toolCall)
   }
@@ -627,6 +629,8 @@ class EnhancedWebSocketClient {
         tool.error = (eventData?.error || message.error) as string
       }
 
+      console.log('[WS] Tool end:', tool.toolName, 'id:', tool.id, 'status:', tool.status, 'duration:', eventData?.duration)
+
       this.toolCalls.value = toolCalls
       this.emitEvent('tool_end', tool)
     }
@@ -640,6 +644,7 @@ class EnhancedWebSocketClient {
       id?: string
       name?: string
       error?: string
+      errorType?: string
       duration?: number
     } | undefined
 
@@ -653,11 +658,16 @@ class EnhancedWebSocketClient {
       tool.status = 'error'
       tool.error = eventData?.error || (message.error as string) || 'Unknown error'
       tool.completedAt = new Date()
-      this.toolCalls.value = toolCalls
-      this.emitEvent('tool_error', tool)
-    }
 
-    console.error('[WS] Tool error:', eventData?.name || message.name, eventData?.error || message.error)
+      console.error('[WS] Tool error:', eventData?.name || message.name, 'errorType:', eventData?.errorType || 'UNKNOWN', 'error:', tool.error)
+
+      this.toolCalls.value = toolCalls
+      this.emitEvent('tool_error', {
+        ...tool,
+        errorType: eventData?.errorType || 'UNKNOWN',
+        duration: eventData?.duration,
+      })
+    }
   }
 
   /**
@@ -695,6 +705,8 @@ class EnhancedWebSocketClient {
       status: 'pending',
       createdAt: new Date(),
     }
+
+    console.log('[WS] Tool use started:', toolCall.toolName, 'id:', toolCall.id)
 
     this.toolCalls.value = [...this.toolCalls.value, toolCall]
     this.emitEvent('tool_use', toolCall)

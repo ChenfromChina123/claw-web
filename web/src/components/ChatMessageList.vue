@@ -185,6 +185,31 @@ function handleStepClick(toolCallId: string) {
 }
 
 /**
+ * 获取工具错误的详细信息
+ */
+function getErrorInfo(toolCall: ToolCall): { type: string; message: string; suggestion: string } | null {
+  if (toolCall.status !== 'error' || !toolCall.toolOutput) return null
+
+  const output = toolCall.toolOutput as any
+  const errorType = output.errorType || 'UNKNOWN'
+  const errorMessage = output.error || '未知错误'
+
+  const suggestions: Record<string, string> = {
+    NOT_FOUND: '请检查文件路径是否正确，或确认文件是否存在',
+    PERMISSION: '请检查文件权限，或以管理员身份运行',
+    TIMEOUT: '操作超时，请稍后重试或简化任务',
+    INVALID_INPUT: '请检查输入参数格式是否正确',
+    UNKNOWN: '请联系管理员或查看日志获取更多信息',
+  }
+
+  return {
+    type: errorType,
+    message: errorMessage,
+    suggestion: suggestions[errorType] || suggestions.UNKNOWN,
+  }
+}
+
+/**
  * 返回属于指定助手消息的工具调用列表
  * - 优先按 messageId 精确匹配
  * - 兜底：若全列表 messageId 为空，则仅归属给最后一条助手消息（兼容历史会话）
@@ -320,10 +345,23 @@ function toolsForMessage(messageId: string): ToolCall[] {
                     
                     <!-- 展开内容：显示详细工具调用组件 -->
                     <div v-if="activeStep === toolCall.id" class="step-content">
-                      <ToolUseEnhanced 
+                      <ToolUseEnhanced
                         :tool-call="toolCall"
                         :expanded="true"
                       />
+
+                      <!-- 新增：错误提示框 -->
+                      <div v-if="toolCall.status === 'error' && getErrorInfo(toolCall)" class="error-alert">
+                        <div class="error-header">
+                          <span class="error-icon">⚠️</span>
+                          <span class="error-title">工具执行失败</span>
+                          <NTag size="small" type="error">{{ getErrorInfo(toolCall)?.type }}</NTag>
+                        </div>
+                        <div class="error-message">{{ getErrorInfo(toolCall)?.message }}</div>
+                        <div class="error-suggestion" v-if="getErrorInfo(toolCall)?.suggestion">
+                          💡 建议：{{ getErrorInfo(toolCall)?.suggestion }}
+                        </div>
+                      </div>
                     </div>
                     
                     <!-- 收起内容：显示智能摘要 -->
@@ -974,5 +1012,54 @@ function toolsForMessage(messageId: string): ToolCall[] {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* 错误提示框 */
+.error-alert {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  animation: shake 0.5s ease-in-out;
+}
+
+.error-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.error-icon {
+  font-size: 18px;
+}
+
+.error-title {
+  font-weight: 600;
+  color: #ef4444;
+  font-size: 14px;
+}
+
+.error-message {
+  color: #fca5a5;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+
+.error-suggestion {
+  color: #9ca3af;
+  font-size: 12px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
 }
 </style>

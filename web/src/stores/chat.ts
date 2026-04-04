@@ -176,6 +176,7 @@ export const useChatStore = defineStore('chat', () => {
     })
     
     wsClient.on('tool_use', (data: unknown) => {
+      console.log('[ChatStore] tool_use event:', data)
       const msg = data as {
         id: string
         name: string
@@ -194,31 +195,71 @@ export const useChatStore = defineStore('chat', () => {
         createdAt: new Date().toISOString(),
       })
     })
+
+    wsClient.on('tool_start', (data: unknown) => {
+      console.log('[ChatStore] tool_start event:', data)
+      const msg = data as { id: string; name: string }
+      if (!msg?.id) return
+
+      const tool = toolCalls.value.find(t => t.id === msg.id)
+      if (tool) {
+        tool.status = 'executing'
+        toolCalls.value = [...toolCalls.value]
+      }
+    })
     
     wsClient.on('tool_end', (data: unknown) => {
-      const msg = data as { id: string; result?: unknown }
+      console.log('[ChatStore] tool_end event:', data)
+      const msg = data as {
+        id: string
+        result?: unknown
+        success?: boolean
+        duration?: number
+      }
       if (!msg?.id) return
-      const tool = toolCalls.value.find((t) => t.id === msg.id)
+
+      const tool = toolCalls.value.find(t => t.id === msg.id)
       if (tool) {
         tool.status = 'completed'
-        const r = msg.result
-        if (r === null || r === undefined) {
-          tool.toolOutput = null
-        } else if (typeof r === 'object' && !Array.isArray(r)) {
-          tool.toolOutput = r as Record<string, unknown>
+
+        if (msg.result !== null && msg.result !== undefined) {
+          if (typeof msg.result === 'object' && !Array.isArray(msg.result)) {
+            tool.toolOutput = msg.result as Record<string, unknown>
+          } else {
+            tool.toolOutput = { value: msg.result }
+          }
         } else {
-          tool.toolOutput = { value: r as unknown }
+          tool.toolOutput = { success: true, duration: msg.duration }
         }
+
+        toolCalls.value = [...toolCalls.value]
       }
     })
 
     wsClient.on('tool_error', (data: unknown) => {
-      const msg = data as { id: string; error: string }
+      console.log('[ChatStore] tool_error event:', data)
+      const msg = data as {
+        id: string
+        error: string
+        errorType?: string
+        duration?: number
+      }
       if (!msg?.id) return
-      const tool = toolCalls.value.find((t) => t.id === msg.id)
+
+      const tool = toolCalls.value.find(t => t.id === msg.id)
       if (tool) {
         tool.status = 'error'
-        tool.toolOutput = { error: msg.error }
+
+        tool.toolOutput = {
+          error: msg.error,
+          errorType: msg.errorType || 'UNKNOWN',
+          duration: msg.duration,
+          timestamp: new Date().toISOString(),
+        }
+
+        toolCalls.value = [...toolCalls.value]
+
+        console.error('[ChatStore] Tool execution failed:', msg.errorType, '-', msg.error)
       }
     })
 
