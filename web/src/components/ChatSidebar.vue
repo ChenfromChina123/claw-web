@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   NLayoutSider,
@@ -25,6 +25,8 @@ const searchValue = ref('')
 const collapsed = ref(false)
 const visibleSessionCount = ref(10)
 const SESSIONS_PER_PAGE = 10
+const scrollbarRef = ref<InstanceType<typeof NScrollbar>>()
+let scrollContainer: HTMLElement | null = null
 
 // 监听折叠状态变化并通知父组件
 watch(collapsed, (newVal) => {
@@ -37,6 +39,41 @@ const renameTarget = ref<Session | null>(null)
 
 const showDeleteModal = ref(false)
 const deleteTarget = ref<Session | null>(null)
+
+// 滚动到底部自动加载更多
+function handleScroll() {
+  if (!scrollContainer) return
+  
+  const { scrollTop, scrollHeight, clientHeight } = scrollContainer
+  const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100
+  
+  if (isNearBottom && hasMoreSessions.value) {
+    loadMoreSessions()
+  }
+}
+
+// 组件挂载后添加滚动监听
+onMounted(() => {
+  nextTick(() => {
+    if (scrollbarRef.value) {
+      const wrapper = scrollbarRef.value as any
+      scrollContainer = wrapper?.$el?.querySelector?.('.n-scrollbar-container') || 
+                      wrapper?.$el?.querySelector?.('.n-scrollbar-rail-container') ||
+                      wrapper?.$el
+      
+      if (scrollContainer) {
+        scrollContainer.addEventListener('scroll', handleScroll)
+      }
+    }
+  })
+})
+
+// 组件卸载时移除滚动监听
+onUnmounted(() => {
+  if (scrollContainer) {
+    scrollContainer.removeEventListener('scroll', handleScroll)
+  }
+})
 
 const filteredSessions = computed(() => {
   const sessions = chatStore.sessions || []
@@ -182,7 +219,10 @@ function formatTime(date: Date | string) {
         </div>
 
         <!-- 会话列表 -->
-        <NScrollbar class="sidebar-list">
+        <NScrollbar 
+          ref="scrollbarRef"
+          class="sidebar-list"
+        >
           <div class="session-list">
             <div
               v-for="session in visibleSessions"
@@ -214,19 +254,6 @@ function formatTime(date: Date | string) {
                   ⋮
                 </NButton>
               </NDropdown>
-            </div>
-
-            <!-- 加载更多按钮 -->
-            <div v-if="hasMoreSessions" class="load-more-container">
-              <NButton
-                quaternary
-                size="small"
-                block
-                @click="loadMoreSessions"
-                class="load-more-btn"
-              >
-                加载更多会话 ({{ visibleSessionCount }}/{{ filteredSessions.length }})
-              </NButton>
             </div>
 
             <div v-if="filteredSessions.length === 0" class="empty-state">
@@ -478,23 +505,6 @@ function formatTime(date: Date | string) {
 
 .empty-state p {
   margin-bottom: 16px;
-}
-
-/* 加载更多按钮样式 */
-.load-more-container {
-  padding: 8px 12px;
-}
-
-.load-more-btn {
-  border-radius: 8px !important;
-  border: 1px dashed var(--border-color) !important;
-  background: transparent !important;
-  transition: all var(--transition-fast, 150ms) ease;
-}
-
-.load-more-btn:hover {
-  border-color: var(--border-accent) !important;
-  background: rgba(99, 102, 241, 0.05) !important;
 }
 
 .sidebar-footer {
