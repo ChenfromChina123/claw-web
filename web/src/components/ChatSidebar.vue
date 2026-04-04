@@ -134,7 +134,7 @@ function formatTime(date: Date | string) {
       content-style="padding: 0;"
       class="chat-sidebar"
     >
-    <div class="sidebar">
+      <div class="sidebar">
       <!-- 头部 -->
       <div class="sidebar-header">
         <h2>Claude Code</h2>
@@ -255,6 +255,8 @@ function formatTime(date: Date | string) {
         确定删除「{{ deleteTarget?.title || '未命名' }}」吗？聊天记录将一并删除，且不可恢复。
       </p>
     </NModal>
+      </div>
+    </NLayoutSider>
     
     <!-- 自定义折叠按钮 -->
     <div class="custom-collapse-trigger" @click="collapsed = !collapsed">
