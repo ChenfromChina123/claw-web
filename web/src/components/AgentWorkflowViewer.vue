@@ -1,620 +1,680 @@
+<script setup lang="ts">
+/**
+ * AgentWorkflowViewer - 递归工作流树形可视化组件
+ * 
+ * 功能：
+ * - 以树形结构展示 Agent 的工作流程
+ * - 支持递归渲染子 Agent
+ * - 实时更新状态和进度
+ * - 可折叠/展开详情
+ * - 支持权限拦截展示
+ */
+
+import { computed, ref, h, type VNode } from 'vue'
+import { NTag, NButton, NCollapse, NCollapseItem, NTooltip, NSpin } from 'naive-ui'
+import type { AgentState, AgentWorkflowStep } from '@/types'
+import { useAgentStore } from '@/stores/agent'
+
+// Props
+interface Props {
+  node: AgentState & { children?: AgentState[] }
+  level?: number
+  showDetails?: boolean
+  compact?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  level: 0,
+  showDetails: true,
+  compact: false
+})
+
+const emit = defineEmits<{
+  (e: 'step-click', step: AgentWorkflowStep): void
+  (e: 'agent-click', agentId: string): void
+}>()
+
+const agentStore = useAgentStore()
+
+// 状态颜色映射
+const statusColors = {
+  IDLE: 'default',
+  THINKING: 'info',
+  RUNNING: 'primary',
+  WAITING: 'warning',
+  BLOCKED: 'warning',
+  COMPLETED: 'success',
+  FAILED: 'error'
+} as const
+
+// 步骤状态颜色
+const stepStatusColors = {
+  pending: 'default',
+  running: 'primary',
+  completed: 'success',
+  failed: 'error',
+  blocked: 'warning'
+} as const
+
+// 动作类型图标
+const actionTypeIcons: Record<string, string> = {
+  THINKING: '🤔',
+  TOOL_CALL: '🔧',
+  SPAWN_TEAMMATE: '🤖',
+  MESSAGE: '💬',
+  WAITING_PERMISSION: '⏳',
+  IDLE: '💤'
+}
+
+// 获取 Agent 状态颜色
+const statusColor = computed(() => {
+  const color = statusColors[props.node.status] || 'default'
+  return `var(--n-color-${color === 'default' ? 'fill-4' : color + '-tonal'})`
+})
+
+// 获取 Agent 状态文本
+const statusText = computed(() => {
+  const statusMap: Record<string, string> = {
+    IDLE: '空闲',
+    THINKING: '思考中',
+    RUNNING: '运行中',
+    WAITING: '等待中',
+    BLOCKED: '已阻塞',
+    COMPLETED: '已完成',
+    FAILED: '失败'
+  }
+  return statusMap[props.node.status] || props.node.status
+})
+
+// 是否正在运行
+const isRunning = computed(() => {
+  return props.node.status === 'RUNNING' || props.node.status === 'THINKING'
+})
+
+// 是否是根节点
+const isRoot = computed(() => props.level === 0)
+
+// 步骤数量统计
+const completedSteps = computed(() => 
+  props.node.workflowSteps.filter(s => s.status === 'COMPLETED').length
+)
+
+const totalSteps = computed(() => props.node.workflowSteps.length)
+
+const progress = computed(() => {
+  if (totalSteps.value === 0) return 0
+  return Math.round((completedSteps.value / totalSteps.value) * 100)
+})
+
+// 格式化时长
+function formatDuration(ms?: number): string {
+  if (!ms) return ''
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+  return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`
+}
+
+// 获取步骤图标
+function getStepIcon(step: AgentWorkflowStep): string {
+  if (step.toolName) {
+    return actionTypeIcons.TOOL_CALL
+  }
+  return actionTypeIcons[step.actionType] || actionTypeIcons.IDLE
+}
+
+// 处理步骤点击
+function handleStepClick(step: AgentWorkflowStep) {
+  emit('step-click', step)
+}
+
+// 处理 Agent 点击
+function handleAgentClick() {
+  emit('agent-click', props.node.agentId)
+}
+
+// 获取工具调用详情
+function getToolCallDetails(step: AgentWorkflowStep) {
+  if (!step.toolName) return null
+  return agentStore.getToolCallDetails(step.id)
+}
+
+// 展开状态
+const expandedSteps = ref<Set<string>>(new Set())
+
+function toggleStepExpand(stepId: string) {
+  if (expandedSteps.value.has(stepId)) {
+    expandedSteps.value.delete(stepId)
+  } else {
+    expandedSteps.value.add(stepId)
+  }
+}
+
+function isStepExpanded(stepId: string): boolean {
+  return expandedSteps.value.has(stepId)
+}
+
+// 渲染单个步骤
+function renderStep(step: AgentWorkflowStep, index: number): VNode {
+  const isExpanded = isStepExpanded(step.id)
+  const details = getToolCallDetails(step)
+  const isToolCall = step.actionType === 'TOOL_CALL'
+  const isPermission = step.actionType === 'WAITING_PERMISSION'
+  
+  const connectorClass = index < props.node.workflowSteps.length - 1 ? 'step-connector' : ''
+  
+  return h('div', { class: 'workflow-step-wrapper' }, [
+    // 连接线
+    index > 0 && h('div', { class: 'step-connector-line', 'data-active': step.status === 'completed' }),
+    
+    // 步骤内容
+    h('div', {
+      class: [
+        'workflow-step',
+        `status-${step.status}`,
+        isToolCall && 'tool-step',
+        isPermission && 'permission-step'
+      ]
+    }, [
+      // 步骤头部
+      h('div', { class: 'step-header', onClick: () => toggleStepExpand(step.id) }, [
+        // 展开/折叠指示器
+        isToolCall && h('span', { class: ['step-expand-icon', isExpanded && 'expanded'] }, '▶'),
+        
+        // 步骤图标
+        h('span', { class: 'step-icon' }, getStepIcon(step)),
+        
+        // 步骤标签
+        h('span', { class: 'step-label' }, step.toolName || step.message.substring(0, 40)),
+        
+        // 状态标签
+        h(NTag, {
+          class: 'step-status-tag',
+          size: 'small',
+          type: stepStatusColors[step.status] as any
+        }, () => step.status)
+      ]),
+      
+      // 展开详情
+      isExpanded && h('div', { class: 'step-details' }, [
+        // 消息内容
+        h('div', { class: 'step-message' }, step.message),
+        
+        // 工具输入
+        step.input && h('div', { class: 'step-input' }, [
+          h('div', { class: 'detail-label' }, '输入参数:'),
+          h('pre', { class: 'detail-code' }, JSON.stringify(step.input, null, 2))
+        ]),
+        
+        // 工具输出
+        step.output && h('div', { class: 'step-output' }, [
+          h('div', { class: 'detail-label' }, '输出结果:'),
+          h('pre', { class: 'detail-code' }, 
+            typeof step.output === 'object' 
+              ? JSON.stringify(step.output, null, 2).substring(0, 500)
+              : String(step.output)
+          )
+        ]),
+        
+        // 日志
+        details?.logs && details.logs.length > 0 && h('div', { class: 'step-logs' }, [
+          h('div', { class: 'detail-label' }, '执行日志:'),
+          h('div', { class: 'log-container' }, 
+            details.logs.slice(-10).map((log, i) => 
+              h('div', { key: i, class: 'log-line' }, log)
+            )
+          )
+        ]),
+        
+        // 耗时
+        step.duration && h('div', { class: 'step-duration' }, 
+          `耗时: ${formatDuration(step.duration)}`
+        ),
+        
+        // 权限操作按钮
+        isPermission && h('div', { class: 'permission-actions' }, [
+          h(NButton, {
+            type: 'success',
+            size: 'small',
+            onClick: () => agentStore.approvePermission(step.id, true)
+          }, () => '允许'),
+          h(NButton, {
+            type: 'error',
+            size: 'small',
+            onClick: () => agentStore.approvePermission(step.id, false)
+          }, () => '拒绝')
+        ])
+      ])
+    ])
+  ])
+}
+
+// 渲染子 Agent
+function renderChildAgents(): VNode[] {
+  if (!props.node.children || props.node.children.length === 0) {
+    return []
+  }
+  
+  return [
+    h('div', { class: 'child-agents-label' }, [
+      h('span', {}, '子 Agent'),
+      h('span', { class: 'child-count' }, props.node.children.length)
+    ]),
+    ...props.node.children.map(child => 
+      h(AgentWorkflowNode, {
+        node: child,
+        level: props.level + 1,
+        showDetails: props.showDetails,
+        compact: props.compact,
+        onStepClick: (step: AgentWorkflowStep) => emit('step-click', step),
+        onAgentClick: (agentId: string) => emit('agent-click', agentId)
+      })
+    )
+  ]
+}
+
+// Agent 图标
+const agentIcon = computed(() => {
+  if (props.node.icon) return props.node.icon
+  if (props.node.name?.includes('Plan')) return '📋'
+  if (props.node.name?.includes('Explore')) return '🔍'
+  if (props.node.name?.includes('Code')) return '💻'
+  if (props.node.name?.includes('Test')) return '🧪'
+  if (props.node.name?.includes('Verify')) return '✅'
+  return '🤖'
+})
+</script>
+
 <template>
-  <div class="agent-workflow-viewer">
-    <header class="viewer-header">
-      <div>
-        <h1 class="header-title">Claude Code HAHA</h1>
-        <p class="header-subtitle">Agent 流程监控控制台 (厚后端架构方案)</p>
+  <div 
+    class="agent-workflow-node"
+    :class="{ 'is-root': isRoot, 'is-running': isRunning, 'compact-mode': compact }"
+    :style="{ '--level': level }"
+  >
+    <!-- Agent 头部 -->
+    <div class="agent-header" @click="handleAgentClick">
+      <!-- 状态指示器 -->
+      <div class="status-indicator" :class="node.status.toLowerCase()">
+        <div v-if="isRunning" class="pulse-dot"></div>
+        <div v-else class="static-dot"></div>
       </div>
-      <div class="header-actions">
-        <button v-if="!demoTraceId" @click="startDemo" class="btn-primary">
-          模拟后端推送事件
-        </button>
-        <template v-else>
-          <button @click="simulateNextEvent" class="btn-primary">
-            模拟后端推送事件
-          </button>
-          <button @click="resetDemo" class="btn-secondary">
-            重置
-          </button>
-        </template>
+      
+      <!-- Agent 图标和名称 -->
+      <span class="agent-icon">{{ agentIcon }}</span>
+      <span class="agent-name">{{ node.name || 'Unknown Agent' }}</span>
+      
+      <!-- Agent 类型标签 -->
+      <NTag v-if="node.agentType" size="small" :bordered="false">
+        {{ node.agentType }}
+      </NTag>
+      
+      <!-- 状态标签 -->
+      <NTag 
+        :type="statusColors[node.status] as any" 
+        size="small"
+        class="status-tag"
+      >
+        {{ statusText }}
+      </NTag>
+      
+      <!-- 进度指示 -->
+      <div v-if="totalSteps > 0 && !compact" class="progress-indicator">
+        <div class="progress-bar">
+          <div class="progress-fill" :style="{ width: `${progress}%` }"></div>
+        </div>
+        <span class="progress-text">{{ completedSteps }}/{{ totalSteps }}</span>
       </div>
-    </header>
-
-    <div v-if="demoTraceId" class="workflow-container">
-      <agent-workflow-node
-        :node="rootAgentNode"
-        :level="0"
-      ></agent-workflow-node>
+      
+      <!-- 旋转指示器 -->
+      <NSpin v-if="isRunning" :size="16" />
     </div>
-
-    <div v-else class="empty-state">
-      <div class="empty-icon">🤖</div>
-      <p>点击"模拟后端推送事件"开始演示</p>
+    
+    <!-- 工作流步骤 -->
+    <div v-if="showDetails && node.workflowSteps.length > 0" class="workflow-steps">
+      <template v-for="(step, index) in node.workflowSteps" :key="step.id">
+        <!-- 渲染步骤 -->
+        <div class="step-wrapper">
+          <!-- 连接线 -->
+          <div v-if="index > 0" class="connector-line" :class="{ active: step.status === 'completed' }"></div>
+          
+          <!-- 步骤内容 -->
+          <div 
+            class="step-item"
+            :class="[`status-${step.status}`, { 'tool-call': step.actionType === 'TOOL_CALL', 'permission-waiting': step.actionType === 'WAITING_PERMISSION' }]"
+            @click="handleStepClick(step)"
+          >
+            <!-- 步骤图标 -->
+            <span class="step-icon">{{ getStepIcon(step) }}</span>
+            
+            <!-- 步骤信息 -->
+            <div class="step-content">
+              <div class="step-main">
+                <span class="step-label">{{ step.toolName || step.message.substring(0, 50) }}</span>
+                <NTag :type="stepStatusColors[step.status] as any" size="tiny" :bordered="false">
+                  {{ step.status }}
+                </NTag>
+              </div>
+              
+              <!-- 展开详情 -->
+              <div v-if="step.toolName" class="step-details-collapsed">
+                <NTooltip trigger="hover">
+                  <template #trigger>
+                    <span class="detail-toggle">详情</span>
+                  </template>
+                  <div class="detail-tooltip">
+                    <div v-if="step.input"><strong>输入:</strong> {{ JSON.stringify(step.input).substring(0, 100) }}</div>
+                    <div v-if="step.duration"><strong>耗时:</strong> {{ formatDuration(step.duration) }}</div>
+                  </div>
+                </NTooltip>
+              </div>
+            </div>
+            
+            <!-- 耗时 -->
+            <span v-if="step.duration && step.status === 'completed'" class="step-duration">
+              {{ formatDuration(step.duration) }}
+            </span>
+          </div>
+        </div>
+      </template>
+    </div>
+    
+    <!-- 运行中指示 -->
+    <div v-if="isRunning" class="running-indicator">
+      <span class="running-dot"></span>
+      <span>处理中...</span>
+    </div>
+    
+    <!-- 子 Agent -->
+    <div v-if="node.children && node.children.length > 0" class="child-agents">
+      <div class="child-agents-header">
+        <span class="child-label">子任务</span>
+        <NTag size="tiny" round>{{ node.children.length }}</NTag>
+      </div>
+      <div class="child-agents-list">
+        <AgentWorkflowNode
+          v-for="child in node.children"
+          :key="child.agentId"
+          :node="child"
+          :level="level + 1"
+          :show-details="showDetails"
+          :compact="compact"
+          @step-click="(step) => emit('step-click', step)"
+          @agent-click="(id) => emit('agent-click', id)"
+        />
+      </div>
     </div>
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted, h } from 'vue'
-import { useAgentStore } from '@/stores/agent'
-import type { AgentState, AgentWorkflowStep, AgentStatus } from '@/types'
-
-const agentStore = useAgentStore()
-const demoTraceId = ref<string | null>(null)
-const eventCount = ref(0)
-
-/**
- * 根 Agent 节点（计算属性）
- */
-const rootAgentNode = computed(() => {
-  if (!demoTraceId.value) return null
-  
-  const agentMap = agentStore.agents.get(demoTraceId.value)
-  if (!agentMap) return null
-  
-  const agents = Array.from(agentMap.values())
-  const rootAgent = agents.find(a => !a.parentAgentId)
-  if (!rootAgent) return null
-  
-  // 构建带 children 的节点结构
-  const buildNode = (agent: AgentState): AgentNode => {
-    const children = agents.filter(a => a.parentAgentId === agent.agentId)
-    return {
-      ...agent,
-      children: children.map(buildNode),
-      steps: agent.workflowSteps.map(step => ({
-        id: step.id,
-        label: step.actionType,
-        content: step.message,
-        status: mapStepStatus(step.status),
-        input: step.input,
-        output: step.output,
-        childAgent: null
-      }))
-    }
-  }
-  
-  return buildNode(rootAgent)
-})
-
-/**
- * 映射状态到原型风格
- */
-function mapStepStatus(status: AgentStatus): 'success' | 'running' | 'intercepted' | 'failed' {
-  const statusMap: Record<AgentStatus, 'success' | 'running' | 'intercepted' | 'failed'> = {
-    IDLE: 'success',
-    THINKING: 'running',
-    RUNNING: 'running',
-    WAITING: 'intercepted',
-    COMPLETED: 'success',
-    FAILED: 'failed',
-    BLOCKED: 'intercepted'
-  }
-  return statusMap[status] || 'success'
-}
-
-/**
- * 开始演示
- */
-function startDemo() {
-  const traceId = agentStore.createTrace('重构项目文件结构', 'Plan')
-  demoTraceId.value = traceId
-  eventCount.value = 0
-  
-  // 初始步骤
-  const rootAgentId = agentStore.currentTrace?.rootAgentId || ''
-  
-  setTimeout(() => {
-    agentStore.handleAgentEvent({
-      traceId,
-      agentId: rootAgentId,
-      type: 'WORKFLOW_UPDATE',
-      timestamp: Date.now(),
-      data: {
-        status: 'COMPLETED',
-        actionType: 'THINKING',
-        message: '用户要求重构项目文件结构'
-      }
-    })
-  }, 300)
-  
-  setTimeout(() => {
-    agentStore.handleAgentEvent({
-      traceId,
-      agentId: rootAgentId,
-      type: 'WORKFLOW_UPDATE',
-      timestamp: Date.now(),
-      data: {
-        status: 'COMPLETED',
-        actionType: 'THINKING',
-        message: '识别到 3 个子任务：扫描、修改、验证'
-      }
-    })
-  }, 800)
-}
-
-/**
- * 模拟后端推送事件
- */
-function simulateNextEvent() {
-  if (!demoTraceId.value) return
-  
-  eventCount.value++
-  const traceId = demoTraceId.value
-  const rootAgentId = agentStore.currentTrace?.rootAgentId || ''
-  
-  if (eventCount.value === 1) {
-    // 推送：派生子 Agent
-    setTimeout(() => {
-      agentStore.handleAgentEvent({
-        traceId,
-        agentId: rootAgentId,
-        type: 'TEAMMATE_SPAWNED',
-        timestamp: Date.now(),
-        data: {
-          status: 'RUNNING',
-          actionType: 'SPAWN_TEAMMATE',
-          message: '启动 Explore 代理扫描 src 目录',
-          childTraceId: traceId,
-          childAgentId: 'sub-explore-001'
-        }
-      })
-    }, 300)
-    
-    setTimeout(() => {
-      agentStore.handleAgentEvent({
-        traceId,
-        agentId: 'sub-explore-001',
-        type: 'WORKFLOW_UPDATE',
-        timestamp: Date.now(),
-        data: {
-          status: 'COMPLETED',
-          actionType: 'TOOL_CALL',
-          message: 'ls -R ./src',
-          toolName: 'FileList',
-          input: { path: './src' },
-          output: { files: ['main.ts', 'App.vue', 'components/'] }
-        }
-      })
-    }, 800)
-    
-    setTimeout(() => {
-      agentStore.handleAgentEvent({
-        traceId,
-        agentId: 'sub-explore-001',
-        type: 'PERMISSION_REQUIRED',
-        timestamp: Date.now(),
-        data: {
-          status: 'BLOCKED',
-          actionType: 'WAITING_PERMISSION',
-          message: 'read package.json'
-        }
-      })
-    }, 1300)
-    
-  } else if (eventCount.value === 2) {
-    // 推送：主任务完成
-    setTimeout(() => {
-      agentStore.handleAgentEvent({
-        traceId,
-        agentId: rootAgentId,
-        type: 'WORKFLOW_UPDATE',
-        timestamp: Date.now(),
-        data: {
-          status: 'COMPLETED',
-          actionType: 'THINKING',
-          message: '任务全部完成！'
-        }
-      })
-    }, 300)
-  }
-}
-
-/**
- * 重置演示
- */
-function resetDemo() {
-  if (demoTraceId.value) {
-    agentStore.clearTrace(demoTraceId.value)
-  }
-  demoTraceId.value = null
-  eventCount.value = 0
-}
-
-/**
- * Agent 节点类型
- */
-interface AgentNode extends AgentState {
-  children: AgentNode[]
-  steps: Array<{
-    id: string
-    label: string
-    content: string
-    status: 'success' | 'running' | 'intercepted' | 'failed'
-    input?: Record<string, unknown>
-    output?: Record<string, unknown>
-    childAgent: AgentNode | null
-  }>
-}
-
-/**
- * 递归组件：Agent Workflow Node
- */
-const AgentWorkflowNode = {
-  name: 'AgentWorkflowNode',
-  props: {
-    node: {
-      type: Object as () => AgentNode,
-      required: true
-    },
-    level: {
-      type: Number,
-      default: 0
-    }
-  },
-  setup(props) {
-    const isRunning = computed(() => 
-      props.node.status === 'RUNNING' || props.node.status === 'THINKING'
-    )
-    
-    const statusColor = computed(() => {
-      if (isRunning.value) return 'status-running'
-      if (props.node.status === 'FAILED') return 'status-failed'
-      if (props.node.status === 'BLOCKED') return 'status-blocked'
-      return 'status-success'
-    })
-    
-    const stepStatusClass = (status: string) => {
-      const map: Record<string, string> = {
-        'success': 'step-success',
-        'running': 'step-running',
-        'intercepted': 'step-intercepted',
-        'failed': 'step-failed'
-      }
-      return map[status] || 'step-default'
-    }
-    
-    return { isRunning, statusColor, stepStatusClass }
-  },
-  render() {
-    const { node, level, isRunning, statusColor, stepStatusClass } = this as any
-    
-    return h('div', { class: 'workflow-node' }, [
-      // Agent 头部
-      h('div', { class: 'node-header' }, [
-        h('div', { class: ['status-dot', statusColor, isRunning ? 'pulse' : ''] }),
-        h('span', { class: 'agent-type' }, `[${node.name}]`),
-        h('span', { class: 'agent-id' }, `ID: ${node.agentId}`)
-      ]),
-      
-      // 子内容（带缩进）
-      h('div', { class: 'node-content', style: { marginLeft: `${level * 24}px` } }, [
-        // 步骤列表
-        ...node.steps.map((step: any) => 
-          h('div', { class: 'step-item', key: step.id }, [
-            h('div', { class: 'step-dot' }),
-            h('div', { class: 'step-card' }, [
-              h('div', { class: 'step-header' }, [
-                h('span', { class: 'step-label' }, step.label),
-                h('span', { class: ['step-status', stepStatusClass(step.status)] }, step.status.toUpperCase())
-              ]),
-              h('p', { class: 'step-content' }, step.content),
-              
-              // 权限拦截提示
-              step.status === 'intercepted' && h('div', { class: 'permission-intercept' }, [
-                h('span', { class: 'permission-warning' }, [
-                  '⚠️ 发现高危命令: ',
-                  h('b', null, 'rm -rf /test')
-                ]),
-                h('div', { class: 'permission-actions' }, [
-                  h('button', { class: 'btn-allow' }, '允许执行'),
-                  h('button', { class: 'btn-deny' }, '拒绝')
-                ])
-              ]),
-              
-              // 子 Agent（递归）
-              step.childAgent && h('div', { class: 'child-agent' }, [
-                h(AgentWorkflowNode, { 
-                  node: step.childAgent,
-                  level: level + 1
-                })
-              ])
-            ])
-          ])
-        ),
-        
-        // 运行中提示
-        isRunning && h('div', { class: 'running-indicator pulse' }, [
-          h('span', null, '●'),
-          h('span', null, ' Agent 正在处理中...')
-        ])
-      ])
-    ])
-  }
-}
-
-onMounted(() => {
-  agentStore.setupWebSocketListeners()
-})
-</script>
-
 <style scoped>
-.agent-workflow-viewer {
-  padding: 32px;
-  background: #111827;
-  color: #f3f4f6;
-  font-family: system-ui, -apple-system, sans-serif;
-  min-height: 100vh;
+.agent-workflow-node {
+  --level: 0;
+  --indent-size: 24px;
+  --node-gap: 8px;
+  --accent-color: var(--primary-color, #18a058);
+  
+  padding: var(--node-gap);
+  margin-left: calc(var(--level) * var(--indent-size));
+  border-left: 2px dashed var(--border-color, #3b3b3b);
+  transition: border-color 0.2s;
 }
 
-.viewer-header {
-  max-width: 896px;
-  margin: 0 auto 32px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #374151;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
+.agent-workflow-node.is-root {
+  border-left: 2px solid var(--accent-color);
+  border-radius: 8px;
+  background: var(--card-color, #1a1a1a);
 }
 
-.header-title {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  color: #60a5fa;
+.agent-workflow-node.is-running {
+  border-left-color: var(--accent-color);
 }
 
-.header-subtitle {
-  margin: 4px 0 0;
-  font-size: 14px;
-  color: #9ca3af;
+.agent-workflow-node.compact-mode {
+  padding: 4px 8px;
 }
 
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-primary:hover {
-  background: #3b82f6;
-}
-
-.btn-secondary {
-  background: #4b5563;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-secondary:hover {
-  background: #6b7280;
-}
-
-.workflow-container {
-  max-width: 896px;
-  margin: 0 auto;
-}
-
-.empty-state {
-  max-width: 896px;
-  margin: 64px auto;
-  text-align: center;
-  color: #6b7280;
-}
-
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-}
-
-/* 工作流节点样式 */
-.workflow-node {
-  margin-bottom: 16px;
-}
-
-.node-header {
+/* Agent 头部 */
+.agent-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--fill-color, #2a2a2a);
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
-.status-dot {
+.agent-header:hover {
+  background: var(--fill-color-hover, #333);
+}
+
+.status-indicator {
   width: 12px;
   height: 12px;
-  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.status-success {
-  background: #22c55e;
-}
-
-.status-running {
-  background: #3b82f6;
-}
-
-.status-failed {
-  background: #ef4444;
-}
-
-.status-blocked {
-  background: #f97316;
-}
-
-.agent-type {
-  font-family: monospace;
-  font-weight: 700;
-  color: #93c5fd;
-}
-
-.agent-id {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.node-content {
-  border-left: 2px dashed #4b5563;
-  padding-left: 24px;
-}
-
-/* 步骤样式 */
-.step-item {
-  position: relative;
-  margin-bottom: 12px;
-}
-
-.step-dot {
-  position: absolute;
-  left: -31px;
-  top: 8px;
+.status-indicator .static-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #4b5563;
-  border: 2px solid #111827;
+  background: var(--status-color, #666);
 }
 
-.step-card {
-  background: #1f2937;
-  border: 1px solid #374151;
-  padding: 12px;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+.status-indicator .pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
-.step-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+.status-indicator.idle .static-dot { background: #666; }
+.status-indicator.thinking .static-dot { background: #18a058; }
+.status-indicator.running .pulse-dot { background: #2080f0; }
+.status-indicator.waiting .static-dot { background: #f0a020; }
+.status-indicator.blocked .static-dot { background: #d03050; }
+.status-indicator.completed .static-dot { background: #18a058; }
+.status-indicator.failed .static-dot { background: #d03050; }
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.7; }
 }
 
-.step-label {
-  font-size: 14px;
-  font-weight: 500;
+.agent-icon {
+  font-size: 16px;
 }
 
-.step-status {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  text-transform: uppercase;
+.agent-name {
   font-weight: 600;
+  color: var(--text-color, #fff);
 }
 
-.step-success {
-  background: rgba(34, 197, 94, 0.2);
-  color: #86efac;
+.status-tag {
+  margin-left: auto;
 }
 
-.step-running {
-  background: rgba(59, 130, 246, 0.2);
-  color: #93c5fd;
+.progress-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 
-.step-intercepted {
-  background: rgba(249, 115, 22, 0.2);
-  color: #fdba74;
+.progress-bar {
+  width: 60px;
+  height: 4px;
+  background: var(--fill-color, #333);
+  border-radius: 2px;
+  overflow: hidden;
 }
 
-.step-failed {
-  background: rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
+.progress-fill {
+  height: 100%;
+  background: var(--accent-color);
+  transition: width 0.3s ease;
 }
 
-.step-default {
-  background: rgba(75, 85, 99, 0.2);
-  color: #d1d5db;
+.progress-text {
+  font-size: 11px;
+  color: var(--text-color-3, #999);
+}
+
+/* 工作流步骤 */
+.workflow-steps {
+  margin-top: var(--node-gap);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.step-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.connector-line {
+  width: 2px;
+  height: 12px;
+  background: var(--border-color, #3b3b3b);
+  margin-left: 16px;
+  transition: background 0.2s;
+}
+
+.connector-line.active {
+  background: var(--accent-color);
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--fill-color-light, #252525);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.step-item:hover {
+  background: var(--fill-color-hover, #333);
+}
+
+.step-item.status-running {
+  background: rgba(32, 128, 240, 0.1);
+  border-left: 2px solid #2080f0;
+}
+
+.step-item.status-completed {
+  opacity: 0.8;
+}
+
+.step-item.status-failed {
+  background: rgba(208, 48, 80, 0.1);
+  border-left: 2px solid #d03050;
+}
+
+.step-item.status-blocked {
+  background: rgba(240, 160, 32, 0.1);
+  border-left: 2px solid #f0a020;
+}
+
+.step-icon {
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
 .step-content {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-/* 权限拦截 */
-.permission-intercept {
-  margin-top: 12px;
-  padding: 8px;
-  background: rgba(249, 115, 22, 0.2);
-  border: 1px solid #c2410c;
-  border-radius: 6px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.permission-warning {
-  font-size: 12px;
-  color: #fed7aa;
   flex: 1;
+  min-width: 0;
 }
 
-.permission-actions {
+.step-main {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.btn-allow {
-  background: #ea580c;
-  color: white;
-  border: none;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 10px;
+.step-label {
+  font-size: 12px;
+  color: var(--text-color-2, #ccc);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-duration {
+  font-size: 11px;
+  color: var(--text-color-3, #999);
+  flex-shrink: 0;
+}
+
+.detail-toggle {
+  font-size: 11px;
+  color: var(--primary-color, #18a058);
   cursor: pointer;
 }
 
-.btn-deny {
-  background: #4b5563;
-  color: white;
-  border: none;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 10px;
-  cursor: pointer;
+.detail-toggle:hover {
+  text-decoration: underline;
 }
 
-/* 子 Agent */
-.child-agent {
-  margin-top: 16px;
+.detail-tooltip {
+  font-size: 12px;
+  max-width: 300px;
+  word-break: break-all;
 }
 
-/* 运行中指示器 */
+/* 运行中指示 */
 .running-indicator {
   display: flex;
   align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--text-color-3, #999);
+}
+
+.running-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  animation: blink 1s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* 子 Agent */
+.child-agents {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-color, #3b3b3b);
+}
+
+.child-agents-header {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  margin-bottom: 8px;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-color-3, #999);
 }
 
-/* 脉冲动画 */
-.pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+.child-label {
+  font-weight: 500;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+.child-agents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 </style>
