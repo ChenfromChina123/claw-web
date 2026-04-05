@@ -83,12 +83,16 @@ export const useChatStore = defineStore('chat', () => {
     })
     
     wsClient.on('session_deleted', async (data: unknown) => {
+      console.log('[ChatStore] session_deleted 事件收到:', data)
       if (!data) return
       const msg = data as { sessionId?: string }
       if (!msg?.sessionId) return
       const deletedId = msg.sessionId
+      console.log('[ChatStore] 要删除的会话ID:', deletedId)
       const wasCurrent = currentSessionId.value === deletedId
+      console.log('[ChatStore] 是否是当前会话:', wasCurrent)
       sessions.value = (sessions.value || []).filter((s) => s.id !== deletedId)
+      console.log('[ChatStore] 更新后的会话列表:', sessions.value)
       if (wasCurrent) {
         const nextId = sessions.value[0]?.id ?? null
         currentSessionId.value = nextId

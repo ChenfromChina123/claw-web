@@ -1982,13 +1982,16 @@ async function startServer() {
 
             case 'delete_session':
               {
+                console.log('[WS] delete_session 事件收到:', message)
                 const sessionId = message.sessionId as string
                 const userId = wsData.userId
+                console.log('[WS] delete_session - sessionId:', sessionId, 'userId:', userId)
                 if (!userId) {
                   sendEvent('error', { message: 'User not authenticated' })
                   break
                 }
                 sessionManager.deleteSession(sessionId, userId).then(() => {
+                  console.log('[WS] 会话删除成功，发送 session_deleted 事件:', sessionId)
                   ws.send(JSON.stringify({ type: 'session_deleted', sessionId }))
                   if (wsData.sessionId === sessionId) {
                     wsData.sessionId = null
