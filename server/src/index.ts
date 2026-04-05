@@ -736,6 +736,30 @@ async function startServer() {
   try {
     console.log('\n[AgentStatusService] Initializing Agent status service...')
     const agentStatusService = getAgentStatusService()
+    
+    // 配置 WebSocket 推送函数
+    ;(agentStatusService as any).wsPush = (clientId: string, data: { type: string; payload: unknown; timestamp: string }) => {
+      const message = {
+        type: 'event',
+        event: data.type,
+        data: data.payload,
+        timestamp: new Date(data.timestamp).getTime(),
+      } as any
+      
+      // 广播到所有连接的客户端
+      let sentCount = 0
+      for (const [, connection] of wsManager.getAllConnections()) {
+        if (connection.isConnected()) {
+          connection.send(message)
+          sentCount++
+        }
+      }
+      
+      if (sentCount > 0) {
+        console.log(`[AgentStatusService] 广播 ${data.type} 到 ${sentCount} 个客户端`)
+      }
+    }
+    
     agentStatusService.startAutoRefresh()
     console.log('[AgentStatusService] Agent status service initialized')
   } catch (error) {

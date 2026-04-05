@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { NLayout, NLayoutContent, NSpin, NButton, NEmpty, useMessage } from 'naive-ui'
 import ChatSidebar from '@/components/ChatSidebar.vue'
@@ -12,7 +12,7 @@ import AgentActivitySidebar from '@/components/AgentActivitySidebar.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import { useAgentStore } from '@/stores/agent'
-import type { MultiAgentOrchestrationState } from '@/types/agent'
+import type { MultiAgentOrchestrationState, AgentTaskStep, AgentRuntimeState } from '@/types/agent'
 import { createInitialOrchestrationState } from '@/types/agent'
 
 const router = useRouter()
@@ -28,7 +28,7 @@ const initError = ref<string | null>(null)
 const sidebarCollapsed = ref(false)
 
 /**
- * Agent 协调状态（演示用）
+ * Agent 协调状态（从真实数据转换）
  */
 const orchestrationState = ref<MultiAgentOrchestrationState>(createInitialOrchestrationState())
 
@@ -47,6 +47,8 @@ const showAgentActivitySidebar = ref(false)
  */
 const agentStatusSnapshots = computed(() => agentStore.getAllAgentStatusSnapshots())
 const availableAgents = computed(() => agentStore.availableAgentTypes)
+const currentAgents = computed(() => agentStore.currentAgents)
+const agentTree = computed(() => agentStore.agentTree)
 
 /**
  * 获取当前活跃的 Agent 状态（用于显示）
@@ -85,122 +87,104 @@ const currentTeamMembers = computed(() => {
 })
 
 /**
- * 初始化 Agent 协调演示数据
+ * 将 agentStore 中的工作流步骤转换为 orchestrationState 格式
  */
-function initAgentOrchestrationDemo(): void {
+function convertToTaskSteps(): AgentTaskStep[] {
+  const steps: AgentTaskStep[] = []
   const now = new Date()
   
-  orchestrationState.value.taskSteps = [
-    {
-      id: 'step-1',
-      agentType: 'general-purpose' as any,
-      description: '分析任务需求，理解用户意图',
-      status: 'completed',
-      startTime: now,
-      completedTime: new Date(now.getTime() + 1500)
-    },
-    {
-      id: 'step-2',
-      agentType: 'Explore' as any,
-      description: '探索代码库结构，定位相关文件',
-      status: 'completed',
-      startTime: new Date(now.getTime() + 1500),
-      completedTime: new Date(now.getTime() + 2700)
-    },
-    {
-      id: 'step-3',
-      agentType: 'Explore' as any,
-      description: '读取关键文件，了解现有实现',
-      status: 'active',
-      startTime: new Date(now.getTime() + 2700)
-    },
-    {
-      id: 'step-4',
-      agentType: 'Plan' as any,
-      description: '制定实施方案，设计代码结构',
-      status: 'pending'
-    },
-    {
-      id: 'step-5',
-      agentType: 'general-purpose' as any,
-      description: '执行方案，完成代码修改',
-      status: 'pending'
-    }
-  ]
+  currentAgents.value.forEach(agent => {
+    agent.workflowSteps.forEach(workflowStep => {
+      let status: 'pending' | 'active' | 'completed' | 'failed' = 'pending'
+      if (workflowStep.status === 'COMPLETED') status = 'completed'
+      else if (workflowStep.status === 'FAILED') status = 'failed'
+      else if (workflowStep.status === 'RUNNING' || workflowStep.status === 'THINKING') status = 'active'
+      
+      steps.push({
+        id: workflowStep.id,
+        agentType: agent.agentType as any || 'general-purpose',
+        description: workflowStep.message,
+        status,
+        startTime: new Date(workflowStep.createdAt),
+        completedTime: workflowStep.completedAt ? new Date(workflowStep.completedAt) : undefined
+      })
+    })
+  })
   
-  // 初始化协调者
-  const generalAgentDef = {
-    agentType: 'general-purpose' as any,
-    name: '通用 Agent',
-    description: '处理各种复杂任务',
-    systemPrompt: '',
-    color: '#3b82f6',
-    icon: '🤖',
-    source: 'built-in' as any
-  }
-  
-  orchestrationState.value.orchestrator = {
-    agentId: 'agent_demo_orchestrator',
-    agentDefinition: generalAgentDef,
-    status: 'working' as any,
-    currentTask: '读取关键文件，了解现有实现',
-    completedTasks: 1,
-    totalTasks: 3,
-    startTime: now,
-    lastActivityTime: new Date(),
-    progress: 33
-  }
-  
-  // 初始化子 Agent
-  const exploreAgentDef = {
-    agentType: 'Explore' as any,
-    name: '探索 Agent',
-    description: '代码库探索和搜索',
-    systemPrompt: '',
-    color: '#10b981',
-    icon: '🔍',
-    isReadOnly: true,
-    source: 'built-in' as any
-  }
-  
-  const planAgentDef = {
-    agentType: 'Plan' as any,
-    name: '规划 Agent',
-    description: '任务规划和方案设计',
-    systemPrompt: '',
-    color: '#f59e0b',
-    icon: '📋',
-    isReadOnly: true,
-    source: 'built-in' as any
-  }
-  
-  orchestrationState.value.subAgents = [
-    {
-      agentId: 'agent_demo_explore',
-      agentDefinition: exploreAgentDef,
-      status: 'working' as any,
-      currentTask: '探索代码库结构',
-      completedTasks: 1,
-      totalTasks: 2,
-      startTime: now,
-      lastActivityTime: new Date(),
-      progress: 50
-    },
-    {
-      agentId: 'agent_demo_plan',
-      agentDefinition: planAgentDef,
-      status: 'idle' as any,
-      completedTasks: 0,
-      totalTasks: 1,
-      startTime: now,
-      lastActivityTime: now,
-      progress: 0
-    }
-  ]
-  
-  orchestrationState.value.overallStatus = 'executing' as any
-  orchestrationState.value.startTime = now
+  return steps.sort((a, b) => (a.startTime?.getTime() || 0) - (b.startTime?.getTime() || 0))
 }
+
+/**
+ * 将 agentStore 中的 agent 转换为 orchestrationState 格式
+ */
+function convertToAgentRuntimeStates(): { orchestrator?: AgentRuntimeState, subAgents: AgentRuntimeState[] } {
+  const subAgents: AgentRuntimeState[] = []
+  let orchestrator: AgentRuntimeState | undefined
+  
+  const builtInAgents = [
+    { agentType: 'general-purpose', name: '通用 Agent', description: '处理各种复杂任务', color: '#3b82f6', icon: '🤖', source: 'built-in' },
+    { agentType: 'Explore', name: '探索 Agent', description: '代码库探索和搜索', color: '#10b981', icon: '🔍', source: 'built-in' },
+    { agentType: 'Plan', name: '规划 Agent', description: '任务规划和方案设计', color: '#f59e0b', icon: '�', source: 'built-in' }
+  ]
+  
+  currentAgents.value.forEach((agent, index) => {
+    const agentDef = builtInAgents.find(a => a.agentType === agent.agentType) || builtInAgents[0]
+    
+    let status: 'idle' | 'thinking' | 'working' | 'completed' | 'failed' = 'idle'
+    if (agent.status === 'COMPLETED') status = 'completed'
+    else if (agent.status === 'FAILED') status = 'failed'
+    else if (agent.status === 'THINKING') status = 'thinking'
+    else if (agent.status === 'RUNNING' || agent.status === 'BLOCKED') status = 'working'
+    
+    const runtimeState: AgentRuntimeState = {
+      agentId: agent.agentId,
+      agentDefinition: agentDef as any,
+      status,
+      currentTask: agent.workflowSteps[agent.workflowSteps.length - 1]?.message || '',
+      progress: agent.workflowSteps.filter(s => s.status === 'COMPLETED').length / Math.max(agent.workflowSteps.length, 1) * 100,
+      completedTasks: agent.workflowSteps.filter(s => s.status === 'COMPLETED').length,
+      totalTasks: agent.workflowSteps.length,
+      startTime: new Date(agent.createdAt),
+      lastActivityTime: new Date(agent.updatedAt)
+    }
+    
+    if (index === 0 && !agent.parentAgentId) {
+      orchestrator = runtimeState
+    } else {
+      subAgents.push(runtimeState)
+    }
+  })
+  
+  return { orchestrator, subAgents }
+}
+
+/**
+ * 从 agentStore 更新 orchestrationState
+ */
+function updateOrchestrationStateFromStore(): void {
+  const { orchestrator, subAgents } = convertToAgentRuntimeStates()
+  const taskSteps = convertToTaskSteps()
+  
+  let overallStatus: 'planning' | 'executing' | 'completed' | 'failed' = 'planning'
+  if (taskSteps.some(s => s.status === 'active')) overallStatus = 'executing'
+  else if (taskSteps.length > 0 && taskSteps.every(s => s.status === 'completed')) overallStatus = 'completed'
+  else if (taskSteps.some(s => s.status === 'failed')) overallStatus = 'failed'
+  
+  orchestrationState.value = {
+    orchestrator,
+    subAgents,
+    taskSteps,
+    overallStatus,
+    startTime: taskSteps[0]?.startTime
+  }
+}
+
+/**
+ * 监听 agentStore 变化，更新 orchestrationState
+ */
+watch([() => agentStore.currentAgents, () => agentStore.agentTree], () => {
+  updateOrchestrationStateFromStore()
+}, { deep: true, immediate: true })
 
 onMounted(async () => {
   // 检查是否已登录
@@ -248,9 +232,6 @@ onMounted(async () => {
     nextTick(() => {
       inputRef.value?.focus()
     })
-    
-    // 初始化 Agent 协调演示数据
-    initAgentOrchestrationDemo()
     
     // 加载 Agent 类型列表
     await agentStore.loadAvailableAgentTypes()

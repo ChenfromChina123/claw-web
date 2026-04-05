@@ -974,6 +974,12 @@ export const useAgentStore = defineStore('agent', () => {
       }
     })
     
+    // 监听 Agent 状态更新事件
+    wsClient.on('agent_status_update', (data: unknown) => {
+      const payload = data as any
+      handleAgentStatusUpdate(payload)
+    })
+    
     console.log('[AgentStore] WebSocket listeners setup complete')
   }
 
