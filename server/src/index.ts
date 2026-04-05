@@ -29,22 +29,11 @@ import type { WebSocketMessage, RPCContext } from './integration/wsBridge'
 import type { ToolExecutionContext } from './integration/enhancedToolExecutor'
 import type { ConversationMessage, ToolCall, LoginRequest, RegisterRequest, ResetPasswordRequest } from './models/types'
 import { getBuiltInAgents, agentManager, initializeDemoOrchestration, executeAgent } from './agents'
-import { BackgroundTaskManager, TaskStatus, TaskPriority, type BackgroundTask } from './services/backgroundTaskManager'
+import { toolExecutor, EnhancedToolExecutor, backgroundTaskManager } from './integration/enhancedToolExecutor'
+import { TaskStatus, TaskPriority, type BackgroundTask } from './services/backgroundTaskManager'
 
 const PORT = parseInt(process.env.PORT || '3000', 10)
 const WS_PORT = parseInt(process.env.WS_PORT || '3001', 10)
-
-// ==================== Global Instances ====================
-
-/**
- * 全局后台任务管理器
- */
-const backgroundTaskManager = new BackgroundTaskManager({
-  maxConcurrentTasks: 5,
-  defaultPriority: TaskPriority.NORMAL,
-  taskTimeout: 300000, // 5 分钟
-  enablePersistence: false,
-})
 
 // ==================== Types ====================
 

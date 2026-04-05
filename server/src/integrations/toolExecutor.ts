@@ -25,11 +25,9 @@ import { BackgroundTaskManager, TaskPriority } from '../services/backgroundTaskM
 const execAsync = promisify(exec)
 
 /**
- * 全局后台任务管理器实例
- * 注意：这里创建的是一个新的实例，与 index.ts 中的实例独立
- * 如果需要共享状态，应该从 index.ts 传递过来
+ * 全局后台任务管理器实例（供 toolExecutor 使用）
  */
-const toolTaskManager = new BackgroundTaskManager({
+export const backgroundTaskManager = new BackgroundTaskManager({
   maxConcurrentTasks: 5,
   defaultPriority: TaskPriority.NORMAL,
   taskTimeout: 300000,
@@ -636,8 +634,8 @@ export class WebToolExecutor {
     const title = input.title as string
     const description = input.description as string
     
-    // 创建后台任务
-    const task = toolTaskManager.createTask({
+    // 创建后台任务（使用共享的 backgroundTaskManager 实例）
+    const task = backgroundTaskManager.createTask({
       name: title,
       description: description as string,
       priority: TaskPriority.NORMAL,
@@ -658,7 +656,7 @@ export class WebToolExecutor {
    * 列出任务
    */
   private async taskList(input: Record<string, unknown>): Promise<{ tasks: Array<{ id: string; title: string; status: string; taskId: string }> }> {
-    const allTasks = toolTaskManager.getAllTasks()
+    const allTasks = backgroundTaskManager.getAllTasks()
     
     return {
       tasks: allTasks.map(t => ({
