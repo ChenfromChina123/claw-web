@@ -113,9 +113,32 @@ export const useChatStore = defineStore('chat', () => {
 
     wsClient.on('session_renamed', (data: unknown) => {
       const msg = data as { sessionId?: string; title?: string }
+      console.log('[ChatStore] 收到 session_renamed 事件:', msg)
       if (!msg?.sessionId || msg.title === undefined) return
-      const s = sessions.value.find((x) => x.id === msg.sessionId)
-      if (s) s.title = msg.title
+      
+      // 使用替换数组的方式确保触发响应式更新
+      sessions.value = sessions.value.map(s => {
+        if (s.id === msg.sessionId) {
+          console.log('[ChatStore] 更新会话标题:', s.id, msg.title)
+          return { ...s, title: msg.title }
+        }
+        return s
+      })
+    })
+    
+    wsClient.on('session_title_updated', (data: unknown) => {
+      const msg = data as { sessionId?: string; title?: string }
+      console.log('[ChatStore] 收到 session_title_updated 事件:', msg)
+      if (!msg?.sessionId || msg.title === undefined) return
+      
+      // 使用替换数组的方式确保触发响应式更新
+      sessions.value = sessions.value.map(s => {
+        if (s.id === msg.sessionId) {
+          console.log('[ChatStore] 更新会话标题:', s.id, msg.title)
+          return { ...s, title: msg.title }
+        }
+        return s
+      })
     })
     
     wsClient.on('session_cleared', () => {

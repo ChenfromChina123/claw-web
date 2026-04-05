@@ -417,6 +417,16 @@ class EnhancedWebSocketClient {
           })
           break
         }
+        
+        case 'session_title_updated': {
+          const m = message as { sessionId?: string; title?: string }
+          console.log('[WS] Received session_title_updated:', m)
+          this.emitEvent('session_title_updated', {
+            sessionId: m.sessionId,
+            title: m.title,
+          })
+          break
+        }
 
         case 'error':
           console.error('[WS] Error from server:', (message as { message?: string }).message)
