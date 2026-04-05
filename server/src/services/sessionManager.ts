@@ -4,6 +4,7 @@ import { SessionRepository } from '../db/repositories/sessionRepository'
 import { MessageRepository } from '../db/repositories/messageRepository'
 import { ToolCallRepository } from '../db/repositories/toolCallRepository'
 import type { Session, Message, ConversationMessage, ToolCall } from '../models/types'
+import { generateSessionTitle, isFirstMessage } from './sessionTitleGenerator'
 
 export interface InMemorySession {
   session: Session
@@ -26,6 +27,16 @@ export class SessionManager {
   private toolCallRepo = new ToolCallRepository()
 
   private saveDebounceTimers: Map<string, NodeJS.Timeout> = new Map()
+  
+  /** 会话标题更新回调 */
+  private onSessionTitleUpdated: ((sessionId: string, title: string) => void) | null = null
+
+  /**
+   * 设置会话标题更新回调
+   */
+  setOnSessionTitleUpdated(callback: (sessionId: string, title: string) => void): void {
+    this.onSessionTitleUpdated = callback
+  }
 
   static getInstance(): SessionManager {
     if (!SessionManager.instance) {
@@ -225,7 +236,49 @@ export class SessionManager {
 
     this.scheduleSave(sessionId)
     
+    // 如果是用户的第一条消息，并行生成会话标题
+    if (role === 'user' && isFirstMessage(sessionData.messages.length - 1)) {
+      this.generateAndUpdateSessionTitle(sessionId, content)
+    }
+    
     return message
+  }
+
+  /**
+   * 基于用户第一条消息生成会话标题并更新
+   * @param sessionId 会话ID
+   * @param userContent 用户消息内容
+   */
+  private async generateAndUpdateSessionTitle(sessionId: string, userContent: string | any[]): Promise<void> {
+    try {
+      // 将内容转换为字符串
+      const contentString = typeof userContent === 'string' 
+        ? userContent 
+        : JSON.stringify(userContent)
+      
+      // 生成标题
+      const title = generateSessionTitle(contentString)
+      
+      // 只有当标题不是默认标题时才更新
+      const sessionData = this.sessions.get(sessionId)
+      if (sessionData && sessionData.session.title === '新对话' && title !== '新对话') {
+        console.log(`[SessionManager] Generating title for session ${sessionId}: "${title}"`)
+        
+        // 更新内存中的会话
+        sessionData.session.title = title
+        
+        // 异步更新数据库
+        await this.sessionRepo.updateTitle(sessionId, title)
+        
+        // 通知前端会话标题已更新
+        if (this.onSessionTitleUpdated) {
+          this.onSessionTitleUpdated(sessionId, title)
+        }
+      }
+    } catch (error) {
+      console.error(`[SessionManager] Failed to generate/update session title:`, error)
+      // 标题生成失败不影响主要功能，静默处理
+    }
   }
 
   /**

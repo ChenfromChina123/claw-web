@@ -804,6 +804,34 @@ async function startServer() {
     console.warn('[WorkflowEventService] Workflow events will not be pushed to frontend')
   }
 
+  // 设置会话标题更新回调（用于新对话第一个消息时生成并推送标题）
+  try {
+    console.log('\n[SessionTitle] Setting up session title update callback...')
+    sessionManager.setOnSessionTitleUpdated((sessionId: string, title: string) => {
+      const message = {
+        type: 'session_renamed',
+        sessionId,
+        title,
+      } as any
+      
+      // 广播到所有连接的客户端
+      let sentCount = 0
+      for (const [, connection] of wsManager.getAllConnections()) {
+        if (connection.isConnected()) {
+          connection.send(message)
+          sentCount++
+        }
+      }
+      
+      if (sentCount > 0) {
+        console.log(`[SessionTitle] 广播会话标题更新到 ${sentCount} 个客户端: sessionId=${sessionId}, title="${title}"`)
+      }
+    })
+    console.log('[SessionTitle] Session title update callback set up')
+  } catch (error) {
+    console.warn('[SessionTitle] Failed to set up session title update callback:', error)
+  }
+
   // Initialize WebSocket RPC methods
   initializeRPCMethods()
 
