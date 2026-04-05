@@ -1,17 +1,8 @@
 /**
- * Agent 系统核心类型定义
+ * Agent 核心类型定义
  * 
- * 定义 Agent 系统的基础类型、接口和常量
+ * 基于 Claude Code Agent 系统的完整类型定义
  */
-
-import type { ToolDefinition } from '../integration/enhancedToolExecutor'
-
-// ==================== 基础类型 ====================
-
-/**
- * Agent 唯一标识符
- */
-export type AgentId = string & { __brand: 'AgentId' }
 
 /**
  * Agent 类型枚举
@@ -26,299 +17,176 @@ export enum AgentType {
 }
 
 /**
- * 权限模式
+ * Agent 来源类型
  */
-export enum PermissionMode {
-  BYPASS_PERMISSIONS = 'bypassPermissions',
-  ACCEPT_EDITS = 'acceptEdits',
-  AUTO = 'auto',
-  PLAN = 'plan',
-  BUBBLE = 'bubble'
+export type AgentSource = 'built-in' | 'user' | 'plugin'
+
+/**
+ * Agent 颜色名称
+ */
+export type AgentColorName = 'blue' | 'green' | 'orange' | 'purple' | 'pink' | 'red' | 'cyan' | 'yellow'
+
+/**
+ * Agent 颜色映射
+ */
+export const AGENT_COLORS: Record<AgentColorName, string> = {
+  blue: '#3b82f6',
+  green: '#10b981',
+  orange: '#f59e0b',
+  purple: '#8b5cf6',
+  pink: '#ec4899',
+  red: '#ef4444',
+  cyan: '#06b6d4',
+  yellow: '#eab308'
 }
 
 /**
- * Agent 执行状态
+ * 基础 Agent 定义
  */
-export enum AgentStatus {
-  CREATED = 'created',
-  RUNNING = 'running',
-  COMPLETED = 'completed',
-  FAILED = 'failed',
-  BACKGROUND = 'backgrounded',
-  KILLED = 'killed'
-}
-
-// ==================== Agent 定义 ====================
-
-/**
- * Agent 定义接口
- */
-export interface AgentDefinition {
-  /** Agent 类型 */
-  agentType: AgentType
-  
-  /** Agent 名称 */
-  name: string
-  
-  /** Agent 描述 */
-  description: string
-  
-  /** 系统提示词 */
-  systemPrompt: string
-  
-  /** 模型配置 */
-  model?: string
-  
-  /** 工具白名单（'*' 表示所有工具） */
-  tools?: string[] | '*'
-  
-  /** 工具黑名单 */
+export interface BaseAgentDefinition {
+  agentType: string
+  whenToUse: string
+  tools?: string[]
   disallowedTools?: string[]
-  
-  /** 最大轮次 */
-  maxTurns?: number
-  
-  /** 是否后台运行 */
-  background?: boolean
-  
-  /** 权限模式 */
-  permissionMode?: PermissionMode
-  
-  /** MCP 服务器列表 */
-  mcpServers?: string[]
-  
-  /** Skills 列表 */
   skills?: string[]
-  
-  /** 内存配置 */
-  memory?: 'user' | 'project' | 'none'
-  
-  /** 隔离模式 */
+  mcpServers?: Array<string | Record<string, unknown>>
+  hooks?: unknown
+  color?: AgentColorName
+  model?: string
+  effort?: number | string
+  permissionMode?: string
+  maxTurns?: number
+  filename?: string
+  baseDir?: string
+  criticalSystemReminder_EXPERIMENTAL?: string
+  requiredMcpServers?: string[]
+  background?: boolean
+  initialPrompt?: string
+  memory?: 'user' | 'project' | 'local'
   isolation?: 'worktree' | 'remote'
-  
-  /** 颜色标识 */
-  color?: string
-  
-  /** 努力程度 */
-  effort?: 'low' | 'medium' | 'high'
-  
-  /** 是否省略 CLAUDE.md（节省 Token） */
   omitClaudeMd?: boolean
-  
-  /** Hooks 配置 */
-  hooks?: Record<string, unknown>
-  
-  /** 来源 */
-  source: 'built-in' | 'user' | 'plugin'
+  description?: string
+  icon?: string
+  isReadOnly?: boolean
 }
 
 /**
  * 内置 Agent 定义
  */
-export interface BuiltInAgentDefinition extends AgentDefinition {
+export interface BuiltInAgentDefinition extends BaseAgentDefinition {
   source: 'built-in'
+  baseDir: 'built-in'
+  callback?: () => void
+  getSystemPrompt: (params?: { toolUseContext?: unknown }) => string
 }
 
 /**
  * 自定义 Agent 定义
  */
-export interface CustomAgentDefinition extends AgentDefinition {
+export interface CustomAgentDefinition extends BaseAgentDefinition {
+  getSystemPrompt: () => string
   source: 'user' | 'plugin'
-  filePath?: string
+  filename?: string
+  baseDir?: string
 }
-
-// ==================== Agent 配置 ====================
 
 /**
- * Agent 运行时配置
+ * 所有 Agent 定义类型的联合
  */
-export interface AgentConfig {
-  /** 模型 */
-  model: string
-  
-  /** 最大 Token 数 */
-  maxTokens: number
-  
-  /** 温度参数 */
-  temperature: number
-  
-  /** 系统提示词覆盖 */
-  systemPrompt?: string
-  
-  /** 工具覆盖 */
-  tools?: string[]
-  
-  /** 最大轮次覆盖 */
-  maxTurns?: number
+export type AgentDefinition = BuiltInAgentDefinition | CustomAgentDefinition
+
+/**
+ * Agent 状态枚举
+ */
+export enum AgentStatus {
+  IDLE = 'idle',
+  WORKING = 'working',
+  COMPLETED = 'completed',
+  ERROR = 'error',
+  PAUSED = 'paused'
 }
 
-// ==================== Agent 执行上下文 ====================
+/**
+ * Agent 实例接口
+ */
+export interface AgentInstance {
+  agentId: string
+  agentDefinition: AgentDefinition
+  status: AgentStatus
+  currentTask?: string
+  completedTasks: number
+  totalTasks: number
+  startTime: Date
+  lastActivityTime: Date
+  progress: number
+  error?: string
+}
+
+/**
+ * 任务步骤状态
+ */
+export type TaskStepStatus = 'pending' | 'active' | 'completed' | 'error'
+
+/**
+ * 任务步骤接口
+ */
+export interface TaskStep {
+  id: string
+  agentType: string
+  description: string
+  status: TaskStepStatus
+  startTime?: Date
+  completedTime?: Date
+  error?: string
+}
+
+/**
+ * 多 Agent 协调状态
+ */
+export interface MultiAgentOrchestrationState {
+  orchestrator?: AgentInstance
+  subAgents: AgentInstance[]
+  taskSteps: TaskStep[]
+  overallStatus: 'idle' | 'executing' | 'completed' | 'error'
+  startTime?: Date
+  completionTime?: Date
+  error?: string
+}
 
 /**
  * Agent 执行上下文
  */
 export interface AgentExecutionContext {
-  /** Agent ID */
-  agentId: AgentId
-  
-  /** Agent 定义 */
-  agentDefinition: AgentDefinition
-  
-  /** 用户 ID */
-  userId: string
-  
-  /** 会话 ID */
+  agentId: string
   sessionId: string
-  
-  /** 工具执行器 */
-  toolExecutor: unknown
-  
-  /** 事件发送器 */
-  sendEvent: (event: string, data: unknown) => void
-  
-  /** 父 Agent ID（如果有） */
-  parentAgentId?: AgentId
-  
-  /** 是否为 Fork 模式 */
-  isFork?: boolean
-  
-  /** 权限模式 */
-  permissionMode: PermissionMode
+  task: string
+  prompt: string
+  tools: string[]
+  maxTurns?: number
 }
-
-// ==================== Agent 消息类型 ====================
-
-/**
- * Agent 消息类型
- */
-export interface AgentMessage {
-  /** 角色 */
-  role: 'user' | 'assistant' | 'system'
-  
-  /** 内容 */
-  content: string | Array<{
-    type: 'text' | 'tool_use' | 'tool_result'
-    text?: string
-    id?: string
-    name?: string
-    input?: Record<string, unknown>
-    output?: unknown
-  }>
-  
-  /** 工具调用（可选） */
-  toolCalls?: AgentToolCall[]
-  
-  /** 时间戳 */
-  timestamp?: Date
-}
-
-/**
- * Agent 工具调用
- */
-export interface AgentToolCall {
-  /** 工具调用 ID */
-  id: string
-  
-  /** 工具名称 */
-  name: string
-  
-  /** 工具输入 */
-  input: Record<string, unknown>
-  
-  /** 工具输出（执行后） */
-  output?: unknown
-  
-  /** 状态 */
-  status: 'pending' | 'executing' | 'completed' | 'error'
-  
-  /** 错误信息（如果有） */
-  error?: string
-  
-  /** 开始时间 */
-  startedAt?: Date
-  
-  /** 完成时间 */
-  completedAt?: Date
-}
-
-// ==================== Agent 执行结果 ====================
 
 /**
  * Agent 执行结果
  */
-export interface AgentResult {
-  /** Agent ID */
-  agentId: AgentId
-  
-  /** 状态 */
-  status: AgentStatus
-  
-  /** 消息 */
-  messages: AgentMessage[]
-  
-  /** 工具调用 */
-  toolCalls: AgentToolCall[]
-  
-  /** 结束原因 */
-  finishReason: 'stop' | 'tool_use' | 'max_tokens' | 'error' | 'max_turns'
-  
-  /** 总 Token 数 */
+export interface AgentExecutionResult {
+  agentId: string
+  status: 'completed' | 'error' | 'async_launched'
+  content: string
+  durationMs: number
   totalTokens?: number
-  
-  /** 总工具调用次数 */
-  totalToolUseCount?: number
-  
-  /** 总持续时间（毫秒） */
-  totalDurationMs?: number
-  
-  /** 错误信息（如果有） */
   error?: string
 }
 
-// ==================== 常量 ====================
-
 /**
- * Agent 工具名称
+ * 类型守卫：检查是否是内置 Agent
  */
-export const AGENT_TOOL_NAME = 'Agent'
-
-/**
- * 兼容旧名
- */
-export const LEGACY_AGENT_TOOL_NAME = 'Task'
-
-/**
- * 进度更新阈值（毫秒）
- */
-export const PROGRESS_THRESHOLD_MS = 2000
-
-/**
- * 默认最大轮次
- */
-export const DEFAULT_MAX_TURNS = 20
-
-/**
- * 只读 Agent 禁用的工具
- */
-export const READ_ONLY_DISALLOWED_TOOLS = [
-  'FileWrite',
-  'FileEdit',
-  'FileDelete',
-  'FileRename',
-  AGENT_TOOL_NAME,
-  'ExitPlanMode'
-]
-
-/**
- * 创建 Agent ID
- */
-export function createAgentId(): AgentId {
-  return `agent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` as AgentId
+export function isBuiltInAgent(agent: AgentDefinition): agent is BuiltInAgentDefinition {
+  return agent.source === 'built-in'
 }
 
 /**
- * 检查是否为有效的 Agent ID
+ * 类型守卫：检查是否是自定义 Agent
  */
-export function isAgentId(id: string): id is AgentId {
-  return id.startsWith('agent_')
+export function isCustomAgent(agent: AgentDefinition): agent is CustomAgentDefinition {
+  return agent.source !== 'built-in'
 }

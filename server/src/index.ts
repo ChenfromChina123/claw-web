@@ -28,6 +28,7 @@ import { appStateManager } from './integration/webStore'
 import type { WebSocketMessage, RPCContext } from './integration/wsBridge'
 import type { ToolExecutionContext } from './integration/enhancedToolExecutor'
 import type { ConversationMessage, ToolCall, LoginRequest, RegisterRequest, ResetPasswordRequest } from './models/types'
+import { getBuiltInAgents, agentManager, initializeDemoOrchestration, executeAgent } from './agents'
 
 const PORT = parseInt(process.env.PORT || '3000', 10)
 const WS_PORT = parseInt(process.env.WS_PORT || '3001', 10)
@@ -1163,6 +1164,108 @@ async function startServer() {
         }
       }
 
+      // ==================== Agents API ====================
+
+      // GET /api/agents - 获取所有可用 Agent 列表
+      if (path === '/api/agents' && method === 'GET') {
+        const agents = getBuiltInAgents()
+        return createSuccessResponse({
+          agents: agents.map(agent => ({
+            agentType: agent.agentType,
+            name: agent.agentType,
+            description: agent.description || agent.whenToUse,
+            whenToUse: agent.whenToUse,
+            icon: agent.icon,
+            color: agent.color,
+            isReadOnly: agent.isReadOnly,
+            model: agent.model,
+            source: agent.source
+          })),
+          count: agents.length
+        })
+      }
+
+      // GET /api/agents/:type - 获取特定 Agent 详情
+      if (path.startsWith('/api/agents/') && method === 'GET') {
+        const agentType = path.replace('/api/agents/', '')
+        const agents = getBuiltInAgents()
+        const agent = agents.find(a => a.agentType === agentType)
+        
+        if (!agent) {
+          return createErrorResponse('AGENT_NOT_FOUND', `Agent '${agentType}' not found`, 404)
+        }
+        
+        return createSuccessResponse({
+          agentType: agent.agentType,
+          name: agent.agentType,
+          description: agent.description || agent.whenToUse,
+          whenToUse: agent.whenToUse,
+          icon: agent.icon,
+          color: agent.color,
+          isReadOnly: agent.isReadOnly,
+          model: agent.model,
+          source: agent.source,
+          tools: agent.tools,
+          disallowedTools: agent.disallowedTools
+        })
+      }
+
+      // GET /api/agents/orchestration/state - 获取多 Agent 协调状态
+      if (path === '/api/agents/orchestration/state' && method === 'GET') {
+        const state = agentManager.getOrchestrationState()
+        return createSuccessResponse(state)
+      }
+
+      // POST /api/agents/orchestration/init - 初始化多 Agent 协调
+      if (path === '/api/agents/orchestration/init' && method === 'POST') {
+        try {
+          const body = await req.json() as {
+            orchestratorType?: string
+            subAgentTypes?: string[]
+          }
+          
+          let state
+          if (body.orchestratorType && body.subAgentTypes) {
+            agentManager.resetOrchestration()
+            agentManager.initializeOrchestration(
+              body.orchestratorType,
+              body.subAgentTypes
+            )
+            state = agentManager.getOrchestrationState()
+          } else {
+            state = initializeDemoOrchestration()
+          }
+          
+          return createSuccessResponse(state)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '初始化协调失败'
+          return createErrorResponse('ORCHESTRATION_INIT_FAILED', message, 500)
+        }
+      }
+
+      // POST /api/agents/execute - 执行 Agent 任务
+      if (path === '/api/agents/execute' && method === 'POST') {
+        try {
+          const body = await req.json() as {
+            agentId: string
+            sessionId: string
+            task: string
+            prompt: string
+            tools: string[]
+            maxTurns?: number
+          }
+          
+          const result = await executeAgent(body, (state) => {
+            // 可以在这里通过 WebSocket 发送状态更新
+          })
+          
+          return createSuccessResponse(result)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Agent 执行失败'
+          return createErrorResponse('AGENT_EXECUTE_FAILED', message, 500)
+        }
+      }
+
       // ==================== Models API ====================
 
       // GET /api/models - 获取可用模型列表
@@ -1800,6 +1903,53 @@ async function startServer() {
               }
               break
 
+            case 'agents_list' as any:
+              {
+                const agents = getBuiltInAgents()
+                sendEvent('agents_list', {
+                  agents: agents.map(agent => ({
+                    agentType: agent.agentType,
+                    name: agent.agentType,
+                    description: agent.description || agent.whenToUse,
+                    icon: agent.icon,
+                    color: agent.color,
+                    isReadOnly: agent.isReadOnly,
+                    source: agent.source
+                  }))
+                })
+              }
+              break
+
+            case 'agents_orchestration_state' as any:
+              {
+                const state = agentManager.getOrchestrationState()
+                sendEvent('agents_orchestration_state', state)
+              }
+              break
+
+            case 'agents_orchestration_init' as any:
+              {
+                try {
+                  const orchestratorType = message.orchestratorType as string
+                  const subAgentTypes = message.subAgentTypes as string[]
+                  
+                  let state
+                  if (orchestratorType && subAgentTypes) {
+                    agentManager.resetOrchestration()
+                    agentManager.initializeOrchestration(orchestratorType, subAgentTypes)
+                    state = agentManager.getOrchestrationState()
+                  } else {
+                    state = initializeDemoOrchestration()
+                  }
+                  
+                  sendEvent('agents_orchestration_state', state)
+                } catch (error) {
+                  const errorMessage = error instanceof Error ? error.message : '初始化协调失败'
+                  sendEvent('error', { message: errorMessage })
+                }
+              }
+              break
+
             default:
               sendEvent('error', { message: `Unknown message type: ${message.type}` })
           }
@@ -1875,6 +2025,12 @@ async function startServer() {
   console.log(`       GET    /api/monitoring/rules          - 获取告警规则`)
   console.log(`       POST   /api/monitoring/rules          - 添加告警规则`)
   console.log(`       POST   /api/monitoring/record         - 记录指标`)
+  console.log(`\n[API]  Agents Endpoints:`)
+  console.log(`       GET    /api/agents                    - 获取所有可用 Agent`)
+  console.log(`       GET    /api/agents/:type              - 获取特定 Agent 详情`)
+  console.log(`       GET    /api/agents/orchestration/state - 获取协调状态`)
+  console.log(`       POST   /api/agents/orchestration/init  - 初始化多 Agent 协调`)
+  console.log(`       POST   /api/agents/execute            - 执行 Agent 任务`)
   console.log(`\n[API]  Diagnostics Endpoints:`)
   console.log(`       GET    /api/diagnostics/health        - 健康检查`)
   console.log(`       GET    /api/diagnostics/components    - 获取组件详细信息`)
@@ -1883,6 +2039,7 @@ async function startServer() {
   console.log(`       user_message, delete_session, rename_session`)
   console.log(`       clear_session, get_tools, execute_command`)
   console.log(`       get_models, get_status, rpc_call`)
+  console.log(`       agents_list, agents_orchestration_state, agents_orchestration_init`)
   console.log(`\n[WS]   Tool RPC Methods:`)
   console.log(`       tool.list, tool.execute, tool.executeStreaming`)
   console.log(`       tool.history, tool.clearHistory, tool.validateInput`)

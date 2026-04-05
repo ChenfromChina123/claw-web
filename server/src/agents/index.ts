@@ -7,5 +7,8 @@
 // 导出类型
 export * from './types'
 
-// 导出内置 Agent
+// 导出自定义 Agent 定义
 export * from './builtInAgents'
+
+// 导出 Agent 引擎
+export * from './agentEngine'
