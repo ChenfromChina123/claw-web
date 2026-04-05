@@ -1154,7 +1154,7 @@ export class EnhancedToolExecutor {
 
     this.registerTool({
       name: 'TaskCreate',
-      description: 'Create a new task',
+      description: 'Create a new task - IMPORTANT: DO NOT use this to update existing tasks, use TaskUpdate instead',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1231,6 +1231,117 @@ export class EnhancedToolExecutor {
         return {
           success: true,
           result: { tasks, total: allTasks.length },
+        }
+      },
+    })
+
+    this.registerTool({
+      name: 'TaskGet',
+      description: 'Get a specific task by ID',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          taskId: { type: 'string', description: 'Task ID to retrieve' },
+        },
+        required: ['taskId'],
+      },
+      category: 'system',
+      handler: async (input) => {
+        const taskId = input.taskId as string
+        
+        if (!taskId) {
+          return { success: false, error: 'Task ID is required' }
+        }
+        
+        const task = backgroundTaskManager.getTask(taskId)
+        
+        if (!task) {
+          return { success: false, error: `Task not found: ${taskId}` }
+        }
+        
+        const taskResult = {
+          id: task.id,
+          title: task.name,
+          description: task.description,
+          status: task.status,
+          priority: 'normal',
+          createdAt: task.createdAt.getTime(),
+        }
+        
+        return {
+          success: true,
+          result: taskResult,
+        }
+      },
+    })
+
+    this.registerTool({
+      name: 'TaskUpdate',
+      description: 'Update a task (use this to change task status, mark as completed, etc.)',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          taskId: { type: 'string', description: 'Task ID to update' },
+          status: { 
+            type: 'string', 
+            enum: ['pending', 'in_progress', 'completed', 'failed', 'cancelled'], 
+            description: 'New task status' 
+          },
+          title: { type: 'string', description: 'New task title (optional)' },
+          description: { type: 'string', description: 'New task description (optional)' },
+        },
+        required: ['taskId'],
+      },
+      category: 'system',
+      handler: async (input) => {
+        const taskId = input.taskId as string
+        
+        if (!taskId) {
+          return { success: false, error: 'Task ID is required' }
+        }
+        
+        const task = backgroundTaskManager.getTask(taskId)
+        
+        if (!task) {
+          return { success: false, error: `Task not found: ${taskId}` }
+        }
+        
+        // 更新任务状态
+        if (input.status) {
+          const status = input.status as string
+          if (status === 'completed') {
+            backgroundTaskManager.completeTask(taskId)
+          } else if (status === 'failed') {
+            backgroundTaskManager.failTask(taskId, 'Updated via TaskUpdate')
+          } else if (status === 'in_progress') {
+            // 对于 in_progress，我们可以直接更新状态
+            ;(task as any).status = status
+          } else {
+            ;(task as any).status = status
+          }
+        }
+        
+        // 更新标题和描述
+        if (input.title) {
+          ;(task as any).name = input.title as string
+        }
+        if (input.description) {
+          ;(task as any).description = input.description as string
+        }
+        
+        const taskResult = {
+          id: task.id,
+          title: task.name,
+          description: task.description,
+          status: task.status,
+          priority: 'normal',
+          createdAt: task.createdAt.getTime(),
+          updatedAt: Date.now(),
+        }
+        
+        return {
+          success: true,
+          result: taskResult,
         }
       },
     })
