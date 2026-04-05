@@ -13,6 +13,12 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
+// 调试：检查环境变量是否被加载
+console.log('[Env] Checking environment variables...')
+console.log('[Env] ANTHROPIC_AUTH_TOKEN exists:', !!process.env.ANTHROPIC_AUTH_TOKEN)
+console.log('[Env] ANTHROPIC_AUTH_TOKEN length:', process.env.ANTHROPIC_AUTH_TOKEN?.length)
+console.log('[Env] ANTHROPIC_BASE_URL:', process.env.ANTHROPIC_BASE_URL)
+
 import Anthropic from '@anthropic-ai/sdk'
 import { v4 as uuidv4 } from 'uuid'
 import { initDatabase, closePool } from './db/mysql'
@@ -77,6 +83,11 @@ const AVAILABLE_MODELS = [
 // ==================== Anthropic Client Factory ====================
 
 function getAnthropicClient(): Anthropic {
+  console.log('[getAnthropicClient] Creating client...')
+  console.log('[getAnthropicClient] ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? 'exists' : 'not set')
+  console.log('[getAnthropicClient] ANTHROPIC_AUTH_TOKEN:', process.env.ANTHROPIC_AUTH_TOKEN ? 'exists' : 'not set')
+  console.log('[getAnthropicClient] ANTHROPIC_BASE_URL:', process.env.ANTHROPIC_BASE_URL)
+  
   return new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY ?? undefined,
     authToken: process.env.ANTHROPIC_AUTH_TOKEN ?? undefined,
