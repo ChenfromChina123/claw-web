@@ -26,6 +26,7 @@ const collapsed = ref(false)
 const visibleSessionCount = ref(10)
 const SESSIONS_PER_PAGE = 10
 const scrollbarRef = ref<InstanceType<typeof NScrollbar>>()
+let isLoadingMore = ref(false)
 let scrollContainer: HTMLElement | null = null
 
 // 监听折叠状态变化并通知父组件
@@ -40,35 +41,68 @@ const renameTarget = ref<Session | null>(null)
 const showDeleteModal = ref(false)
 const deleteTarget = ref<Session | null>(null)
 
-// 滚动到底部自动加载更多
+/**
+ * 处理滚动事件，检测是否滚动到底部
+ */
 function handleScroll() {
-  if (!scrollContainer) return
+  if (isLoadingMore.value || !scrollContainer) return
   
   const { scrollTop, scrollHeight, clientHeight } = scrollContainer
   const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100
   
+  console.log('[ChatSidebar] 滚动事件:', { scrollTop, scrollHeight, clientHeight, isNearBottom, hasMore: hasMoreSessions.value })
+  
   if (isNearBottom && hasMoreSessions.value) {
+    console.log('[ChatSidebar] 加载更多会话')
     loadMoreSessions()
   }
 }
 
-// 组件挂载后添加滚动监听
+/**
+ * 加载更多会话
+ */
+function loadMoreSessions() {
+  if (isLoadingMore.value) return
+  
+  isLoadingMore.value = true
+  visibleSessionCount.value += SESSIONS_PER_PAGE
+  
+  // 重置加载状态
+  setTimeout(() => {
+    isLoadingMore.value = false
+  }, 300)
+}
+
+/**
+ * 设置滚动容器监听
+ */
 onMounted(() => {
   nextTick(() => {
     if (scrollbarRef.value) {
-      const wrapper = scrollbarRef.value as any
-      scrollContainer = wrapper?.$el?.querySelector?.('.n-scrollbar-container') || 
-                      wrapper?.$el?.querySelector?.('.n-scrollbar-rail-container') ||
-                      wrapper?.$el
+      const scrollbar = scrollbarRef.value as any
+      
+      // 尝试获取滚动容器
+      if (scrollbar.containerRef) {
+        scrollContainer = scrollbar.containerRef
+      } else if (scrollbar.$el) {
+        scrollContainer = scrollbar.$el.querySelector('.n-scrollbar-container') || 
+                         scrollbar.$el.querySelector('.n-scrollbar-rail-container') ||
+                         scrollbar.$el
+      }
       
       if (scrollContainer) {
+        console.log('[ChatSidebar] 滚动容器已找到:', scrollContainer)
         scrollContainer.addEventListener('scroll', handleScroll)
+      } else {
+        console.warn('[ChatSidebar] 未找到滚动容器')
       }
     }
   })
 })
 
-// 组件卸载时移除滚动监听
+/**
+ * 清理滚动监听
+ */
 onUnmounted(() => {
   if (scrollContainer) {
     scrollContainer.removeEventListener('scroll', handleScroll)
@@ -90,10 +124,6 @@ const visibleSessions = computed(() => {
 const hasMoreSessions = computed(() => {
   return filteredSessions.value.length > visibleSessionCount.value
 })
-
-function loadMoreSessions() {
-  visibleSessionCount.value += SESSIONS_PER_PAGE
-}
 
 watch(showRenameModal, (open) => {
   if (!open) {
@@ -254,6 +284,12 @@ function formatTime(date: Date | string) {
                   ⋮
                 </NButton>
               </NDropdown>
+            </div>
+
+            <!-- 加载更多提示 -->
+            <div v-if="hasMoreSessions" class="load-more-trigger">
+              <NSpin size="small" v-if="isLoadingMore" />
+              <span>{{ isLoadingMore ? '加载中...' : '滚动加载更多' }}</span>
             </div>
 
             <div v-if="filteredSessions.length === 0" class="empty-state">
@@ -505,6 +541,17 @@ function formatTime(date: Date | string) {
 
 .empty-state p {
   margin-bottom: 16px;
+}
+
+.load-more-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  min-height: 40px;
 }
 
 .sidebar-footer {
