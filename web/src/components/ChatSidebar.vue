@@ -44,10 +44,26 @@ const deleteTarget = ref<Session | null>(null)
 /**
  * 处理滚动事件，检测是否滚动到底部
  */
-function handleScroll() {
-  if (isLoadingMore.value || !scrollContainer) return
+function handleScroll(event?: Event) {
+  if (isLoadingMore.value) return
   
-  const { scrollTop, scrollHeight, clientHeight } = scrollContainer
+  let scrollTop: number, scrollHeight: number, clientHeight: number
+  
+  if (event && event.target) {
+    // 来自 @scroll 事件
+    const target = event.target as HTMLElement
+    scrollTop = target.scrollTop
+    scrollHeight = target.scrollHeight
+    clientHeight = target.clientHeight
+  } else if (scrollContainer) {
+    // 来自 addEventListener
+    scrollTop = scrollContainer.scrollTop
+    scrollHeight = scrollContainer.scrollHeight
+    clientHeight = scrollContainer.clientHeight
+  } else {
+    return
+  }
+  
   const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100
   
   console.log('[ChatSidebar] 滚动事件:', { scrollTop, scrollHeight, clientHeight, isNearBottom, hasMore: hasMoreSessions.value })
@@ -81,20 +97,28 @@ onMounted(() => {
     if (scrollbarRef.value) {
       const scrollbar = scrollbarRef.value as any
       
+      console.log('[ChatSidebar] scrollbar 实例:', scrollbar)
+      
       // 尝试获取滚动容器
       if (scrollbar.containerRef) {
         scrollContainer = scrollbar.containerRef
-      } else if (scrollbar.$el) {
+        console.log('[ChatSidebar] 使用 containerRef')
+      } else if (scrollbar.$el && typeof scrollbar.$el.querySelector === 'function') {
         scrollContainer = scrollbar.$el.querySelector('.n-scrollbar-container') || 
                          scrollbar.$el.querySelector('.n-scrollbar-rail-container') ||
                          scrollbar.$el
+        console.log('[ChatSidebar] 使用 $el 查询')
+      } else {
+        console.warn('[ChatSidebar] 无法获取滚动容器，尝试其他方法')
+        // 如果 $el 不存在或没有 querySelector，直接使用 scrollbar 实例
+        scrollContainer = scrollbar
       }
       
-      if (scrollContainer) {
+      if (scrollContainer && typeof scrollContainer.addEventListener === 'function') {
         console.log('[ChatSidebar] 滚动容器已找到:', scrollContainer)
         scrollContainer.addEventListener('scroll', handleScroll)
       } else {
-        console.warn('[ChatSidebar] 未找到滚动容器')
+        console.warn('[ChatSidebar] 未找到有效的滚动容器，尝试使用 NScrollbar 的 scroll 事件')
       }
     }
   })
@@ -252,6 +276,7 @@ function formatTime(date: Date | string) {
         <NScrollbar 
           ref="scrollbarRef"
           class="sidebar-list"
+          @scroll="handleScroll"
         >
           <div class="session-list">
             <div
