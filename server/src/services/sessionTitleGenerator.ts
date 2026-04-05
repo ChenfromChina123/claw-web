@@ -43,6 +43,12 @@ function generateSimpleTitle(userMessage: string): string {
   
   cleanedText = cleanedText.trim()
   
+  // 如果移除前缀后为空，就用原始消息（至少保留问候语）
+  if (!cleanedText) {
+    cleanedText = userMessage.trim()
+  }
+  
+  // 如果还是空（不应该发生），才返回默认标题
   if (!cleanedText) {
     return '新对话'
   }

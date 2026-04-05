@@ -4,7 +4,7 @@ import { SessionRepository } from '../db/repositories/sessionRepository'
 import { MessageRepository } from '../db/repositories/messageRepository'
 import { ToolCallRepository } from '../db/repositories/toolCallRepository'
 import type { Session, Message, ConversationMessage, ToolCall } from '../models/types'
-import { generateSessionTitleWithLLM, isFirstMessage } from './sessionTitleGenerator'
+import { generateSessionTitleWithLLM, isFirstMessage, generateSimpleTitle } from './sessionTitleGenerator'
 
 export interface InMemorySession {
   session: Session
@@ -277,29 +277,32 @@ export class SessionManager {
       
       // 使用 LLM 生成标题
       console.log(`[SessionManager] Calling LLM to generate title...`)
-      const title = await generateSessionTitleWithLLM(contentString)
+      let title = await generateSessionTitleWithLLM(contentString)
       console.log(`[SessionManager] LLM generated title: "${title}"`)
       
-      // 只有当标题不是默认标题时才更新
-      if (title !== '新对话') {
-        console.log(`[SessionManager] Updating title for session ${sessionId}: "${title}"`)
-        
-        // 更新内存中的会话
-        sessionData.session.title = title
-        
-        // 异步更新数据库
-        await this.sessionRepo.updateTitle(sessionId, title)
-        console.log(`[SessionManager] Title saved to database`)
-        
-        // 通知前端会话标题已更新
-        if (this.onSessionTitleUpdated) {
-          console.log(`[SessionManager] Calling onSessionTitleUpdated callback`)
-          this.onSessionTitleUpdated(sessionId, title)
-        } else {
-          console.log(`[SessionManager] onSessionTitleUpdated callback is not set`)
-        }
+      // 如果 LLM 返回了默认标题，强制使用简单规则重新生成
+      if (title === '新对话') {
+        console.log(`[SessionManager] LLM returned default title, falling back to simple rule`)
+        title = generateSimpleTitle(contentString)
+        console.log(`[SessionManager] Simple rule generated title: "${title}"`)
+      }
+      
+      // 强制更新标题，只要是第一个消息！
+      console.log(`[SessionManager] Updating title for session ${sessionId}: "${title}"`)
+      
+      // 更新内存中的会话
+      sessionData.session.title = title
+      
+      // 异步更新数据库
+      await this.sessionRepo.updateTitle(sessionId, title)
+      console.log(`[SessionManager] Title saved to database`)
+      
+      // 通知前端会话标题已更新
+      if (this.onSessionTitleUpdated) {
+        console.log(`[SessionManager] Calling onSessionTitleUpdated callback`)
+        this.onSessionTitleUpdated(sessionId, title)
       } else {
-        console.log(`[SessionManager] Skipping title update: generated title is default`)
+        console.log(`[SessionManager] onSessionTitleUpdated callback is not set`)
       }
     } catch (error) {
       console.error(`[SessionManager] Failed to generate/update session title:`, error)
