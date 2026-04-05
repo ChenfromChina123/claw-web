@@ -4,7 +4,7 @@ import { SessionRepository } from '../db/repositories/sessionRepository'
 import { MessageRepository } from '../db/repositories/messageRepository'
 import { ToolCallRepository } from '../db/repositories/toolCallRepository'
 import type { Session, Message, ConversationMessage, ToolCall } from '../models/types'
-import { generateSessionTitle, isFirstMessage } from './sessionTitleGenerator'
+import { generateSessionTitleWithLLM, isFirstMessage } from './sessionTitleGenerator'
 
 export interface InMemorySession {
   session: Session
@@ -266,15 +266,22 @@ export class SessionManager {
       
       console.log(`[SessionManager] Content string: "${contentString.substring(0, 50)}..."`)
       
-      // 生成标题
-      const title = generateSessionTitle(contentString)
-      console.log(`[SessionManager] Generated title: "${title}"`)
-      
-      // 只有当标题不是默认标题时才更新
+      // 检查当前会话状态
       const sessionData = this.sessions.get(sessionId)
       console.log(`[SessionManager] sessionData exists: ${!!sessionData}, current title: "${sessionData?.session?.title}"`)
       
-      if (sessionData && sessionData.session.title === '新对话' && title !== '新对话') {
+      if (!sessionData || sessionData.session.title !== '新对话') {
+        console.log(`[SessionManager] Skipping title update: session not found or title already set`)
+        return
+      }
+      
+      // 使用 LLM 生成标题
+      console.log(`[SessionManager] Calling LLM to generate title...`)
+      const title = await generateSessionTitleWithLLM(contentString)
+      console.log(`[SessionManager] LLM generated title: "${title}"`)
+      
+      // 只有当标题不是默认标题时才更新
+      if (title !== '新对话') {
         console.log(`[SessionManager] Updating title for session ${sessionId}: "${title}"`)
         
         // 更新内存中的会话
@@ -292,7 +299,7 @@ export class SessionManager {
           console.log(`[SessionManager] onSessionTitleUpdated callback is not set`)
         }
       } else {
-        console.log(`[SessionManager] Skipping title update: conditions not met`)
+        console.log(`[SessionManager] Skipping title update: generated title is default`)
       }
     } catch (error) {
       console.error(`[SessionManager] Failed to generate/update session title:`, error)

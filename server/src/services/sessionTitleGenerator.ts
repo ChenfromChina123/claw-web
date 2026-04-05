@@ -1,15 +1,111 @@
 /**
  * 会话标题生成服务
  * 
- * 基于用户第一个问题智能生成会话标题
+ * 基于用户第一个问题使用 LLM 智能生成会话标题
  */
 
+import Anthropic from '@anthropic-ai/sdk'
+
+// 简单的内存缓存，避免重复生成标题
+const titleCache = new Map<string, string>()
+
 /**
- * 生成会话标题
+ * 获取 Anthropic 客户端
+ */
+function getAnthropicClient(): Anthropic {
+  return new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY ?? undefined,
+    authToken: process.env.ANTHROPIC_AUTH_TOKEN ?? undefined,
+    baseURL: process.env.ANTHROPIC_BASE_URL || undefined,
+  })
+}
+
+/**
+ * 使用 LLM 生成会话标题
  * @param userMessage 用户的第一个消息
  * @returns 生成的会话标题
  */
-export function generateSessionTitle(userMessage: string): string {
+export async function generateSessionTitleWithLLM(userMessage: string): Promise<string> {
+  // 检查缓存
+  const cacheKey = userMessage.slice(0, 100)
+  if (titleCache.has(cacheKey)) {
+    return titleCache.get(cacheKey)!
+  }
+
+  // 如果消息很短（少于10个字符），直接返回清理后的版本
+  if (userMessage.trim().length < 10) {
+    const simpleTitle = generateSimpleTitle(userMessage)
+    titleCache.set(cacheKey, simpleTitle)
+    return simpleTitle
+  }
+
+  try {
+    const client = getAnthropicClient()
+    
+    const response = await client.messages.create({
+      model: 'claude-3-haiku-20240307', // 使用轻量级模型，速度快且便宜
+      max_tokens: 50,
+      temperature: 0.3,
+      system: `你是一个会话标题生成专家。请基于用户的第一条消息生成一个简洁、准确的会话标题。
+
+规则：
+1. 标题长度控制在 15-30 个字符之间
+2. 去除常见的礼貌用语（请、你好、帮我等）
+3. 保留核心意图和关键词
+4. 如果是代码相关问题，保留技术关键词
+5. 如果是问题，保留疑问词
+6. 如果是需求，保留动作词
+7. 不要包含引号
+8. 直接返回标题，不要解释
+
+示例：
+输入: "你好，请帮我写一个Python脚本来处理Excel文件"
+输出: Python处理Excel脚本
+
+输入: "怎么修复Vue组件中的props类型错误？"
+输出: Vue组件props类型错误修复
+
+输入: "创建一个登录页面的功能"
+输出: 创建登录页面功能`,
+      messages: [
+        {
+          role: 'user',
+          content: `请为以下用户消息生成一个简洁的会话标题（15-30字符）：\n\n${userMessage}`
+        }
+      ]
+    })
+
+    const title = response.content
+      .filter(block => block.type === 'text')
+      .map(block => (block as any).text)
+      .join('')
+      .trim()
+      .replace(/^["']|["']$/g, '') // 移除首尾引号
+
+    // 如果 LLM 返回空或太长，使用简单版本
+    if (!title || title.length > 50) {
+      const simpleTitle = generateSimpleTitle(userMessage)
+      titleCache.set(cacheKey, simpleTitle)
+      return simpleTitle
+    }
+
+    titleCache.set(cacheKey, title)
+    return title
+  } catch (error) {
+    console.error('[SessionTitleGenerator] LLM title generation failed:', error)
+    // LLM 失败时使用简单版本
+    const simpleTitle = generateSimpleTitle(userMessage)
+    titleCache.set(cacheKey, simpleTitle)
+    return simpleTitle
+  }
+}
+
+/**
+ * 简单的标题生成（作为 LLM 的降级方案）
+ * @param userMessage 用户的第一个消息
+ * @returns 生成的会话标题
+ */
+export function generateSimpleTitle(userMessage: string): string {
   // 清理输入文本
   let cleanedText = userMessage.trim()
   
@@ -46,8 +142,8 @@ export function generateSessionTitle(userMessage: string): string {
   // 3. 提取关键词或短句
   let title = cleanedText
   
-  // 如果文本很长，截取前50个字符
-  const maxLength = 50
+  // 如果文本很长，截取前30个字符
+  const maxLength = 30
   if (title.length > maxLength) {
     // 尝试在句子或单词边界处截断
     const truncated = title.substring(0, maxLength)
@@ -65,54 +161,17 @@ export function generateSessionTitle(userMessage: string): string {
     
     const cutIndex = Math.max(lastSpace, lastPunctuation)
     if (cutIndex > 10) {
-      title = truncated.substring(0, cutIndex) + '...'
+      title = truncated.substring(0, cutIndex)
     } else {
-      title = truncated + '...'
+      title = truncated
     }
   }
   
-  // 4. 根据内容类型添加合适的前缀
-  const lowerTitle = title.toLowerCase()
-  
-  // 检查是否是代码相关
-  if (lowerTitle.includes('代码') || 
-      lowerTitle.includes('编程') || 
-      lowerTitle.includes('bug') || 
-      lowerTitle.includes('error') ||
-      lowerTitle.includes('function') ||
-      lowerTitle.includes('class') ||
-      lowerTitle.includes('javascript') ||
-      lowerTitle.includes('python') ||
-      lowerTitle.includes('typescript') ||
-      lowerTitle.includes('vue') ||
-      lowerTitle.includes('react') ||
-      /^[a-zA-Z_$][a-zA-Z0-9_$]*\s*\(/.test(title) || // 函数调用
-      /^import\s/.test(title) || // import 语句
-      /^const\s|^let\s|^var\s/.test(title)) { // 变量声明
-    return title
-  }
-  
-  // 检查是否是问题
-  if (title.includes('？') || 
-      title.includes('?') || 
-      lowerTitle.startsWith('什么') || 
-      lowerTitle.startsWith('怎么') || 
-      lowerTitle.startsWith('如何') ||
-      lowerTitle.startsWith('为什么')) {
-    return title
-  }
-  
-  // 检查是否是需求
-  if (lowerTitle.startsWith('帮我写') || 
-      lowerTitle.startsWith('创建') || 
-      lowerTitle.startsWith('实现') ||
-      lowerTitle.startsWith('开发')) {
-    return title
-  }
-  
-  // 默认返回清理后的标题
   return title
 }
+
+// 为了保持向后兼容，保留原来的函数名
+export { generateSimpleTitle as generateSessionTitle }
 
 /**
  * 判断是否是会话的第一个消息
