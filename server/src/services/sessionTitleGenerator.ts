@@ -154,6 +154,7 @@ export async function generateSessionTitleWithLLM(userMessage: string): Promise<
 
 // 为了保持向后兼容，保留原来的函数名
 export { generateSimpleTitle as generateSessionTitle }
+export { generateSimpleTitle }
 
 /**
  * 判断是否是会话的第一个消息
