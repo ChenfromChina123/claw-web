@@ -99,27 +99,27 @@ class ApiClient {
     return new Error('未知错误')
   }
 
-  get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     this.retryCount = 0
     return this.instance.get(url, config)
   }
 
-  post<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  post<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     this.retryCount = 0
     return this.instance.post(url, data, config)
   }
 
-  put<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  put<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     this.retryCount = 0
     return this.instance.put(url, data, config)
   }
 
-  delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     this.retryCount = 0
     return this.instance.delete(url, config)
   }
 
-  patch<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  patch<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     this.retryCount = 0
     return this.instance.patch(url, data, config)
   }
