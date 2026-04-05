@@ -3,19 +3,23 @@ import { getPool } from '../mysql'
 import type { ToolCall } from '../../models/types'
 
 export class ToolCallRepository {
-  async create(
+  /**
+   * 创建工具调用（使用指定ID）
+   */
+  async createWithId(
+    id: string,
     messageId: string,
     sessionId: string,
     toolName: string,
     toolInput: Record<string, unknown>,
-    status: 'pending' | 'executing' | 'completed' | 'error' = 'pending'
+    status: 'pending' | 'executing' | 'completed' | 'error' = 'pending',
+    toolOutput?: Record<string, unknown>
   ): Promise<ToolCall> {
     const pool = getPool()
-    const id = uuidv4()
 
     await pool.query(
-      'INSERT INTO tool_calls (id, message_id, session_id, tool_name, tool_input, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, messageId, sessionId, toolName, JSON.stringify(toolInput), status]
+      'INSERT INTO tool_calls (id, message_id, session_id, tool_name, tool_input, status, tool_output) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, messageId, sessionId, toolName, JSON.stringify(toolInput), status, toolOutput ? JSON.stringify(toolOutput) : null]
     )
 
     const [rows] = await pool.query(
@@ -24,6 +28,17 @@ export class ToolCallRepository {
     ) as [ToolCall[], unknown]
 
     return this.mapToToolCall(rows[0])
+  }
+
+  async create(
+    messageId: string,
+    sessionId: string,
+    toolName: string,
+    toolInput: Record<string, unknown>,
+    status: 'pending' | 'executing' | 'completed' | 'error' = 'pending'
+  ): Promise<ToolCall> {
+    const id = uuidv4()
+    return this.createWithId(id, messageId, sessionId, toolName, toolInput, status)
   }
 
   async findByMessageId(messageId: string): Promise<ToolCall[]> {

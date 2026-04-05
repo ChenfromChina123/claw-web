@@ -234,6 +234,7 @@ class SessionConversationManager {
           await this.executeToolCalls(
             sessionId, 
             streamResult.toolCalls, 
+            assistantMessageId,
             sessionManager, 
             sendEvent
           )
@@ -418,6 +419,7 @@ class SessionConversationManager {
   private async executeToolCalls(
     sessionId: string,
     toolCalls: Array<{id: string; name: string; input: any}>,
+    messageId: string,
     sessionManager: SessionManager,
     sendEvent: (event: string, data: unknown) => void
   ): Promise<void> {
@@ -435,7 +437,7 @@ class SessionConversationManager {
       const startTime = Date.now()
       const toolCall: ToolCall = {
         id: tool.id,
-        messageId: '',
+        messageId: messageId,
         sessionId,
         toolName: tool.name,
         toolInput: tool.input,

@@ -45,9 +45,19 @@ function scrollToBottom() {
 
 // 格式化工具输出
 function formatToolOutput(output: unknown): string {
-  if (!output) return ''
-  if (typeof output === 'string') return output
-  return JSON.stringify(output, null, 2)
+  if (output === null || output === undefined) return '无结果'
+  if (typeof output === 'string') {
+    try {
+      const parsed = JSON.parse(output)
+      return JSON.stringify(parsed, null, 2)
+    } catch {
+      return output
+    }
+  }
+  if (typeof output === 'object') {
+    return JSON.stringify(output, null, 2)
+  }
+  return String(output)
 }
 
 // 获取当前正在进行的工具调用
@@ -216,19 +226,101 @@ function getErrorInfo(toolCall: ToolCall): { type: string; message: string; sugg
 
 /**
  * 返回属于指定助手消息的工具调用列表
- * - 优先按 messageId 精确匹配
- * - 兜底：若全列表 messageId 为空，则仅归属给最后一条助手消息（兼容历史会话）
+ * - 只按 messageId 精确匹配
+ * - 数据一致性由后端保证
  */
 function toolsForMessage(messageId: string): ToolCall[] {
-  const match = props.toolCalls.filter(t => t.messageId === messageId)
-  if (match.length > 0) return match
+  return props.toolCalls.filter(t => t.messageId === messageId)
+}
 
-  // 兜底：全为空时，仅最后一条助手可见
-  const allEmpty = props.toolCalls.every(t => !t.messageId)
-  if (!allEmpty) return []
-  const lastAssistant = props.messages.filter(m => m.role === 'assistant').at(-1)
-  if (lastAssistant?.id === messageId) return [...props.toolCalls]
-  return []
+/**
+ * 从消息内容中提取纯文本（处理多种格式）
+ */
+function getMessageText(content: any): string {
+  // 情况1：null 或 undefined
+  if (!content) {
+    return ''
+  }
+  
+  // 情况2：已经是字符串
+  if (typeof content === 'string') {
+    return content
+  }
+  
+  // 情况3：数组格式（Anthropic 格式）
+  if (Array.isArray(content)) {
+    // 先提取 text 类型的内容
+    const textBlocks = content
+      .filter((block: any) => block && block.type === 'text')
+      .map((block: any) => block.text || '')
+      .filter((text: string) => text.length > 0)
+    
+    if (textBlocks.length > 0) {
+      return textBlocks.join('\n')
+    }
+    
+    // 如果没有 text 块，检查是否有 tool_result 块
+    const hasToolResult = content.some((block: any) => block && block.type === 'tool_result')
+    if (hasToolResult) {
+      // 工具结果消息，返回空（不显示给用户）
+      return ''
+    }
+    
+    return ''
+  }
+  
+  // 情况4：对象格式（可能有 text 属性）
+  if (typeof content === 'object') {
+    // 如果有 text 属性
+    if (content.text && typeof content.text === 'string') {
+      return content.text
+    }
+    // 如果有 content 属性（嵌套结构）
+    if (content.content) {
+      return getMessageText(content.content)
+    }
+    // 兜底：转换为 JSON 字符串显示
+    try {
+      const jsonStr = JSON.stringify(content, null, 2)
+      console.warn('[ChatMessageList] Content is object without text property:', jsonStr.substring(0, 200))
+      return jsonStr
+    } catch (e) {
+      return '[无法显示的内容]'
+    }
+  }
+  
+  // 情况5：其他类型（数字、布尔等）
+  return String(content)
+}
+
+/**
+ * 判断消息是否应该显示
+ * - 过滤掉 tool_result 类型的用户消息（内部消息，不显示给用户）
+ * - 过滤掉没有内容且没有工具调用的空助手消息
+ */
+function shouldShowMessage(message: any): boolean {
+  const content = (message as any).content
+  
+  // 用户消息：检查是否是 tool_result 格式（内部消息）
+  if (message.role === 'user') {
+    if (Array.isArray(content)) {
+      const hasToolResult = content.some((block: any) => block && block.type === 'tool_result')
+      if (hasToolResult) {
+        return false  // 隐藏工具结果消息
+      }
+    }
+    // 显示有内容的用户消息
+    return getMessageText(content).length > 0
+  }
+  
+  // 助手消息：只要有内容或有关联的工具调用就显示
+  if (message.role === 'assistant') {
+    const hasContent = getMessageText(content).length > 0
+    const hasTools = toolsForMessage(message.id).length > 0
+    return hasContent || hasTools
+  }
+  
+  return true
 }
 </script>
 
@@ -264,111 +356,91 @@ function toolsForMessage(messageId: string): ToolCall[] {
           </div>
           
           <!-- 消息列表 -->
-          <div v-for="(message, index) in messages" :key="message.id || index" class="message-wrapper">
-            <!-- 用户消息 -->
+          <div v-for="(message, index) in messages.filter(shouldShowMessage)" :key="message.id || index" class="message-wrapper">
+            <!-- 用户消息 - 右边 -->
             <div v-if="message.role === 'user'" class="message user-message">
-              <div class="message-avatar">👤</div>
               <div class="message-content">
-                <div class="message-text">{{ (message as any).content }}</div>
+                <div class="message-bubble user-bubble">
+                  <div class="message-text">{{ getMessageText((message as any).content) }}</div>
+                </div>
+                <div class="message-avatar user-avatar">👤</div>
               </div>
             </div>
             
-            <!-- 助手消息 + 归属的工具调用（仅助手消息下展示，user 消息下不再重复） -->
+            <!-- 助手消息 - 左边 -->
             <template v-else-if="message.role === 'assistant'">
               <div class="message assistant-message">
-                <div class="message-avatar">🤖</div>
                 <div class="message-content">
-                  <div class="message-text" v-html="(message as any).content.replace(/\n/g, '<br>')"></div>
-                </div>
-              </div>
-              
-              <!-- 工具调用 - 步骤化增强版 -->
-              <div v-if="toolsForMessage(message.id).length > 0 && useEnhancedToolDisplay" class="tool-sequence-container">
-                <div class="tool-section-header">
-                  <span class="section-icon">🔧</span>
-                  <span class="section-title">工具调用 ({{ toolsForMessage(message.id).length }})</span>
-                </div>
-                
-                <!-- 引导线 -->
-                <div class="sequence-line"></div>
-                
-                <!-- 工具步骤列表 -->
-                <div 
-                  v-for="(toolCall, idx) in toolsForMessage(message.id)" 
-                  :key="toolCall.id"
-                  class="tool-step-item"
-                  :class="[toolCall.status, { 'is-active': activeStep === toolCall.id }]"
-                >
-                  <!-- 步骤序号徽章 -->
-                  <div class="step-badge">{{ idx + 1 }}</div>
-                  
-                  <!-- 步骤卡片 -->
-                  <div class="step-card">
-                    <!-- 步骤头部 -->
-                    <div class="step-header" @click="handleStepClick(toolCall.id)">
-                      <div class="step-header-left">
-                        <span class="step-tool-icon">{{ getToolIcon(toolCall.toolName) }}</span>
-                        <span class="step-tool-name">{{ toolCall.toolName }}</span>
-                      </div>
-                      <div class="step-header-right">
-                        <NTooltip>
-                          <template #trigger>
-                            <NTag size="small" :type="getStatusType(toolCall.status) as any">
-                              {{ toolCall.status === 'pending' ? '等待中' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
-                            </NTag>
-                          </template>
-                          {{ toolCall.status }}
-                        </NTooltip>
+                  <div class="message-avatar assistant-avatar">🤖</div>
+                  <div class="message-bubble assistant-bubble">
+                    <div class="message-text" v-html="getMessageText((message as any).content).replace(/\n/g, '<br>')"></div>
+                    
+                    <!-- 工具调用 - 步骤化增强版（内嵌在助手消息内） -->
+                    <div v-if="toolsForMessage(message.id).length > 0 && useEnhancedToolDisplay" class="inline-tool-sequence-container">
+                      <div 
+                        v-for="(toolCall, idx) in toolsForMessage(message.id)" 
+                        :key="toolCall.id"
+                        class="inline-tool-step-item"
+                        :class="[toolCall.status]"
+                      >
+                        <!-- 工具头部（可折叠） -->
+                        <div class="inline-tool-header" @click="handleStepClick(toolCall.id)">
+                          <span class="inline-tool-icon">{{ getToolIcon(toolCall.toolName) }}</span>
+                          <span class="inline-tool-name">{{ toolCall.toolName }}</span>
+                          <NTag size="small" :type="getStatusType(toolCall.status) as any">
+                            {{ toolCall.status === 'pending' ? '等待中' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
+                          </NTag>
+                          <span class="inline-expand-icon">{{ activeStep === toolCall.id ? '▼' : '▶' }}</span>
+                        </div>
+                        
+                        <!-- 展开内容：直接显示结果，不再嵌套 ToolUseEnhanced -->
+                        <Transition name="slide-toggle">
+                          <div v-if="activeStep === toolCall.id" class="inline-tool-result">
+                            <div class="result-title">执行结果</div>
+                            <div class="result-content">
+                              <pre>{{ formatToolOutput(toolCall.toolOutput) }}</pre>
+                            </div>
+                            
+                            <!-- 错误提示 -->
+                            <div v-if="toolCall.status === 'error' && getErrorInfo(toolCall)" class="inline-error-alert">
+                              <div class="error-header">
+                                <span class="error-icon">⚠️</span>
+                                <span class="error-title">工具执行失败</span>
+                                <NTag size="small" type="error">{{ getErrorInfo(toolCall)?.type }}</NTag>
+                              </div>
+                              <div class="error-message">{{ getErrorInfo(toolCall)?.message }}</div>
+                              <div class="error-suggestion" v-if="getErrorInfo(toolCall)?.suggestion">
+                                💡 建议：{{ getErrorInfo(toolCall)?.suggestion }}
+                              </div>
+                            </div>
+                          </div>
+                        </Transition>
                       </div>
                     </div>
                     
-                    <!-- 展开内容：显示详细工具调用组件 -->
-                    <div v-if="activeStep === toolCall.id" class="step-content">
-                      <ToolUseEnhanced
-                        :tool-call="toolCall"
-                        :expanded="true"
-                      />
-
-                      <!-- 新增：错误提示框 -->
-                      <div v-if="toolCall.status === 'error' && getErrorInfo(toolCall)" class="error-alert">
-                        <div class="error-header">
-                          <span class="error-icon">⚠️</span>
-                          <span class="error-title">工具执行失败</span>
-                          <NTag size="small" type="error">{{ getErrorInfo(toolCall)?.type }}</NTag>
+                    <!-- 工具调用 - 原始版（内嵌在助手消息内） -->
+                    <div v-if="toolsForMessage(message.id).length > 0 && !useEnhancedToolDisplay" class="inline-tool-calls">
+                      <div 
+                        v-for="toolCall in toolsForMessage(message.id)" 
+                        :key="toolCall.id"
+                        class="inline-tool-call"
+                        :class="toolCall.status"
+                      >
+                        <div class="inline-tool-call-header">
+                          <span class="tool-name">{{ toolCall.toolName }}</span>
+                          <span class="tool-status">{{ toolCall.status === 'pending' ? '执行中...' : toolCall.status }}</span>
                         </div>
-                        <div class="error-message">{{ getErrorInfo(toolCall)?.message }}</div>
-                        <div class="error-suggestion" v-if="getErrorInfo(toolCall)?.suggestion">
-                          💡 建议：{{ getErrorInfo(toolCall)?.suggestion }}
-                        </div>
+                        <details class="inline-tool-details">
+                          <summary>查看详情</summary>
+                          <div class="tool-input">
+                            <pre>{{ JSON.stringify(toolCall.toolInput, null, 2) }}</pre>
+                          </div>
+                          <div v-if="toolCall.toolOutput" class="tool-output">
+                            <pre>{{ formatToolOutput(toolCall.toolOutput) }}</pre>
+                          </div>
+                        </details>
                       </div>
                     </div>
-                    
-                    <!-- 收起内容：显示智能摘要 -->
-                    <div v-else class="step-summary">
-                      {{ getShortSummary(toolCall) }}
-                      <span class="summary-hint">（点击展开）</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- 工具调用 - 原始版 -->
-              <div v-if="toolsForMessage(message.id).length > 0 && !useEnhancedToolDisplay" class="tool-calls">
-                <div 
-                  v-for="toolCall in toolsForMessage(message.id)" 
-                  :key="toolCall.id"
-                  class="tool-call"
-                  :class="toolCall.status"
-                >
-                  <div class="tool-header">
-                    <span class="tool-name">{{ toolCall.toolName }}</span>
-                    <span class="tool-status">{{ toolCall.status === 'pending' ? '执行中...' : toolCall.status }}</span>
-                  </div>
-                  <div class="tool-input">
-                    <pre>{{ JSON.stringify(toolCall.toolInput, null, 2) }}</pre>
-                  </div>
-                  <div v-if="toolCall.toolOutput" class="tool-output">
-                    <pre>{{ formatToolOutput(toolCall.toolOutput) }}</pre>
                   </div>
                 </div>
               </div>
@@ -390,62 +462,6 @@ function toolsForMessage(messageId: string): ToolCall[] {
             <div v-for="tool in activeToolCalls" :key="tool.id" class="tool-call active">
               <span class="tool-name">{{ tool.toolName }}</span>
               <NSpin size="small" />
-            </div>
-          </div>
-          
-          <!-- 流程可视化区域 -->
-          <div v-if="showFlowVisualization && flowGraph && flowGraph.nodes.length > 2" class="flow-section">
-            <FlowVisualizer :flow-graph="flowGraph" :expanded="false" />
-          </div>
-          
-          <!-- 知识卡片区域 -->
-          <div v-if="showKnowledgeCards && knowledge.length > 0" class="knowledge-section">
-            <div class="section-header">
-              <span class="section-icon">💡</span>
-              <span class="section-title">提取的知识 ({{ knowledge.length }})</span>
-            </div>
-            <div class="knowledge-list">
-              <KnowledgeCardComponent 
-                v-for="card in knowledge.slice(0, 10)" 
-                :key="card.id"
-                :card="card"
-                :compact="true"
-                :show-source="true"
-              />
-              <div v-if="knowledge.length > 10" class="more-knowledge">
-                还有 {{ knowledge.length - 10 }} 条知识...
-              </div>
-            </div>
-          </div>
-          
-          <!-- 工具统计 -->
-          <div v-if="toolCalls.length > 0" class="stats-section">
-            <div class="section-header">
-              <span class="section-icon">📈</span>
-              <span class="section-title">工具使用统计</span>
-            </div>
-            <div class="stats-grid">
-              <div 
-                v-for="(stat, toolName) in toolStats" 
-                :key="toolName"
-                class="stat-card"
-              >
-                <div class="stat-name">{{ toolName }}</div>
-                <div class="stat-bar">
-                  <div 
-                    class="stat-fill success" 
-                    :style="{ width: `${(stat.success / stat.count) * 100}%` }"
-                  ></div>
-                  <div 
-                    class="stat-fill error" 
-                    :style="{ width: `${(stat.error / stat.count) * 100}%` }"
-                  ></div>
-                </div>
-                <div class="stat-count">
-                  {{ stat.count }} 次
-                  <span v-if="stat.error > 0" class="error-count">({{ stat.error }} 失败)</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -530,49 +546,95 @@ function toolsForMessage(messageId: string): ToolCall[] {
 
 .message {
   display: flex;
-  gap: 12px;
   animation: fadeIn 0.3s ease-out;
 }
 
+/* 用户消息 - 右边 */
+.user-message {
+  justify-content: flex-end;
+}
+
+.user-message .message-content {
+  flex-direction: row-reverse;
+}
+
+/* 助手消息 - 左边 */
+.assistant-message {
+  justify-content: flex-start;
+}
+
+.message-content {
+  display: flex;
+  gap: 12px;
+  max-width: 80%;
+}
+
+.message-bubble {
+  padding: 16px 20px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+/* 用户消息气泡 - 右边 */
+.user-bubble {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--color-primary-dark) 100%);
+  color: white;
+  border-radius: 20px 20px 4px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+}
+
+.user-bubble:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+}
+
+/* 助手消息气泡 - 左边 */
+.assistant-bubble {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-radius: 4px 20px 20px 20px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.assistant-bubble:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
 .message-avatar {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 22px;
   flex-shrink: 0;
+  transition: transform 0.2s ease;
 }
 
-.user-message .message-avatar {
-  background: var(--primary-color);
+.user-avatar {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 }
 
-.assistant-message .message-avatar {
-  background: var(--bg-tertiary);
+.assistant-avatar {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
 }
 
-.message-content {
-  flex: 1;
-  min-width: 0;
+.message-avatar:hover {
+  transform: scale(1.1);
 }
 
 .message-text {
-  padding: 12px 16px;
-  border-radius: 12px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.user-message .message-text {
-  background: var(--primary-color);
-  color: white;
-}
-
-.assistant-message .message-text {
-  background: var(--bg-secondary);
+  padding: 0;
 }
 
 /* 工具调用区域 */
@@ -1001,5 +1063,239 @@ function toolsForMessage(messageId: string): ToolCall[] {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-5px); }
   75% { transform: translateX(5px); }
+}
+
+/* ==================== 内嵌工具调用样式 ==================== */
+
+/* 内嵌工具调用容器 */
+.inline-tool-sequence-container {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 内嵌工具步骤项 */
+.inline-tool-step-item {
+  background: rgba(30, 30, 60, 0.3);
+  border-radius: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.inline-tool-step-item:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+/* 内嵌工具头部 */
+.inline-tool-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  background: rgba(40, 40, 80, 0.2);
+  transition: background 0.2s ease;
+}
+
+.inline-tool-header:hover {
+  background: rgba(40, 40, 80, 0.4);
+}
+
+.inline-tool-icon {
+  font-size: 14px;
+}
+
+.inline-tool-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #e5e7eb;
+  flex: 1;
+}
+
+.inline-expand-icon {
+  font-size: 10px;
+  color: #6b7280;
+  transition: transform 0.2s ease;
+}
+
+/* 内嵌工具内容 */
+.inline-tool-content {
+  padding: 10px 12px;
+  border-top: 1px solid rgba(99, 102, 241, 0.1);
+  font-size: 12px;
+}
+
+/* 内嵌错误提示 */
+.inline-error-alert {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.inline-error-alert .error-header {
+  margin-bottom: 6px;
+}
+
+.inline-error-alert .error-title {
+  font-size: 12px;
+}
+
+.inline-error-alert .error-message {
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.inline-error-alert .error-suggestion {
+  font-size: 11px;
+  padding: 6px;
+}
+
+/* 原始版内嵌工具调用 */
+.inline-tool-calls {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inline-tool-call {
+  background: rgba(30, 30, 60, 0.3);
+  border-radius: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  overflow: hidden;
+}
+
+.inline-tool-call-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(40, 40, 80, 0.2);
+}
+
+.inline-tool-call-header .tool-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #e5e7eb;
+}
+
+.inline-tool-call-header .tool-status {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.inline-tool-details {
+  font-size: 11px;
+}
+
+.inline-tool-details summary {
+  padding: 6px 12px;
+  cursor: pointer;
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.inline-tool-details summary:hover {
+  color: #9ca3af;
+}
+
+.inline-tool-details .tool-input,
+.inline-tool-details .tool-output {
+  padding: 8px 12px;
+  border-top: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+.inline-tool-details pre {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* 内嵌工具结果显示 */
+.inline-tool-result {
+  padding: 10px 12px;
+  border-top: 1px solid rgba(99, 102, 241, 0.1);
+  font-size: 11px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+/* Transition 动画 - 展开/收起 */
+.slide-toggle-enter-active,
+.slide-toggle-leave-active {
+  transition: all 0.3s ease-out;
+  overflow: hidden;
+}
+
+.slide-toggle-enter-from,
+.slide-toggle-leave-to {
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  transform: translateY(-10px);
+}
+
+.slide-toggle-enter-to,
+.slide-toggle-leave-from {
+  opacity: 1;
+  max-height: 250px;
+  transform: translateY(0);
+}
+
+.inline-tool-result .result-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+  padding: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.inline-tool-result .result-content pre {
+  background: rgba(15, 15, 30, 0.8);
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  color: #a5b4fc;
+  overflow-x: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 180px;
+  overflow-y: auto;
+  line-height: 1.5;
+}
+
+.inline-tool-result .inline-error-alert {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.inline-tool-result .inline-error-alert .error-header {
+  margin-bottom: 6px;
+}
+
+.inline-tool-result .inline-error-alert .error-title {
+  font-size: 11px;
+}
+
+.inline-tool-result .inline-error-alert .error-message {
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.inline-tool-result .inline-error-alert .error-suggestion {
+  font-size: 11px;
+  padding: 6px;
 }
 </style>

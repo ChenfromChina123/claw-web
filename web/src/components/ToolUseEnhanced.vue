@@ -65,6 +65,23 @@ function getParamTypeColor(type: string): string {
 function toggleExpand() {
   isExpanded.value = !isExpanded.value
 }
+
+// 格式化工具输出结果
+function formatToolOutput(output: unknown): string {
+  if (output === null || output === undefined) return '无结果'
+  if (typeof output === 'string') {
+    try {
+      const parsed = JSON.parse(output)
+      return JSON.stringify(parsed, null, 2)
+    } catch {
+      return output
+    }
+  }
+  if (typeof output === 'object') {
+    return JSON.stringify(output, null, 2)
+  }
+  return String(output)
+}
 </script>
 
 <template>
@@ -112,26 +129,36 @@ function toggleExpand() {
     </div>
     
     <!-- 参数详情 (展开时) -->
-    <div v-if="isExpanded && parsedInfo.parameters.length > 0" class="tool-params">
-      <div class="params-title">输入参数</div>
-      <div class="params-list">
-        <div 
-          v-for="param in parsedInfo.parameters" 
-          :key="param.name"
-          class="param-item"
-          :class="{ required: param.required }"
-        >
-          <div class="param-header">
-            <span class="param-name">{{ param.name }}</span>
-            <span class="param-type" :style="{ color: getParamTypeColor(param.type) }">
-              {{ param.type }}
-            </span>
-            <span v-if="param.required" class="param-required">必填</span>
+    <div v-if="isExpanded" class="tool-params">
+      <div v-if="parsedInfo.parameters.length > 0" class="params-section">
+        <div class="params-title">输入参数</div>
+        <div class="params-list">
+          <div 
+            v-for="param in parsedInfo.parameters" 
+            :key="param.name"
+            class="param-item"
+            :class="{ required: param.required }"
+          >
+            <div class="param-header">
+              <span class="param-name">{{ param.name }}</span>
+              <span class="param-type" :style="{ color: getParamTypeColor(param.type) }">
+                {{ param.type }}
+              </span>
+              <span v-if="param.required" class="param-required">必填</span>
+            </div>
+            <div v-if="param.description" class="param-desc">{{ param.description }}</div>
+            <div v-if="param.value !== undefined" class="param-value">
+              <pre>{{ formatParamValue(param.value) }}</pre>
+            </div>
           </div>
-          <div v-if="param.description" class="param-desc">{{ param.description }}</div>
-          <div v-if="param.value !== undefined" class="param-value">
-            <pre>{{ formatParamValue(param.value) }}</pre>
-          </div>
+        </div>
+      </div>
+      
+      <!-- 工具执行结果 -->
+      <div v-if="toolCall.toolOutput" class="result-section">
+        <div class="result-title">执行结果</div>
+        <div class="result-content">
+          <pre>{{ formatToolOutput(toolCall.toolOutput) }}</pre>
         </div>
       </div>
     </div>
@@ -413,5 +440,37 @@ function toggleExpand() {
   font-size: 11px;
   color: #6b7280;
   padding: 4px 8px;
+}
+
+/* 结果部分 */
+.result-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+.result-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #888;
+  padding: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.result-content pre {
+  background: rgba(15, 15, 30, 0.8);
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  color: #a5b4fc;
+  overflow-x: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+  overflow-y: auto;
+  line-height: 1.5;
 }
 </style>

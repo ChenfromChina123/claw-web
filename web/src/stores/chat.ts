@@ -415,8 +415,18 @@ export const useChatStore = defineStore('chat', () => {
   }
   
   function sendMessage(content: string, model?: string) {
-    // 前端不生成ID，只发送内容给后端
-    // 后端保存后会返回 message_saved 事件
+    // 立即在前端添加用户消息，提供更好的用户体验
+    const userMessageId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    messages.value.push({
+      id: userMessageId,
+      sessionId: currentSessionId.value || '',
+      role: 'user',
+      type: 'text',
+      content: content,
+      createdAt: new Date().toISOString(),
+    })
+    
+    // 同时发送消息给后端
     wsClient.sendMessage(content, model)
   }
   

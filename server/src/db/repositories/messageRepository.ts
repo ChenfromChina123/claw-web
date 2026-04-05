@@ -3,13 +3,25 @@ import { getPool } from '../mysql'
 import type { Message } from '../../models/types'
 
 export class MessageRepository {
-  async create(sessionId: string, role: 'user' | 'assistant' | 'system', content: string): Promise<Message> {
+  /**
+   * 创建消息（使用指定ID）
+   */
+  async createWithId(id: string, sessionId: string, role: 'user' | 'assistant' | 'system', content: string | any[]): Promise<Message> {
     const pool = getPool()
-    const id = uuidv4()
+
+    // 将 content 转换为字符串存储
+    let contentStr: string
+    if (typeof content === 'string') {
+      contentStr = content
+    } else {
+      contentStr = JSON.stringify(content)
+    }
+
+    console.log(`[MessageRepository] Creating message with id: ${id}, role=${role}`)
 
     await pool.query(
       'INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)',
-      [id, sessionId, role, content]
+      [id, sessionId, role, contentStr]
     )
 
     const [rows] = await pool.query(
@@ -18,6 +30,11 @@ export class MessageRepository {
     ) as [Message[], unknown]
 
     return this.mapToMessage(rows[0])
+  }
+
+  async create(sessionId: string, role: 'user' | 'assistant' | 'system', content: string | any[]): Promise<Message> {
+    const id = uuidv4()
+    return this.createWithId(id, sessionId, role, content)
   }
 
   async findBySessionId(sessionId: string): Promise<Message[]> {
@@ -52,12 +69,36 @@ export class MessageRepository {
   }
 
   private mapToMessage(row: any): Message {
-    return {
+    let content = row.content
+    
+    console.log(`[MessageRepository] Mapping message: id=${row.id}, role=${row.role}, content type=${typeof content}`)
+    
+    // 如果 content 是字符串，尝试解析为 JSON
+    if (typeof content === 'string' && content.length > 0) {
+      try {
+        // 先检查是否看起来像 JSON
+        const firstChar = content.trim().charAt(0)
+        if (firstChar === '[' || firstChar === '{') {
+          const parsed = JSON.parse(content)
+          console.log(`[MessageRepository] Successfully parsed content as JSON:`, typeof parsed)
+          content = parsed
+        }
+      } catch (e) {
+        // 解析失败，保持原字符串
+        console.debug('[MessageRepository] Failed to parse content as JSON, keeping as string:', (e as Error).message)
+      }
+    }
+    
+    const message: Message = {
       id: row.id,
       sessionId: row.session_id,
       role: row.role,
-      content: row.content,
+      content: content,
       createdAt: row.created_at,
     }
+    
+    console.log(`[MessageRepository] Mapped message:`, message)
+    
+    return message
   }
 }

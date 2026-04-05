@@ -338,45 +338,53 @@ export class SessionManager {
     const sessionData = this.sessions.get(sessionId)
     if (!sessionData || !sessionData.dirty) return
 
-    console.log(`Saving session ${sessionId}, messages count: ${sessionData.messages.length}`)
+    console.log(`Saving session ${sessionId}, messages count: ${sessionData.messages.length}, toolCalls count: ${sessionData.toolCalls.length}`)
 
     await this.sessionRepo.touch(sessionId)
 
+    // 策略：追加形式保存，保持原始ID
+    console.log(`[SessionManager] Appending data for session ${sessionId}...`)
+
+    // 1. 获取数据库中已有的消息ID
     const existingMessages = await this.messageRepo.findBySessionId(sessionId)
     const existingMessageIds = new Set(existingMessages.map(m => m.id))
+    console.log(`[SessionManager] Existing message IDs in DB: ${Array.from(existingMessageIds).join(', ')}`)
 
-    // 只保存新消息（不在数据库中的消息）
+    // 2. 保存新增的消息（保持原始ID）
     for (const msg of sessionData.messages) {
-      // 如果消息已经有ID且在数据库中存在，跳过
-      if (msg.id && existingMessageIds.has(msg.id)) {
-        continue
+      if (!existingMessageIds.has(msg.id)) {
+        console.log(`[SessionManager] Saving new message: ${msg.id}, role=${msg.role}`)
+        await this.messageRepo.createWithId(msg.id, sessionId, msg.role, msg.content)
+      } else {
+        console.log(`[SessionManager] Message already exists: ${msg.id}, skipping`)
       }
-      // 创建新消息（数据库会生成ID）
-      await this.messageRepo.create(sessionId, msg.role, msg.content)
     }
 
-    // 处理工具调用
-    for (const toolCall of sessionData.toolCalls) {
-      if (!toolCall.id || !toolCall.messageId) continue
+    // 3. 获取数据库中已有的工具调用ID
+    const existingToolCalls = await this.toolCallRepo.findBySessionId(sessionId)
+    const existingToolCallIds = new Set(existingToolCalls.map(t => t.id))
+    console.log(`[SessionManager] Existing tool call IDs in DB: ${Array.from(existingToolCallIds).join(', ')}`)
 
-      const existingToolCalls = await this.toolCallRepo.findByMessageId(toolCall.messageId)
-      const exists = existingToolCalls.some(tc => tc.id === toolCall.id)
-      if (!exists) {
-        await this.toolCallRepo.create(
+    // 4. 保存新增的工具调用（保持原始ID）
+    for (const toolCall of sessionData.toolCalls) {
+      if (!existingToolCallIds.has(toolCall.id)) {
+        console.log(`[SessionManager] Saving new tool call: ${toolCall.id}, toolName=${toolCall.toolName}`)
+        await this.toolCallRepo.createWithId(
+          toolCall.id,
           toolCall.messageId,
           sessionId,
           toolCall.toolName,
           toolCall.toolInput,
-          toolCall.status
+          toolCall.status,
+          toolCall.toolOutput
         )
-        if (toolCall.toolOutput) {
-          await this.toolCallRepo.updateOutput(toolCall.id, toolCall.toolOutput, toolCall.status as 'completed' | 'error')
-        }
+      } else {
+        console.log(`[SessionManager] Tool call already exists: ${toolCall.id}, skipping`)
       }
     }
 
     sessionData.dirty = false
-    console.log(`Session ${sessionId} saved successfully`)
+    console.log(`[SessionManager] Session ${sessionId} saved successfully!`)
   }
 
   async clearSession(sessionId: string): Promise<void> {
