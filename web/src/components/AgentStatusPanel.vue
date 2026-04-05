@@ -5,8 +5,7 @@
  * 侧边栏显示，展示所有参与协调的 Agent 状态
  */
 import { computed } from 'vue'
-import type { AgentRuntimeState, MultiAgentOrchestrationState } from '@/types/agent'
-import { BUILT_IN_AGENTS } from '@/types/agent'
+import type { AgentInstance, MultiAgentOrchestrationState } from '@/services/agentApi'
 import AgentBadge from './AgentBadge.vue'
 
 interface Props {
@@ -20,7 +19,7 @@ const props = defineProps<Props>()
  * 所有显示的 Agent
  */
 const allAgents = computed(() => {
-  const agents: AgentRuntimeState[] = []
+  const agents: AgentInstance[] = []
   if (props.orchestrationState.orchestrator) {
     agents.push(props.orchestrationState.orchestrator)
   }
@@ -33,7 +32,7 @@ const allAgents = computed(() => {
  */
 const workingAgentCount = computed(() => 
   allAgents.value.filter(agent => 
-    agent.status === 'working' || agent.status === 'thinking'
+    agent.status === 'working'
   ).length
 )
 
