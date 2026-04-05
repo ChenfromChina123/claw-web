@@ -22,22 +22,22 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await authApi.login({ email, password })
       console.log('[AuthStore] 登录响应:', response)
       
-      // response 已经是 ApiResponse<AuthResponse>，直接访问 .success 和 .data
-      if (response.success && response.data) {
+      // response 已经是 AuthResponse，直接访问属性
+      if (response.accessToken) {
         console.log('[AuthStore] 登录成功，保存用户信息')
-        token.value = response.data.accessToken
+        token.value = response.accessToken
         user.value = {
-          id: response.data.userId,
-          username: response.data.username,
-          email: response.data.email,
-          avatar: response.data.avatar,
+          id: response.userId,
+          username: response.username,
+          email: response.email,
+          avatar: response.avatar,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         }
-        localStorage.setItem('token', response.data.accessToken)
+        localStorage.setItem('token', response.accessToken)
         return true
       }
-      console.log('[AuthStore] 登录失败: response.success =', response.success)
+      console.log('[AuthStore] 登录失败: 没有 accessToken')
       return false
     } catch (error) {
       console.error('[AuthStore] 登录异常:', error)
@@ -51,7 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     try {
       const response = await authApi.register({ email, username, password, code })
-      if (response.success) {
+      if (response.accessToken) {
         return true
       }
       return false
@@ -66,7 +66,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function sendRegisterCode(email: string) {
     try {
       const response = await authApi.sendRegisterCode(email)
-      if (response.success) {
+      if (response.message) {
         return true
       }
       return false
@@ -79,7 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function sendForgotPasswordCode(email: string) {
     try {
       const response = await authApi.sendForgotPasswordCode(email)
-      if (response.success) {
+      if (response.message) {
         return true
       }
       return false
@@ -92,7 +92,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function resetPassword(email: string, code: string, newPassword: string) {
     try {
       const response = await authApi.resetPassword({ email, code, newPassword })
-      if (response.success) {
+      if (response.message) {
         return true
       }
       return false
@@ -108,8 +108,8 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = t
     try {
       const response = await authApi.getCurrentUser()
-      if (response.success && response.data) {
-        user.value = response.data
+      if (response.id) {
+        user.value = response
       }
     } catch (error) {
       console.error('Fetch user failed:', error)

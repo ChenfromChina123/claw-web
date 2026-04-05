@@ -71,6 +71,7 @@ export interface ToolResult {
     duration?: number
     tokens?: number
     cost?: number
+    sandboxed?: boolean
   }
 }
 
@@ -121,7 +122,7 @@ export interface ToolDefinition {
     properties: Record<string, unknown>
     required?: string[]
   }
-  category: 'file' | 'shell' | 'web' | 'system' | 'ai' | 'mcp'
+  category: 'file' | 'shell' | 'web' | 'system' | 'ai' | 'mcp' | 'agent' | 'plan'
   handler: (
     input: Record<string, unknown>,
     context: ToolExecutionContext,
@@ -354,7 +355,7 @@ export class EnhancedToolExecutor {
       }
       
       // 提供最接近的匹配建议
-      const suggestions = findSimilarToolNames(name, availableTools)
+      const suggestions = this.findSimilarToolNames(name, availableTools)
       if (suggestions.length > 0) {
         errorMsg += `\n您是否在寻找: ${suggestions.join(', ')}`
       }

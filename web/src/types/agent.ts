@@ -110,7 +110,7 @@ export interface AgentEvent {
 /**
  * 权限模式
  */
-export type PermissionMode = 'bypassPermissions' | 'acceptEdits' | 'auto' | 'plan'
+export type PermissionMode = 'bypassPermissions' | 'acceptEdits' | 'auto' | 'plan' | 'bubble'
 
 /**
  * Agent 配置

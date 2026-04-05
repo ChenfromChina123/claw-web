@@ -21,7 +21,7 @@
           class="agent-option"
           :class="{
             'is-selected': selectedAgent?.agentType === agent.agentType,
-            [`agent-color-${agent.agentColor}`]: agent.agentColor
+            [`agent-color-${agent.color}`]: agent.color
           }"
           :disabled="disabled"
           @click="$emit('select', agent)"
@@ -144,17 +144,6 @@ interface ToolCall {
 }
 
 /**
- * 团队成员（兼容旧类型）
- */
-interface TeamMember {
-  id: string
-  name: string
-  agentType: string
-  color?: string
-  status: 'idle' | 'working' | 'completed'
-}
-
-/**
  * 属性
  */
 const props = withDefaults(defineProps<{
@@ -186,7 +175,8 @@ const props = withDefaults(defineProps<{
 /**
  * 事件
  */
-const emit = defineEmits<{
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _emit = defineEmits<{
   (e: 'select', agent: AgentSelection): void
   (e: 'abort'): void
   (e: 'refresh'): void

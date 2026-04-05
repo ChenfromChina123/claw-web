@@ -143,6 +143,9 @@ export interface BaseAgentDefinition {
   initialPrompt?: string
   isReadOnly?: boolean
   
+  // 模型配置
+  model?: string
+  
   // 回调函数
   callback?: () => void
 }

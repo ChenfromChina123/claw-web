@@ -61,7 +61,7 @@ export class ToolCallRepository {
     return rows.map(row => this.mapToToolCall(row))
   }
 
-  async updateOutput(id: string, toolOutput: Record<string, unknown>, status: 'completed' | 'error'): Promise<void> {
+  async updateOutput(id: string, toolOutput: Record<string, unknown>, status: 'pending' | 'executing' | 'completed' | 'error'): Promise<void> {
     const pool = getPool()
     await pool.query(
       'UPDATE tool_calls SET tool_output = ?, status = ? WHERE id = ?',

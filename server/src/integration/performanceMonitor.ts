@@ -765,8 +765,8 @@ class PerformanceMonitor {
   }
 
   // 获取告警
-  getAlerts(unacknowledgedOnly = false) {
-    return this.alertManager.getAlerts(undefined, unacknowledgedOnly)
+  getAlerts(limit?: number, unacknowledgedOnly = false) {
+    return this.alertManager.getAlerts(limit, unacknowledgedOnly)
   }
 
   // 确认告警
@@ -782,6 +782,11 @@ class PerformanceMonitor {
   // 添加告警规则
   addAlertRule(rule: Omit<AlertRule, 'id'>) {
     return this.alertManager.addRule(rule)
+  }
+
+  // 记录指标
+  recordMetric(name: string, value: number, unit?: string, tags?: Record<string, string>): void {
+    this.metricsCollector.record(name, value, unit || '', tags)
   }
 
   // 订阅性能指标更新

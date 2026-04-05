@@ -28,7 +28,7 @@ import { appStateManager } from './integration/webStore'
 import type { WebSocketMessage, RPCContext } from './integration/wsBridge'
 import type { ToolExecutionContext } from './integration/enhancedToolExecutor'
 import type { ConversationMessage, ToolCall, LoginRequest, RegisterRequest, ResetPasswordRequest } from './models/types'
-import { getBuiltInAgents, agentManager, initializeDemoOrchestration, executeAgent } from './agents'
+import { getBuiltInAgents, agentManager, initializeDemoOrchestration, engineExecuteAgent } from './agents'
 import { TaskStatus, TaskPriority, type BackgroundTask } from './services/backgroundTaskManager'
 import { getAgentStatusService, createAgentStatusService, setAgentStatusService } from './services/agentStatusService'
 import { getWorkflowEventService } from './services/workflowEventService'
@@ -38,7 +38,7 @@ const WS_PORT = parseInt(process.env.WS_PORT || '3001', 10)
 
 // ==================== Types ====================
 
-interface WebSocketData {
+export interface WebSocketData {
   connectionId: string
   userId: string | null
   sessionId: string | null
@@ -278,8 +278,13 @@ class SessionConversationManager {
               content, 
               streamResult.toolCalls.map(tc => ({
                 id: tc.id,
-                name: tc.name,
-                input: tc.input,
+                messageId: assistantMessageId,
+                sessionId,
+                toolName: tc.name,
+                toolInput: tc.input,
+                toolOutput: null,
+                status: 'pending' as const,
+                createdAt: new Date(),
               }))
             )
           }
@@ -459,7 +464,7 @@ class SessionConversationManager {
         const result = await Promise.race([
           this.toolExecutor.execute(tool.name, tool.input, sendEvent, tool.id),
           timeoutPromise
-        ])
+        ]) as { success: boolean; result?: unknown; error?: string }
 
         const duration = Date.now() - startTime
 
@@ -962,7 +967,10 @@ async function startServer() {
           return createSuccessResponse({
             toolRegistry: {
               totalTools: toolExecutor.getAllTools().length,
-              byCategory: toolExecutor.getToolsGroupedByCategory(),
+              byCategory: ['file', 'shell', 'web', 'system', 'ai', 'mcp', 'agent', 'plan'].reduce((acc, cat) => {
+                acc[cat] = toolExecutor.getToolsByCategory(cat).length
+                return acc
+              }, {} as Record<string, number>),
               historySize: toolExecutor.getHistory().length,
             },
             mcpBridge: {
@@ -1419,7 +1427,7 @@ async function startServer() {
             maxTurns?: number
           }
           
-          const result = await executeAgent(body, (state) => {
+          const result = await engineExecuteAgent(body, (state) => {
             // 可以在这里通过 WebSocket 发送状态更新
           })
           
@@ -1689,7 +1697,7 @@ async function startServer() {
             unit?: string
             tags?: Record<string, string>
           }
-          performanceMonitor.metricsCollector.record(body.name, body.value, body.unit || '', body.tags)
+          performanceMonitor.recordMetric(body.name, body.value, body.unit, body.tags)
           return createSuccessResponse({ recorded: true })
         } catch (error) {
           return createErrorResponse('INVALID_REQUEST', 'Failed to record metric', 400)
@@ -1770,7 +1778,7 @@ async function startServer() {
 
         // 配置 Agent 状态推送
         const agentStatusService = getAgentStatusService()
-        agentStatusService.wsPush = (clientId, data) => {
+        agentStatusService.setWSPush((clientId, data) => {
           if (clientId === 'broadcast') {
             // 广播到所有连接的客户端
             wsManager.broadcast('agent_status', {
@@ -1779,7 +1787,7 @@ async function startServer() {
               timestamp: data.timestamp,
             } as any)
           }
-        }
+        })
 
         ws.send(JSON.stringify({
           type: 'connected',

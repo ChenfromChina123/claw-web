@@ -15,5 +15,34 @@ export * from './agent'
 // 扩展类型（后导出，避免冲突）
 export * from './flowKnowledge'
 
-// Agent 工作流类型
-export * from './agentWorkflow'
+// Agent 工作流类型 - 显式导出以避免命名冲突
+export type {
+  AgentWorkflowEvent,
+  WorkflowUpdatePayload,
+  AgentStatusChangePayload,
+  ToolCallStartPayload,
+  ToolCallCompletePayload,
+  ToolCallErrorPayload,
+  PermissionRequiredPayload,
+  TeammateSpawnedPayload,
+  TaskStatusChangePayload,
+  ThinkingPayload,
+  TeamTopology,
+  TeamMember as WorkflowTeamMember,
+  BackgroundTask,
+  PermissionRequest,
+  PermissionModeInfo,
+  PERMISSION_MODES,
+  AgentRuntimeEvent,
+  ToolCallInfo,
+  ExecuteAgentRequest,
+  ExecuteAgentResponse,
+  TaskDecomposeRequest,
+  TaskDecomposeResponse,
+  SubTask,
+  AgentStatusSnapshot,
+  AgentStatusUpdate,
+  AgentSelection,
+  AgentExecutionStatus,
+  ToolCallRecord,
+} from './agentWorkflow'

@@ -21,11 +21,10 @@ import type {
   TaskStatusChangePayload,
   ThinkingPayload,
   TeamTopology,
-  TeamMember,
+  WorkflowTeamMember,
   BackgroundTask,
-  PermissionMode,
   PermissionRequest
-} from '@/types/agentWorkflow'
+} from '@/types'
 import wsClient from '@/composables/useWebSocket'
 import agentApi from '@/api/agentApi'
 import type { AgentSelection, AgentStatusSnapshot, AgentStatusUpdate } from '@/types/agentStatus'

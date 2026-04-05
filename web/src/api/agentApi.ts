@@ -14,7 +14,7 @@ import type {
   BackgroundTask,
   AgentRuntimeEvent
 } from '@/types/agentWorkflow'
-import type { AgentDefinition, AgentExecuteRequest, AgentExecuteResponse } from '@/types'
+import type { AgentDefinition } from '@/types'
 
 // ============================================================================
 // Agent Execution API

@@ -134,6 +134,13 @@ export class AgentStatusService extends EventEmitter {
   }
 
   /**
+   * 设置 WebSocket 推送函数
+   */
+  setWSPush(fn: WSPushFn): void {
+    this.wsPush = fn
+  }
+
+  /**
    * 启动定时刷新
    */
   startAutoRefresh(): void {
