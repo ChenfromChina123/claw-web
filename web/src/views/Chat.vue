@@ -368,6 +368,9 @@ function handleCommandSelect(command: string): void {
   border-radius: 16px !important;
   padding: 4px !important;
   transition: all var(--transition-normal, 250ms) ease;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .input-container:hover {

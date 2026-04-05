@@ -360,10 +360,10 @@ function shouldShowMessage(message: any): boolean {
             <!-- 用户消息 - 右边 -->
             <div v-if="message.role === 'user'" class="message user-message">
               <div class="message-content">
+                <div class="message-avatar user-avatar">👤</div>
                 <div class="message-bubble user-bubble">
                   <div class="message-text">{{ getMessageText((message as any).content) }}</div>
                 </div>
-                <div class="message-avatar user-avatar">👤</div>
               </div>
             </div>
             
@@ -562,7 +562,7 @@ function shouldShowMessage(message: any): boolean {
 .message-content {
   display: flex;
   gap: 12px;
-  max-width: 80%;
+  max-width: 100%;
   align-items: flex-start;
 }
 
@@ -579,6 +579,9 @@ function shouldShowMessage(message: any): boolean {
   word-break: break-word;
   position: relative;
   transition: all 0.2s ease;
+  max-width: 85%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 /* 用户消息气泡 - 右边 */
