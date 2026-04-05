@@ -29,9 +29,22 @@ import type { WebSocketMessage, RPCContext } from './integration/wsBridge'
 import type { ToolExecutionContext } from './integration/enhancedToolExecutor'
 import type { ConversationMessage, ToolCall, LoginRequest, RegisterRequest, ResetPasswordRequest } from './models/types'
 import { getBuiltInAgents, agentManager, initializeDemoOrchestration, executeAgent } from './agents'
+import { BackgroundTaskManager, TaskStatus, TaskPriority, type BackgroundTask } from './services/backgroundTaskManager'
 
 const PORT = parseInt(process.env.PORT || '3000', 10)
 const WS_PORT = parseInt(process.env.WS_PORT || '3001', 10)
+
+// ==================== Global Instances ====================
+
+/**
+ * 全局后台任务管理器
+ */
+const backgroundTaskManager = new BackgroundTaskManager({
+  maxConcurrentTasks: 5,
+  defaultPriority: TaskPriority.NORMAL,
+  taskTimeout: 300000, // 5 分钟
+  enablePersistence: false,
+})
 
 // ==================== Types ====================
 
@@ -1183,9 +1196,35 @@ async function startServer() {
         const offset = parseInt(url.searchParams.get('offset') || '0', 10)
         const status = url.searchParams.get('status') || undefined
 
+        // 从后台任务管理器获取任务
+        let allTasks = backgroundTaskManager.getAllTasks()
+
+        // 按状态筛选
+        if (status) {
+          allTasks = allTasks.filter(t => t.status.toLowerCase() === status.toLowerCase())
+        }
+
+        // 分页
+        const tasks = allTasks.slice(offset, offset + limit)
+
+        // 转换为前端期望的格式
+        const formattedTasks = tasks.map(t => ({
+          taskId: t.id,
+          name: t.name,
+          description: t.description,
+          status: t.status.toUpperCase(),
+          progress: t.progress,
+          result: t.result,
+          error: t.error,
+          createdAt: t.createdAt.getTime(),
+          startedAt: t.startedAt?.getTime(),
+          completedAt: t.completedAt?.getTime(),
+          metadata: t.metadata,
+        }))
+
         return createSuccessResponse({
-          tasks: [],
-          total: 0,
+          tasks: formattedTasks,
+          total: allTasks.length,
           limit,
           offset,
           status,
