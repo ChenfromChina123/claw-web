@@ -16,6 +16,13 @@ export function getPrompt(): string {
   return `Use this tool to create a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
 It also helps the user understand the progress of the task and overall progress of their requests.
 
+## IMPORTANT: This Tool ONLY Creates New Tasks
+
+- DO NOT use this tool to update or modify existing tasks
+- DO NOT use this tool to change the status of existing tasks
+- To update tasks, use the TaskUpdate tool instead
+- To mark tasks as completed, use the TaskUpdate tool instead
+
 ## When to Use This Tool
 
 Use this tool proactively in these scenarios:
@@ -26,8 +33,6 @@ Use this tool proactively in these scenarios:
 - User explicitly requests todo list - When the user directly asks you to use the todo list
 - User provides multiple tasks - When users provide a list of things to be done (numbered or comma-separated)
 - After receiving new instructions - Immediately capture user requirements as tasks
-- When you start working on a task - Mark it as in_progress BEFORE beginning work
-- After completing a task - Mark it as completed and add any new follow-up tasks discovered during implementation
 
 ## When NOT to Use This Tool
 
@@ -36,6 +41,8 @@ Skip using this tool when:
 - The task is trivial and tracking it provides no organizational benefit
 - The task can be completed in less than 3 trivial steps
 - The task is purely conversational or informational
+- You want to update or modify an existing task (use TaskUpdate instead)
+- You want to change the status of an existing task (use TaskUpdate instead)
 
 NOTE that you should not use this tool if there is only one trivial task to do. In this case you are better off just doing the task directly.
 
@@ -51,6 +58,8 @@ All tasks are created with status \`pending\`.
 
 - Create tasks with clear, specific subjects that describe the outcome
 - After creating tasks, use TaskUpdate to set up dependencies (blocks/blockedBy) if needed
+- When you start working on a task - Use TaskUpdate to mark it as in_progress BEFORE beginning work
+- After completing a task - Use TaskUpdate to mark it as completed and add any new follow-up tasks discovered during implementation
 ${teammateTips}- Check TaskList first to avoid creating duplicate tasks
 `
 }

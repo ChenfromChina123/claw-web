@@ -1,13 +1,24 @@
-export const DESCRIPTION = 'Update a task in the task list'
+export const DESCRIPTION = 'Update a task in the task list - use this to change task status, mark as completed, etc.'
 
-export const PROMPT = `Use this tool to update a task in the task list.
+export const PROMPT = `Use this tool to update a task in the task list. THIS IS THE ONLY TOOL THAT CAN MODIFY EXISTING TASKS.
+
+## IMPORTANT: This is the ONLY tool for updating tasks
+
+- DO NOT use TaskCreate to update or modify existing tasks
+- Use THIS tool (TaskUpdate) to change task status
+- Use THIS tool (TaskUpdate) to mark tasks as completed
+- Use THIS tool (TaskUpdate) for all task modifications
 
 ## When to Use This Tool
 
-**Mark tasks as resolved:**
+**Mark tasks as in_progress when starting work:**
+- ALWAYS use this tool to mark a task as in_progress BEFORE you begin working on it
+- Never start working on a task without first marking it as in_progress
+
+**Mark tasks as completed when finished:**
 - When you have completed the work described in a task
 - When a task is no longer needed or has been superseded
-- IMPORTANT: Always mark your assigned tasks as resolved when you finish them
+- IMPORTANT: Always mark your assigned tasks as completed when you finish them
 - After resolving, call TaskList to find your next task
 
 - ONLY mark a task as completed when you have FULLY accomplished it
