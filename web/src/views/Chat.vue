@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { NLayout, NLayoutContent, NSpin, NButton, NEmpty, useMessage } from 'naive-ui'
 import ChatSidebar from '@/components/ChatSidebar.vue'
@@ -7,8 +7,11 @@ import ChatMessageList from '@/components/ChatMessageList.vue'
 import ChatInput from '@/components/ChatInput.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import GlassPanel from '@/components/common/GlassPanel.vue'
+import AgentStatusPanel from '@/components/AgentStatusPanel.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
+import type { MultiAgentOrchestrationState } from '@/types/agent'
+import { createInitialOrchestrationState } from '@/types/agent'
 
 const router = useRouter()
 const message = useMessage()
@@ -20,6 +23,134 @@ const inputRef = ref<InstanceType<typeof ChatInput> | null>(null)
 const isInitializing = ref(true)
 const initError = ref<string | null>(null)
 const sidebarCollapsed = ref(false)
+
+/**
+ * Agent 协调状态（演示用）
+ */
+const orchestrationState = ref<MultiAgentOrchestrationState>(createInitialOrchestrationState())
+
+/**
+ * 是否显示 Agent 状态面板
+ */
+const showAgentPanel = ref(false)
+
+/**
+ * 初始化 Agent 协调演示数据
+ */
+function initAgentOrchestrationDemo(): void {
+  const now = new Date()
+  
+  orchestrationState.value.taskSteps = [
+    {
+      id: 'step-1',
+      agentType: 'general-purpose' as any,
+      description: '分析任务需求，理解用户意图',
+      status: 'completed',
+      startTime: now,
+      completedTime: new Date(now.getTime() + 1500)
+    },
+    {
+      id: 'step-2',
+      agentType: 'Explore' as any,
+      description: '探索代码库结构，定位相关文件',
+      status: 'completed',
+      startTime: new Date(now.getTime() + 1500),
+      completedTime: new Date(now.getTime() + 2700)
+    },
+    {
+      id: 'step-3',
+      agentType: 'Explore' as any,
+      description: '读取关键文件，了解现有实现',
+      status: 'active',
+      startTime: new Date(now.getTime() + 2700)
+    },
+    {
+      id: 'step-4',
+      agentType: 'Plan' as any,
+      description: '制定实施方案，设计代码结构',
+      status: 'pending'
+    },
+    {
+      id: 'step-5',
+      agentType: 'general-purpose' as any,
+      description: '执行方案，完成代码修改',
+      status: 'pending'
+    }
+  ]
+  
+  // 初始化协调者
+  const generalAgentDef = {
+    agentType: 'general-purpose' as any,
+    name: '通用 Agent',
+    description: '处理各种复杂任务',
+    systemPrompt: '',
+    color: '#3b82f6',
+    icon: '🤖',
+    source: 'built-in' as any
+  }
+  
+  orchestrationState.value.orchestrator = {
+    agentId: 'agent_demo_orchestrator',
+    agentDefinition: generalAgentDef,
+    status: 'working' as any,
+    currentTask: '读取关键文件，了解现有实现',
+    completedTasks: 1,
+    totalTasks: 3,
+    startTime: now,
+    lastActivityTime: new Date(),
+    progress: 33
+  }
+  
+  // 初始化子 Agent
+  const exploreAgentDef = {
+    agentType: 'Explore' as any,
+    name: '探索 Agent',
+    description: '代码库探索和搜索',
+    systemPrompt: '',
+    color: '#10b981',
+    icon: '🔍',
+    isReadOnly: true,
+    source: 'built-in' as any
+  }
+  
+  const planAgentDef = {
+    agentType: 'Plan' as any,
+    name: '规划 Agent',
+    description: '任务规划和方案设计',
+    systemPrompt: '',
+    color: '#f59e0b',
+    icon: '📋',
+    isReadOnly: true,
+    source: 'built-in' as any
+  }
+  
+  orchestrationState.value.subAgents = [
+    {
+      agentId: 'agent_demo_explore',
+      agentDefinition: exploreAgentDef,
+      status: 'working' as any,
+      currentTask: '探索代码库结构',
+      completedTasks: 1,
+      totalTasks: 2,
+      startTime: now,
+      lastActivityTime: new Date(),
+      progress: 50
+    },
+    {
+      agentId: 'agent_demo_plan',
+      agentDefinition: planAgentDef,
+      status: 'idle' as any,
+      completedTasks: 0,
+      totalTasks: 1,
+      startTime: now,
+      lastActivityTime: now,
+      progress: 0
+    }
+  ]
+  
+  orchestrationState.value.overallStatus = 'executing' as any
+  orchestrationState.value.startTime = now
+}
 
 onMounted(async () => {
   // 检查是否已登录
@@ -64,6 +195,9 @@ onMounted(async () => {
     nextTick(() => {
       inputRef.value?.focus()
     })
+    
+    // 初始化 Agent 协调演示数据
+    initAgentOrchestrationDemo()
   } catch (error: any) {
     console.error('初始化失败:', error)
     initError.value = error?.message || '初始化失败，请重试'
@@ -189,6 +323,12 @@ function handleCommandSelect(command: string): void {
       :native-scrollbar="false"
       content-style="display: flex; flex-direction: column; height: 100%;"
     >
+      <!-- Agent 面板切换按钮 -->
+      <div class="agent-panel-toggle" @click="showAgentPanel = !showAgentPanel" :class="{ active: showAgentPanel }">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor"/>
+        </svg>
+      </div>
       <!-- 背景装饰 -->
       <div class="chat-bg-decoration">
         <div class="bg-grid-pattern"></div>
@@ -213,27 +353,40 @@ function handleCommandSelect(command: string): void {
       </div>
 
       <!-- 主内容容器 -->
-      <div v-else class="chat-main">
-        <!-- 消息列表 -->
-        <ChatMessageList
-          :messages="chatStore.messages"
-          :tool-calls="chatStore.toolCalls"
-          :is-loading="chatStore.isLoading"
-          class="message-list-container"
-        />
+      <div v-else class="chat-main" :class="{ 'with-agent-panel': showAgentPanel }">
+        <!-- 聊天区域 -->
+        <div class="chat-area">
+          <!-- 消息列表 -->
+          <ChatMessageList
+            :messages="chatStore.messages"
+            :tool-calls="chatStore.toolCalls"
+            :is-loading="chatStore.isLoading"
+            :agent-task-steps="orchestrationState.taskSteps"
+            class="message-list-container"
+          />
 
-        <!-- 输入区包装器 -->
-        <div class="input-wrapper">
-          <GlassPanel variant="normal" bordered class="input-container">
-            <ChatInput
-              ref="inputRef"
-              :disabled="!chatStore.currentSessionId"
-              :sidebar-collapsed="sidebarCollapsed"
-              @send="handleSendMessage"
-              @focus="showCommandPalette = false"
-            />
-          </GlassPanel>
+          <!-- 输入区包装器 -->
+          <div class="input-wrapper">
+            <GlassPanel variant="normal" bordered class="input-container">
+              <ChatInput
+                ref="inputRef"
+                :disabled="!chatStore.currentSessionId"
+                :sidebar-collapsed="sidebarCollapsed"
+                @send="handleSendMessage"
+                @focus="showCommandPalette = false"
+              />
+            </GlassPanel>
+          </div>
         </div>
+
+        <!-- Agent 状态面板 -->
+        <Transition name="agent-panel">
+          <div v-if="showAgentPanel" class="agent-panel">
+            <AgentStatusPanel 
+              :orchestration-state="orchestrationState"
+            />
+          </div>
+        </Transition>
       </div>
     </NLayoutContent>
     
@@ -338,6 +491,40 @@ function handleCommandSelect(command: string): void {
   text-align: center;
 }
 
+/* ---- Agent 面板切换按钮 ---- */
+.agent-panel-toggle {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 10;
+  transition: all var(--transition-fast, 150ms) ease;
+}
+
+.agent-panel-toggle:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.agent-panel-toggle.active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.agent-panel-toggle svg {
+  width: 18px;
+  height: 18px;
+  color: var(--text-secondary);
+}
+
 /* ---- 主内容容器 ---- */
 .chat-main {
   display: flex;
@@ -347,6 +534,47 @@ function handleCommandSelect(command: string): void {
   position: relative;
   z-index: 1;
   overflow: hidden;
+}
+
+.chat-main.with-agent-panel {
+  flex-direction: row;
+}
+
+/* ---- 聊天区域 ---- */
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.with-agent-panel .chat-area {
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ---- Agent 状态面板 ---- */
+.agent-panel {
+  width: 320px;
+  flex-shrink: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* Agent 面板过渡动画 */
+.agent-panel-enter-active,
+.agent-panel-leave-active {
+  transition: all var(--transition-normal, 250ms) ease;
+}
+
+.agent-panel-enter-from,
+.agent-panel-leave-to {
+  width: 0;
+  opacity: 0;
+  transform: translateX(20px);
 }
 
 /* 消息列表容器：必须能够收缩且拥有独立滚动条 */

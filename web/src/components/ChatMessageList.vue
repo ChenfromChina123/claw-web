@@ -6,16 +6,19 @@ import { ref, watch, nextTick, computed } from 'vue'
 import { NScrollbar, NSpin, NTag, NSwitch, NTooltip } from 'naive-ui'
 import type { Message, ToolCall } from '@/types'
 import type { KnowledgeCard } from '@/types/flowKnowledge'
+import type { AgentTaskStep } from '@/types/agent'
 import { parseToolCalls } from '@/utils/toolParser'
 import { useSettingsStore } from '@/stores/settings'
 import FlowVisualizer from './FlowVisualizer.vue'
 import KnowledgeCardComponent from './KnowledgeCard.vue'
 import ToolUseEnhanced from './ToolUseEnhanced.vue'
+import TaskPipeline from './TaskPipeline.vue'
 
 const props = defineProps<{
   messages: Message[]
   toolCalls: ToolCall[]
   isLoading: boolean
+  agentTaskSteps?: AgentTaskStep[]
 }>()
 
 const scrollbarRef = ref<InstanceType<typeof NScrollbar> | null>(null)
@@ -373,6 +376,12 @@ function shouldShowMessage(message: any): boolean {
                 <div class="message-content">
                   <div class="message-avatar assistant-avatar">🤖</div>
                   <div class="message-bubble assistant-bubble">
+                    <!-- 任务流水线 -->
+                    <TaskPipeline 
+                      v-if="agentTaskSteps && agentTaskSteps.length > 0 && index === messages.filter(shouldShowMessage).length - 1"
+                      :steps="agentTaskSteps"
+                      :collapsed="false"
+                    />
                     <div class="message-text" v-html="getMessageText((message as any).content).replace(/\n/g, '<br>')"></div>
                     
                     <!-- 工具调用 - 步骤化增强版（内嵌在助手消息内） -->
