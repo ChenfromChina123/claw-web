@@ -18,7 +18,7 @@ import { authService } from './services/authService'
 import { githubAuthService } from './services/githubAuthService'
 import { verifyToken, extractTokenFromHeader } from './services/jwtService'
 import { wsManager } from './integration/wsBridge'
-import { toolExecutor, EnhancedToolExecutor } from './integration/enhancedToolExecutor'
+import { toolExecutor, EnhancedToolExecutor, backgroundTaskManager } from './integration/enhancedToolExecutor'
 import { performanceMonitor } from './integration/performanceMonitor'
 import { WebCommandBridge, parseUserInput } from './integrations/commandBridge'
 import { WebMCPBridge } from './integrations/mcpBridge'
@@ -29,9 +29,8 @@ import type { WebSocketMessage, RPCContext } from './integration/wsBridge'
 import type { ToolExecutionContext } from './integration/enhancedToolExecutor'
 import type { ConversationMessage, ToolCall, LoginRequest, RegisterRequest, ResetPasswordRequest } from './models/types'
 import { getBuiltInAgents, agentManager, initializeDemoOrchestration, executeAgent } from './agents'
-import { toolExecutor, EnhancedToolExecutor, backgroundTaskManager } from './integration/enhancedToolExecutor'
 import { TaskStatus, TaskPriority, type BackgroundTask } from './services/backgroundTaskManager'
-import { getAgentStatusService } from './services/agentStatusService'
+import { getAgentStatusService, createAgentStatusService, setAgentStatusService } from './services/agentStatusService'
 
 const PORT = parseInt(process.env.PORT || '3000', 10)
 const WS_PORT = parseInt(process.env.WS_PORT || '3001', 10)
@@ -735,10 +734,9 @@ async function startServer() {
   // Initialize Agent status service (用于前端 AgentStatusPanel 实时推送)
   try {
     console.log('\n[AgentStatusService] Initializing Agent status service...')
-    const agentStatusService = getAgentStatusService()
     
-    // 配置 WebSocket 推送函数
-    ;(agentStatusService as any).wsPush = (clientId: string, data: { type: string; payload: unknown; timestamp: string }) => {
+    // 创建 WebSocket 推送函数
+    const wsPushFn = (clientId: string, data: { type: string; payload: unknown; timestamp: string }) => {
       const message = {
         type: 'event',
         event: data.type,
@@ -759,6 +757,10 @@ async function startServer() {
         console.log(`[AgentStatusService] 广播 ${data.type} 到 ${sentCount} 个客户端`)
       }
     }
+    
+    // 重新初始化 AgentStatusService 并传入推送函数
+    const agentStatusService = createAgentStatusService({ wsPush: wsPushFn })
+    setAgentStatusService(agentStatusService)
     
     agentStatusService.startAutoRefresh()
     console.log('[AgentStatusService] Agent status service initialized')

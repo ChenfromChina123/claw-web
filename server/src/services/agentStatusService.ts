@@ -402,6 +402,13 @@ export function getAgentStatusService(): AgentStatusService {
 }
 
 /**
+ * 设置 Agent 状态服务实例
+ */
+export function setAgentStatusService(service: AgentStatusService): void {
+  agentStatusServiceInstance = service
+}
+
+/**
  * 创建新的 Agent 状态服务实例（用于测试）
  */
 export function createAgentStatusService(config?: AgentStatusServiceConfig): AgentStatusService {
