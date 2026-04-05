@@ -308,6 +308,8 @@ async function copyMessage(): Promise<void> {
   line-height: 1.75;
   color: var(--text-primary);
   font-size: var(--font-size-md, 15px);
+  max-width: 700px;
+  width: 100%;
 }
 
 .text-content.streaming {
