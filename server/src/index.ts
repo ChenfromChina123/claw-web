@@ -1175,6 +1175,30 @@ async function startServer() {
         }
       }
 
+      // ==================== Background Tasks API ====================
+
+      // GET /api/tasks - 获取所有后台任务
+      if (path === '/api/tasks' && method === 'GET') {
+        const limit = parseInt(url.searchParams.get('limit') || '50', 10)
+        const offset = parseInt(url.searchParams.get('offset') || '0', 10)
+        const status = url.searchParams.get('status') || undefined
+
+        return createSuccessResponse({
+          tasks: [],
+          total: 0,
+          limit,
+          offset,
+          status,
+        })
+      }
+
+      // GET /api/tasks/:taskId/status - 获取特定任务状态
+      const taskStatusMatch = path.match(/^\/api\/tasks\/([^\/]+)\/status$/)
+      if (taskStatusMatch && method === 'GET') {
+        const taskId = taskStatusMatch[1]
+        return createErrorResponse('TASK_NOT_FOUND', `Task '${taskId}' not found`, 404)
+      }
+
       // ==================== Agents API ====================
 
       // GET /api/agents - 获取所有可用 Agent 列表
