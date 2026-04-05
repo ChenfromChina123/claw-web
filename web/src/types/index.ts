@@ -14,3 +14,6 @@ export * from './agent'
 
 // 扩展类型（后导出，避免冲突）
 export * from './flowKnowledge'
+
+// Agent 工作流类型
+export * from './agentWorkflow'

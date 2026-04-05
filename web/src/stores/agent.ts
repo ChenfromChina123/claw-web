@@ -7,11 +7,27 @@ import type {
   AgentEvent,
   AgentStatus,
   AgentActionType,
-  AgentEventType,
-  AgentConfig,
-  PermissionMode
+  AgentConfig
 } from '@/types'
+import type {
+  AgentWorkflowEvent,
+  WorkflowUpdatePayload,
+  AgentStatusChangePayload,
+  ToolCallStartPayload,
+  ToolCallCompletePayload,
+  ToolCallErrorPayload,
+  PermissionRequiredPayload,
+  TeammateSpawnedPayload,
+  TaskStatusChangePayload,
+  ThinkingPayload,
+  TeamTopology,
+  TeamMember,
+  BackgroundTask,
+  PermissionMode,
+  PermissionRequest
+} from '@/types/agentWorkflow'
 import wsClient from '@/composables/useWebSocket'
+import agentApi from '@/api/agentApi'
 
 /**
  * Agent 状态管理 Store
@@ -21,6 +37,7 @@ import wsClient from '@/composables/useWebSocket'
  * 2. 每个 Agent 拥有独立的状态树
  * 3. 使用 Map 结构实现 O(1) 时间复杂度的查找
  * 4. 支持嵌套（父子）Agent 关系
+ * 5. 实时响应后端 WebSocket 事件推送
  */
 
 // 防止重复注册 WS 监听器
@@ -57,7 +74,32 @@ export const useAgentStore = defineStore('agent', () => {
   /**
    * 等待权限审批的事件队列
    */
-  const pendingPermissions = ref<Map<string, AgentEvent>>(new Map())
+  const pendingPermissions = ref<Map<string, PermissionRequest>>(new Map())
+  
+  /**
+   * 团队拓扑结构
+   */
+  const teams = ref<Map<string, TeamTopology>>(new Map())
+  
+  /**
+   * 后台任务列表
+   */
+  const backgroundTasks = ref<Map<string, BackgroundTask>>(new Map())
+  
+  /**
+   * 活跃的 thinking 内容（流式）
+   */
+  const activeThinkings = ref<Map<string, string>>(new Map())
+  
+  /**
+   * 工具调用详情缓存
+   */
+  const toolCallDetails = ref<Map<string, {
+    input: Record<string, unknown>
+    output?: unknown
+    logs: string[]
+    startTime: number
+  }>>(new Map())
 
   // ==================== 计算属性 ====================
   
@@ -99,6 +141,35 @@ export const useAgentStore = defineStore('agent', () => {
     }
     
     return rootAgents.map(buildTree)
+  })
+  
+  /**
+   * 当前活跃的后台任务列表
+   */
+  const activeBackgroundTasks = computed(() => {
+    return Array.from(backgroundTasks.value.values())
+      .filter(t => t.status === 'RUNNING' || t.status === 'PENDING')
+  })
+  
+  /**
+   * 等待审批的权限请求列表
+   */
+  const pendingPermissionList = computed(() => {
+    return Array.from(pendingPermissions.value.values())
+      .filter(p => p.status === 'pending')
+  })
+  
+  /**
+   * 获取团队拓扑结构
+   */
+  const currentTeamTopology = computed(() => {
+    if (!currentTraceId.value) return null
+    for (const team of teams.value.values()) {
+      if (team.members.some(m => m.agentId === currentTraceId.value)) {
+        return team
+      }
+    }
+    return null
   })
 
   // ==================== 内部辅助方法 ====================
@@ -230,7 +301,8 @@ export const useAgentStore = defineStore('agent', () => {
     name: string,
     description?: string,
     icon?: string,
-    color?: string
+    color?: string,
+    agentType?: string
   ): string {
     const agentId = generateId()
     
@@ -243,6 +315,7 @@ export const useAgentStore = defineStore('agent', () => {
       description,
       icon,
       color,
+      agentType,
       status: 'IDLE',
       workflowSteps: [],
       createdAt: Date.now(),
@@ -346,8 +419,24 @@ export const useAgentStore = defineStore('agent', () => {
   }
   
   /**
-   * 处理 Agent 事件（核心方法）
-   * 这是从 WebSocket 接收事件并更新状态的统一入口
+   * 查找最后一个匹配的工作流步骤
+   */
+  function findLastWorkflowStep(
+    traceId: string,
+    agentId: string,
+    predicate: (step: AgentWorkflowStep) => boolean
+  ): AgentWorkflowStep | undefined {
+    const agentMap = agents.value.get(traceId)
+    if (!agentMap) return undefined
+    const agent = agentMap.get(agentId)
+    if (!agent) return undefined
+    return [...agent.workflowSteps].reverse().find(predicate)
+  }
+
+  // ==================== 核心事件处理 ====================
+  
+  /**
+   * 处理通用的 Agent 事件
    */
   function handleAgentEvent(event: AgentEvent) {
     const { traceId, agentId, type, timestamp, data } = event
@@ -360,146 +449,400 @@ export const useAgentStore = defineStore('agent', () => {
     
     switch (type) {
       case 'WORKFLOW_UPDATE':
-        if (data.status) {
-          updateAgentStatus(traceId, agentId, data.status, data.actionType)
-        }
-        if (data.message) {
-          addWorkflowStep(traceId, agentId, {
-            status: data.status || 'RUNNING',
-            actionType: data.actionType || 'THINKING',
-            message: data.message,
-            details: typeof data.details === 'string' 
-              ? { text: data.details } 
-              : data.details,
-            input: data.input,
-            output: data.output,
-            toolName: data.toolName,
-            childTraceId: data.childTraceId
-          })
-        }
+        handleWorkflowUpdate(traceId, agentId, data as WorkflowUpdatePayload)
         break
         
       case 'AGENT_STATUS_CHANGED':
-        if (data.status) {
-          updateAgentStatus(traceId, agentId, data.status, data.actionType)
-        }
+        handleStatusChange(traceId, agentId, data as AgentStatusChangePayload)
         break
         
       case 'TOOL_CALL_START':
-        updateAgentStatus(traceId, agentId, 'RUNNING', 'TOOL_CALL')
-        addWorkflowStep(traceId, agentId, {
-          status: 'RUNNING',
-          actionType: 'TOOL_CALL',
-          message: data.message || `执行工具: ${data.toolName}`,
-          toolName: data.toolName,
-          input: data.input
-        })
+        handleToolCallStart(traceId, agentId, data as ToolCallStartPayload)
+        break
+        
+      case 'TOOL_CALL_PROGRESS':
+        handleToolCallProgress(traceId, agentId, data)
         break
         
       case 'TOOL_CALL_COMPLETE':
-        updateAgentStatus(traceId, agentId, 'IDLE')
-        // 找到对应的 TOOL_CALL 步骤并更新
-        const agentMap = ensureAgentMap(traceId)
-        const agent = agentMap.get(agentId)
-        if (agent) {
-          const lastToolStep = [...agent.workflowSteps]
-            .reverse()
-            .find(s => s.actionType === 'TOOL_CALL' && s.status === 'RUNNING')
-          if (lastToolStep) {
-            updateWorkflowStep(lastToolStep.id, {
-              status: 'COMPLETED',
-              output: data.output,
-              duration: data.duration
-            })
-          }
-        }
+        handleToolCallComplete(traceId, agentId, data as ToolCallCompletePayload)
         break
         
       case 'TOOL_CALL_ERROR':
-        updateAgentStatus(traceId, agentId, 'FAILED')
-        // 找到对应的步骤并更新
-        const errAgentMap = ensureAgentMap(traceId)
-        const errAgent = errAgentMap.get(agentId)
-        if (errAgent) {
-          const lastStep = [...errAgent.workflowSteps]
-            .reverse()
-            .find(s => s.status === 'RUNNING')
-          if (lastStep) {
-            updateWorkflowStep(lastStep.id, {
-              status: 'FAILED',
-              output: { error: data.error, errorType: data.errorType }
-            })
-          }
-        }
+        handleToolCallError(traceId, agentId, data as ToolCallErrorPayload)
         break
         
       case 'PERMISSION_REQUIRED':
-        updateAgentStatus(traceId, agentId, 'BLOCKED', 'WAITING_PERMISSION')
-        pendingPermissions.value.set(`${traceId}-${agentId}`, event)
-        addWorkflowStep(traceId, agentId, {
-          status: 'BLOCKED',
-          actionType: 'WAITING_PERMISSION',
-          message: data.message || '需要用户授权',
-          details: data.details
-        })
+        handlePermissionRequired(traceId, agentId, data as PermissionRequiredPayload)
         break
         
       case 'TEAMMATE_SPAWNED':
-        if (data.childAgentId && data.childTraceId) {
-          const childAgentId = spawnAgent(
-            traceId,
-            agentId,
-            data.message?.split(' ').pop() || 'Sub Agent',
-            undefined,
-            '🤖',
-            data.childTraceId === traceId ? '#4CAF50' : '#2196F3'
-          )
-          addWorkflowStep(traceId, agentId, {
-            status: 'COMPLETED',
-            actionType: 'SPAWN_TEAMMATE',
-            message: data.message || `派生子 Agent`,
-            childTraceId: data.childTraceId,
-            details: { childAgentId }
-          })
-        }
+        handleTeammateSpawned(traceId, agentId, data as TeammateSpawnedPayload)
         break
         
       case 'AGENT_TOKEN_STREAM':
-        // 流式输出可以直接通过 chat store 处理
+        handleTokenStream(traceId, agentId, data)
         break
         
       case 'TASK_STATUS_CHANGED':
-        if (data.taskStatus) {
-          updateAgentStatus(traceId, agentId, data.taskStatus as AgentStatus)
-        }
+        handleTaskStatusChange(data as TaskStatusChangePayload)
         break
+        
+      case 'THINKING_START':
+      case 'THINKING_END':
+        handleThinking(traceId, agentId, type, data as ThinkingPayload)
+        break
+    }
+  }
+
+  // ==================== 详细事件处理器 ====================
+  
+  /**
+   * 处理工作流更新
+   */
+  function handleWorkflowUpdate(traceId: string, agentId: string, data: WorkflowUpdatePayload) {
+    if (data.status) {
+      updateAgentStatus(traceId, agentId, data.status, data.actionType)
+    }
+    if (data.message) {
+      addWorkflowStep(traceId, agentId, {
+        status: data.status || 'RUNNING',
+        actionType: data.actionType || 'THINKING',
+        message: data.message,
+        details: typeof data.details === 'string' 
+          ? { text: data.details } 
+          : data.details,
+        input: data.input,
+        output: data.output,
+        toolName: data.toolName,
+        childTraceId: data.childTraceId
+      })
+    }
+    
+    // 更新 Trace 进度
+    const trace = ensureTrace(traceId)
+    if (data.progress !== undefined) {
+      trace.progress = data.progress
     }
   }
   
   /**
-   * 审批权限请求
+   * 处理 Agent 状态变化
    */
-  function approvePermission(traceId: string, agentId: string, approved: boolean) {
-    const key = `${traceId}-${agentId}`
-    const event = pendingPermissions.value.get(key)
-    
-    if (event) {
-      pendingPermissions.value.delete(key)
-      
-      // 通过 WebSocket 发送审批结果
-      wsClient.send({
-        type: 'permission_response',
-        traceId,
-        agentId,
-        approved
-      })
-      
-      // 更新状态
-      updateAgentStatus(traceId, agentId, approved ? 'RUNNING' : 'FAILED')
-      
-      console.log('[AgentStore] Permission', approved ? 'approved' : 'denied', 'for:', agentId)
+  function handleStatusChange(traceId: string, agentId: string, data: AgentStatusChangePayload) {
+    const status = data.newStatus || data.status
+    if (status) {
+      updateAgentStatus(traceId, agentId, status)
     }
   }
+  
+  /**
+   * 处理工具调用开始
+   */
+  function handleToolCallStart(traceId: string, agentId: string, data: ToolCallStartPayload) {
+    updateAgentStatus(traceId, agentId, 'RUNNING', 'TOOL_CALL')
+    
+    const stepId = addWorkflowStep(traceId, agentId, {
+      status: 'RUNNING',
+      actionType: 'TOOL_CALL',
+      message: data.message || `执行工具: ${data.toolName}`,
+      toolName: data.toolName,
+      input: data.input
+    })
+    
+    // 缓存工具调用详情
+    toolCallDetails.value.set(stepId, {
+      input: data.input || {},
+      logs: [],
+      startTime: Date.now()
+    })
+  }
+  
+  /**
+   * 处理工具调用进度
+   */
+  function handleToolCallProgress(traceId: string, agentId: string, data: { toolCallId?: string; logs?: string[]; message?: string }) {
+    // 如果有 toolCallId，找到对应的步骤
+    if (data.toolCallId) {
+      const step = findLastWorkflowStep(traceId, agentId, s => s.toolName === data.toolCallId)
+      if (step && data.logs) {
+        const details = toolCallDetails.value.get(step.id)
+        if (details) {
+          details.logs.push(...data.logs)
+        }
+      }
+    }
+  }
+  
+  /**
+   * 处理工具调用完成
+   */
+  function handleToolCallComplete(traceId: string, agentId: string, data: ToolCallCompletePayload) {
+    updateAgentStatus(traceId, agentId, 'IDLE')
+    
+    // 找到对应的 TOOL_CALL 步骤并更新
+    const step = findLastWorkflowStep(traceId, agentId, s => 
+      s.actionType === 'TOOL_CALL' && s.status === 'RUNNING'
+    )
+    if (step) {
+      updateWorkflowStep(step.id, {
+        status: 'COMPLETED',
+        output: data.output,
+        duration: data.duration
+      })
+      
+      // 更新缓存
+      const details = toolCallDetails.value.get(step.id)
+      if (details) {
+        details.output = data.output
+      }
+    }
+  }
+  
+  /**
+   * 处理工具调用错误
+   */
+  function handleToolCallError(traceId: string, agentId: string, data: ToolCallErrorPayload) {
+    updateAgentStatus(traceId, agentId, 'FAILED')
+    
+    const step = findLastWorkflowStep(traceId, agentId, s => s.status === 'RUNNING')
+    if (step) {
+      updateWorkflowStep(step.id, {
+        status: 'FAILED',
+        output: { error: data.error, errorType: data.errorType }
+      })
+    }
+  }
+  
+  /**
+   * 处理权限请求
+   */
+  function handlePermissionRequired(traceId: string, agentId: string, data: PermissionRequiredPayload) {
+    updateAgentStatus(traceId, agentId, 'BLOCKED', 'WAITING_PERMISSION')
+    
+    // 添加权限请求
+    const request: PermissionRequest = {
+      permissionId: data.permissionId,
+      toolName: data.toolName,
+      action: data.action,
+      reason: data.reason,
+      riskLevel: data.riskLevel,
+      status: 'pending',
+      requestedAt: Date.now()
+    }
+    pendingPermissions.value.set(data.permissionId, request)
+    
+    addWorkflowStep(traceId, agentId, {
+      status: 'BLOCKED',
+      actionType: 'WAITING_PERMISSION',
+      message: `需要授权: ${data.reason || data.toolName}`,
+      details: { 
+        permissionId: data.permissionId,
+        riskLevel: data.riskLevel,
+        suggestions: data.suggestions
+      }
+    })
+  }
+  
+  /**
+   * 处理团队成员创建
+   */
+  function handleTeammateSpawned(traceId: string, agentId: string, data: TeammateSpawnedPayload) {
+    const childAgentId = spawnAgent(
+      traceId,
+      agentId,
+      data.teammateName,
+      data.role,
+      '🤖',
+      '#2196F3',
+      data.teammateName
+    )
+    
+    addWorkflowStep(traceId, agentId, {
+      status: 'COMPLETED',
+      actionType: 'SPAWN_TEAMMATE',
+      message: `派生子 Agent: ${data.teammateName}`,
+      childTraceId: data.teammateId,
+      details: { childAgentId, teamId: data.teamId }
+    })
+    
+    // 更新团队拓扑
+    if (data.teamId) {
+      const team = teams.value.get(data.teamId) || {
+        teamId: data.teamId,
+        name: 'Team',
+        orchestratorId: agentId,
+        members: [],
+        createdAt: Date.now(),
+        status: 'active'
+      }
+      team.members.push({
+        agentId: childAgentId,
+        name: data.teammateName,
+        role: data.role,
+        type: data.teammateName,
+        status: 'IDLE',
+        parentId: agentId,
+        children: [],
+        progress: 0,
+        isActive: true
+      })
+      teams.value.set(data.teamId, team)
+    }
+  }
+  
+  /**
+   * 处理流式 Token
+   */
+  function handleTokenStream(traceId: string, agentId: string, data: { content?: string }) {
+    if (data.content) {
+      const existing = activeThinkings.value.get(agentId) || ''
+      activeThinkings.value.set(agentId, existing + data.content)
+    }
+  }
+  
+  /**
+   * 处理后台任务状态变化
+   */
+  function handleTaskStatusChange(data: TaskStatusChangePayload) {
+    let task = backgroundTasks.value.get(data.taskId)
+    
+    if (!task) {
+      task = {
+        taskId: data.taskId,
+        traceId: data.traceId,
+        name: data.taskName,
+        status: 'PENDING',
+        createdAt: Date.now()
+      }
+      backgroundTasks.value.set(data.taskId, task)
+    }
+    
+    task.status = data.newStatus as BackgroundTask['status']
+    task.progress = data.result ? 100 : undefined
+    
+    if (task.status === 'COMPLETED' || task.status === 'FAILED') {
+      task.completedAt = Date.now()
+    }
+    if (task.status === 'RUNNING') {
+      task.startedAt = Date.now()
+    }
+    
+    if (data.traceId) {
+      task.traceId = data.traceId
+    }
+  }
+  
+  /**
+   * 处理思考过程
+   */
+  function handleThinking(traceId: string, agentId: string, type: string, data: ThinkingPayload) {
+    if (type === 'THINKING_START') {
+      activeThinkings.value.set(agentId, '')
+      updateAgentStatus(traceId, agentId, 'THINKING')
+    } else if (type === 'THINKING_END') {
+      activeThinkings.value.delete(agentId)
+      updateAgentStatus(traceId, agentId, 'IDLE')
+    }
+  }
+
+  // ==================== 权限审批 ====================
+  
+  /**
+   * 审批权限请求
+   */
+  async function approvePermission(permissionId: string, approved: boolean) {
+    const request = pendingPermissions.value.get(permissionId)
+    
+    if (request) {
+      request.status = approved ? 'approved' : 'denied'
+      request.respondedAt = Date.now()
+      request.respondedBy = 'user'
+      
+      // 通过 API 发送审批结果
+      try {
+        await agentApi.approvePermission(permissionId)
+      } catch (error) {
+        console.error('[AgentStore] Failed to approve permission:', error)
+      }
+      
+      // 找到对应的 Agent 并更新状态
+      for (const [traceId, agentMap] of agents.value) {
+        for (const [agentId, agent] of agentMap) {
+          const step = agent.workflowSteps.find(s => 
+            s.actionType === 'WAITING_PERMISSION' && 
+            s.status === 'BLOCKED'
+          )
+          if (step) {
+            updateAgentStatus(traceId, agentId, approved ? 'RUNNING' : 'FAILED')
+            updateWorkflowStep(step.id, {
+              status: approved ? 'COMPLETED' : 'FAILED'
+            })
+            break
+          }
+        }
+      }
+      
+      console.log('[AgentStore] Permission', approved ? 'approved' : 'denied', 'for:', permissionId)
+    }
+  }
+  
+  /**
+   * 拒绝权限请求
+   */
+  async function denyPermission(permissionId: string) {
+    return approvePermission(permissionId, false)
+  }
+
+  // ==================== 工具调用详情 ====================
+  
+  /**
+   * 获取工具调用详情
+   */
+  function getToolCallDetails(stepId: string) {
+    return toolCallDetails.value.get(stepId)
+  }
+  
+  /**
+   * 清除工具调用详情缓存
+   */
+  function clearToolCallDetails(stepId: string) {
+    toolCallDetails.value.delete(stepId)
+  }
+
+  // ==================== 后台任务管理 ====================
+  
+  /**
+   * 刷新后台任务列表
+   */
+  async function refreshBackgroundTasks() {
+    try {
+      const { tasks } = await agentApi.listTasks()
+      for (const task of tasks) {
+        backgroundTasks.value.set(task.taskId, task)
+      }
+    } catch (error) {
+      console.error('[AgentStore] Failed to refresh background tasks:', error)
+    }
+  }
+  
+  /**
+   * 取消后台任务
+   */
+  async function cancelBackgroundTask(taskId: string) {
+    try {
+      await agentApi.cancelTask(taskId)
+      const task = backgroundTasks.value.get(taskId)
+      if (task) {
+        task.status = 'CANCELLED'
+        task.completedAt = Date.now()
+      }
+    } catch (error) {
+      console.error('[AgentStore] Failed to cancel task:', error)
+    }
+  }
+
+  // ==================== 配置管理 ====================
   
   /**
    * 更新 Agent 配置
@@ -509,6 +852,15 @@ export const useAgentStore = defineStore('agent', () => {
   }
   
   /**
+   * 设置权限模式
+   */
+  function setPermissionMode(mode: PermissionMode) {
+    agentConfig.value.permissionMode = mode
+  }
+
+  // ==================== 状态清理 ====================
+  
+  /**
    * 清空指定 Trace 的数据
    */
   function clearTrace(traceId: string) {
@@ -516,8 +868,8 @@ export const useAgentStore = defineStore('agent', () => {
     agents.value.delete(traceId)
     
     // 清理相关的权限请求
-    for (const [key] of pendingPermissions.value) {
-      if (key.startsWith(traceId)) {
+    for (const [key, request] of pendingPermissions.value) {
+      if (key.includes(traceId)) {
         pendingPermissions.value.delete(key)
       }
     }
@@ -537,6 +889,10 @@ export const useAgentStore = defineStore('agent', () => {
     agents.value.clear()
     currentTraceId.value = null
     pendingPermissions.value.clear()
+    teams.value.clear()
+    backgroundTasks.value.clear()
+    activeThinkings.value.clear()
+    toolCallDetails.value.clear()
     agentConfig.value = { permissionMode: 'auto' }
     console.log('[AgentStore] Reset complete')
   }
@@ -558,6 +914,50 @@ export const useAgentStore = defineStore('agent', () => {
       }
     })
     
+    // 监听工具调用事件
+    wsClient.on('tool_call_start', (data: unknown) => {
+      const payload = data as ToolCallStartPayload & { traceId: string; agentId: string }
+      if (payload.traceId && payload.agentId) {
+        handleToolCallStart(payload.traceId, payload.agentId, payload)
+      }
+    })
+    
+    wsClient.on('tool_call_end', (data: unknown) => {
+      const payload = data as ToolCallCompletePayload & { traceId: string; agentId: string }
+      if (payload.traceId && payload.agentId) {
+        handleToolCallComplete(payload.traceId, payload.agentId, payload)
+      }
+    })
+    
+    wsClient.on('tool_call_error', (data: unknown) => {
+      const payload = data as ToolCallErrorPayload & { traceId: string; agentId: string }
+      if (payload.traceId && payload.agentId) {
+        handleToolCallError(payload.traceId, payload.agentId, payload)
+      }
+    })
+    
+    // 监听权限事件
+    wsClient.on('permission_required', (data: unknown) => {
+      const payload = data as PermissionRequiredPayload & { traceId: string; agentId: string }
+      if (payload.traceId && payload.agentId) {
+        handlePermissionRequired(payload.traceId, payload.agentId, payload)
+      }
+    })
+    
+    // 监听任务状态变化
+    wsClient.on('task_status_changed', (data: unknown) => {
+      const payload = data as TaskStatusChangePayload
+      handleTaskStatusChange(payload)
+    })
+    
+    // 监听团队事件
+    wsClient.on('teammate_spawned', (data: unknown) => {
+      const payload = data as TeammateSpawnedPayload & { traceId: string; agentId: string }
+      if (payload.traceId && payload.agentId) {
+        handleTeammateSpawned(payload.traceId, payload.agentId, payload)
+      }
+    })
+    
     console.log('[AgentStore] WebSocket listeners setup complete')
   }
 
@@ -568,13 +968,19 @@ export const useAgentStore = defineStore('agent', () => {
     currentTraceId,
     agentConfig,
     pendingPermissions,
+    teams,
+    backgroundTasks,
+    activeThinkings,
     
     // 计算属性
     currentTrace,
     currentAgents,
     agentTree,
+    activeBackgroundTasks,
+    pendingPermissionList,
+    currentTeamTopology,
     
-    // 方法
+    // 核心方法
     setCurrentTrace,
     createTrace,
     spawnAgent,
@@ -582,10 +988,29 @@ export const useAgentStore = defineStore('agent', () => {
     addWorkflowStep,
     updateWorkflowStep,
     handleAgentEvent,
+    findLastWorkflowStep,
+    
+    // 权限管理
     approvePermission,
+    denyPermission,
+    
+    // 工具调用详情
+    getToolCallDetails,
+    clearToolCallDetails,
+    
+    // 后台任务
+    refreshBackgroundTasks,
+    cancelBackgroundTask,
+    
+    // 配置
     updateConfig,
+    setPermissionMode,
+    
+    // 清理
     clearTrace,
     reset,
+    
+    // WebSocket
     setupWebSocketListeners
   }
 })

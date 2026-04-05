@@ -86,20 +86,20 @@ export class SessionManager {
   }
 
   async loadSession(sessionId: string): Promise<InMemorySession | null> {
-    const cached = this.sessions.get(sessionId)
-    if (cached) {
-      // getUserSessions 会先把会话放进缓存且 messages=[]、dirty=false，若直接 return 会永远读不到库里的历史消息
-      if (!cached.dirty && (cached.messages.length === 0 && cached.toolCalls.length === 0 || cached.needsHydration)) {
-        await this.hydrateSessionFromDb(sessionId, cached)
-      }
-      return cached
-    }
-
+    console.log(`[SessionManager] loadSession called for session ${sessionId}`)
+    
+    // 无论是否有缓存，都从数据库重新加载完整数据
+    // 这样可以确保始终获取到最新、最完整的数据
     const session = await this.sessionRepo.findById(sessionId)
-    if (!session) return null
+    if (!session) {
+      console.warn(`[SessionManager] Session ${sessionId} not found in database`)
+      return null
+    }
 
     const dbMessages = await this.messageRepo.findBySessionId(sessionId)
     const dbToolCalls = await this.toolCallRepo.findBySessionId(sessionId)
+
+    console.log(`[SessionManager] Retrieved from DB - messages: ${dbMessages.length}, toolCalls: ${dbToolCalls.length}`)
 
     // 标准化 createdAt 为 ISO 字符串格式，确保与前端兼容
     const messages: Message[] = dbMessages.map(msg => {
@@ -119,8 +119,10 @@ export class SessionManager {
       messages,
       toolCalls: dbToolCalls,
       dirty: false,
+      needsHydration: false,
     }
 
+    // 更新缓存（覆盖现有缓存，确保数据一致性）
     this.sessions.set(sessionId, sessionData)
 
     const userSessionList = this.userSessions.get(session.userId) || []
@@ -130,7 +132,7 @@ export class SessionManager {
     }
 
     // 添加数据完整性日志
-    console.log(`[SessionManager] Loaded session ${sessionId}:`, {
+    console.log(`[SessionManager] Loaded session ${sessionId} successfully:`, {
       messageCount: messages.length,
       toolCallCount: dbToolCalls.length,
       dirty: false

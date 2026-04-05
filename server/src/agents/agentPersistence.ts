@@ -123,8 +123,7 @@ export class AgentPersistenceService {
     console.log('[AgentPersistenceService] 恢复 Mailbox 消息...')
 
     // 恢复所有 Agent 的未读消息
-    const agentRegistry = this.agentRegistry.getInstance()
-    const activeAgents = agentRegistry.getActiveAgents()
+    const activeAgents = this.agentRegistry.getActiveAgents()
 
     for (const agent of activeAgents) {
       const unreadMessages = await this.repo.getMailboxMessages(agent.agentId)

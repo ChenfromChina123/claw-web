@@ -8,8 +8,10 @@ import ChatInput from '@/components/ChatInput.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import GlassPanel from '@/components/common/GlassPanel.vue'
 import AgentStatusPanel from '@/components/AgentStatusPanel.vue'
+import AgentActivitySidebar from '@/components/AgentActivitySidebar.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
+import { useAgentStore } from '@/stores/agent'
 import type { MultiAgentOrchestrationState } from '@/types/agent'
 import { createInitialOrchestrationState } from '@/types/agent'
 
@@ -17,6 +19,7 @@ const router = useRouter()
 const message = useMessage()
 const chatStore = useChatStore()
 const authStore = useAuthStore()
+const agentStore = useAgentStore()
 
 const showCommandPalette = ref(false)
 const inputRef = ref<InstanceType<typeof ChatInput> | null>(null)
@@ -33,6 +36,11 @@ const orchestrationState = ref<MultiAgentOrchestrationState>(createInitialOrches
  * 是否显示 Agent 状态面板
  */
 const showAgentPanel = ref(false)
+
+/**
+ * 是否显示 Agent 活动侧边栏（新）
+ */
+const showAgentActivitySidebar = ref(false)
 
 /**
  * 初始化 Agent 协调演示数据
@@ -170,6 +178,9 @@ onMounted(async () => {
     console.log('[Chat] 连接 WebSocket...')
     await chatStore.connect(authStore.token || undefined)
     console.log('[Chat] WebSocket 连接成功， isConnected:', chatStore.isConnected)
+    
+    // 设置 Agent Store 的 WebSocket 监听
+    agentStore.setupWebSocketListeners()
     
     // 获取会话列表
     console.log('[Chat] 获取会话列表...')
@@ -329,6 +340,15 @@ function handleCommandSelect(command: string): void {
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor"/>
         </svg>
       </div>
+      
+      <!-- Agent 活动侧边栏切换按钮 -->
+      <div class="agent-activity-toggle" @click="showAgentActivitySidebar = !showAgentActivitySidebar" :class="{ active: showAgentActivitySidebar }">
+        <span class="toggle-icon">🤖</span>
+        <span class="toggle-label">活动</span>
+        <div v-if="agentStore.pendingPermissionList.length > 0" class="pending-indicator">
+          {{ agentStore.pendingPermissionList.length }}
+        </div>
+      </div>
       <!-- 背景装饰 -->
       <div class="chat-bg-decoration">
         <div class="bg-grid-pattern"></div>
@@ -397,6 +417,14 @@ function handleCommandSelect(command: string): void {
         @select="handleCommandSelect"
       />
     </Teleport>
+    
+    <!-- Agent 活动侧边栏 -->
+    <AgentActivitySidebar
+      v-model:show="showAgentActivitySidebar"
+      default-tab="workflow"
+      @step-click="(step) => console.log('Step clicked:', step)"
+      @agent-click="(agentId) => console.log('Agent clicked:', agentId)"
+    />
   </NLayout>
 </template>
 
@@ -522,6 +550,60 @@ function handleCommandSelect(command: string): void {
   width: 18px;
   height: 18px;
   color: var(--text-secondary);
+}
+
+/* ---- Agent 活动侧边栏切换按钮 ---- */
+.agent-activity-toggle {
+  position: absolute;
+  top: 16px;
+  right: 60px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  cursor: pointer;
+  z-index: 10;
+  transition: all var(--transition-fast, 150ms) ease;
+}
+
+.agent-activity-toggle:hover {
+  background: rgba(24, 160, 88, 0.15);
+  border-color: rgba(24, 160, 88, 0.3);
+}
+
+.agent-activity-toggle.active {
+  background: rgba(24, 160, 88, 0.2);
+  border-color: rgba(24, 160, 88, 0.5);
+}
+
+.toggle-icon {
+  font-size: 14px;
+}
+
+.toggle-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pending-indicator {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: #d03050;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pulse 2s ease infinite;
 }
 
 /* ---- 主内容容器 ---- */

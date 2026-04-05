@@ -331,6 +331,12 @@
 | `MonitoringPanel.vue`        | ✅   | 已实现            |
 | `DiagnosticPanel.vue`        | ✅   | 已实现            |
 | `SkillMarket.vue`            | ✅   | 已实现            |
+| `AgentWorkflowViewer.vue`    | ✅   | ✅ 新增：递归树形工作流可视化 |
+| `AgentActivitySidebar.vue`   | ✅   | ✅ 新增：Agent 活动侧边栏 |
+| `AgentTeamPanel.vue`         | ✅   | ✅ 新增：团队拓扑可视化 |
+| `BackgroundTasksPanel.vue`    | ✅   | ✅ 新增：后台任务看板 |
+| `PermissionInterceptor.vue`  | ✅   | ✅ 新增：权限拦截审批 |
+| `PermissionModeSelector.vue` | ✅   | ✅ 新增：权限模式选择 |
 
 
 ### 12.3 状态管理
@@ -341,6 +347,7 @@
 | `chat.ts`     | ✅   | 聊天状态管理 |
 | `auth.ts`     | ✅   | 认证状态管理 |
 | `settings.ts` | ✅   | 设置状态管理 |
+| `agent.ts`    | ✅   | ✅ Agent 工作流状态管理（增强版） |
 
 
 ### 12.4 API 集成

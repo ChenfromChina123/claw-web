@@ -2,146 +2,822 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>Claude Code HAHA - Agent Workflow Prototype</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Code HAHA - Agent Workflow Visualization Prototype</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .agent-node { border-left: 2px dashed #4b5563; }
-        .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        * { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* 深色主题配色 */
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a24;
+            --bg-elevated: #22222e;
+            --border-color: #2a2a3a;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0b0;
+            --text-muted: #606070;
+            --accent-green: #18a058;
+            --accent-blue: #2080f0;
+            --accent-orange: #f0a020;
+            --accent-red: #d03050;
+            --accent-purple: #9c27b0;
+        }
+        
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        
+        /* 滚动条样式 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+        
+        /* 动画 */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.1); }
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .animate-pulse-slow { animation: pulse 2s ease-in-out infinite; }
+        .animate-slide { animation: slideIn 0.3s ease-out; }
+        .animate-fade { animation: fadeIn 0.3s ease-out; }
+        .animate-blink { animation: blink 1s ease-in-out infinite; }
+        
+        /* 状态颜色 */
+        .status-idle { background: rgba(96, 96, 112, 0.2); border-left: 3px solid #606070; }
+        .status-thinking { background: rgba(24, 160, 88, 0.15); border-left: 3px solid #18a058; }
+        .status-running { background: rgba(32, 128, 240, 0.15); border-left: 3px solid #2080f0; }
+        .status-waiting { background: rgba(240, 160, 32, 0.15); border-left: 3px solid #f0a020; }
+        .status-blocked { background: rgba(240, 160, 32, 0.2); border-left: 3px solid #f0a020; }
+        .status-completed { background: rgba(24, 160, 88, 0.1); border-left: 3px solid #18a058; }
+        .status-failed { background: rgba(208, 48, 80, 0.15); border-left: 3px solid #d03050; }
+        
+        /* 标签颜色 */
+        .tag-idle { background: #606070; color: white; }
+        .tag-thinking { background: #18a058; color: white; }
+        .tag-running { background: #2080f0; color: white; }
+        .tag-waiting { background: #f0a020; color: black; }
+        .tag-blocked { background: #f0a020; color: black; }
+        .tag-completed { background: #18a058; color: white; }
+        .tag-failed { background: #d03050; color: white; }
+        
+        /* 树形结构 */
+        .tree-line {
+            border-left: 2px dashed var(--border-color);
+            margin-left: 12px;
+            padding-left: 20px;
+        }
+        
+        .node-dot::before {
+            content: '';
+            position: absolute;
+            left: -25px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border-color);
+        }
+        
+        /* 进度条 */
+        .progress-bar {
+            background: var(--bg-elevated);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        /* 按钮 */
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-green), #1a8f5a);
+            transition: all 0.2s;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(24, 160, 88, 0.3);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-color);
+            transition: all 0.2s;
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--text-muted);
+            background: var(--bg-card);
+        }
+        
+        /* 玻璃效果 */
+        .glass {
+            background: rgba(26, 26, 36, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+        }
+        
+        /* 权限拦截动画 */
+        @keyframes permissionPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        
+        .permission-alert {
+            animation: permissionPulse 2s ease-in-out infinite;
+        }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 font-sans">
+<body>
+<div id="app" class="min-h-screen flex flex-col">
 
-<div id="app" class="max-w-4xl mx-auto p-8">
-    <header class="mb-8 border-b border-gray-700 pb-4 flex justify-between items-end">
-        <div>
-            <h1 class="text-2xl font-bold text-blue-400">Claude Code HAHA</h1>
-            <p class="text-gray-400 text-sm">Agent 流程监控控制台 (厚后端架构方案)</p>
+    <!-- 顶部导航栏 -->
+    <header class="glass px-6 py-3 flex items-center justify-between sticky top-0 z-50">
+        <div class="flex items-center gap-4">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-xl font-bold shadow-lg shadow-green-500/20">
+                🤖
+            </div>
+            <div>
+                <h1 class="text-lg font-bold bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
+                    Claude Code HAHA
+                </h1>
+                <p class="text-xs text-gray-500">多 Agent 智能协作平台</p>
+            </div>
         </div>
-        <button @click="simulateEvent" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-sm transition">
-            模拟后端推送事件
-        </button>
-    </header>
-
-    <div class="space-y-6">
-        <agent-workflow :node="rootNode"></agent-workflow>
-    </div>
-</div>
-
-<script type="text/x-template" id="agent-workflow-template">
-    <div class="mb-4">
-        <div class="flex items-center space-x-3 mb-2">
-            <div :class="['w-3 h-3 rounded-full', statusColor]"></div>
-            <span class="font-mono font-bold text-blue-300">[{{ node.agentType }}]</span>
-            <span class="text-xs text-gray-500">ID: {{ node.agentId }}</span>
-        </div>
-
-        <div class="agent-node ml-1.5 pl-6 space-y-3">
-            <div v-for="step in node.steps" :key="step.id" class="relative">
-                <div class="absolute -left-[1.95rem] top-2 w-2 h-2 rounded-full bg-gray-600 border border-gray-900"></div>
+        
+        <div class="flex items-center gap-3">
+            <!-- 权限模式选择器 -->
+            <div class="relative">
+                <button @click="showModeDropdown = !showModeDropdown" 
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] border border-[var(--border-color)] transition">
+                    <span>{{ currentMode.icon }}</span>
+                    <span class="text-sm">{{ currentMode.label }}</span>
+                    <i class="fas fa-chevron-down text-xs text-gray-500"></i>
+                </button>
                 
-                <div class="bg-gray-800 border border-gray-700 p-3 rounded-lg shadow-sm">
-                    <div class="flex justify-between items-start">
-                        <span class="text-sm font-medium">{{ step.label }}</span>
-                        <span :class="['text-[10px] px-1.5 py-0.5 rounded uppercase', stepStatusClass(step.status)]">
-                            {{ step.status }}
+                <!-- 模式下拉菜单 -->
+                <div v-if="showModeDropdown" class="absolute right-0 mt-2 w-72 glass rounded-xl p-2 z-50 animate-fade">
+                    <div v-for="mode in permissionModes" :key="mode.value"
+                         @click="selectMode(mode)"
+                         class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[var(--bg-elevated)] cursor-pointer transition"
+                         :class="{ 'bg-[var(--bg-elevated)]': currentMode.value === mode.value }">
+                        <span class="text-lg">{{ mode.icon }}</span>
+                        <div class="flex-1">
+                            <div class="text-sm font-medium">{{ mode.label }}</div>
+                            <div class="text-xs text-gray-500">{{ mode.description }}</div>
+                        </div>
+                        <span v-if="currentMode.value === mode.value" class="text-green-500">
+                            <i class="fas fa-check"></i>
                         </span>
-                    </div>
-                    <p class="text-xs text-gray-400 mt-1">{{ step.content }}</p>
-                    
-                    <div v-if="step.status === 'intercepted'" class="mt-3 p-2 bg-orange-900/30 border border-orange-700 rounded flex gap-2">
-                        <span class="text-xs text-orange-200 flex-1">⚠️ 发现高危命令: <b>rm -rf /test</b></span>
-                        <button class="text-[10px] bg-orange-600 px-2 py-1 rounded">允许执行</button>
-                        <button class="text-[10px] bg-gray-600 px-2 py-1 rounded">拒绝</button>
-                    </div>
-
-                    <div v-if="step.childAgent" class="mt-4">
-                        <agent-workflow :node="step.childAgent"></agent-workflow>
                     </div>
                 </div>
             </div>
+            
+            <!-- Agent 活动按钮 -->
+            <button @click="showActivitySidebar = !showActivitySidebar" 
+                    class="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium">
+                <span class="text-lg">🤖</span>
+                <span>Agent 活动</span>
+                <span v-if="pendingPermissions.length > 0" 
+                      class="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full animate-pulse-slow">
+                    {{ pendingPermissions.length }}
+                </span>
+            </button>
+        </div>
+    </header>
 
-            <div v-if="node.isRunning" class="flex items-center text-xs text-gray-500 pulse">
-                <span class="mr-2">●</span> Agent 正在处理中...
+    <!-- 主内容区 -->
+    <div class="flex-1 flex overflow-hidden">
+        <!-- 聊天区域 -->
+        <div class="flex-1 flex flex-col relative">
+            <!-- 背景装饰 -->
+            <div class="absolute inset-0 pointer-events-none overflow-hidden">
+                <div class="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-green-500/5 to-blue-500/5 rounded-full blur-3xl"></div>
+                <div class="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-blue-500/5 to-purple-500/5 rounded-full blur-3xl"></div>
             </div>
+            
+            <!-- 消息列表 -->
+            <div class="flex-1 overflow-y-auto px-6 py-4 relative z-10">
+                <!-- 用户消息 -->
+                <div class="flex justify-end mb-4 animate-slide">
+                    <div class="max-w-xl bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl rounded-br-md px-5 py-3 shadow-lg shadow-blue-500/10">
+                        <p class="text-sm">请帮我分析这个项目的结构，找出所有的 Vue 组件并生成报告</p>
+                    </div>
+                </div>
+                
+                <!-- Agent 响应 -->
+                <div class="flex gap-3 mb-6 animate-fade">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-xl flex-shrink-0 shadow-lg shadow-green-500/20">
+                        🤖
+                    </div>
+                    <div class="flex-1 max-w-3xl">
+                        <div class="flex items-center gap-3 mb-3">
+                            <span class="font-semibold text-sm">Coordinator Agent</span>
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
+                                <i class="fas fa-circle text-[6px] mr-1 animate-pulse-slow"></i>
+                                运行中
+                            </span>
+                        </div>
+                        <div class="text-sm text-gray-300 leading-relaxed space-y-2">
+                            <p>好的，我将启动多 Agent 协作来完成任务分解和执行。</p>
+                            <p>首先，我将创建以下子 Agent：</p>
+                            <div class="grid grid-cols-3 gap-2 mt-3">
+                                <div class="bg-[var(--bg-card)] rounded-lg p-3 border border-[var(--border-color)]">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="text-lg">🔍</span>
+                                        <span class="font-medium text-sm">Explore Agent</span>
+                                    </div>
+                                    <p class="text-xs text-gray-500">扫描项目目录结构</p>
+                                </div>
+                                <div class="bg-[var(--bg-card)] rounded-lg p-3 border border-[var(--border-color)]">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="text-lg">📋</span>
+                                        <span class="font-medium text-sm">Plan Agent</span>
+                                    </div>
+                                    <p class="text-xs text-gray-500">分析组件依赖关系</p>
+                                </div>
+                                <div class="bg-[var(--bg-card)] rounded-lg p-3 border border-[var(--border-color)]">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="text-lg">💻</span>
+                                        <span class="font-medium text-sm">Code Agent</span>
+                                    </div>
+                                    <p class="text-xs text-gray-500">生成分析报告</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 工作流卡片 -->
+                <div class="bg-[var(--bg-card)] rounded-2xl border border-[var(--border-color)] p-4 mb-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="text-lg">🌳</span>
+                            <span class="font-semibold text-sm">执行工作流</span>
+                        </div>
+                        <button @click="simulateEvents" class="btn-secondary px-3 py-1 rounded-lg text-xs">
+                            <i class="fas fa-play mr-1"></i> 模拟事件
+                        </button>
+                    </div>
+                    
+                    <!-- 工作流节点 -->
+                    <agent-workflow :node="rootNode" :level="0"></agent-workflow>
+                </div>
+            </div>
+            
+            <!-- 输入区域 -->
+            <div class="glass p-4 mx-6 mb-6 rounded-2xl relative z-10">
+                <div class="flex items-center gap-3">
+                    <input type="text" placeholder="输入消息..." 
+                           class="flex-1 bg-[var(--bg-card)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 transition border border-transparent focus:border-green-500/30">
+                    <button class="btn-primary px-6 py-3 rounded-xl text-sm font-medium">
+                        <i class="fas fa-paper-plane mr-2"></i>
+                        发送
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Agent 活动侧边栏 -->
+        <transition name="sidebar">
+            <div v-if="showActivitySidebar" class="w-[420px] glass border-l border-[var(--border-color)] flex flex-col animate-slide">
+                <!-- 侧边栏头部 -->
+                <div class="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
+                    <h2 class="font-semibold flex items-center gap-2">
+                        <span>🤖</span>
+                        Agent 活动
+                    </h2>
+                    <button @click="showActivitySidebar = false" class="p-1.5 hover:bg-[var(--bg-elevated)] rounded-lg transition">
+                        <i class="fas fa-times text-gray-400"></i>
+                    </button>
+                </div>
+                
+                <!-- 统计概览 -->
+                <div class="p-4 border-b border-[var(--border-color)] grid grid-cols-3 gap-3">
+                    <div class="bg-[var(--bg-card)] rounded-xl p-3 text-center">
+                        <div class="text-2xl font-bold text-blue-400">{{ activeAgentCount }}</div>
+                        <div class="text-xs text-gray-500 mt-1">活跃 Agent</div>
+                    </div>
+                    <div class="bg-[var(--bg-card)] rounded-xl p-3 text-center">
+                        <div class="text-2xl font-bold text-green-400">{{ completedStepCount }}</div>
+                        <div class="text-xs text-gray-500 mt-1">已完成</div>
+                    </div>
+                    <div class="bg-[var(--bg-card)] rounded-xl p-3 text-center" :class="pendingPermissions.length > 0 ? 'bg-orange-500/10' : ''">
+                        <div class="text-2xl font-bold" :class="pendingPermissions.length > 0 ? 'text-orange-400' : 'text-gray-400'">{{ pendingPermissions.length }}</div>
+                        <div class="text-xs text-gray-500 mt-1">待审批</div>
+                    </div>
+                </div>
+                
+                <!-- 权限拦截提示 -->
+                <div v-if="pendingPermissions.length > 0" class="p-4 border-b border-[var(--border-color)]">
+                    <div class="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 permission-alert">
+                        <div class="flex items-start gap-3">
+                            <span class="text-2xl">⚠️</span>
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="font-semibold text-orange-400">需要授权</span>
+                                    <span class="text-xs px-2 py-0.5 rounded bg-orange-500/30 text-orange-300">高风险</span>
+                                </div>
+                                <p class="text-sm text-gray-400 mb-3">{{ pendingPermissions[0].reason }}</p>
+                                <div class="flex items-center justify-between">
+                                    <div class="text-xs text-gray-500">
+                                        <span class="inline-block w-6 h-6 rounded-full bg-orange-500/30 text-orange-400 text-center leading-6 countdown-text">{{ countdown }}s</span>
+                                        后自动拒绝
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button @click="denyPermission" class="px-3 py-1.5 bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] rounded-lg text-sm transition border border-[var(--border-color)]">
+                                            拒绝
+                                        </button>
+                                        <button @click="approvePermission" class="px-3 py-1.5 bg-green-600 hover:bg-green-500 rounded-lg text-sm transition">
+                                            允许
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab 切换 -->
+                <div class="flex border-b border-[var(--border-color)]">
+                    <button v-for="tab in tabs" :key="tab.id"
+                            @click="activeTab = tab.id"
+                            class="flex-1 px-4 py-3 text-sm font-medium transition relative">
+                        <span>{{ tab.icon }} {{ tab.label }}</span>
+                        <div v-if="activeTab === tab.id" class="absolute bottom-0 left-0 right-0 h-0.5 bg-green-500"></div>
+                    </button>
+                </div>
+                
+                <!-- Tab 内容 -->
+                <div class="flex-1 overflow-y-auto p-4">
+                    <!-- 工作流 Tab -->
+                    <div v-if="activeTab === 'workflow'" class="space-y-3">
+                        <agent-workflow v-for="node in workflowNodes" :key="node.agentId" :node="node" :level="0"></agent-workflow>
+                    </div>
+                    
+                    <!-- 团队 Tab -->
+                    <div v-if="activeTab === 'team'" class="space-y-4">
+                        <!-- 协调者 -->
+                        <div class="text-center py-6">
+                            <div class="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-green-500 to-blue-500 flex items-center justify-center text-3xl shadow-lg">
+                                🎯
+                            </div>
+                            <div class="font-semibold">协调者</div>
+                            <div class="text-xs text-gray-500">Coordinator Agent</div>
+                        </div>
+                        
+                        <div class="flex justify-center">
+                            <div class="w-0.5 h-6 bg-[var(--border-color)]"></div>
+                        </div>
+                        
+                        <!-- 团队成员 -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div v-for="member in teamMembers" :key="member.id" 
+                                 class="bg-[var(--bg-card)] rounded-xl p-3 border border-[var(--border-color)] text-center">
+                                <div class="text-2xl mb-2">{{ member.icon }}</div>
+                                <div class="text-sm font-medium">{{ member.name }}</div>
+                                <div class="text-xs text-gray-500 mb-2">{{ member.role }}</div>
+                                <div class="h-1 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
+                                    <div class="h-full bg-blue-500" :style="{ width: member.progress + '%' }"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 任务 Tab -->
+                    <div v-if="activeTab === 'tasks'" class="space-y-3">
+                        <div v-for="task in backgroundTasks" :key="task.id" 
+                             class="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-color)]">
+                            <div class="flex items-center gap-3 mb-2">
+                                <span class="text-lg">{{ task.icon }}</span>
+                                <div class="flex-1">
+                                    <div class="font-medium text-sm">{{ task.name }}</div>
+                                    <div class="text-xs text-gray-500">{{ task.time }}</div>
+                                </div>
+                                <span class="text-xs px-2 py-0.5 rounded-full" :class="'tag-' + task.status">
+                                    {{ task.statusText }}
+                                </span>
+                            </div>
+                            <div v-if="task.status === 'running'" class="h-1 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
+                                <div class="h-full bg-green-500" :style="{ width: task.progress + '%' }"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </transition>
+    </div>
+</div>
+
+<!-- 工作流组件模板 -->
+<script type="text/x-template" id="agent-workflow-template">
+    <div class="mb-3">
+        <!-- Agent 头部 -->
+        <div class="flex items-center gap-3 mb-3 p-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-color)] relative node-dot">
+            <div class="w-3 h-3 rounded-full flex-shrink-0" 
+                 :class="node.isRunning ? 'bg-blue-500 animate-pulse-slow' : (node.status === 'completed' ? 'bg-green-500' : 'bg-gray-500')">
+            </div>
+            <span class="text-xl">{{ node.icon || '🤖' }}</span>
+            <div class="flex-1">
+                <div class="font-semibold text-sm">{{ node.name || node.agentType }}</div>
+                <div class="text-xs text-gray-500">{{ node.type || node.agentType }}</div>
+            </div>
+            <span class="text-xs px-2 py-0.5 rounded-full" :class="'tag-' + (node.isRunning ? 'running' : node.status)">
+                {{ node.statusText || (node.isRunning ? '运行中' : (node.status === 'completed' ? '已完成' : node.status)) }}
+            </span>
+        </div>
+        
+        <!-- 工作流步骤 -->
+        <div v-if="node.steps && node.steps.length > 0" class="ml-4 pl-4 tree-line space-y-2">
+            <div v-for="(step, idx) in node.steps" :key="step.id" class="relative">
+                <div class="absolute -left-6 top-3 w-2 h-2 rounded-full bg-[var(--border-color)]"></div>
+                
+                <div class="p-3 rounded-lg border border-[var(--border-color)] transition cursor-pointer hover:border-[var(--text-muted)]"
+                     :class="'status-' + step.status">
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="flex items-center gap-2">
+                            <span>{{ step.icon }}</span>
+                            <span class="text-sm font-medium">{{ step.label }}</span>
+                        </div>
+                        <span class="text-xs px-2 py-0.5 rounded-full" :class="'tag-' + step.status">
+                            {{ step.statusText || step.status }}
+                        </span>
+                    </div>
+                    <p class="text-xs text-gray-500">{{ step.content }}</p>
+                    
+                    <!-- 工具详情 -->
+                    <div v-if="step.toolName && step.expanded" class="mt-3 p-2 bg-[var(--bg-elevated)] rounded-lg">
+                        <div class="text-xs text-gray-500 mb-1">输入参数:</div>
+                        <pre class="text-xs mono text-green-400 overflow-x-auto">{{ JSON.stringify(step.input, null, 2) }}</pre>
+                    </div>
+                    
+                    <!-- 权限拦截 -->
+                    <div v-if="step.status === 'blocked' || step.status === 'intercepted'" class="mt-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-lg">⏳</span>
+                            <span class="font-medium text-sm text-orange-400">需要授权</span>
+                        </div>
+                        <p class="text-xs text-gray-400 mb-2">{{ step.permissionReason || '此操作需要用户确认' }}</p>
+                        <div class="flex gap-2">
+                            <button class="flex-1 px-3 py-1.5 bg-[var(--bg-elevated)] hover:bg-[var(--bg-card)] rounded-lg text-sm transition border border-[var(--border-color)]">
+                                拒绝
+                            </button>
+                            <button class="flex-1 px-3 py-1.5 bg-green-600 hover:bg-green-500 rounded-lg text-sm transition">
+                                允许
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 子 Agent -->
+                    <div v-if="step.childAgent" class="mt-4 ml-4">
+                        <agent-workflow :node="step.childAgent" :level="level + 1"></agent-workflow>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 运行中指示 -->
+            <div v-if="node.isRunning" class="flex items-center gap-2 text-xs text-gray-500 py-2">
+                <span class="w-2 h-2 rounded-full bg-blue-500 animate-blink"></span>
+                <span>Agent 正在处理中...</span>
+            </div>
+        </div>
+        
+        <!-- 子 Agent -->
+        <div v-if="node.children && node.children.length > 0" class="ml-4 pl-4 tree-line mt-3 space-y-3">
+            <div class="text-xs text-gray-500 mb-2 flex items-center gap-2">
+                <span>👥</span>
+                <span>子 Agent ({{ node.children.length }})</span>
+            </div>
+            <agent-workflow v-for="child in node.children" :key="child.agentId" :node="child" :level="level + 1"></agent-workflow>
         </div>
     </div>
 </script>
 
 <script>
-    const { createApp, ref, computed } = Vue;
-
-    // 递归组件定义
+    const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
+    
+    // 工作流组件
     const AgentWorkflow = {
         name: 'AgentWorkflow',
-        props: ['node'],
-        template: '#agent-workflow-template',
-        setup(props) {
-            const statusColor = computed(() => {
-                if (props.node.isRunning) return 'bg-blue-500 pulse';
-                return 'bg-green-500';
-            });
-
-            const stepStatusClass = (status) => {
-                const map = {
-                    'success': 'bg-green-900 text-green-300',
-                    'running': 'bg-blue-900 text-blue-300',
-                    'intercepted': 'bg-orange-900 text-orange-300',
-                    'failed': 'bg-red-900 text-red-300'
-                };
-                return map[status] || 'bg-gray-700 text-gray-300';
-            };
-
-            return { statusColor, stepStatusClass };
-        }
+        props: ['node', 'level'],
+        template: '#agent-workflow-template'
     };
-
+    
     createApp({
         components: { AgentWorkflow },
         setup() {
-            // 模拟初始状态（后端发送的第一个 Trace）
-            const rootNode = ref({
-                agentId: 'main-orchestrator',
-                agentType: 'Plan',
-                isRunning: true,
-                steps: [
-                    { id: 1, label: '解析用户意图', content: '用户要求重构项目文件结构', status: 'success' },
-                    { id: 2, label: '生成执行计划', content: '识别到 3 个子任务：扫描、修改、验证', status: 'success' }
-                ]
+            // 状态
+            const showActivitySidebar = ref(true);
+            const showModeDropdown = ref(false);
+            const activeTab = ref('workflow');
+            const countdown = ref(30);
+            
+            // 权限模式
+            const currentMode = ref({
+                value: 'auto',
+                icon: '🔄',
+                label: '自动模式',
+                description: '自动允许安全操作，高风险操作需确认'
             });
-
-            // 模拟后端推送事件流（模拟 Fork 过程）
-            let eventCount = 0;
-            const simulateEvent = () => {
-                eventCount++;
-                if (eventCount === 1) {
-                    // 推送：派生子 Agent
-                    rootNode.value.steps.push({
-                        id: 3,
-                        label: '派生扫描任务',
+            
+            const permissionModes = [
+                { value: 'bypass', icon: '⚡', label: '无限制', description: '所有操作直接执行，无需确认' },
+                { value: 'accept', icon: '✏️', label: '接受编辑', description: '接受所有文件编辑，其他操作需确认' },
+                { value: 'auto', icon: '🔄', label: '自动模式', description: '自动允许安全操作，高风险需确认' },
+                { value: 'plan', icon: '📋', label: '计划模式', description: '先规划后执行，所有修改需确认' },
+                { value: 'bubble', icon: '💬', label: '冒泡模式', description: '类似自动模式，但会提示所有操作' }
+            ];
+            
+            const tabs = [
+                { id: 'workflow', icon: '🌳', label: '工作流' },
+                { id: 'team', icon: '👥', label: '团队' },
+                { id: 'tasks', icon: '📋', label: '任务' }
+            ];
+            
+            // 根节点数据
+            const rootNode = ref({
+                agentId: 'coordinator-001',
+                agentType: 'Coordinator',
+                name: 'Coordinator Agent',
+                type: '协调者',
+                icon: '🎯',
+                status: 'running',
+                isRunning: true,
+                statusText: '运行中',
+                steps: [
+                    { 
+                        id: 1, 
+                        icon: '🤔', 
+                        label: '解析用户意图', 
+                        content: '理解用户需求：分析项目结构，找出 Vue 组件',
+                        status: 'completed',
+                        statusText: '已完成'
+                    },
+                    { 
+                        id: 2, 
+                        icon: '📋', 
+                        label: '生成执行计划', 
+                        content: '识别到 3 个子任务：扫描、修改、验证',
+                        status: 'completed',
+                        statusText: '已完成'
+                    },
+                    { 
+                        id: 3, 
+                        icon: '🤖', 
+                        label: '派生子 Agent', 
                         content: '启动 Explore 代理扫描 src 目录',
                         status: 'running',
-                        childAgent: {
-                            agentId: 'sub-explore-001',
-                            agentType: 'Explore',
-                            isRunning: true,
-                            steps: [
-                                { id: 101, label: '列出文件', content: 'ls -R ./src', status: 'success' },
-                                { id: 102, label: '读取关键配置', content: 'read package.json', status: 'intercepted' }
-                            ]
-                        }
+                        statusText: '运行中'
+                    }
+                ],
+                children: []
+            });
+            
+            // 工作流节点列表
+            const workflowNodes = ref([{ ...rootNode.value }]);
+            
+            // 团队成员
+            const teamMembers = ref([
+                { id: '1', name: 'Explore', icon: '🔍', role: '探索者', progress: 65 },
+                { id: '2', name: 'Plan', icon: '📋', role: '规划师', progress: 100 },
+                { id: '3', name: 'Code', icon: '💻', role: '编码员', progress: 30 },
+                { id: '4', name: 'Verify', icon: '✅', role: '验证者', progress: 0 }
+            ]);
+            
+            // 后台任务
+            const backgroundTasks = ref([
+                { id: '1', name: '扫描项目结构', icon: '📁', status: 'running', statusText: '运行中', progress: 75, time: '2分钟前' },
+                { id: '2', name: '分析组件依赖', icon: '🔗', status: 'completed', statusText: '已完成', progress: 100, time: '1分钟前' },
+                { id: '3', name: '生成报告', icon: '📊', status: 'pending', statusText: '等待中', progress: 0, time: '等待中' }
+            ]);
+            
+            // 待处理权限
+            const pendingPermissions = ref([]);
+            
+            // 计算属性
+            const activeAgentCount = computed(() => {
+                return 1 + teamMembers.value.filter(m => m.progress > 0 && m.progress < 100).length;
+            });
+            
+            const completedStepCount = computed(() => {
+                return rootNode.value.steps.filter(s => s.status === 'completed').length;
+            });
+            
+            // 方法
+            function selectMode(mode) {
+                currentMode.value = mode;
+                showModeDropdown.value = false;
+            }
+            
+            function approvePermission() {
+                pendingPermissions.value = [];
+                countdown.value = 30;
+            }
+            
+            function denyPermission() {
+                pendingPermissions.value = [];
+                countdown.value = 30;
+            }
+            
+            // 模拟事件流
+            let eventStep = 0;
+            function simulateEvents() {
+                eventStep++;
+                
+                if (eventStep === 1) {
+                    // 添加 Explore 子 Agent
+                    rootNode.value.children.push({
+                        agentId: 'explore-001',
+                        agentType: 'Explore',
+                        name: 'Explore Agent',
+                        type: '探索者',
+                        icon: '🔍',
+                        status: 'running',
+                        isRunning: true,
+                        statusText: '运行中',
+                        steps: [
+                            { id: 101, icon: '📁', label: '列出文件', content: '执行 ls -R ./src', status: 'completed', statusText: '已完成' },
+                            { id: 102, icon: '📄', label: '读取配置', content: '读取 package.json', status: 'completed', statusText: '已完成' },
+                            { id: 103, icon: '🔍', label: '扫描组件', content: '扫描 Vue 组件文件', status: 'running', statusText: '运行中' }
+                        ],
+                        children: []
                     });
-                } else if (eventCount === 2) {
-                    // 推送：主任务完成
+                    
+                    // 更新团队进度
+                    teamMembers.value[0].progress = 30;
+                    teamMembers.value[2].progress = 15;
+                } else if (eventStep === 2) {
+                    // 权限拦截
+                    pendingPermissions.value.push({
+                        id: 'perm-001',
+                        toolName: 'Bash',
+                        reason: 'Agent 尝试执行危险命令: rm -rf ./node_modules/.cache',
+                        riskLevel: 'HIGH'
+                    });
+                    
+                    // 添加阻塞步骤
+                    rootNode.value.children[0].steps.push({
+                        id: 104,
+                        icon: '⏳',
+                        label: '等待授权',
+                        content: '需要用户授权执行危险操作',
+                        status: 'blocked',
+                        statusText: '已阻塞',
+                        permissionReason: '危险操作需要确认'
+                    });
+                } else if (eventStep === 3) {
+                    // 完成权限审批
+                    pendingPermissions.value = [];
+                    rootNode.value.children[0].steps[rootNode.value.children[0].steps.length - 1].status = 'completed';
+                    rootNode.value.children[0].steps[rootNode.value.children[0].steps.length - 1].statusText = '已完成';
+                    
+                    // 完成 Explore
+                    rootNode.value.children[0].status = 'completed';
+                    rootNode.value.children[0].isRunning = false;
+                    rootNode.value.children[0].statusText = '已完成';
+                    teamMembers.value[0].progress = 100;
+                    
+                    // 添加 Plan 子 Agent
+                    rootNode.value.children.push({
+                        agentId: 'plan-001',
+                        agentType: 'Plan',
+                        name: 'Plan Agent',
+                        type: '规划师',
+                        icon: '📋',
+                        status: 'running',
+                        isRunning: true,
+                        statusText: '运行中',
+                        steps: [
+                            { id: 201, icon: '📊', label: '分析结构', content: '分析项目目录结构', status: 'running', statusText: '运行中' }
+                        ],
+                        children: []
+                    });
+                    teamMembers.value[1].progress = 50;
+                } else if (eventStep === 4) {
+                    // 完成主任务
+                    rootNode.value.status = 'completed';
                     rootNode.value.isRunning = false;
-                    rootNode.value.steps[2].status = 'success';
+                    rootNode.value.statusText = '已完成';
+                    rootNode.value.steps[rootNode.value.steps.length - 1].status = 'completed';
+                    rootNode.value.steps[rootNode.value.steps.length - 1].statusText = '已完成';
+                    
+                    // 完成 Plan
+                    rootNode.value.children[1].status = 'completed';
+                    rootNode.value.children[1].isRunning = false;
+                    rootNode.value.children[1].statusText = '已完成';
+                    teamMembers.value[1].progress = 100;
+                    
+                    // 更新任务状态
+                    backgroundTasks.value[0].status = 'completed';
+                    backgroundTasks.value[0].statusText = '已完成';
+                    backgroundTasks.value[0].progress = 100;
+                    backgroundTasks.value[2].status = 'completed';
+                    backgroundTasks.value[2].statusText = '已完成';
+                    
+                    // 重置模拟
+                    setTimeout(() => {
+                        eventStep = 0;
+                        rootNode.value.status = 'running';
+                        rootNode.value.isRunning = true;
+                        rootNode.value.statusText = '运行中';
+                        rootNode.value.steps[2].status = 'running';
+                        rootNode.value.steps[2].statusText = '运行中';
+                        rootNode.value.children = [];
+                        teamMembers.value.forEach(m => m.progress = 0);
+                        backgroundTasks.value[0].status = 'running';
+                        backgroundTasks.value[0].statusText = '运行中';
+                        backgroundTasks.value[0].progress = 75;
+                        backgroundTasks.value[2].status = 'pending';
+                        backgroundTasks.value[2].statusText = '等待中';
+                        backgroundTasks.value[2].progress = 0;
+                    }, 2000);
                 }
+            }
+            
+            // 倒计时
+            let timer = null;
+            onMounted(() => {
+                timer = setInterval(() => {
+                    if (pendingPermissions.value.length > 0 && countdown.value > 0) {
+                        countdown.value--;
+                        if (countdown.value === 0) {
+                            denyPermission();
+                        }
+                    }
+                }, 1000);
+            });
+            
+            onUnmounted(() => {
+                if (timer) clearInterval(timer);
+            });
+            
+            return {
+                showActivitySidebar,
+                showModeDropdown,
+                activeTab,
+                countdown,
+                currentMode,
+                permissionModes,
+                tabs,
+                rootNode,
+                workflowNodes,
+                teamMembers,
+                backgroundTasks,
+                pendingPermissions,
+                activeAgentCount,
+                completedStepCount,
+                selectMode,
+                approvePermission,
+                denyPermission,
+                simulateEvents
             };
-
-            return { rootNode, simulateEvent };
         }
     }).mount('#app');
 </script>
+
+<style>
+    .sidebar-enter-active,
+    .sidebar-leave-active {
+        transition: all 0.3s ease;
+    }
+    
+    .sidebar-enter-from,
+    .sidebar-leave-to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    
+    .countdown-text {
+        animation: pulse 1s ease-in-out infinite;
+    }
+</style>
 </body>
 </html>
