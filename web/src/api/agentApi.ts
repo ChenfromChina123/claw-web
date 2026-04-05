@@ -4,6 +4,7 @@
  */
 
 import client from './client'
+import { unwrapApiData } from './unwrapApiResponse'
 import type {
   ExecuteAgentRequest,
   ExecuteAgentResponse,
@@ -23,7 +24,7 @@ import type { AgentDefinition, AgentExecuteRequest, AgentExecuteResponse } from 
  * Execute a single agent task
  */
 export async function executeAgent(request: ExecuteAgentRequest): Promise<ExecuteAgentResponse> {
-  const response = await client.post<ExecuteAgentResponse>('/api/agents/execute', {
+  const response = await client.post<ExecuteAgentResponse>('/agents/execute', {
     prompt: request.prompt,
     agentType: request.agentType || 'general-purpose',
     sessionId: request.sessionId,
@@ -34,15 +35,15 @@ export async function executeAgent(request: ExecuteAgentRequest): Promise<Execut
     background: request.background || false,
     teamId: request.teamId
   })
-  return response.data
+  return unwrapApiData(response)
 }
 
 /**
  * Interrupt a running agent
  */
 export async function interruptAgent(agentId: string): Promise<{ success: boolean; message?: string }> {
-  const response = await client.post(`/api/agents/${agentId}/interrupt`)
-  return response.data
+  const response = await client.post(`/agents/${agentId}/interrupt`)
+  return unwrapApiData(response)
 }
 
 /**
@@ -52,10 +53,10 @@ export async function approvePermission(
   permissionId: string,
   agentId?: string
 ): Promise<{ success: boolean; message?: string }> {
-  const response = await client.post(`/api/agents/${agentId || 'pending'}/approve`, {
+  const response = await client.post(`/agents/${agentId || 'pending'}/approve`, {
     permissionId
   })
-  return response.data
+  return unwrapApiData(response)
 }
 
 /**
@@ -65,10 +66,10 @@ export async function denyPermission(
   permissionId: string,
   agentId?: string
 ): Promise<{ success: boolean; message?: string }> {
-  const response = await client.post(`/api/agents/${agentId || 'pending'}/deny`, {
+  const response = await client.post(`/agents/${agentId || 'pending'}/deny`, {
     permissionId
   })
-  return response.data
+  return unwrapApiData(response)
 }
 
 // ============================================================================
@@ -79,24 +80,25 @@ export async function denyPermission(
  * Spawn a new team of agents
  */
 export async function spawnTeam(request: SpawnTeamRequest): Promise<SpawnTeamResponse> {
-  const response = await client.post<SpawnTeamResponse>('/api/agents/team/spawn', request)
-  return response.data
+  const response = await client.post<SpawnTeamResponse>('/agents/team/spawn', request)
+  return unwrapApiData(response)
 }
 
 /**
  * Get team topology
  */
 export async function getTeamTopology(teamId: string): Promise<TeamTopology> {
-  const response = await client.get<TeamTopology>(`/api/agents/team/${teamId}/topology`)
-  return response.data
+  const response = await client.get<TeamTopology>(`/agents/team/${teamId}/topology`)
+  return unwrapApiData(response)
 }
 
 /**
  * Get all active teams
  */
 export async function listTeams(): Promise<TeamTopology[]> {
-  const response = await client.get<{ teams: TeamTopology[] }>('/api/agents/teams')
-  return response.data.teams
+  const response = await client.get<{ teams: TeamTopology[] }>('/agents/teams')
+  const data = unwrapApiData(response)
+  return data.teams
 }
 
 /**
@@ -106,8 +108,8 @@ export async function sendMessageToAgent(
   agentId: string,
   message: string
 ): Promise<{ success: boolean; messageId?: string }> {
-  const response = await client.post(`/api/agents/${agentId}/message`, { message })
-  return response.data
+  const response = await client.post(`/agents/${agentId}/message`, { message })
+  return unwrapApiData(response)
 }
 
 // ============================================================================
@@ -128,33 +130,33 @@ export async function listTasks(
   params.append('offset', String(offset))
 
   const response = await client.get<{ tasks: BackgroundTask[]; total: number }>(
-    `/api/tasks?${params.toString()}`
+    `/tasks?${params.toString()}`
   )
-  return response.data
+  return unwrapApiData(response)
 }
 
 /**
  * Get single task status
  */
 export async function getTaskStatus(taskId: string): Promise<BackgroundTask> {
-  const response = await client.get<BackgroundTask>(`/api/tasks/${taskId}/status`)
-  return response.data
+  const response = await client.get<BackgroundTask>(`/tasks/${taskId}/status`)
+  return unwrapApiData(response)
 }
 
 /**
  * Cancel a background task
  */
 export async function cancelTask(taskId: string): Promise<{ success: boolean }> {
-  const response = await client.post(`/api/tasks/${taskId}/cancel`)
-  return response.data
+  const response = await client.post(`/tasks/${taskId}/cancel`)
+  return unwrapApiData(response)
 }
 
 /**
  * Get task trace (jump to related trace)
  */
 export async function getTaskTrace(taskId: string): Promise<{ traceId: string } | null> {
-  const response = await client.get<{ traceId: string } | null>(`/api/tasks/${taskId}/trace`)
-  return response.data
+  const response = await client.get<{ traceId: string } | null>(`/tasks/${taskId}/trace`)
+  return unwrapApiData(response)
 }
 
 // ============================================================================
@@ -165,16 +167,17 @@ export async function getTaskTrace(taskId: string): Promise<{ traceId: string } 
  * Get agent runtime state
  */
 export async function getAgentState(agentId: string): Promise<AgentRuntimeEvent> {
-  const response = await client.get<AgentRuntimeEvent>(`/api/agents/${agentId}/state`)
-  return response.data
+  const response = await client.get<AgentRuntimeEvent>(`/agents/${agentId}/state`)
+  return unwrapApiData(response)
 }
 
 /**
  * Get all active agents
  */
 export async function listActiveAgents(): Promise<AgentRuntimeEvent[]> {
-  const response = await client.get<{ agents: AgentRuntimeEvent[] }>('/api/agents/active')
-  return response.data.agents
+  const response = await client.get<{ agents: AgentRuntimeEvent[] }>('/agents/active')
+  const data = unwrapApiData(response)
+  return data.agents
 }
 
 /**
@@ -188,10 +191,10 @@ export async function initOrchestration(
   }
 ): Promise<{ orchestratorId: string; teamId?: string }> {
   const response = await client.post<{ orchestratorId: string; teamId?: string }>(
-    '/api/agents/orchestration/init',
+    '/agents/orchestration/init',
     config
   )
-  return response.data
+  return unwrapApiData(response)
 }
 
 /**
@@ -202,8 +205,8 @@ export async function getOrchestrationState(): Promise<{
   agents: AgentRuntimeEvent[]
   traces: string[]
 }> {
-  const response = await client.get('/api/agents/orchestration/state')
-  return response.data
+  const response = await client.get('/agents/orchestration/state')
+  return unwrapApiData(response)
 }
 
 // ============================================================================
@@ -225,8 +228,8 @@ export async function decomposeTask(
     dependencies: string[]
   }>
 }> {
-  const response = await client.post('/api/agents/decompose', { task, context })
-  return response.data
+  const response = await client.post('/agents/decompose', { task, context })
+  return unwrapApiData(response)
 }
 
 // ============================================================================
@@ -237,16 +240,17 @@ export async function decomposeTask(
  * List available agent types
  */
 export async function listAgentTypes(): Promise<AgentDefinition[]> {
-  const response = await client.get<{ agents: AgentDefinition[] }>('/api/agents')
-  return response.data.agents
+  const response = await client.get<{ agents: AgentDefinition[] }>('/agents')
+  const data = unwrapApiData(response)
+  return data.agents
 }
 
 /**
  * Get agent definition by type
  */
 export async function getAgentDefinition(agentType: string): Promise<AgentDefinition | null> {
-  const response = await client.get<AgentDefinition | null>(`/api/agents/${agentType}`)
-  return response.data
+  const response = await client.get<AgentDefinition | null>(`/agents/${agentType}`)
+  return unwrapApiData(response)
 }
 
 // ============================================================================
@@ -263,11 +267,11 @@ export async function createIsolationContext(
     remoteName?: string
   }
 ): Promise<{ contextId: string; mode: string }> {
-  const response = await client.post('/api/agents/isolation/create', {
+  const response = await client.post('/agents/isolation/create', {
     mode,
     ...options
   })
-  return response.data
+  return unwrapApiData(response)
 }
 
 /**
@@ -279,8 +283,8 @@ export async function getIsolationStatus(contextId: string): Promise<{
   status: 'active' | 'completed' | 'failed'
   changes?: unknown
 }> {
-  const response = await client.get(`/api/agents/isolation/${contextId}/status`)
-  return response.data
+  const response = await client.get(`/agents/isolation/${contextId}/status`)
+  return unwrapApiData(response)
 }
 
 /**
@@ -291,8 +295,8 @@ export async function mergeIsolationChanges(contextId: string): Promise<{
   merged: number
   conflicts?: unknown[]
 }> {
-  const response = await client.post(`/api/agents/isolation/${contextId}/merge`)
-  return response.data
+  const response = await client.post(`/agents/isolation/${contextId}/merge`)
+  return unwrapApiData(response)
 }
 
 // ============================================================================

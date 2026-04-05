@@ -13,10 +13,21 @@ interface DbConfig {
 }
 
 function loadDbConfig(): DbConfig {
-  // 使用 process.cwd() 获取项目根目录，然后向上查找 .env
-  // process.cwd() 在运行时指向 server/ 目录
-  const projectRoot = process.cwd()
-  const configPath = join(projectRoot, '.env')
+  // 从当前文件所在目录向上查找 .env 文件
+  // __dirname 指向 server/src/db/
+  let configPath = join(__dirname, '../../.env')
+  console.log('[loadDbConfig] Trying to load .env from:', configPath)
+  
+  // 如果找不到，尝试从项目根目录查找
+  try {
+    // 检查是否存在
+    readFileSync(configPath, 'utf-8')
+  } catch {
+    // 尝试从 process.cwd() 查找（server 目录）
+    configPath = join(process.cwd(), '.env')
+    console.log('[loadDbConfig] Trying alternative path:', configPath)
+  }
+  
   const envContent = readFileSync(configPath, 'utf-8')
 
   const config: Record<string, string> = {}
