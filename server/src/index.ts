@@ -10,6 +10,9 @@
  * - File watching and sandbox isolation
  */
 
+import dotenv from 'dotenv'
+dotenv.config()
+
 import Anthropic from '@anthropic-ai/sdk'
 import { v4 as uuidv4 } from 'uuid'
 import { initDatabase, closePool } from './db/mysql'
