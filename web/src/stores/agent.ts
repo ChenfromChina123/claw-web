@@ -28,6 +28,7 @@ import type {
 } from '@/types/agentWorkflow'
 import wsClient from '@/composables/useWebSocket'
 import agentApi from '@/api/agentApi'
+import type { AgentSelection, AgentStatusSnapshot, AgentStatusUpdate } from '@/types/agentStatus'
 
 /**
  * Agent 状态管理 Store
@@ -85,6 +86,21 @@ export const useAgentStore = defineStore('agent', () => {
    * 后台任务列表
    */
   const backgroundTasks = ref<Map<string, BackgroundTask>>(new Map())
+  
+  /**
+   * Agent 状态面板数据
+   */
+  const agentStatusSnapshots = ref<Map<string, AgentStatusSnapshot>>(new Map())
+  
+  /**
+   * 可用的 Agent 类型列表
+   */
+  const availableAgentTypes = ref<AgentSelection[]>([])
+  
+  /**
+   * Agent 状态面板是否启用
+   */
+  const isAgentStatusPanelEnabled = ref(false)
   
   /**
    * 活跃的 thinking 内容（流式）
@@ -961,6 +977,102 @@ export const useAgentStore = defineStore('agent', () => {
     console.log('[AgentStore] WebSocket listeners setup complete')
   }
 
+  // ==================== Agent 状态面板相关方法 ====================
+  
+  /**
+   * 加载可用的 Agent 类型
+   */
+  async function loadAvailableAgentTypes() {
+    try {
+      const response = await agentApi.listAgentTypes()
+      availableAgentTypes.value = response.map(agent => ({
+        agentType: agent.agentType,
+        agentName: agent.agentName || agent.agentType,
+        agentDescription: agent.description || '',
+        icon: (agent as any).icon,
+        color: (agent as any).color,
+      }))
+      console.log('[AgentStore] Loaded agent types:', availableAgentTypes.value.length)
+    } catch (error) {
+      console.error('[AgentStore] Failed to load agent types:', error)
+    }
+  }
+  
+  /**
+   * 更新 Agent 状态快照
+   */
+  function updateAgentStatusSnapshot(snapshot: AgentStatusSnapshot) {
+    agentStatusSnapshots.value.set(snapshot.agentId, snapshot)
+    isAgentStatusPanelEnabled.value = true
+  }
+  
+  /**
+   * 处理 WebSocket Agent 状态更新
+   */
+  function handleAgentStatusUpdate(data: AgentStatusUpdate) {
+    if (data.snapshots) {
+      // 批量更新
+      data.snapshots.forEach(snapshot => {
+        agentStatusSnapshots.value.set(snapshot.agentId, {
+          ...snapshot,
+          updatedAt: new Date(snapshot.updatedAt),
+        })
+      })
+    } else if (data.agentId) {
+      // 单个更新
+      const existing = agentStatusSnapshots.value.get(data.agentId)
+      if (existing) {
+        agentStatusSnapshots.value.set(data.agentId, {
+          ...existing,
+          executionStatus: data.executionStatus || existing.executionStatus,
+          toolCalls: data.toolCalls || existing.toolCalls,
+          teamMembers: data.teamMembers || existing.teamMembers,
+          updatedAt: new Date(),
+        })
+      } else {
+        agentStatusSnapshots.value.set(data.agentId, {
+          agentId: data.agentId,
+          executionStatus: data.executionStatus || {
+            status: 'idle',
+            currentTurn: 0,
+            maxTurns: 100,
+            progress: 0,
+          },
+          toolCalls: data.toolCalls || [],
+          teamMembers: data.teamMembers || [],
+          updatedAt: new Date(),
+        })
+      }
+    }
+    isAgentStatusPanelEnabled.value = true
+  }
+  
+  /**
+   * 获取 Agent 状态快照
+   */
+  function getAgentStatusSnapshot(agentId: string): AgentStatusSnapshot | undefined {
+    return agentStatusSnapshots.value.get(agentId)
+  }
+  
+  /**
+   * 获取所有 Agent 状态快照
+   */
+  function getAllAgentStatusSnapshots(): AgentStatusSnapshot[] {
+    return Array.from(agentStatusSnapshots.value.values())
+  }
+  
+  /**
+   * 清除 Agent 状态
+   */
+  function clearAgentStatus(agentId?: string) {
+    if (agentId) {
+      agentStatusSnapshots.value.delete(agentId)
+    } else {
+      agentStatusSnapshots.value.clear()
+      isAgentStatusPanelEnabled.value = false
+    }
+  }
+
   return {
     // 状态
     traces,
@@ -971,6 +1083,9 @@ export const useAgentStore = defineStore('agent', () => {
     teams,
     backgroundTasks,
     activeThinkings,
+    agentStatusSnapshots,
+    availableAgentTypes,
+    isAgentStatusPanelEnabled,
     
     // 计算属性
     currentTrace,
@@ -1001,6 +1116,14 @@ export const useAgentStore = defineStore('agent', () => {
     // 后台任务
     refreshBackgroundTasks,
     cancelBackgroundTask,
+    
+    // Agent 状态面板
+    loadAvailableAgentTypes,
+    updateAgentStatusSnapshot,
+    handleAgentStatusUpdate,
+    getAgentStatusSnapshot,
+    getAllAgentStatusSnapshots,
+    clearAgentStatus,
     
     // 配置
     updateConfig,

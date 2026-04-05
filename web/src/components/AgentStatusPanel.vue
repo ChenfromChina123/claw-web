@@ -133,10 +133,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RefreshOutline as IconRefresh } from '@vicons/ionicons5'
-import type { AgentSelection, AgentExecutionStatus } from '@/composables/useAgentIntegration'
+import type { AgentSelection, AgentExecutionStatus, ToolCallRecord, TeamMember } from '@/types/agentStatus'
 
 /**
- * 工具调用记录
+ * 工具调用记录（兼容旧的 ToolCall 类型）
  */
 interface ToolCall {
   toolName: string
@@ -144,7 +144,7 @@ interface ToolCall {
 }
 
 /**
- * 团队成员
+ * 团队成员（兼容旧类型）
  */
 interface TeamMember {
   id: string
@@ -165,7 +165,7 @@ const props = withDefaults(defineProps<{
   /** 执行状态 */
   executionStatus?: AgentExecutionStatus
   /** 工具调用列表 */
-  toolCalls?: ToolCall[]
+  toolCalls?: (ToolCall | ToolCallRecord)[]
   /** 团队成员 */
   teamMembers?: TeamMember[]
   /** 是否禁用 */

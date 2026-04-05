@@ -43,6 +43,48 @@ const showAgentPanel = ref(false)
 const showAgentActivitySidebar = ref(false)
 
 /**
+ * 从 agent store 获取真实数据
+ */
+const agentStatusSnapshots = computed(() => agentStore.getAllAgentStatusSnapshots())
+const availableAgents = computed(() => agentStore.availableAgentTypes)
+
+/**
+ * 获取当前活跃的 Agent 状态（用于显示）
+ */
+const currentAgentStatus = computed(() => {
+  const snapshots = agentStatusSnapshots.value
+  if (snapshots.length === 0) {
+    return {
+      status: 'idle',
+      currentTurn: 0,
+      maxTurns: 100,
+      progress: 0,
+    }
+  }
+  // 返回最新的状态
+  const latest = snapshots[snapshots.length - 1]
+  return latest.executionStatus
+})
+
+/**
+ * 获取工具调用列表
+ */
+const currentToolCalls = computed(() => {
+  const snapshots = agentStatusSnapshots.value
+  if (snapshots.length === 0) return []
+  return snapshots[snapshots.length - 1].toolCalls || []
+})
+
+/**
+ * 获取团队成员
+ */
+const currentTeamMembers = computed(() => {
+  const snapshots = agentStatusSnapshots.value
+  if (snapshots.length === 0) return []
+  return snapshots[snapshots.length - 1].teamMembers || []
+})
+
+/**
  * 初始化 Agent 协调演示数据
  */
 function initAgentOrchestrationDemo(): void {
@@ -209,6 +251,10 @@ onMounted(async () => {
     
     // 初始化 Agent 协调演示数据
     initAgentOrchestrationDemo()
+    
+    // 加载 Agent 类型列表
+    await agentStore.loadAvailableAgentTypes()
+    console.log('[Chat] Agent 类型列表加载完成')
   } catch (error: any) {
     console.error('初始化失败:', error)
     initError.value = error?.message || '初始化失败，请重试'
@@ -321,6 +367,34 @@ function handleCommandSelect(command: string): void {
       break
   }
 }
+
+/**
+ * 中断 Agent 执行
+ */
+function handleAbortAgent() {
+  message.warning('Agent 执行已中断')
+  // TODO: 调用后端 API 中断 Agent
+}
+
+/**
+ * 刷新 Agent 状态
+ */
+async function handleRefreshAgentStatus() {
+  try {
+    await agentStore.loadAvailableAgentTypes()
+    message.success('Agent 状态已刷新')
+  } catch (error) {
+    message.error('刷新 Agent 状态失败')
+  }
+}
+
+/**
+ * 添加团队成员
+ */
+function handleAddTeamMember() {
+  message.info('添加团队成员功能开发中')
+  // TODO: 实现添加团队成员功能
+}
 </script>
 
 <template>
@@ -395,7 +469,14 @@ function handleCommandSelect(command: string): void {
         <Transition name="agent-panel">
           <div v-if="showAgentPanel" class="agent-panel">
             <AgentStatusPanel 
-              :orchestration-state="orchestrationState"
+              :agents="availableAgents"
+              :execution-status="currentAgentStatus"
+              :tool-calls="currentToolCalls"
+              :team-members="currentTeamMembers"
+              @select="(agent) => console.log('Agent selected:', agent)"
+              @abort="handleAbortAgent"
+              @refresh="handleRefreshAgentStatus"
+              @add-member="handleAddTeamMember"
             />
           </div>
         </Transition>
