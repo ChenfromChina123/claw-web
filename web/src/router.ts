@@ -44,6 +44,12 @@ const routes: RouteRecordRaw[] = [
     name: 'Integration',
     component: () => import('@/views/IntegrationHub.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/agent-workflow',
+    name: 'AgentWorkflow',
+    component: () => import('@/components/AgentWorkflowViewer.vue'),
+    meta: { requiresAuth: false }
   }
 ]
 
