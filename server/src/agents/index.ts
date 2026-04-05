@@ -161,3 +161,103 @@ export {
 } from './agentEngine'
 
 export type { AgentManager } from './agentEngine'
+
+// ==================== 错误处理与恢复 ====================
+export {
+  AgentError,
+  AgentErrorFactory,
+  AgentErrorType,
+  ErrorSeverity,
+  RecoveryStrategy,
+  ErrorRecoveryHandler,
+  ForkRecursionDetector,
+  UserInterruptHandler,
+  ResourceCleanupManager,
+  getErrorRecoveryHandler,
+  getForkRecursionDetector,
+  getUserInterruptHandler,
+  getResourceCleanupManager,
+} from './errorHandler'
+
+export type {
+  RetryConfig,
+  ErrorRecoveryContext,
+  ForkCallEntry,
+  InterruptRequest,
+  CleanupTask,
+} from './errorHandler'
+
+// ==================== Feature Flags ====================
+export {
+  FeatureFlagManager,
+  BUILTIN_FEATURE_FLAGS,
+  getFeatureFlagManager,
+  initializeFeatureFlags,
+  isFeatureEnabled,
+  getFeatureValue,
+  setFeatureOverride,
+  clearFeatureOverride,
+  FeatureFlagType,
+} from './featureFlags'
+
+export type {
+  FeatureFlagConfig,
+  FeatureFlagState,
+  FeatureFlagChangeEvent,
+  FeatureFlagTarget,
+  FlagEvaluationContext,
+  FeatureFlagValue,
+} from './featureFlags'
+
+// ==================== MCP 验证 ====================
+export {
+  MCPServerValidator,
+  getMCPServerValidator,
+  initializeMCPValidator,
+  createMCPServerError,
+} from './mcpValidator'
+
+export type {
+  MCPTransportType,
+  MCPValidatedServerConfig,
+  MCPValidationResult,
+  MCPValidationCheck,
+  MCPToolValidationResult,
+  MCPHealthCheckResult,
+  MCPValidatorConfig,
+} from './mcpValidator'
+
+// ==================== 任务自动分解器 ====================
+export {
+  TaskDecomposer,
+  SimpleLLMCaller,
+  decomposeResultToTeamTasks,
+  DecompositionMode,
+} from './taskDecomposer'
+
+export type {
+  LLMCaller,
+  TaskDecompositionRequest,
+  TaskAnalysis,
+  TaskDependency,
+  SubTask,
+  DecompositionResult,
+} from './taskDecomposer'
+
+// ==================== 上下文隔离 ====================
+export {
+  WorktreeIsolation,
+  RemoteIsolation,
+  IsolationContextManager,
+  getIsolationManager,
+  IsolationStatus,
+} from './contextIsolation'
+
+export type {
+  WorktreeConfig,
+  RemoteConfig,
+  IsolationContextConfig,
+  IsolationResult,
+  IsolationExecutionRequest,
+  IsolationContextInfo,
+} from './contextIsolation'

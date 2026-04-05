@@ -10,6 +10,8 @@ export interface InMemorySession {
   messages: Message[]  // 使用完整 Message 类型
   toolCalls: ToolCall[]
   dirty: boolean
+  /** 标记是否需要从数据库补充数据（由列表加载放入缓存时设置） */
+  needsHydration?: boolean
 }
 
 export class SessionManager {
@@ -87,7 +89,7 @@ export class SessionManager {
     const cached = this.sessions.get(sessionId)
     if (cached) {
       // getUserSessions 会先把会话放进缓存且 messages=[]、dirty=false，若直接 return 会永远读不到库里的历史消息
-      if (!cached.dirty && cached.messages.length === 0 && cached.toolCalls.length === 0) {
+      if (!cached.dirty && (cached.messages.length === 0 && cached.toolCalls.length === 0 || cached.needsHydration)) {
         await this.hydrateSessionFromDb(sessionId, cached)
       }
       return cached
@@ -99,8 +101,18 @@ export class SessionManager {
     const dbMessages = await this.messageRepo.findBySessionId(sessionId)
     const dbToolCalls = await this.toolCallRepo.findBySessionId(sessionId)
 
-    // 返回完整的 Message 对象，包含 id, sessionId, createdAt 等
-    const messages: Message[] = dbMessages
+    // 标准化 createdAt 为 ISO 字符串格式，确保与前端兼容
+    const messages: Message[] = dbMessages.map(msg => {
+      const normalized: Message = {
+        id: msg.id,
+        sessionId: msg.sessionId,
+        role: msg.role,
+        content: msg.content,
+        createdAt: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : msg.createdAt,
+        toolCalls: msg.toolCalls,
+      }
+      return normalized
+    })
 
     const sessionData: InMemorySession = {
       session,
@@ -117,20 +129,42 @@ export class SessionManager {
       this.userSessions.set(session.userId, userSessionList)
     }
 
+    // 添加数据完整性日志
+    console.log(`[SessionManager] Loaded session ${sessionId}:`, {
+      messageCount: messages.length,
+      toolCallCount: dbToolCalls.length,
+      dirty: false
+    })
+
     return sessionData
   }
 
   /** 从数据库填充仅由列表接口放入缓存、尚未加载过消息的会话 */
   private async hydrateSessionFromDb(sessionId: string, cached: InMemorySession): Promise<void> {
+    console.log(`[SessionManager] Hydrating session ${sessionId} from DB...`)
     const dbMessages = await this.messageRepo.findBySessionId(sessionId)
     if (dbMessages.length > 0) {
-      // 返回完整的 Message 对象
-      cached.messages = dbMessages
+      // 标准化 createdAt 为 ISO 字符串格式，确保与前端兼容
+      cached.messages = dbMessages.map(msg => {
+        const normalized: Message = {
+          id: msg.id,
+          sessionId: msg.sessionId,
+          role: msg.role,
+          content: msg.content,
+          createdAt: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : msg.createdAt,
+          toolCalls: msg.toolCalls,
+        }
+        return normalized
+      })
+      console.log(`[SessionManager] Hydrated ${dbMessages.length} messages for session ${sessionId}`)
     }
     const dbToolCalls = await this.toolCallRepo.findBySessionId(sessionId)
     if (dbToolCalls.length > 0) {
       cached.toolCalls = dbToolCalls
+      console.log(`[SessionManager] Hydrated ${dbToolCalls.length} toolCalls for session ${sessionId}`)
     }
+    // 清除 hydration 标记
+    cached.needsHydration = false
   }
 
   async getUserSessions(userId: string): Promise<Session[]> {
@@ -143,6 +177,7 @@ export class SessionManager {
           messages: [],
           toolCalls: [],
           dirty: false,
+          needsHydration: true,  // 标记需要从数据库补充数据
         })
       }
     }
@@ -164,7 +199,8 @@ export class SessionManager {
       const sessionData = this.sessions.get(currentSessionId)
       if (sessionData && sessionData.dirty) {
         console.log(`[SwitchSession] Saving dirty session ${currentSessionId} before switching`)
-        await this.saveSession(currentSessionId)
+        // 使用强制保存，确保数据立即落库
+        await this.forceSaveSession(currentSessionId)
       }
     }
   }
@@ -399,6 +435,11 @@ export class SessionManager {
     }
   }
 
+  /**
+   * 调度保存会话
+   * 注意：延迟设置为 500ms，避免频繁写入同时确保数据不会丢失过多
+   * 如果需要立即保存，请直接调用 saveSession()
+   */
   private scheduleSave(sessionId: string): void {
     const existingTimer = this.saveDebounceTimers.get(sessionId)
     if (existingTimer) {
@@ -408,9 +449,22 @@ export class SessionManager {
     const timer = setTimeout(async () => {
       this.saveDebounceTimers.delete(sessionId)
       await this.saveSession(sessionId)
-    }, 2000)
+    }, 500)  // 从 2000ms 缩短到 500ms
 
     this.saveDebounceTimers.set(sessionId, timer)
+  }
+
+  /**
+   * 强制立即保存会话（不等待 debounce）
+   * 用于确保关键操作（如切换会话、发送消息后立即断开）不丢失数据
+   */
+  async forceSaveSession(sessionId: string): Promise<void> {
+    const existingTimer = this.saveDebounceTimers.get(sessionId)
+    if (existingTimer) {
+      clearTimeout(existingTimer)
+      this.saveDebounceTimers.delete(sessionId)
+    }
+    await this.saveSession(sessionId)
   }
 
   async saveAllDirtySessions(): Promise<void> {
@@ -418,10 +472,16 @@ export class SessionManager {
       .filter(([_, data]) => data.dirty)
       .map(([id, _]) => id)
 
-    console.log(`Saving ${dirtySessionIds.length} dirty sessions`)
+    console.log(`[SessionManager] Saving ${dirtySessionIds.length} dirty sessions on shutdown`)
 
+    // 依次保存所有脏会话，使用强制保存
     for (const sessionId of dirtySessionIds) {
-      await this.saveSession(sessionId)
+      try {
+        await this.forceSaveSession(sessionId)
+        console.log(`[SessionManager] Successfully saved session ${sessionId}`)
+      } catch (error) {
+        console.error(`[SessionManager] Failed to save session ${sessionId}:`, error)
+      }
     }
   }
 }

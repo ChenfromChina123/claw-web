@@ -26,7 +26,7 @@ export interface Message {
   sessionId: string
   role: 'user' | 'assistant' | 'system'
   content: string | any[]  // 支持字符串或 Anthropic 格式的内容数组
-  createdAt: Date
+  createdAt: Date | string  // 支持 Date 对象或 ISO 字符串
   toolCalls?: ToolCall[]
 }
 
@@ -38,7 +38,7 @@ export interface ToolCall {
   toolInput: Record<string, unknown>
   toolOutput: Record<string, unknown> | null
   status: 'pending' | 'executing' | 'completed' | 'error'
-  createdAt: Date
+  createdAt: Date | string  // 支持 Date 对象或 ISO 字符串
 }
 
 export interface ConversationMessage {

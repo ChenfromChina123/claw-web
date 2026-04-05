@@ -718,6 +718,17 @@ async function startServer() {
     console.warn('[DB] Server will start without database connection')
   }
 
+  // Initialize Agent persistence service (恢复之前的 Agent 状态)
+  try {
+    console.log('\n[AgentPersistence] Initializing Agent persistence service...')
+    const { getAgentPersistenceService } = await import('./agents/agentPersistence')
+    await getAgentPersistenceService().initialize()
+    console.log('[AgentPersistence] Agent persistence service initialized')
+  } catch (error) {
+    console.warn('[AgentPersistence] Failed to initialize Agent persistence service:', error)
+    console.warn('[AgentPersistence] Agent state will not be persisted')
+  }
+
   // Initialize WebSocket RPC methods
   initializeRPCMethods()
 
@@ -2278,6 +2289,14 @@ process.on('SIGINT', async () => {
   
   // Save all dirty sessions
   await sessionManager.saveAllDirtySessions()
+  
+  // Save all Agent state (Agent, Mailbox, Team, Isolation)
+  try {
+    const { getAgentPersistenceService } = await import('./agents/agentPersistence')
+    await getAgentPersistenceService().forceSaveAll()
+  } catch (error) {
+    console.error('[Server] Failed to save Agent state:', error)
+  }
   
   // Shutdown WebSocket manager
   wsManager.shutdown()

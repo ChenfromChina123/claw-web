@@ -21,9 +21,16 @@ import {
   getPendingMessages,
   getTeamManager,
   getMailboxManager,
+  TaskDecomposer,
+  decomposeResultToTeamTasks,
+  IsolationContextManager,
+  getIsolationManager,
   type ForkOptions,
   type SendMessageOptions,
+  type TaskDecompositionRequest,
+  type DecompositionResult,
 } from '../agents'
+import { SimpleLLMCaller } from '../agents/taskDecomposer'
 
 /**
  * 创建 Agent API 路由
@@ -440,6 +447,202 @@ export function createAgentApiRouter(): Router {
       })
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+
+  return router
+}
+
+// ==================== 任务分解 API ====================
+
+/**
+ * 创建任务分解 API 路由
+ */
+export function createDecompositionApiRouter(): Router {
+  const router = Router()
+  
+  // LLM 调用器（需要配置 API endpoint）
+  const llmCaller = new SimpleLLMCaller(process.env.LLM_API_ENDPOINT || '')
+  
+  // 任务分解器实例
+  const taskDecomposer = new TaskDecomposer(llmCaller)
+
+  /**
+   * @route POST /api/agents/decompose
+   * @desc 分解任务
+   */
+  router.post('/', async (req: Request, res: Response) => {
+    try {
+      const { task, projectContext, preferences } = req.body as TaskDecompositionRequest
+
+      if (!task) {
+        return res.status(400).json({ 
+          success: false,
+          error: '缺少必需参数: task' 
+        })
+      }
+
+      // 尝试使用 LLM 分解
+      if (process.env.LLM_API_ENDPOINT) {
+        const result = await taskDecomposer.decompose({
+          task,
+          projectContext,
+          preferences
+        })
+        return res.json(result)
+      }
+
+      // 使用快速启发式分解
+      const result = taskDecomposer.decomposeQuickly(task, preferences?.maxTasks || 8)
+      res.json(result)
+    } catch (error) {
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : String(error) 
+      })
+    }
+  })
+
+  return router
+}
+
+// ==================== 隔离上下文 API ====================
+
+/**
+ * 创建隔离上下文 API 路由
+ */
+export function createIsolationApiRouter(): Router {
+  const router = Router()
+  
+  /**
+   * @route POST /api/agents/isolation
+   * @desc 创建隔离上下文
+   */
+  router.post('/', async (req: Request, res: Response) => {
+    try {
+      const { name, mode, description, worktree, remote } = req.body
+
+      if (!name || !mode) {
+        return res.status(400).json({ 
+          success: false,
+          error: '缺少必需参数: name, mode' 
+        })
+      }
+
+      const manager = getIsolationManager()
+      const isolationId = await manager.create({
+        isolationId: `iso_${Date.now()}`,
+        mode,
+        name,
+        description,
+        workingDirectory: mode === 'worktree' && worktree 
+          ? worktree.mainRepoPath 
+          : mode === 'remote' && remote?.connection?.host 
+            ? `/remote/${remote.connection.host}` 
+            : '/tmp',
+        cleanupPolicy: 'delayed',
+        worktree: mode === 'worktree' ? worktree : undefined,
+        remote: mode === 'remote' ? remote : undefined
+      })
+
+      const context = manager.getContext(isolationId)
+      res.json(context)
+    } catch (error) {
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : String(error) 
+      })
+    }
+  })
+
+  /**
+   * @route GET /api/agents/isolation
+   * @desc 获取所有隔离上下文
+   */
+  router.get('/', (_req: Request, res: Response) => {
+    try {
+      const manager = getIsolationManager()
+      const contexts = manager.listContexts()
+      res.json(contexts)
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+    }
+  })
+
+  /**
+   * @route GET /api/agents/isolation/:isolationId
+   * @desc 获取隔离上下文详情
+   */
+  router.get('/:isolationId', (req: Request, res: Response) => {
+    try {
+      const { isolationId } = req.params
+      const manager = getIsolationManager()
+      const context = manager.getContext(isolationId)
+
+      if (!context) {
+        return res.status(404).json({ error: `隔离上下文 ${isolationId} 不存在` })
+      }
+
+      res.json(context)
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+    }
+  })
+
+  /**
+   * @route POST /api/agents/isolation/:isolationId/execute
+   * @desc 在隔离上下文中执行命令
+   */
+  router.post('/:isolationId/execute', async (req: Request, res: Response) => {
+    try {
+      const { isolationId } = req.params
+      const { command, args, cwd, env, timeout } = req.body
+
+      if (!command) {
+        return res.status(400).json({ 
+          success: false,
+          error: '缺少必需参数: command' 
+        })
+      }
+
+      const manager = getIsolationManager()
+      const result = await manager.execute({
+        isolationId,
+        command,
+        args,
+        cwd,
+        env,
+        timeout
+      })
+
+      res.json(result)
+    } catch (error) {
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : String(error) 
+      })
+    }
+  })
+
+  /**
+   * @route DELETE /api/agents/isolation/:isolationId
+   * @desc 销毁隔离上下文
+   */
+  router.delete('/:isolationId', async (req: Request, res: Response) => {
+    try {
+      const { isolationId } = req.params
+      const manager = getIsolationManager()
+      await manager.destroy(isolationId)
+      res.json({ success: true })
+    } catch (error) {
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : String(error) 
+      })
     }
   })
 
