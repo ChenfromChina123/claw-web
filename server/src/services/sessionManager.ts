@@ -237,9 +237,14 @@ export class SessionManager {
     this.scheduleSave(sessionId)
     
     // 如果是用户消息且当前标题还是默认的"新对话"，就并行生成会话标题
-    if (role === 'user' && sessionData.session.title === '新对话') {
-      console.log(`[SessionManager] Detected first user message, generating title for session ${sessionId}`)
-      this.generateAndUpdateSessionTitle(sessionId, content)
+    console.log(`[SessionManager] addMessage: role=${role}, session.title="${sessionData.session.title}", sessionId=${sessionId}`)
+    if (role === 'user') {
+      if (sessionData.session.title === '新对话') {
+        console.log(`[SessionManager] Detected first user message, generating title for session ${sessionId}`)
+        this.generateAndUpdateSessionTitle(sessionId, content)
+      } else {
+        console.log(`[SessionManager] Session title is already set to "${sessionData.session.title}", skipping title generation`)
+      }
     }
     
     return message
@@ -252,29 +257,42 @@ export class SessionManager {
    */
   private async generateAndUpdateSessionTitle(sessionId: string, userContent: string | any[]): Promise<void> {
     try {
+      console.log(`[SessionManager] generateAndUpdateSessionTitle called for session ${sessionId}`)
+      
       // 将内容转换为字符串
       const contentString = typeof userContent === 'string' 
         ? userContent 
         : JSON.stringify(userContent)
       
+      console.log(`[SessionManager] Content string: "${contentString.substring(0, 50)}..."`)
+      
       // 生成标题
       const title = generateSessionTitle(contentString)
+      console.log(`[SessionManager] Generated title: "${title}"`)
       
       // 只有当标题不是默认标题时才更新
       const sessionData = this.sessions.get(sessionId)
+      console.log(`[SessionManager] sessionData exists: ${!!sessionData}, current title: "${sessionData?.session?.title}"`)
+      
       if (sessionData && sessionData.session.title === '新对话' && title !== '新对话') {
-        console.log(`[SessionManager] Generating title for session ${sessionId}: "${title}"`)
+        console.log(`[SessionManager] Updating title for session ${sessionId}: "${title}"`)
         
         // 更新内存中的会话
         sessionData.session.title = title
         
         // 异步更新数据库
         await this.sessionRepo.updateTitle(sessionId, title)
+        console.log(`[SessionManager] Title saved to database`)
         
         // 通知前端会话标题已更新
         if (this.onSessionTitleUpdated) {
+          console.log(`[SessionManager] Calling onSessionTitleUpdated callback`)
           this.onSessionTitleUpdated(sessionId, title)
+        } else {
+          console.log(`[SessionManager] onSessionTitleUpdated callback is not set`)
         }
+      } else {
+        console.log(`[SessionManager] Skipping title update: conditions not met`)
       }
     } catch (error) {
       console.error(`[SessionManager] Failed to generate/update session title:`, error)
