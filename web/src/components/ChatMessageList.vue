@@ -554,10 +554,6 @@ function shouldShowMessage(message: any): boolean {
   justify-content: flex-end;
 }
 
-.user-message .message-content {
-  flex-direction: row-reverse;
-}
-
 /* 助手消息 - 左边 */
 .assistant-message {
   justify-content: flex-start;
@@ -570,8 +566,10 @@ function shouldShowMessage(message: any): boolean {
   align-items: flex-start;
 }
 
+/* 用户消息内容：头像在右边，消息在左边 */
 .user-message .message-content {
-  justify-content: flex-end;
+  flex-direction: row-reverse;
+  justify-content: flex-start;
 }
 
 .message-bubble {
