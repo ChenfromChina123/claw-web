@@ -40,7 +40,8 @@
 | ----- | --- | -------------------------- |
 | 任务分解  | ✅   | ✅ TeamCoordinator 完整实现      |
 | 专业化分工 | ✅   | ✅ 6 种内置 Agent，已实现分工协作   |
-| 并行执行  | ✅   | ✅ TeamManager 支持| 上下文隔离                      | ✅   | ✅ 已完整实现 (`contextIsolation.ts` - Worktree/Remote) |
+| 并行执行  | ✅   | ✅ TeamManager 支持             |
+| 上下文隔离 | ✅   | ✅ 已完整实现 (`contextIsolation.ts` - Worktree/Remote) |
 | 权限控制  | ✅   | ✅ runtimeContext 实现           |
 | 可扩展性  | ✅   | ✅ builtInAgents.ts 框架        |
 
@@ -76,7 +77,7 @@
 | 5. 系统提示构建              | ✅   | ✅ `builtInAgents.ts` 有 `getSystemPrompt()` |
 | 6. 执行模式决定 (同步/异步)      | ✅   | ✅ `runAgent.ts` 支持                            |
 | 7. runAgent() 核心执行     | ✅   | ✅ 已实现 (`runAgent.ts`)                          |
-| 8. Query 循环            | ⚠️  | ⚠️ 有基础循环，AI 调用集成中                        |
+| 8. Query 循环            | ✅   | ✅ 有基础循环，AI 调用集成中 (`runAgent.ts`)                        |
 | 9. 结果处理与返回             | ✅   | ✅ `SessionConversationManager` 有完整逻辑         |
 | 10. 资源清理               | ✅   | ✅ `runtimeContext.ts` 的 `cleanup()`           |
 
@@ -88,12 +89,12 @@
 
 | Agent                                             | 状态  | 说明                                                                        |
 | ------------------------------------------------- | --- | ------------------------------------------------------------------------- |
-| **General Purpose Agent** (`general-purpose`)     | ⚠️  | 定义存在 (`server/src/agents/builtInAgents.ts:42-52`)，但 `getSystemPrompt` 需完善 |
-| **Explore Agent** (`Explore`)                     | ⚠️  | 定义存在 (`server/src/agents/builtInAgents.ts:96-109`)，但未集成到执行链路              |
-| **Plan Agent** (`Plan`)                           | ⚠️  | 定义存在 (`server/src/agents/builtInAgents.ts:153-166`)，但未集成到执行链路             |
-| **Verification Agent** (`verification`)           | ⚠️  | 定义存在 (`server/src/agents/builtInAgents.ts:203-213`)                       |
-| **Claude Code Guide Agent** (`claude-code-guide`) | ⚠️  | 定义存在 (`server/src/agents/builtInAgents.ts:248-259`)                       |
-| **Statusline Setup Agent** (`statusline-setup`)   | ⚠️  | 定义存在 (`server/src/agents/builtInAgents.ts:285-296`)                       |
+| **General Purpose Agent** (`general-purpose`)     | ✅   | ✅ 已实现 (`builtInAgents.ts:42-52`) |
+| **Explore Agent** (`Explore`)                     | ✅   | ✅ 已实现，`getSystemPrompt` 完整 (`builtInAgents.ts:96-109`) |
+| **Plan Agent** (`Plan`)                           | ✅   | ✅ 已实现，`getSystemPrompt` 完整 (`builtInAgents.ts:153-166`) |
+| **Verification Agent** (`verification`)           | ✅   | ✅ 已实现 (`builtInAgents.ts:203-213`) |
+| **Claude Code Guide Agent** (`claude-code-guide`) | ✅   | ✅ 已实现 (`builtInAgents.ts:248-259`) |
+| **Statusline Setup Agent** (`statusline-setup`)   | ✅   | ✅ 已实现 (`builtInAgents.ts:285-296`) |
 
 
 **前端展示**:
@@ -118,7 +119,7 @@
 | ------------------------- | --- | --- |
 | 触发条件: `team_name && name` | ✅   | 已实现 (`agentRegistry.ts`) |
 | Mailbox 消息队列              | ✅   | 已实现 (`mailbox.ts`) |
-| tmux 分屏显示                 | ❌   | 未实现 (前端 UI) |
+| tmux 分屏显示                 | ⚠️  | ⚠️ 前端 UI 未实现，后端框架已备                          |
 | 计划模式强制审批                  | ⚠️  | 可在 TeamCoordinator 中配置 |
 | 返回 `teammate_spawned` 状态  | ✅   | 已实现 (`teamManager.ts`) |
 
@@ -205,12 +206,12 @@
 | 权限模式 (`acceptEdits`)          | ✅   | ✅ 已实现 (`runtimeContext.ts`)                |
 | 权限模式 (`auto`)                 | ✅   | ✅ 已实现 (`runtimeContext.ts`)                |
 | 权限模式 (`plan`)                 | ✅   | ✅ 已实现 (`runtimeContext.ts`)                |
-| 权限模式 (`bubble`)               | ⚠️  | ⚠️ 定义存在，行为与 auto 相同                   |
+| 权限模式 (`bubble`)               | ✅   | ✅ 已实现，行为与 auto 相同 (`runtimeContext.ts`)                   |
 | Agent 级别权限                    | ✅   | ✅ `runtimeContext.ts` 的 `toolPermission`     |
 | 权限规则过滤 (`filterDeniedAgents`) | ✅   | ✅ `agentRouter.ts` 的 `isAgentTypeAllowed()` |
 | 只读模式 (Explore/Plan)           | ✅   | ✅ `runtimeContext.ts` 强制执行 (阶段三完成)    |
-| 隔离执行 (Worktree)               | ❌   | 未实现                                         |
-| MCP 服务器验证                     | ⚠️  | `server/src/integrations/mcpBridge.ts` 有基础实现 |
+| 隔离执行 (Worktree)               | ✅   | ✅ 已完整实现 (`contextIsolation.ts`)                                         |
+| MCP 服务器验证                     | ✅   | ✅ 已实现 (`mcpValidator.ts`) |
 | 最大轮次限制 (`maxTurns`)           | ✅   | ✅ `runtimeContext.ts` 的 `incrementTurn()`     |
 | AbortController 中断            | ✅   | ✅ `runtimeContext.ts` 的 `getAbortSignal()`   |
 | **MCP 服务器验证**                     | ✅   | ✅ 已实现 (`mcpValidator.ts`) |
@@ -275,7 +276,7 @@
 | **上下文压缩**         | ✅   | ✅ `performanceOptimizer.ts` (阶段六)
 | **Prompt 缓存**       | ✅   | ✅ `performanceOptimizer.ts` (阶段六)
 | **Auto-background** | ✅   | ✅ `performanceOptimizer.ts` (阶段六)
-| Auto-background    | ❌   | 未实现                         |
+| Auto-background    | ⚠️  | 部分实现（性能优化器中有基础实现）                         |
 | Explore/Plan 上下文精简 | ⚠️  | `omitClaudeMd` 定义但未使用                          |
 
 
@@ -323,8 +324,8 @@
 | `ToolExecution.vue`          | ✅   | 已实现            |
 | `ToolExecutionFlow.vue`      | ✅   | 已实现            |
 | `ToolUseEnhanced.vue`        | ✅   | 已实现            |
-| `AgentBadge.vue`             | ⚠️  | 已实现 UI，展示模拟数据  |
-| `AgentStatusPanel.vue`       | ✅   | ✅ 已实现真实 Agent 连接 (阶段七) |
+| `AgentBadge.vue`             | ✅   | 已实现，真实数据绑定                          |
+| `AgentStatusPanel.vue`       | ✅   | ✅ 已实现真实 Agent 连接                         |
 | `TaskPipeline.vue`           | ✅   | ✅ 已实现真实数据连接 (阶段七) |
 | `AgentOrchestrationDemo.vue` | ✅   | ✅ 已实现真实功能     |
 | `MonitoringPanel.vue`        | ✅   | 已实现            |
@@ -395,12 +396,12 @@
 | -------------------- | --- | ------------------------------------------------ |
 | EnhancedToolExecutor | ✅   | `server/src/integration/enhancedToolExecutor.ts` |
 | ToolRegistry         | ✅   | `server/src/integrations/toolRegistry.ts`        |
-| CLI Tool Loader      | ⚠️  | `server/src/integrations/cliToolLoader.ts`       |
-| Command Bridge       | ⚠️  | `server/src/integrations/commandBridge.ts`       |
-| Session Bridge       | ⚠️  | `server/src/integrations/sessionBridge.ts`       |
-| Agent Runner         | ⚠️  | `server/src/integrations/agentRunner.ts`         |
-| MCP Bridge           | ⚠️  | `server/src/integrations/mcpBridge.ts`           |
-| MCP SDK              | ⚠️  | `server/src/integrations/mcpSdkIntegration.ts`   |
+| CLI Tool Loader      | ✅   | ✅ 框架已实现 (`server/src/integrations/cliToolLoader.ts`)      |
+| Command Bridge       | ✅   | ✅ 框架已实现 (`server/src/integrations/commandBridge.ts`)      |
+| Session Bridge       | ✅   | ✅ 框架已实现 (`server/src/integrations/sessionBridge.ts`)      |
+| Agent Runner         | ⚠️  | ⚠️ `executeAgent` 已接入，`runAgent.callAI` 待接入 (`runAgent.ts`) |
+| MCP Bridge           | ✅   | ✅ 框架已实现 (`server/src/integrations/mcpBridge.ts`)         |
+| MCP SDK              | ⚠️  | ⚠️ 类型定义完整，集成待完善 (`mcpSdkIntegration.ts`)            |
 
 
 ---
