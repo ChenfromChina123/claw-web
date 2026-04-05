@@ -20,15 +20,19 @@ export const authApi = {
    * 发送注册验证码
    */
   async sendRegisterCode(email: string): Promise<SendCodeResponse> {
-    const data = await apiClient.post<SendCodeResponse>('/auth/register/send-code', { email })
-    return data
+    const response = await apiClient.post<SendCodeResponse>('/auth/register/send-code', { email })
+    return response.data as SendCodeResponse
   },
 
   /**
    * 用户注册
    */
   async register(request: RegisterRequest): Promise<AuthResponse> {
-    const data = await apiClient.post<AuthResponse>('/auth/register', request)
+    const response = await apiClient.post<AuthResponse>('/auth/register', request)
+    const data = response.data as AuthResponse
+    if (data.accessToken) {
+      localStorage.setItem('token', data.accessToken)
+    }
     return data
   },
 
@@ -37,8 +41,9 @@ export const authApi = {
    */
   async login(request: LoginRequest): Promise<AuthResponse> {
     console.log('[authApi] 发送登录请求:', request)
-    const data = await apiClient.post<AuthResponse>('/auth/login', request)
-    console.log('[authApi] 收到登录响应:', data)
+    const response = await apiClient.post<AuthResponse>('/auth/login', request)
+    console.log('[authApi] 收到登录响应:', response)
+    const data = response.data as AuthResponse
     if (data.accessToken) {
       localStorage.setItem('token', data.accessToken)
     }
@@ -49,24 +54,24 @@ export const authApi = {
    * 发送忘记密码验证码
    */
   async sendForgotPasswordCode(email: string): Promise<SendCodeResponse> {
-    const data = await apiClient.post<SendCodeResponse>('/auth/forgot-password/send-code', { email })
-    return data
+    const response = await apiClient.post<SendCodeResponse>('/auth/forgot-password/send-code', { email })
+    return response.data as SendCodeResponse
   },
 
   /**
    * 重置密码
    */
   async resetPassword(request: ResetPasswordRequest): Promise<{ message: string }> {
-    const data = await apiClient.post<{ message: string }>('/auth/forgot-password', request)
-    return data
+    const response = await apiClient.post<{ message: string }>('/auth/forgot-password', request)
+    return response.data as { message: string }
   },
 
   /**
    * 获取当前用户信息
    */
   async getCurrentUser(): Promise<User> {
-    const data = await apiClient.get<User>('/auth/me')
-    return data
+    const response = await apiClient.get<User>('/auth/me')
+    return response.data as User
   },
 
   /**
