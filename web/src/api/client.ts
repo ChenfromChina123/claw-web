@@ -44,6 +44,9 @@ class ApiClient {
 
     this.instance.interceptors.response.use(
       (response: AxiosResponse<ApiResponse>) => {
+        console.log('[apiClient] 收到响应:', response)
+        console.log('[apiClient] response.data:', response.data)
+        
         if (response.data?.success === false) {
           const error = new Error(response.data.error?.message || '请求失败') as Error & { code?: string }
           error.code = response.data.error?.code

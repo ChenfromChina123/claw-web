@@ -18,9 +18,13 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(email: string, password: string) {
     loading.value = true
     try {
+      console.log('[AuthStore] 开始登录请求...')
       const response = await authApi.login({ email, password })
+      console.log('[AuthStore] 登录响应:', response)
+      
       // response 已经是 ApiResponse<AuthResponse>，直接访问 .success 和 .data
       if (response.success && response.data) {
+        console.log('[AuthStore] 登录成功，保存用户信息')
         token.value = response.data.accessToken
         user.value = {
           id: response.data.userId,
@@ -33,9 +37,10 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.setItem('token', response.data.accessToken)
         return true
       }
+      console.log('[AuthStore] 登录失败: response.success =', response.success)
       return false
     } catch (error) {
-      console.error('Login failed:', error)
+      console.error('[AuthStore] 登录异常:', error)
       return false
     } finally {
       loading.value = false
