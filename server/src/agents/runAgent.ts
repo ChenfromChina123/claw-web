@@ -8,9 +8,10 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
-import type { AgentDefinition, AgentExecutionResult } from './types'
+import type { AgentDefinition, AgentExecutionResult, IsolationMode } from './types'
 import { createRuntimeContext, AgentRuntimeContext, RuntimeStatus, PermissionMode } from './runtimeContext'
 import { getToolRegistry, RegisteredTool } from '../integrations/toolRegistry'
+import type { IsolationContextConfig, WorktreeConfig, RemoteConfig } from './contextIsolation'
 
 /**
  * Agent 消息类型
@@ -78,6 +79,14 @@ export interface RunAgentParams {
   onToolCall?: (toolCall: AgentToolCall) => void
   /** 工具结果回调 */
   onToolResult?: (result: AgentToolResult) => void
+  /** 隔离模式 (worktree/remote) */
+  isolation?: IsolationMode
+  /** Worktree 配置 */
+  worktree?: WorktreeConfig
+  /** Remote 配置 */
+  remote?: RemoteConfig
+  /** 隔离上下文 ID (如果已存在) */
+  isolationContextId?: string
 }
 
 /**
@@ -112,10 +121,47 @@ export async function* runAgent(
 ): AsyncGenerator<RunAgentEvent> {
   const startTime = Date.now()
 
+  // 初始化隔离上下文
+  let isolationContextId = params.isolationContextId
+  let worktreePath: string | undefined
+
+  // 如果需要创建新的隔离上下文
+  if (params.isolation && !isolationContextId) {
+    try {
+      const { getIsolationManager, IsolationMode: ContextIsolationMode } = await import('./contextIsolation')
+      const manager = getIsolationManager()
+
+      const config: IsolationContextConfig = {
+        isolationId: `iso_${uuidv4().slice(0, 8)}`,
+        mode: params.isolation === 'worktree' ? ContextIsolationMode.WORKTREE : ContextIsolationMode.REMOTE,
+        name: `agent-${params.agentDefinition.agentType}`,
+        description: `隔离执行：${params.agentDefinition.agentType}`,
+        workingDirectory: params.cwd || process.cwd(),
+        cleanupPolicy: 'delayed',
+        worktree: params.worktree,
+        remote: params.remote,
+      }
+
+      isolationContextId = await manager.create(config)
+      console.log(`[runAgent] 创建隔离上下文：${isolationContextId} (模式：${params.isolation})`)
+
+      // 获取 worktree 路径（如果是 worktree 模式）
+      if (params.isolation === 'worktree' && params.worktree) {
+        worktreePath = manager.getWorktreePath(isolationContextId)
+      }
+    } catch (error) {
+      console.error(`[runAgent] 创建隔离上下文失败:`, error)
+      // 隔离创建失败，回退到普通执行
+    }
+  }
+
+  // 确定最终的工作目录
+  const finalCwd = worktreePath || params.cwd || process.cwd()
+
   // 创建运行时上下文
   const context = createRuntimeContext(params.agentDefinition, {
     sessionId: params.sessionId,
-    cwd: params.cwd,
+    cwd: finalCwd,
     maxTurns: params.maxTurns || 100,
     permissionMode: (params.permissionMode as PermissionMode) || PermissionMode.AUTO,
     model: params.model,
@@ -127,6 +173,18 @@ export async function* runAgent(
   // 添加资源清理钩子
   context.addCleanupHook(async () => {
     console.log(`[runAgent] Cleanup: closing resources for ${context.agentId}`)
+    
+    // 清理隔离上下文（如果是新创建的）
+    if (isolationContextId && !params.isolationContextId) {
+      try {
+        const { getIsolationManager } = await import('./contextIsolation')
+        const manager = getIsolationManager()
+        await manager.destroy(isolationContextId)
+        console.log(`[runAgent] 已销毁隔离上下文：${isolationContextId}`)
+      } catch (error) {
+        console.error(`[runAgent] 销毁隔离上下文失败:`, error)
+      }
+    }
   })
 
   try {

@@ -822,6 +822,19 @@ export class IsolationContextManager {
   }
 
   /**
+   * 获取 Worktree 路径（辅助方法）
+   */
+  getWorktreePath(isolationId: string): string | undefined {
+    const context = this.contexts.get(isolationId)
+    if (!context || context.config.mode !== IsolationMode.WORKTREE) {
+      return undefined
+    }
+    
+    const worktreeName = context.config.worktree?.worktreeName || isolationId
+    return this.worktreeIsolation.getPath(worktreeName)
+  }
+
+  /**
    * 执行命令
    */
   async execute(request: IsolationExecutionRequest): Promise<IsolationResult> {

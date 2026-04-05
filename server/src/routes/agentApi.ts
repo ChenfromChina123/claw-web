@@ -671,6 +671,52 @@ export function createIsolationApiRouter(): Router {
       const { isolationId } = req.params
       const { command, args, cwd, env, timeout } = req.body
 
+      const manager = getIsolationManager()
+      const result = await manager.execute({
+        isolationId,
+        command,
+        args,
+        cwd,
+        env,
+        timeout
+      })
+
+      res.json(result)
+    } catch (error) {
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : String(error) 
+      })
+    }
+  })
+
+  /**
+   * @route DELETE /api/agents/isolation/:isolationId
+   * @desc 销毁隔离上下文
+   */
+  router.delete('/:isolationId', async (req: Request, res: Response) => {
+    try {
+      const { isolationId } = req.params
+      const manager = getIsolationManager()
+      await manager.destroy(isolationId)
+      res.json({ success: true })
+    } catch (error) {
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : String(error) 
+      })
+    }
+  })
+
+  /**
+   * @route POST /api/agents/isolation/:isolationId/execute
+   * @desc 在隔离上下文中执行命令
+   */
+  router.post('/:isolationId/execute', async (req: Request, res: Response) => {
+    try {
+      const { isolationId } = req.params
+      const { command, args, cwd, env, timeout } = req.body
+
       if (!command) {
         return res.status(400).json({ 
           success: false,
