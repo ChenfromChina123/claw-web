@@ -1,5 +1,5 @@
 /**
- * Claude Code HAHA - Deep React Integration Server
+ * Claude Code  - Deep React Integration Server
  * 
  * A comprehensive server that integrates the React frontend with backend services:
  * - WebSocket RPC bridge for real-time communication
@@ -10,9 +10,7 @@
  * - File watching and sandbox isolation
  */
 
-import dotenv from 'dotenv'
-dotenv.config()
-
+// Bun 原生支持 .env 文件，不需要 dotenv
 // 调试：检查环境变量是否被加载
 console.log('[Env] Checking environment variables...')
 console.log('[Env] ANTHROPIC_AUTH_TOKEN exists:', !!process.env.ANTHROPIC_AUTH_TOKEN)
@@ -796,12 +794,12 @@ async function startServer() {
     
     // 配置 WebSocket 推送函数
     workflowEventService.setPushFn((event) => {
-      const message = {
+      const message = JSON.stringify({
         type: 'event',
         event: 'workflow_event',
         data: event,
         timestamp: new Date(event.timestamp).getTime(),
-      } as any
+      })
       
       // 广播到所有连接的客户端
       let sentCount = 0
@@ -827,11 +825,11 @@ async function startServer() {
   try {
     console.log('\n[SessionTitle] Setting up session title update callback...')
     sessionManager.setOnSessionTitleUpdated((sessionId: string, title: string) => {
-      const message = {
+      const message = JSON.stringify({
         type: 'session_renamed',
         sessionId,
         title,
-      } as any
+      })
       
       // 广播到所有连接的客户端
       let sentCount = 0
