@@ -567,6 +567,11 @@ function shouldShowMessage(message: any): boolean {
   display: flex;
   gap: 12px;
   max-width: 80%;
+  align-items: flex-start;
+}
+
+.user-message .message-content {
+  justify-content: flex-end;
 }
 
 .message-bubble {
