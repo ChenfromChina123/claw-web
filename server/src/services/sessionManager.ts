@@ -236,8 +236,9 @@ export class SessionManager {
 
     this.scheduleSave(sessionId)
     
-    // 如果是用户的第一条消息，并行生成会话标题
-    if (role === 'user' && isFirstMessage(sessionData.messages.length - 1)) {
+    // 如果是用户消息且当前标题还是默认的"新对话"，就并行生成会话标题
+    if (role === 'user' && sessionData.session.title === '新对话') {
+      console.log(`[SessionManager] Detected first user message, generating title for session ${sessionId}`)
       this.generateAndUpdateSessionTitle(sessionId, content)
     }
     
