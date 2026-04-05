@@ -334,13 +334,6 @@ function handleCommandSelect(command: string): void {
       :native-scrollbar="false"
       content-style="display: flex; flex-direction: column; height: 100%;"
     >
-      <!-- Agent 面板切换按钮 -->
-      <div class="agent-panel-toggle" @click="showAgentPanel = !showAgentPanel" :class="{ active: showAgentPanel }">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor"/>
-        </svg>
-      </div>
-      
       <!-- Agent 活动侧边栏切换按钮 -->
       <div class="agent-activity-toggle" @click="showAgentActivitySidebar = !showAgentActivitySidebar" :class="{ active: showAgentActivitySidebar }">
         <span class="toggle-icon">🤖</span>
@@ -516,40 +509,6 @@ function handleCommandSelect(command: string): void {
   color: var(--color-error);
   margin: 8px 0 16px;
   text-align: center;
-}
-
-/* ---- Agent 面板切换按钮 ---- */
-.agent-panel-toggle {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  cursor: pointer;
-  z-index: 10;
-  transition: all var(--transition-fast, 150ms) ease;
-}
-
-.agent-panel-toggle:hover {
-  background: rgba(99, 102, 241, 0.15);
-  border-color: rgba(99, 102, 241, 0.3);
-}
-
-.agent-panel-toggle.active {
-  background: rgba(99, 102, 241, 0.2);
-  border-color: rgba(99, 102, 241, 0.5);
-}
-
-.agent-panel-toggle svg {
-  width: 18px;
-  height: 18px;
-  color: var(--text-secondary);
 }
 
 /* ---- Agent 活动侧边栏切换按钮 ---- */
