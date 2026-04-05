@@ -17,6 +17,7 @@ import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
 import { glob as globAsync } from 'glob'
 import type { EventSender, Tool, ToolCall } from './webStore'
+import { backgroundTaskManager, TaskPriority } from '../integrations/toolExecutor'
 import { 
   createAgentToolDefinition, 
   createSendMessageToolDefinition,
@@ -1155,19 +1156,30 @@ export class EnhancedToolExecutor {
       },
       category: 'system',
       handler: async (input) => {
-        const task = {
-          id: uuidv4(),
-          title: input.title as string,
+        // 创建后台任务
+        const task = backgroundTaskManager.createTask({
+          name: input.title as string,
           description: input.description as string || '',
-          status: 'pending',
-          priority: (input.priority as string) || 'medium',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+          priority: TaskPriority.NORMAL,
+          metadata: {
+            source: 'agent_tool',
+            priority: input.priority,
+          },
+        })
+        
+        const taskResult = {
+          id: task.id,
+          title: task.name,
+          description: task.description,
+          status: task.status,
+          priority: input.priority || 'medium',
+          createdAt: task.createdAt.getTime(),
+          updatedAt: task.createdAt.getTime(),
         }
 
         return {
           success: true,
-          result: task,
+          result: taskResult,
         }
       },
     })
@@ -1185,28 +1197,30 @@ export class EnhancedToolExecutor {
       },
       category: 'system',
       handler: async (input) => {
-        const todoPath = join(this.context.projectRoot, '.haha-todos.json')
-        let todos: Array<unknown> = []
-
-        try {
-          const content = await readFile(todoPath, 'utf-8')
-          todos = JSON.parse(content)
-        } catch {
-          // File doesn't exist
-        }
-
-        let filtered = todos
+        // 从后台任务管理器获取任务
+        let allTasks = backgroundTaskManager.getAllTasks()
+        
+        // 筛选
         if (input.status) {
-          filtered = filtered.filter((t: unknown) => (t as { status: string }).status === input.status)
+          allTasks = allTasks.filter(t => t.status === input.status)
         }
         if (input.priority) {
-          filtered = filtered.filter((t: unknown) => (t as { priority: string }).priority === input.priority)
+          allTasks = allTasks.filter(t => t.priority === TaskPriority.NORMAL)
         }
-
+        
         const limit = (input.limit as number) || 50
+        const tasks = allTasks.slice(0, limit).map(t => ({
+          id: t.id,
+          title: t.name,
+          description: t.description,
+          status: t.status,
+          priority: 'normal',
+          createdAt: t.createdAt.getTime(),
+        }))
+        
         return {
           success: true,
-          result: { tasks: filtered.slice(0, limit), total: filtered.length },
+          result: { tasks, total: allTasks.length },
         }
       },
     })
