@@ -77,14 +77,14 @@ defineExpose({
 
 <style scoped>
 .chat-input {
-  max-width: v-bind(props.sidebarCollapsed ? '95%' : '900px');
+  width: 100%;
   margin: 0 auto;
   display: flex;
   flex-direction: row;
   align-items: flex-end;
   gap: 10px;
   padding: 10px;
-  transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .input-wrapper {
