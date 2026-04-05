@@ -541,6 +541,186 @@ export const useAgentStore = defineStore('agent', () => {
       trace.progress = data.progress
     }
   }
+
+  /**
+   * 处理工作流事件（来自后端 workflowEventService）
+   */
+  function handleWorkflowEvent(event: any) {
+    const { traceId, agentId, agentType, agentName, type, payload, parentAgentId } = event
+
+    // 确保 trace 和 agent 存在
+    ensureTrace(traceId)
+    ensureAgentForWorkflow(traceId, agentId, agentType, agentName, parentAgentId)
+
+    switch (type) {
+      case 'agent_started':
+        updateAgentStatus(traceId, agentId, 'RUNNING')
+        addWorkflowStep(traceId, agentId, {
+          status: 'RUNNING',
+          actionType: 'THINKING',
+          message: payload.message || 'Agent 开始执行'
+        })
+        break
+
+      case 'agent_thinking':
+        updateAgentStatus(traceId, agentId, 'THINKING')
+        addWorkflowStep(traceId, agentId, {
+          status: 'RUNNING',
+          actionType: 'THINKING',
+          message: payload.message || 'Agent 思考中'
+        })
+        break
+
+      case 'agent_tool_call':
+        updateAgentStatus(traceId, agentId, 'RUNNING', 'TOOL_CALL')
+        const toolCallStepId = addWorkflowStep(traceId, agentId, {
+          status: 'RUNNING',
+          actionType: 'TOOL_CALL',
+          message: `调用工具: ${payload.toolName}`,
+          toolName: payload.toolName,
+          input: payload.input
+        })
+        // 缓存工具调用详情
+        toolCallDetails.value.set(toolCallStepId, {
+          input: payload.input || {},
+          logs: [],
+          startTime: Date.now()
+        })
+        break
+
+      case 'agent_tool_result':
+        updateAgentStatus(traceId, agentId, 'IDLE')
+        // 找到对应的 TOOL_CALL 步骤并更新
+        const toolStep = findLastWorkflowStep(traceId, agentId, s =>
+          s.actionType === 'TOOL_CALL' && s.status === 'RUNNING'
+        )
+        if (toolStep) {
+          updateWorkflowStep(toolStep.id, {
+            status: payload.success ? 'COMPLETED' : 'FAILED',
+            output: payload.result || payload.error,
+            toolName: payload.toolName
+          })
+          // 更新缓存
+          const details = toolCallDetails.value.get(toolStep.id)
+          if (details) {
+            details.output = payload.result || payload.error
+          }
+        }
+        break
+
+      case 'agent_message':
+        updateAgentStatus(traceId, agentId, 'RUNNING')
+        addWorkflowStep(traceId, agentId, {
+          status: 'RUNNING',
+          actionType: 'MESSAGE',
+          message: payload.message
+        })
+        break
+
+      case 'agent_completed':
+        updateAgentStatus(traceId, agentId, 'COMPLETED')
+        addWorkflowStep(traceId, agentId, {
+          status: 'COMPLETED',
+          actionType: 'THINKING',
+          message: payload.result || 'Agent 执行完成'
+        })
+        break
+
+      case 'agent_failed':
+        updateAgentStatus(traceId, agentId, 'FAILED')
+        addWorkflowStep(traceId, agentId, {
+          status: 'FAILED',
+          actionType: 'THINKING',
+          message: payload.error || 'Agent 执行失败'
+        })
+        break
+
+      case 'step_started':
+        addWorkflowStep(traceId, agentId, {
+          status: 'RUNNING',
+          actionType: 'THINKING',
+          message: payload.label || '步骤开始'
+        })
+        break
+
+      case 'step_completed':
+        const completedStep = findLastWorkflowStep(traceId, agentId, s => s.status === 'RUNNING')
+        if (completedStep) {
+          updateWorkflowStep(completedStep.id, {
+            status: 'COMPLETED',
+            output: payload.result
+          })
+        }
+        break
+
+      case 'step_failed':
+        const failedStep = findLastWorkflowStep(traceId, agentId, s => s.status === 'RUNNING')
+        if (failedStep) {
+          updateWorkflowStep(failedStep.id, {
+            status: 'FAILED',
+            output: { error: payload.error }
+          })
+        }
+        break
+
+      case 'subagent_spawned':
+        updateAgentStatus(traceId, agentId, 'RUNNING')
+        // 创建子 Agent
+        const subAgentId = spawnAgent(
+          traceId,
+          agentId,
+          payload.subagentName,
+          '子 Agent',
+          '🤖',
+          '#2196F3',
+          payload.subagentType
+        )
+        addWorkflowStep(traceId, agentId, {
+          status: 'COMPLETED',
+          actionType: 'SPAWN_TEAMMATE',
+          message: `派生子 Agent: ${payload.subagentName}`,
+          childTraceId: payload.subagentId
+        })
+        break
+    }
+
+    // 如果是当前 trace，设置为当前
+    if (!currentTraceId.value) {
+      currentTraceId.value = traceId
+    }
+  }
+  
+  /**
+   * 确保 Agent 存在（工作流事件专用）
+   */
+  function ensureAgentForWorkflow(traceId: string, agentId: string, agentType: string, agentName: string, parentAgentId?: string) {
+    const agentMap = ensureAgentMap(traceId)
+    
+    if (!agentMap.has(agentId)) {
+      // 从内置 agent 类型中获取图标和颜色
+      const builtInAgent = availableAgentTypes.value.find(a => a.agentType === agentType)
+      const icon = builtInAgent?.icon || '🤖'
+      const color = builtInAgent?.color || '#2196F3'
+
+      const newAgent: AgentState = {
+        agentId,
+        traceId,
+        name: agentName || agentType,
+        status: 'IDLE',
+        agentType,
+        icon,
+        color,
+        parentAgentId,
+        startTime: Date.now(),
+        lastActivityTime: Date.now(),
+        workflowSteps: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        progress: 0
+      }
+      agentMap.set(agentId, newAgent)
+    }
+  }
   
   /**
    * 处理 Agent 状态变化
@@ -978,6 +1158,12 @@ export const useAgentStore = defineStore('agent', () => {
     wsClient.on('agent_status_update', (data: unknown) => {
       const payload = data as any
       handleAgentStatusUpdate(payload)
+    })
+    
+    // 监听工作流事件（用于真实的子 Agent 执行和可视化）
+    wsClient.on('workflow_event', (data: unknown) => {
+      const event = data as any
+      handleWorkflowEvent(event)
     })
     
     console.log('[AgentStore] WebSocket listeners setup complete')

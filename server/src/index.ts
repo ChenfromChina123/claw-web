@@ -31,6 +31,7 @@ import type { ConversationMessage, ToolCall, LoginRequest, RegisterRequest, Rese
 import { getBuiltInAgents, agentManager, initializeDemoOrchestration, executeAgent } from './agents'
 import { TaskStatus, TaskPriority, type BackgroundTask } from './services/backgroundTaskManager'
 import { getAgentStatusService, createAgentStatusService, setAgentStatusService } from './services/agentStatusService'
+import { getWorkflowEventService } from './services/workflowEventService'
 
 const PORT = parseInt(process.env.PORT || '3000', 10)
 const WS_PORT = parseInt(process.env.WS_PORT || '3001', 10)
@@ -767,6 +768,40 @@ async function startServer() {
   } catch (error) {
     console.warn('[AgentStatusService] Failed to initialize Agent status service:', error)
     console.warn('[AgentStatusService] Agent status will not be pushed to frontend')
+  }
+
+  // Initialize Workflow Event Service (用于前端工作流可视化实时推送)
+  try {
+    console.log('\n[WorkflowEventService] Initializing Workflow Event service...')
+    const workflowEventService = getWorkflowEventService()
+    
+    // 配置 WebSocket 推送函数
+    workflowEventService.setPushFn((event) => {
+      const message = {
+        type: 'event',
+        event: 'workflow_event',
+        data: event,
+        timestamp: new Date(event.timestamp).getTime(),
+      } as any
+      
+      // 广播到所有连接的客户端
+      let sentCount = 0
+      for (const [, connection] of wsManager.getAllConnections()) {
+        if (connection.isConnected()) {
+          connection.send(message)
+          sentCount++
+        }
+      }
+      
+      if (sentCount > 0) {
+        console.log(`[WorkflowEventService] 广播 ${event.type} 到 ${sentCount} 个客户端`)
+      }
+    })
+    
+    console.log('[WorkflowEventService] Workflow Event service initialized')
+  } catch (error) {
+    console.warn('[WorkflowEventService] Failed to initialize Workflow Event service:', error)
+    console.warn('[WorkflowEventService] Workflow events will not be pushed to frontend')
   }
 
   // Initialize WebSocket RPC methods
