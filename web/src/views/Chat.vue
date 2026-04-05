@@ -10,8 +10,7 @@ import GlassPanel from '@/components/common/GlassPanel.vue'
 import AgentStatusPanel from '@/components/AgentStatusPanel.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
-import type { MultiAgentOrchestrationState } from '@/services/agentApi'
-import { agentApi } from '@/services/agentApi'
+import type { MultiAgentOrchestrationState } from '@/types/agent'
 import { createInitialOrchestrationState } from '@/types/agent'
 
 const router = useRouter()
@@ -36,62 +35,121 @@ const orchestrationState = ref<MultiAgentOrchestrationState>(createInitialOrches
 const showAgentPanel = ref(false)
 
 /**
- * 状态轮询定时器
+ * 初始化 Agent 协调演示数据
  */
-let orchestrationPollingTimer: ReturnType<typeof setInterval> | null = null
-
-/**
- * 初始化 Agent 协调（调用真实后端 API）
- */
-async function initAgentOrchestration(): Promise<void> {
-  try {
-    console.log('[Chat] 初始化 Agent 协调...')
-    const response = await agentApi.initOrchestration()
-    
-    if (response.success && response.data) {
-      orchestrationState.value = response.data
-      console.log('[Chat] Agent 协调初始化成功')
-      
-      // 开始轮询状态更新
-      startOrchestrationPolling()
-    } else {
-      console.error('[Chat] Agent 协调初始化失败:', response.error)
-      message.error(response.error?.message || 'Agent 协调初始化失败')
-    }
-  } catch (error) {
-    console.error('[Chat] Agent 协调初始化异常:', error)
-    message.error('Agent 协调初始化失败')
-  }
-}
-
-/**
- * 开始轮询 Agent 协调状态
- */
-function startOrchestrationPolling(): void {
-  // 停止之前的轮询
-  stopOrchestrationPolling()
+function initAgentOrchestrationDemo(): void {
+  const now = new Date()
   
-  // 每 2 秒轮询一次
-  orchestrationPollingTimer = setInterval(async () => {
-    try {
-      const response = await agentApi.getOrchestrationState()
-      if (response.success && response.data) {
-        orchestrationState.value = response.data
-      }
-    } catch (error) {
-      console.error('[Chat] 轮询协调状态失败:', error)
+  orchestrationState.value.taskSteps = [
+    {
+      id: 'step-1',
+      agentType: 'general-purpose' as any,
+      description: '分析任务需求，理解用户意图',
+      status: 'completed',
+      startTime: now,
+      completedTime: new Date(now.getTime() + 1500)
+    },
+    {
+      id: 'step-2',
+      agentType: 'Explore' as any,
+      description: '探索代码库结构，定位相关文件',
+      status: 'completed',
+      startTime: new Date(now.getTime() + 1500),
+      completedTime: new Date(now.getTime() + 2700)
+    },
+    {
+      id: 'step-3',
+      agentType: 'Explore' as any,
+      description: '读取关键文件，了解现有实现',
+      status: 'active',
+      startTime: new Date(now.getTime() + 2700)
+    },
+    {
+      id: 'step-4',
+      agentType: 'Plan' as any,
+      description: '制定实施方案，设计代码结构',
+      status: 'pending'
+    },
+    {
+      id: 'step-5',
+      agentType: 'general-purpose' as any,
+      description: '执行方案，完成代码修改',
+      status: 'pending'
     }
-  }, 2000)
-}
-
-/**
- * 停止轮询 Agent 协调状态
- */
-function stopOrchestrationPolling(): void {
-  if (orchestrationPollingTimer) {
-    clearInterval(orchestrationPollingTimer)
-    orchestrationPollingTimer = null
+  ]
+  
+  // 初始化协调者
+  const generalAgentDef = {
+    agentType: 'general-purpose' as any,
+    name: '通用 Agent',
+    description: '处理各种复杂任务',
+    systemPrompt: '',
+    color: '#3b82f6',
+    icon: '🤖',
+    source: 'built-in' as any
   }
+  
+  orchestrationState.value.orchestrator = {
+    agentId: 'agent_demo_orchestrator',
+    agentDefinition: generalAgentDef,
+    status: 'working' as any,
+    currentTask: '读取关键文件，了解现有实现',
+    completedTasks: 1,
+    totalTasks: 3,
+    startTime: now,
+    lastActivityTime: new Date(),
+    progress: 33
+  }
+  
+  // 初始化子 Agent
+  const exploreAgentDef = {
+    agentType: 'Explore' as any,
+    name: '探索 Agent',
+    description: '代码库探索和搜索',
+    systemPrompt: '',
+    color: '#10b981',
+    icon: '🔍',
+    isReadOnly: true,
+    source: 'built-in' as any
+  }
+  
+  const planAgentDef = {
+    agentType: 'Plan' as any,
+    name: '规划 Agent',
+    description: '任务规划和方案设计',
+    systemPrompt: '',
+    color: '#f59e0b',
+    icon: '📋',
+    isReadOnly: true,
+    source: 'built-in' as any
+  }
+  
+  orchestrationState.value.subAgents = [
+    {
+      agentId: 'agent_demo_explore',
+      agentDefinition: exploreAgentDef,
+      status: 'working' as any,
+      currentTask: '探索代码库结构',
+      completedTasks: 1,
+      totalTasks: 2,
+      startTime: now,
+      lastActivityTime: new Date(),
+      progress: 50
+    },
+    {
+      agentId: 'agent_demo_plan',
+      agentDefinition: planAgentDef,
+      status: 'idle' as any,
+      completedTasks: 0,
+      totalTasks: 1,
+      startTime: now,
+      lastActivityTime: now,
+      progress: 0
+    }
+  ]
+  
+  orchestrationState.value.overallStatus = 'executing' as any
+  orchestrationState.value.startTime = now
 }
 
 onMounted(async () => {
@@ -138,8 +196,8 @@ onMounted(async () => {
       inputRef.value?.focus()
     })
     
-    // 初始化 Agent 协调（调用真实后端 API）
-    await initAgentOrchestration()
+    // 初始化 Agent 协调演示数据
+    initAgentOrchestrationDemo()
   } catch (error: any) {
     console.error('初始化失败:', error)
     initError.value = error?.message || '初始化失败，请重试'
@@ -154,7 +212,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   chatStore.disconnect()
-  stopOrchestrationPolling()
   document.removeEventListener('keydown', handleKeyDown)
 })
 
@@ -304,7 +361,6 @@ function handleCommandSelect(command: string): void {
             :messages="chatStore.messages"
             :tool-calls="chatStore.toolCalls"
             :is-loading="chatStore.isLoading"
-            :agent-task-steps="orchestrationState.taskSteps"
             class="message-list-container"
           />
 

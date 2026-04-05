@@ -8,12 +8,75 @@
  * - 自定义工具
  * 
  * 提供统一的工具查询和执行接口。
+ * 
+ * 特性：
+ * - 工具生命周期事件
+ * - 工具依赖声明与自动加载
+ * - 执行超时控制
+ * - 工具别名映射
  */
 
 import { v4 as uuidv4 } from 'uuid'
-import { CLIToolLoader, getCLIToolLoader, type ToolDefinition, type CLIToolAdapter } from './cliToolLoader'
+import { normalizeToolName } from '../tools/toolAliases'
 
 // ==================== 类型定义 ====================
+
+/**
+ * 工具生命周期事件类型
+ */
+export type ToolLifecycleEvent = 
+  | 'tool.registered'
+  | 'tool.unregistered'
+  | 'tool.enabled'
+  | 'tool.disabled'
+  | 'tool.enabled_changed'
+  | 'tool.loaded'
+  | 'tool.execution_started'
+  | 'tool.execution_progress'
+  | 'tool.execution_completed'
+  | 'tool.execution_failed'
+  | 'tool.error'
+  | 'tool.mcp_registered'
+  | 'tool.mcp_removed'
+  | 'tool_start'
+  | 'tool_end'
+
+/**
+ * 工具注册配置
+ */
+export interface ToolRegistrationConfig {
+  name: string
+  displayName?: string
+  description: string
+  category: string
+  inputSchema: Record<string, unknown>
+  isReadOnly?: boolean
+  isConcurrencySafe?: boolean
+  aliases?: string[]
+  permissions?: string[]
+  handler?: (args: Record<string, unknown>) => Promise<{ success: boolean; result?: unknown; error?: string }>
+  dependencies?: string[]
+  timeout?: number
+}
+
+/**
+ * 工具依赖信息
+ */
+export interface ToolDependency {
+  toolName: string
+  version?: string
+  loaded: boolean
+  loadOrder: number
+}
+
+/**
+ * 执行超时配置
+ */
+export interface ExecutionTimeoutConfig {
+  defaultTimeout: number
+  perToolTimeouts: Record<string, number>
+  enableTimeout: boolean
+}
 
 export interface RegisteredTool {
   id: string
@@ -29,6 +92,8 @@ export interface RegisteredTool {
   isReadOnly: boolean
   isConcurrencySafe: boolean
   permissions: string[]
+  dependencies: string[]
+  timeout: number
   handler?: (args: Record<string, unknown>) => Promise<{ success: boolean; result?: unknown; error?: string }>
 }
 
@@ -37,6 +102,7 @@ export interface ToolExecutionRequest {
   toolInput: Record<string, unknown>
   sessionId?: string
   context?: Record<string, unknown>
+  timeout?: number
 }
 
 export interface ToolExecutionResult {
@@ -48,6 +114,7 @@ export interface ToolExecutionResult {
   output?: string
   duration: number
   timestamp: number
+  timedOut?: boolean
 }
 
 /**
@@ -61,6 +128,7 @@ export interface ToolExecutionEvent {
   result?: ToolExecutionResult
   error?: string
   duration?: number
+  timedOut?: boolean
   progress?: {
     type: 'start' | 'progress' | 'complete' | 'error'
     data?: unknown
@@ -81,6 +149,8 @@ export interface ToolRegistryConfig {
   enableCustom: boolean
   defaultEnabled: boolean
   permissions?: ToolPermission[]
+  defaultTimeout?: number
+  enableTimeoutControl?: boolean
 }
 
 // ==================== 工具类别定义 ====================
@@ -116,7 +186,6 @@ export const PERMISSION_LEVELS = {
 
 export class ToolRegistry {
   private projectRoot: string
-  private cliLoader: CLIToolLoader | null = null
   private builtinTools: Map<string, RegisteredTool> = new Map()
   private cliTools: Map<string, RegisteredTool> = new Map()
   private mcpTools: Map<string, RegisteredTool> = new Map()
@@ -125,6 +194,17 @@ export class ToolRegistry {
   private executionHistory: ToolExecutionResult[] = []
   private maxHistorySize: number = 1000
   private config: ToolRegistryConfig
+  
+  // 依赖管理
+  private toolDependencies: Map<string, ToolDependency> = new Map()
+  private loadOrder: string[] = []
+  
+  // 超时控制
+  private timeoutConfig: ExecutionTimeoutConfig = {
+    defaultTimeout: 60000,
+    perToolTimeouts: {},
+    enableTimeout: true,
+  }
   
   // 事件发射器
   private listeners: Map<string, Set<(data: unknown) => void>> = new Map()
@@ -136,34 +216,39 @@ export class ToolRegistry {
       enableMCP: true,
       enableCustom: true,
       defaultEnabled: true,
+      defaultTimeout: 60000,
+      enableTimeoutControl: true,
       ...config,
     }
     
-    // 初始化内置工具
+    this.timeoutConfig.defaultTimeout = this.config.defaultTimeout || 60000
+    this.timeoutConfig.enableTimeout = this.config.enableTimeoutControl !== false
+    
     this.registerBuiltinTools()
   }
   
-  // ==================== 事件系统 ====================
+  // ==================== 生命周期事件系统 ====================
   
-  /**
-   * 注册事件监听器
-   */
-  on(event: string, handler: (data: unknown) => void): () => void {
+  on(event: ToolLifecycleEvent, handler: (data: unknown) => void): () => void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set())
     }
     this.listeners.get(event)!.add(handler)
-    
-    // 返回取消订阅函数
-    return () => {
-      this.listeners.get(event)?.delete(handler)
-    }
+    return () => { this.listeners.get(event)?.delete(handler) }
   }
   
-  /**
-   * 发射事件
-   */
-  private emit(event: string, data: unknown): void {
+  once(event: ToolLifecycleEvent, handler: (data: unknown) => void): void {
+    const wrapper = (data: unknown) => {
+      handler(data)
+      this.listeners.get(event)?.delete(wrapper)
+    }
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set())
+    }
+    this.listeners.get(event)!.add(wrapper)
+  }
+  
+  private emit(event: ToolLifecycleEvent, data: unknown): void {
     this.listeners.get(event)?.forEach(handler => {
       try {
         handler(data)
@@ -173,76 +258,196 @@ export class ToolRegistry {
     })
   }
   
-  /**
-   * 广播工具执行事件到 WebSocket 客户端
-   */
-  private broadcastExecutionEvent(
-    eventType: 'tool.execution_started' | 'tool.execution_progress' | 'tool.execution_completed' | 'tool.execution_failed',
-    eventData: ToolExecutionEvent
-  ): void {
-    // 发射内部事件
-    this.emit(eventType, eventData)
-    
-    // 通过 WebSocket 广播到客户端（如果 wsManager 可用）
-    try {
-      // 动态导入以避免循环依赖
-      import('./wsBridge').then(({ wsManager }) => {
-        wsManager.broadcastToolEvent(eventType, eventData)
-      }).catch(() => {
-        // wsBridge 可能不存在，忽略错误
+  removeAllListeners(): void {
+    this.listeners.clear()
+  }
+  
+  getListenerCount(event?: ToolLifecycleEvent): number {
+    if (event) {
+      return this.listeners.get(event)?.size || 0
+    }
+    let total = 0
+    for (const listeners of this.listeners.values()) {
+      total += listeners.size
+    }
+    return total
+  }
+  
+  // ==================== 依赖管理 ====================
+  
+  registerDependency(dependentTool: string, dependencyTool: string): void {
+    if (!this.toolDependencies.has(dependentTool)) {
+      this.toolDependencies.set(dependentTool, {
+        toolName: dependentTool,
+        loaded: false,
+        loadOrder: this.loadOrder.length,
       })
-    } catch (error) {
-      console.error('[ToolRegistry] WebSocket broadcast error:', error)
     }
     
-    console.log(`[ToolRegistry] 广播事件：${eventType} for ${eventData.toolName}`)
-  }
-  
-  // ==================== 初始化 ====================
-  
-  /**
-   * 初始化工具注册中心
-   */
-  async initialize(): Promise<void> {
-    console.log('[ToolRegistry] 初始化中...')
-    
-    // 加载 CLI 工具
-    if (this.config.enableCLI) {
-      await this.loadCLITools()
+    const dep = this.toolDependencies.get(dependentTool)!
+    if (!dep.version) {
+      this.toolDependencies.set(dependentTool, {
+        toolName: dependentTool,
+        loaded: false,
+        loadOrder: this.loadOrder.length,
+      })
     }
-    
-    console.log(`[ToolRegistry] 初始化完成`)
-    console.log(`  - 内置工具: ${this.builtinTools.size}`)
-    console.log(`  - CLI 工具: ${this.cliTools.size}`)
-    console.log(`  - MCP 工具: ${this.mcpTools.size}`)
-    console.log(`  - 自定义工具: ${this.customTools.size}`)
-    console.log(`  - 总计: ${this.getAllTools().length}`)
   }
   
-  /**
-   * 加载 CLI 工具
-   */
-  private async loadCLITools(): Promise<void> {
-    try {
-      this.cliLoader = getCLIToolLoader(this.projectRoot)
-      await this.cliLoader.loadTools()
-      
-      // 注册 CLI 工具
-      for (const tool of this.cliLoader.getAllTools()) {
-        this.registerToolFromAdapter(tool, 'cli')
+  getLoadOrder(): string[] {
+    const ordered: string[] = []
+    const visited = new Set<string>()
+    const visiting = new Set<string>()
+    
+    const visit = (toolName: string) => {
+      if (visited.has(toolName)) return
+      if (visiting.has(toolName)) {
+        console.warn(`[ToolRegistry] 检测到循环依赖: ${toolName}`)
+        return
       }
       
-      console.log(`[ToolRegistry] 加载了 ${this.cliTools.size} 个 CLI 工具`)
-    } catch (error) {
-      console.error('[ToolRegistry] 加载 CLI 工具失败:', error)
+      visiting.add(toolName)
+      const deps = this.getDependencies(toolName)
+      for (const dep of deps) {
+        visit(dep)
+      }
+      
+      visiting.delete(toolName)
+      visited.add(toolName)
+      ordered.push(toolName)
     }
+    
+    for (const tool of this.getAllTools()) {
+      visit(tool.name)
+    }
+    
+    this.loadOrder = ordered
+    return ordered
   }
   
-  /**
-   * 注册内置工具
-   */
+  getDependencies(toolName: string): string[] {
+    const tool = this.getTool(toolName)
+    return tool?.dependencies || []
+  }
+  
+  areDependenciesLoaded(toolName: string): { loaded: boolean; missing: string[] } {
+    const deps = this.getDependencies(toolName)
+    const missing: string[] = []
+    
+    for (const dep of deps) {
+      if (!this.getTool(dep)) {
+        missing.push(dep)
+      }
+    }
+    
+    return { loaded: missing.length === 0, missing }
+  }
+  
+  // ==================== 超时控制 ====================
+  
+  setToolTimeout(toolName: string, timeout: number): void {
+    this.timeoutConfig.perToolTimeouts[toolName] = timeout
+  }
+  
+  getToolTimeout(toolName: string): number {
+    return this.timeoutConfig.perToolTimeouts[toolName] || this.timeoutConfig.defaultTimeout
+  }
+  
+  setDefaultTimeout(timeout: number): void {
+    this.timeoutConfig.defaultTimeout = timeout
+  }
+  
+  getTimeoutConfig(): ExecutionTimeoutConfig {
+    return { ...this.timeoutConfig }
+  }
+  
+  setTimeoutEnabled(enabled: boolean): void {
+    this.timeoutConfig.enableTimeout = enabled
+  }
+  
+  private async executeWithTimeout<T>(
+    fn: () => Promise<T>,
+    timeout: number
+  ): Promise<{ result?: T; timedOut: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      let timedOut = false
+      let settled = false
+      
+      const timer = setTimeout(() => {
+        if (!settled) {
+          timedOut = true
+          settled = true
+          resolve({ timedOut: true })
+        }
+      }, timeout)
+      
+      fn()
+        .then((result) => {
+          if (!settled) {
+            settled = true
+            clearTimeout(timer)
+            resolve({ result, timedOut: false })
+          }
+        })
+        .catch((error) => {
+          if (!settled) {
+            settled = true
+            clearTimeout(timer)
+            resolve({ timedOut: false, error: String(error) })
+          }
+        })
+    })
+  }
+  
+  // ==================== 工具注册 ====================
+  
+  registerBuiltinTool(config: ToolRegistrationConfig): void {
+    const id = uuidv4()
+    const registeredTool: RegisteredTool = {
+      id,
+      source: 'builtin',
+      isEnabled: true,
+      permissions: [],
+      dependencies: config.dependencies || [],
+      timeout: config.timeout || this.timeoutConfig.defaultTimeout,
+      displayName: config.displayName || config.name,
+      isReadOnly: config.isReadOnly ?? false,
+      isConcurrencySafe: config.isConcurrencySafe ?? true,
+      aliases: config.aliases || [],
+      name: config.name,
+      description: config.description,
+      category: config.category,
+      inputSchema: config.inputSchema,
+    }
+    
+    this.builtinTools.set(config.name, registeredTool)
+    
+    if (config.aliases) {
+      for (const alias of config.aliases) {
+        const normalized = normalizeToolName(alias)
+        if (normalized) {
+          this.builtinTools.set(normalized, registeredTool)
+        }
+        this.builtinTools.set(alias, registeredTool)
+      }
+    }
+    
+    if (config.handler) {
+      this.toolHandlers.set(config.name, config.handler)
+    }
+    
+    if (config.dependencies) {
+      for (const dep of config.dependencies) {
+        this.registerDependency(config.name, dep)
+      }
+    }
+    
+    this.emit('tool.registered', { tool: registeredTool, timestamp: Date.now() })
+  }
+  
+  // ==================== 内置工具注册 ====================
+  
   private registerBuiltinTools(): void {
-    // 文件操作工具
     this.registerBuiltinTool({
       name: 'FileRead',
       displayName: '读取文件',
@@ -259,25 +464,6 @@ export class ToolRegistry {
       },
       isReadOnly: true,
       isConcurrencySafe: true,
-      handler: async (args) => {
-        const { readFile } = await import('fs/promises')
-        const path = args.path as string
-        const limit = args.limit as number
-        const offset = args.offset as number
-        
-        let content = await readFile(path, 'utf-8')
-        const lines = content.split('\n')
-        
-        if (offset && offset > 0) {
-          content = lines.slice(offset).join('\n')
-        }
-        if (limit && limit > 0) {
-          const lineOffset = offset || 0
-          content = lines.slice(lineOffset, lineOffset + limit).join('\n')
-        }
-        
-        return { success: true, result: { content, path, lines: lines.length } }
-      },
     })
     
     this.registerBuiltinTool({
@@ -295,43 +481,6 @@ export class ToolRegistry {
       },
       isReadOnly: false,
       isConcurrencySafe: false,
-      handler: async (args) => {
-        const { writeFile } = await import('fs/promises')
-        await writeFile(args.path as string, args.content as string, 'utf-8')
-        return { success: true, result: { path: args.path, written: true } }
-      },
-    })
-    
-    this.registerBuiltinTool({
-      name: 'FileEdit',
-      displayName: '编辑文件',
-      description: '编辑文件内容（替换）',
-      category: TOOL_CATEGORIES.FILE.id,
-      inputSchema: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', description: '文件路径' },
-          old_string: { type: 'string', description: '要替换的文本' },
-          new_string: { type: 'string', description: '替换后的文本' },
-        },
-        required: ['path', 'old_string', 'new_string'],
-      },
-      isReadOnly: false,
-      isConcurrencySafe: false,
-      handler: async (args) => {
-        const { readFile, writeFile } = await import('fs/promises')
-        const path = args.path as string
-        const content = await readFile(path, 'utf-8')
-        
-        if (!content.includes(args.old_string as string)) {
-          return { success: false, error: '未找到要替换的文本' }
-        }
-        
-        const newContent = content.replace(args.old_string as string, args.new_string as string)
-        await writeFile(path, newContent, 'utf-8')
-        
-        return { success: true, result: { path, edited: true } }
-      },
     })
     
     this.registerBuiltinTool({
@@ -350,14 +499,6 @@ export class ToolRegistry {
       isReadOnly: true,
       isConcurrencySafe: true,
       aliases: ['file_glob', 'find'],
-      handler: async (args) => {
-        const { glob } = await import('glob')
-        const files = await glob(args.pattern as string, {
-          cwd: (args.path as string) || this.projectRoot,
-          ignore: ['**/node_modules/**', '**/.git/**'],
-        })
-        return { success: true, result: { files, count: files.length } }
-      },
     })
     
     this.registerBuiltinTool({
@@ -376,36 +517,8 @@ export class ToolRegistry {
       isReadOnly: true,
       isConcurrencySafe: true,
       aliases: ['search', 'find_content'],
-      handler: async (args) => {
-        const { glob } = await import('glob')
-        const { readFile } = await import('fs/promises')
-        const { join } = await import('path')
-        
-        const pattern = new RegExp(args.pattern as string, 'gi')
-        const files = await glob('**/*.{ts,js,json,md}', {
-          cwd: (args.path as string) || this.projectRoot,
-          ignore: ['**/node_modules/**'],
-        })
-        
-        const matches: string[] = []
-        for (const file of files.slice(0, 50)) {
-          try {
-            const content = await readFile(join((args.path as string) || this.projectRoot, file), 'utf-8')
-            const lines = content.split('\n')
-            lines.forEach((line, i) => {
-              if (pattern.test(line)) {
-                matches.push(`${file}:${i + 1}: ${line.trim()}`)
-              }
-            })
-            pattern.lastIndex = 0
-          } catch { /* skip */ }
-        }
-        
-        return { success: true, result: { matches, count: matches.length } }
-      },
     })
     
-    // Shell 工具
     this.registerBuiltinTool({
       name: 'Bash',
       displayName: '执行命令',
@@ -423,48 +536,8 @@ export class ToolRegistry {
       isReadOnly: false,
       isConcurrencySafe: false,
       aliases: ['shell', 'exec', 'run'],
-      handler: async (args) => {
-        const { spawn } = await import('child_process')
-        
-        return new Promise((resolve) => {
-          const isWindows = process.platform === 'win32'
-          const shell = isWindows ? 'powershell.exe' : '/bin/bash'
-          const shellArgs = isWindows 
-            ? ['-NoProfile', '-Command', args.command as string]
-            : ['-c', args.command as string]
-          
-          const child = spawn(shell, shellArgs, {
-            cwd: (args.cwd as string) || this.projectRoot,
-            timeout: (args.timeout as number) || 60000,
-          })
-          
-          let stdout = ''
-          let stderr = ''
-          
-          child.stdout?.on('data', (data) => { stdout += data.toString() })
-          child.stderr?.on('data', (data) => { stderr += data.toString() })
-          
-          child.on('close', (code) => {
-            resolve({ 
-              success: code === 0, 
-              result: { stdout, stderr, exitCode: code },
-              error: code !== 0 ? stderr : undefined,
-            })
-          })
-          
-          child.on('error', (err) => {
-            resolve({ success: false, error: err.message })
-          })
-          
-          setTimeout(() => {
-            child.kill()
-            resolve({ success: false, error: '命令执行超时' })
-          }, (args.timeout as number) || 60000)
-        })
-      },
     })
     
-    // Web 工具
     this.registerBuiltinTool({
       name: 'WebSearch',
       displayName: '网络搜索',
@@ -480,29 +553,6 @@ export class ToolRegistry {
       isReadOnly: true,
       isConcurrencySafe: true,
       aliases: ['search', 'websearch'],
-      handler: async (args) => {
-        const query = args.query as string
-        const response = await fetch(
-          `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json`,
-          { headers: { 'Accept': 'application/json' } }
-        )
-        
-        if (!response.ok) {
-          return { success: false, error: `HTTP ${response.status}` }
-        }
-        
-        const data = await response.json() as { AbstractText?: string; RelatedTopics?: Array<{ Text?: string }> }
-        const results: string[] = []
-        
-        if (data.AbstractText) {
-          results.push(data.AbstractText)
-        }
-        if (data.RelatedTopics) {
-          results.push(...data.RelatedTopics.slice(0, 5).map(t => t.Text || '').filter(Boolean))
-        }
-        
-        return { success: true, result: { query, results, count: results.length } }
-      },
     })
     
     this.registerBuiltinTool({
@@ -520,38 +570,8 @@ export class ToolRegistry {
       isReadOnly: true,
       isConcurrencySafe: true,
       aliases: ['fetch', 'curl', 'wget'],
-      handler: async (args) => {
-        const url = args.url as string
-        
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
-        })
-        
-        if (!response.ok) {
-          return { success: false, error: `HTTP ${response.status}` }
-        }
-        
-        const contentType = response.headers.get('content-type') || ''
-        let content: string
-        
-        if (contentType.includes('application/json')) {
-          const json = await response.json()
-          content = JSON.stringify(json, null, 2)
-        } else {
-          content = await response.text()
-        }
-        
-        if (content.length > 8000) {
-          content = content.substring(0, 8000) + '\n\n... (内容已截断)'
-        }
-        
-        return { success: true, result: { url, content, contentType } }
-      },
     })
     
-    // 任务管理工具
     this.registerBuiltinTool({
       name: 'TodoWrite',
       displayName: '待办事项',
@@ -578,34 +598,8 @@ export class ToolRegistry {
       isReadOnly: false,
       isConcurrencySafe: false,
       aliases: ['todo', 'todos'],
-      handler: async (args) => {
-        const { readFile, writeFile } = await import('fs/promises')
-        const { join } = await import('path')
-        
-        const todoPath = join(this.projectRoot, '.haha-todos.json')
-        let existingTodos: Array<{ id: string; status: string; content: string }> = []
-        
-        if (args.merge !== false) {
-          try {
-            const content = await readFile(todoPath, 'utf-8')
-            existingTodos = JSON.parse(content)
-          } catch { /* ignore */ }
-        }
-        
-        const todos = ((args.todos as Array<{ status?: string; content?: string; id?: string }>) || []).map(t => ({
-          id: t.id || uuidv4(),
-          status: t.status || 'pending',
-          content: t.content || '',
-        }))
-        
-        const allTodos = (args.merge !== false) ? [...existingTodos, ...todos] : todos
-        await writeFile(todoPath, JSON.stringify(allTodos, null, 2), 'utf-8')
-        
-        return { success: true, result: { todos: allTodos, count: allTodos.length } }
-      },
     })
     
-    // 配置工具
     this.registerBuiltinTool({
       name: 'Config',
       displayName: '配置管理',
@@ -623,96 +617,79 @@ export class ToolRegistry {
       isReadOnly: true,
       isConcurrencySafe: true,
       aliases: ['get', 'set', 'setting', 'config_get', 'config_set'],
-      handler: async (args) => {
-        const { readFile, writeFile } = await import('fs/promises')
-        const { join } = await import('path')
-        
-        const configPath = join(this.projectRoot, '.haha-config.json')
-        let config: Record<string, string> = {}
-        
-        try {
-          const content = await readFile(configPath, 'utf-8')
-          config = JSON.parse(content)
-        } catch { /* ignore */ }
-        
-        if (args.list) {
-          return { success: true, result: { config, count: Object.keys(config).length } }
-        }
-        
-        if (args.value !== undefined) {
-          config[args.key as string] = args.value as string
-          await writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8')
-          return { success: true, result: { [args.key as string]: args.value } }
-        }
-        
-        return { success: true, result: { [args.key as string]: config[args.key as string] || null } }
+    })
+    
+    this.registerBuiltinTool({
+      name: 'Agent',
+      displayName: 'Agent 工具',
+      description: '启动子代理来完成任务',
+      category: TOOL_CATEGORIES.AGENT.id,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          prompt: { type: 'string', description: '给子代理的任务描述' },
+          subagent_type: { type: 'string', description: '子代理类型' },
+        },
+        required: ['prompt'],
       },
+      isReadOnly: false,
+      isConcurrencySafe: false,
+    })
+    
+    this.registerBuiltinTool({
+      name: 'SendMessage',
+      displayName: '发送消息',
+      description: '向运行中的 Agent 发送消息以继续其执行',
+      category: TOOL_CATEGORIES.AGENT.id,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          agentId: { type: 'string', description: '目标 Agent 的 ID' },
+          message: { type: 'string', description: '要发送的消息内容' },
+        },
+        required: ['agentId', 'message'],
+      },
+      isReadOnly: true,
+      isConcurrencySafe: true,
+    })
+    
+    this.registerBuiltinTool({
+      name: 'Sleep',
+      displayName: '暂停执行',
+      description: '暂停执行指定的时间（毫秒）',
+      category: TOOL_CATEGORIES.SYSTEM.id,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          duration: { type: 'number', description: '暂停时长（毫秒）', minimum: 0, maximum: 300000 },
+        },
+        required: ['duration'],
+      },
+      isReadOnly: true,
+      isConcurrencySafe: true,
+    })
+    
+    this.registerBuiltinTool({
+      name: 'ExitPlanMode',
+      displayName: '退出计划模式',
+      description: '退出计划模式，继续实际执行或取消任务',
+      category: TOOL_CATEGORIES.PLAN.id,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          mode: { type: 'string', description: '操作模式', enum: ['approve', 'reject', 'cancel'] },
+          reason: { type: 'string', description: '原因或备注' },
+        },
+      },
+      isReadOnly: true,
+      isConcurrencySafe: true,
     })
     
     console.log(`[ToolRegistry] 注册了 ${this.builtinTools.size} 个内置工具`)
   }
   
-  /**
-   * 注册内置工具
-   */
-  registerBuiltinTool(tool: Omit<RegisteredTool, 'id' | 'source' | 'isEnabled' | 'permissions'>): void {
-    const id = uuidv4()
-    const registeredTool: RegisteredTool = {
-      id,
-      source: 'builtin',
-      isEnabled: true,
-      permissions: [],
-      ...tool,
-    }
-    
-    this.builtinTools.set(tool.name, registeredTool)
-    
-    // 注册别名
-    if (tool.aliases) {
-      for (const alias of tool.aliases) {
-        this.builtinTools.set(alias, registeredTool)
-      }
-    }
-    
-    // 注册处理器
-    if (tool.handler) {
-      this.toolHandlers.set(tool.name, tool.handler)
-    }
-  }
-  
-  /**
-   * 从 CLI 适配器注册工具
-   */
-  private registerToolFromAdapter(adapter: CLIToolAdapter, source: 'cli' | 'mcp' = 'cli'): void {
-    const tool: RegisteredTool = {
-      id: uuidv4(),
-      name: adapter.name,
-      displayName: adapter.name,
-      description: adapter.description,
-      category: adapter.category,
-      inputSchema: adapter.inputSchema,
-      source,
-      aliases: adapter.aliases,
-      isEnabled: adapter.isEnabled(),
-      isReadOnly: adapter.isReadOnly(),
-      isConcurrencySafe: adapter.isConcurrencySafe(),
-      permissions: [],
-      handler: (args) => adapter.call(args),
-    }
-    
-    const map = source === 'cli' ? this.cliTools : this.mcpTools
-    map.set(adapter.name, tool)
-    
-    if (adapter.handler) {
-      this.toolHandlers.set(adapter.name, adapter.handler)
-    }
-  }
-  
   // ==================== 工具查询 ====================
   
-  /**
-   * 获取所有工具
-   */
   getAllTools(): RegisteredTool[] {
     const tools = new Map<string, RegisteredTool>()
     
@@ -743,9 +720,6 @@ export class ToolRegistry {
     return Array.from(tools.values())
   }
   
-  /**
-   * 通过名称获取工具
-   */
   getTool(name: string): RegisteredTool | undefined {
     return (
       this.builtinTools.get(name) ||
@@ -755,31 +729,10 @@ export class ToolRegistry {
     )
   }
   
-  /**
-   * 按类别获取工具
-   */
   getToolsByCategory(category: string): RegisteredTool[] {
     return this.getAllTools().filter(t => t.category === category)
   }
   
-  /**
-   * 获取工具列表（简化格式）
-   */
-  getToolList(): ToolDefinition[] {
-    return this.getAllTools().map(t => ({
-      name: t.name,
-      description: t.description,
-      inputSchema: t.inputSchema,
-      category: t.category,
-      aliases: t.aliases,
-      isEnabled: t.isEnabled,
-      isReadOnly: t.isReadOnly,
-    }))
-  }
-  
-  /**
-   * 获取按类别分组的工具
-   */
   getToolsGroupedByCategory(): Record<string, RegisteredTool[]> {
     const grouped: Record<string, RegisteredTool[]> = {}
     
@@ -793,9 +746,6 @@ export class ToolRegistry {
     return grouped
   }
   
-  /**
-   * 搜索工具
-   */
   searchTools(query: string): RegisteredTool[] {
     const lowerQuery = query.toLowerCase()
     return this.getAllTools().filter(tool => {
@@ -809,30 +759,19 @@ export class ToolRegistry {
   
   // ==================== 工具执行 ====================
   
-  /**
-   * 执行工具
-   */
   async executeTool(request: ToolExecutionRequest): Promise<ToolExecutionResult> {
     const id = uuidv4()
     const startTime = Date.now()
+    const timeout = request.timeout || this.getToolTimeout(request.toolName)
     
-    this.emit('tool_start', { id, ...request })
-    
-    // 创建执行事件数据
-    const eventBase: Omit<ToolExecutionEvent, 'progress' | 'timestamp'> = {
+    const eventBase = {
       toolName: request.toolName,
       executionId: id,
       sessionId: request.sessionId,
       input: request.toolInput,
     }
     
-    // 触发 tool.execution_started 事件
-    const startEvent: ToolExecutionEvent = {
-      ...eventBase,
-      timestamp: startTime,
-      progress: { type: 'start', data: request.toolInput },
-    }
-    this.broadcastExecutionEvent('tool.execution_started', startEvent)
+    this.emit('tool.execution_started', { ...eventBase, timestamp: startTime })
     
     const tool = this.getTool(request.toolName)
     
@@ -846,7 +785,7 @@ export class ToolRegistry {
         timestamp: startTime,
       }
       this.addToHistory(result)
-      this.emit('tool_end', result)
+      this.emit('tool.execution_failed', { ...eventBase, error: result.error, duration: result.duration })
       return result
     }
     
@@ -860,7 +799,22 @@ export class ToolRegistry {
         timestamp: startTime,
       }
       this.addToHistory(result)
-      this.emit('tool_end', result)
+      this.emit('tool.execution_failed', { ...eventBase, error: result.error, duration: result.duration })
+      return result
+    }
+    
+    const depCheck = this.areDependenciesLoaded(request.toolName)
+    if (!depCheck.loaded) {
+      const result: ToolExecutionResult = {
+        id,
+        toolName: request.toolName,
+        success: false,
+        error: `工具依赖未满足: 缺少 ${depCheck.missing.join(', ')}`,
+        duration: Date.now() - startTime,
+        timestamp: startTime,
+      }
+      this.addToHistory(result)
+      this.emit('tool.execution_failed', { ...eventBase, error: result.error, duration: result.duration })
       return result
     }
     
@@ -876,12 +830,34 @@ export class ToolRegistry {
         timestamp: startTime,
       }
       this.addToHistory(result)
-      this.emit('tool_end', result)
+      this.emit('tool.execution_failed', { ...eventBase, error: result.error, duration: result.duration })
       return result
     }
     
     try {
-      const response = await handler(request.toolInput)
+      const { result: response, timedOut, error: execError } = await this.executeWithTimeout(
+        () => handler(request.toolInput),
+        timeout
+      )
+      
+      if (timedOut) {
+        const result: ToolExecutionResult = {
+          id,
+          toolName: request.toolName,
+          success: false,
+          error: `工具执行超时 (${timeout}ms)`,
+          duration: Date.now() - startTime,
+          timestamp: startTime,
+          timedOut: true,
+        }
+        this.addToHistory(result)
+        this.emit('tool.execution_failed', { ...eventBase, error: result.error, duration: result.duration, timedOut: true })
+        return result
+      }
+      
+      if (execError) {
+        throw new Error(execError)
+      }
       
       const result: ToolExecutionResult = {
         id,
@@ -894,7 +870,13 @@ export class ToolRegistry {
       }
       
       this.addToHistory(result)
-      this.emit('tool_end', result)
+      
+      if (response.success) {
+        this.emit('tool.execution_completed', { ...eventBase, result, duration: result.duration, timestamp: Date.now() })
+      } else {
+        this.emit('tool.execution_failed', { ...eventBase, error: response.error, duration: result.duration, timestamp: Date.now() })
+      }
+      
       return result
     } catch (error) {
       const result: ToolExecutionResult = {
@@ -907,42 +889,28 @@ export class ToolRegistry {
       }
       
       this.addToHistory(result)
-      this.emit('tool_end', result)
+      this.emit('tool.execution_failed', { ...eventBase, error: result.error, duration: result.duration, timestamp: Date.now() })
       return result
     }
   }
   
-  /**
-   * 添加到执行历史
-   */
   private addToHistory(result: ToolExecutionResult): void {
     this.executionHistory.unshift(result)
-    
-    // 限制历史大小
     if (this.executionHistory.length > this.maxHistorySize) {
       this.executionHistory = this.executionHistory.slice(0, this.maxHistorySize)
     }
   }
   
-  /**
-   * 获取执行历史
-   */
   getHistory(limit: number = 50): ToolExecutionResult[] {
     return this.executionHistory.slice(0, limit)
   }
   
-  /**
-   * 清空历史
-   */
   clearHistory(): void {
     this.executionHistory = []
   }
   
   // ==================== 工具管理 ====================
   
-  /**
-   * 注册自定义工具
-   */
   registerCustomTool(tool: Omit<RegisteredTool, 'id' | 'source'>): void {
     const id = uuidv4()
     const registeredTool: RegisteredTool = {
@@ -957,39 +925,28 @@ export class ToolRegistry {
       this.toolHandlers.set(tool.name, tool.handler)
     }
     
-    this.emit('tool_registered', registeredTool)
+    this.emit('tool.registered', { tool: registeredTool, timestamp: Date.now() })
   }
   
-  /**
-   * 移除自定义工具
-   */
   removeCustomTool(name: string): boolean {
     this.toolHandlers.delete(name)
     const removed = this.customTools.delete(name)
     if (removed) {
-      this.emit('tool_unregistered', { name })
+      this.emit('tool.unregistered', { name })
     }
     return removed
   }
   
-  /**
-   * 启用/禁用工具
-   */
   setToolEnabled(name: string, enabled: boolean): boolean {
     const tool = this.getTool(name)
     if (tool) {
       tool.isEnabled = enabled
-      this.emit('tool_enabled_changed', { name, enabled })
+      this.emit('tool.enabled_changed', { name, enabled })
       return true
     }
     return false
   }
   
-  // ==================== MCP 工具管理 ====================
-  
-  /**
-   * 注册 MCP 工具
-   */
   registerMCPTool(tool: RegisteredTool, serverId: string): void {
     tool.serverId = serverId
     tool.source = 'mcp'
@@ -999,12 +956,9 @@ export class ToolRegistry {
       this.toolHandlers.set(tool.name, tool.handler)
     }
     
-    this.emit('mcp_tool_registered', tool)
+    this.emit('tool.mcp_registered', tool)
   }
   
-  /**
-   * 移除 MCP 服务器的所有工具
-   */
   removeMCPServerTools(serverId: string): void {
     const toolsToRemove: string[] = []
     
@@ -1020,15 +974,12 @@ export class ToolRegistry {
     }
     
     if (toolsToRemove.length > 0) {
-      this.emit('mcp_tools_removed', { serverId, tools: toolsToRemove })
+      this.emit('tool.mcp_removed', { serverId, tools: toolsToRemove })
     }
   }
   
   // ==================== 统计信息 ====================
   
-  /**
-   * 获取统计信息
-   */
   getStats(): {
     total: number
     builtin: number
@@ -1057,11 +1008,8 @@ export class ToolRegistry {
         case 'custom': custom++; break
       }
       
-      if (tool.isEnabled) {
-        enabled++
-      } else {
-        disabled++
-      }
+      if (tool.isEnabled) enabled++
+      else disabled++
       
       categories[tool.category] = (categories[tool.category] || 0) + 1
     }
@@ -1083,9 +1031,6 @@ export class ToolRegistry {
 
 let toolRegistryInstance: ToolRegistry | null = null
 
-/**
- * 获取工具注册中心单例
- */
 export function getToolRegistry(): ToolRegistry {
   if (!toolRegistryInstance) {
     const projectRoot = process.cwd().replace(/\\server\\src$/i, '').replace(/\/server\/src$/, '')
@@ -1100,9 +1045,6 @@ export function getToolRegistry(): ToolRegistry {
   return toolRegistryInstance
 }
 
-/**
- * 初始化工具注册中心
- */
 export async function initializeToolRegistry(projectRoot?: string): Promise<ToolRegistry> {
   if (toolRegistryInstance) {
     return toolRegistryInstance
@@ -1117,7 +1059,6 @@ export async function initializeToolRegistry(projectRoot?: string): Promise<Tool
     defaultEnabled: true,
   })
   
-  await toolRegistryInstance.initialize()
   return toolRegistryInstance
 }
 

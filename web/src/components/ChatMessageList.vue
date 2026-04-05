@@ -376,12 +376,6 @@ function shouldShowMessage(message: any): boolean {
                 <div class="message-content">
                   <div class="message-avatar assistant-avatar">🤖</div>
                   <div class="message-bubble assistant-bubble">
-                    <!-- 任务流水线 -->
-                    <TaskPipeline 
-                      v-if="agentTaskSteps && agentTaskSteps.length > 0 && index === messages.filter(shouldShowMessage).length - 1"
-                      :steps="agentTaskSteps"
-                      :collapsed="false"
-                    />
                     <div class="message-text" v-html="getMessageText((message as any).content).replace(/\n/g, '<br>')"></div>
                     
                     <!-- 工具调用 - 步骤化增强版（内嵌在助手消息内） -->

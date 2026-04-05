@@ -41,33 +41,110 @@ export const AGENT_COLORS: Record<AgentColorName, string> = {
 }
 
 /**
+ * 权限模式枚举
+ */
+export enum PermissionMode {
+  BYPASS = 'bypassPermissions',
+  ACCEPT_EDITS = 'acceptEdits',
+  AUTO = 'auto',
+  PLAN = 'plan',
+  BUBBLE = 'bubble'
+}
+
+/**
+ * 隔离模式枚举
+ */
+export enum IsolationMode {
+  WORKTREE = 'worktree',
+  REMOTE = 'remote'
+}
+
+/**
+ * 内存类型枚举
+ */
+export enum MemoryType {
+  USER = 'user',
+  PROJECT = 'project',
+  LOCAL = 'local'
+}
+
+/**
+ * 工具权限配置
+ */
+export interface ToolPermission {
+  allowedTools?: string[]
+  deniedTools?: string[]
+}
+
+/**
+ * MCP 服务器配置
+ */
+export interface MCPServerConfig {
+  name: string
+  enabled?: boolean
+}
+
+/**
+ * Hook 配置
+ */
+export interface HookConfig {
+  name: string
+  enabled?: boolean
+  config?: Record<string, unknown>
+}
+
+/**
  * 基础 Agent 定义
  */
 export interface BaseAgentDefinition {
+  // 必需字段
   agentType: string
   whenToUse: string
-  tools?: string[]
-  disallowedTools?: string[]
-  skills?: string[]
-  mcpServers?: Array<string | Record<string, unknown>>
-  hooks?: unknown
-  color?: AgentColorName
-  model?: string
-  effort?: number | string
-  permissionMode?: string
-  maxTurns?: number
+  
+  // 来源
+  source: AgentSource
   filename?: string
   baseDir?: string
-  criticalSystemReminder_EXPERIMENTAL?: string
+  
+  // 工具配置
+  tools?: string[]
+  disallowedTools?: string[]
+  
+  // MCP 配置
+  mcpServers?: Array<string | MCPServerConfig>
   requiredMcpServers?: string[]
-  background?: boolean
-  initialPrompt?: string
-  memory?: 'user' | 'project' | 'local'
-  isolation?: 'worktree' | 'remote'
+  
+  // Hook 配置
+  hooks?: HookConfig | HookConfig[]
+  
+  // 技能配置
+  skills?: string[]
+  
+  // 权限与执行
+  permissionMode?: PermissionMode | string
+  maxTurns?: number
+  effort?: number | string
+  
+  // 隔离与内存
+  isolation?: IsolationMode | string
+  memory?: MemoryType | string
+  
+  // 上下文优化
   omitClaudeMd?: boolean
+  criticalSystemReminder_EXPERIMENTAL?: string
+  
+  // 显示配置
+  color?: AgentColorName
   description?: string
   icon?: string
+  
+  // 执行特性
+  background?: boolean
+  initialPrompt?: string
   isReadOnly?: boolean
+  
+  // 回调函数
+  callback?: () => void
 }
 
 /**
@@ -76,7 +153,6 @@ export interface BaseAgentDefinition {
 export interface BuiltInAgentDefinition extends BaseAgentDefinition {
   source: 'built-in'
   baseDir: 'built-in'
-  callback?: () => void
   getSystemPrompt: (params?: { toolUseContext?: unknown }) => string
 }
 
@@ -84,10 +160,8 @@ export interface BuiltInAgentDefinition extends BaseAgentDefinition {
  * 自定义 Agent 定义
  */
 export interface CustomAgentDefinition extends BaseAgentDefinition {
-  getSystemPrompt: () => string
   source: 'user' | 'plugin'
-  filename?: string
-  baseDir?: string
+  getSystemPrompt: () => string
 }
 
 /**
@@ -189,4 +263,18 @@ export function isBuiltInAgent(agent: AgentDefinition): agent is BuiltInAgentDef
  */
 export function isCustomAgent(agent: AgentDefinition): agent is CustomAgentDefinition {
   return agent.source !== 'built-in'
+}
+
+/**
+ * 获取有效的权限模式列表
+ */
+export function getValidPermissionModes(): PermissionMode[] {
+  return Object.values(PermissionMode)
+}
+
+/**
+ * 获取有效的隔离模式列表
+ */
+export function getValidIsolationModes(): IsolationMode[] {
+  return Object.values(IsolationMode)
 }

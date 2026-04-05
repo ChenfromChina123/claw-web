@@ -17,6 +17,23 @@ import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
 import { glob as globAsync } from 'glob'
 import type { EventSender, Tool, ToolCall } from './webStore'
+import { 
+  createAgentToolDefinition, 
+  createSendMessageToolDefinition,
+  createExitPlanModeToolDefinition,
+  createSleepToolDefinition,
+  createNotebookEditToolDefinition,
+} from '../tools'
+import {
+  normalizeToolName,
+  isValidToolName,
+  getStandardToolName,
+  TOOL_ALIASES,
+} from '../tools/toolAliases'
+import {
+  validateToolInput,
+  validateInputAgainstSchema,
+} from '../tools/toolValidator'
 
 const execAsync = promisify(exec)
 
@@ -304,27 +321,68 @@ export class EnhancedToolExecutor {
     sendEvent?: EventSender,
     streamToolUseId?: string
   ): Promise<ToolResult> {
-    const tool = this.tools.get(name)
+    // 1. 解析工具名称别名
+    const normalizedName = normalizeToolName(name)
+    const actualName = normalizedName || name
+    
+    // 查找工具（尝试标准化名称）
+    let tool = this.tools.get(actualName)
+    
+    // 如果找不到，尝试原始名称
     if (!tool) {
-      return { success: false, error: `Tool not found: ${name}` }
+      tool = this.tools.get(name)
+    }
+    
+    if (!tool) {
+      // 提供友好的错误信息，包括可能的别名建议
+      const availableTools = Array.from(this.tools.keys())
+      let errorMsg = `Tool not found: ${name}`
+      
+      if (normalizedName && normalizedName !== name) {
+        errorMsg += `\n注意: "${name}" 不是标准名称，标准名称是 "${normalizedName}"`
+      }
+      
+      // 提供最接近的匹配建议
+      const suggestions = findSimilarToolNames(name, availableTools)
+      if (suggestions.length > 0) {
+        errorMsg += `\n您是否在寻找: ${suggestions.join(', ')}`
+      }
+      
+      return { success: false, error: errorMsg }
     }
 
     const toolId = streamToolUseId || uuidv4()
     const startTime = Date.now()
 
-    sendEvent?.('tool_start', { id: toolId, name, input })
+    sendEvent?.('tool_start', { id: toolId, name: tool.name, input })
 
     const toolCall: ToolCall = {
       id: toolId,
-      name,
+      name: tool.name, // 使用标准化名称
       input,
       status: 'pending',
       startedAt: startTime,
     }
 
     try {
+      // 2. 输入验证（使用 JSON Schema）
+      if (tool.inputSchema) {
+        const validationResult = validateInputAgainstSchema(input, tool.inputSchema)
+        if (!validationResult.valid) {
+          const errorMessages = validationResult.errors.map(
+            e => `  - ${e.field}: ${e.message}`
+          ).join('\n')
+          throw new Error(`输入验证失败:\n${errorMessages}`)
+        }
+        
+        // 输出警告（如果有）
+        if (validationResult.warnings && validationResult.warnings.length > 0) {
+          console.warn(`[Tool Executor] 工具 ${tool.name} 验证警告:`, validationResult.warnings)
+        }
+      }
+      
       // 权限检查
-      const permissionCheck = this.canExecuteTool(name, this.context.userId)
+      const permissionCheck = this.canExecuteTool(tool.name, this.context.userId)
       if (!permissionCheck.allowed) {
         throw new Error(permissionCheck.reason)
       }
@@ -333,7 +391,7 @@ export class EnhancedToolExecutor {
       const sandboxConfig = this.getSandboxConfig()
       if (sandboxConfig.enabled || this.context.sandboxed) {
         if (tool.permissions?.dangerous) {
-          throw new Error(`Tool '${name}' requires elevated permissions`)
+          throw new Error(`Tool '${tool.name}' requires elevated permissions`)
         }
         return await this.executeInSandbox(tool, input, toolId, startTime, sendEvent)
       }
@@ -354,7 +412,7 @@ export class EnhancedToolExecutor {
         duration: Date.now() - startTime,
       }
 
-      sendEvent?.('tool_end', { id: toolId, name, result })
+      sendEvent?.('tool_end', { id: toolId, name: tool.name, result })
       this.updateHistory(toolCall)
 
       return result
@@ -363,9 +421,81 @@ export class EnhancedToolExecutor {
       toolCall.error = error instanceof Error ? error.message : String(error)
       this.updateHistory(toolCall)
 
-      sendEvent?.('tool_error', { id: toolId, name, error: toolCall.error })
+      sendEvent?.('tool_error', { id: toolId, name: tool.name, error: toolCall.error })
       return { success: false, error: toolCall.error }
     }
+  }
+
+  // ==================== Helper Functions ====================
+
+  /**
+   * 查找相似的工具名称（用于错误提示）
+   */
+  private findSimilarToolNames(input: string, tools: string[]): string[] {
+    const normalizedInput = input.toLowerCase()
+    const suggestions: Array<{ name: string; score: number }> = []
+
+    for (const tool of tools) {
+      // 直接匹配
+      if (tool.toLowerCase() === normalizedInput) {
+        continue // 完全匹配不应该作为建议
+      }
+
+      // 检查是否是输入的开头
+      if (tool.toLowerCase().startsWith(normalizedInput)) {
+        suggestions.push({ name: tool, score: 10 })
+        continue
+      }
+
+      // 计算编辑距离
+      const distance = this.levenshteinDistance(normalizedInput, tool.toLowerCase())
+      const maxLen = Math.max(normalizedInput.length, tool.length)
+      const similarity = ((maxLen - distance) / maxLen) * 100
+
+      if (similarity > 50) {
+        suggestions.push({ name: tool, score: similarity })
+      }
+    }
+
+    // 返回得分最高的前 3 个
+    return suggestions
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map(s => s.name)
+  }
+
+  /**
+   * 计算两个字符串的 Levenshtein 距离
+   */
+  private levenshteinDistance(a: string, b: string): number {
+    if (a.length === 0) return b.length
+    if (b.length === 0) return a.length
+
+    const matrix: number[][] = []
+
+    for (let i = 0; i <= b.length; i++) {
+      matrix[i] = [i]
+    }
+
+    for (let j = 0; j <= a.length; j++) {
+      matrix[0][j] = j
+    }
+
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1]
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1, // substitution
+            matrix[i][j - 1] + 1, // insertion
+            matrix[i - 1][j] + 1 // deletion
+          )
+        }
+      }
+    }
+
+    return matrix[b.length][a.length]
   }
 
   // ==================== History Management ====================
@@ -1212,6 +1342,63 @@ export class EnhancedToolExecutor {
         }
       },
     })
+
+    // === Agent Tools ===
+
+    // Agent 工具 - 启动子代理
+    const agentTool = createAgentToolDefinition()
+    this.registerTool({
+      name: agentTool.name,
+      description: agentTool.description,
+      inputSchema: agentTool.inputSchema,
+      category: 'agent',
+      permissions: { requiresAuth: true },
+      handler: agentTool.handler,
+    })
+
+    // SendMessage 工具 - 向 Agent 发送消息
+    const sendMessageTool = createSendMessageToolDefinition()
+    this.registerTool({
+      name: sendMessageTool.name,
+      description: sendMessageTool.description,
+      inputSchema: sendMessageTool.inputSchema,
+      category: 'agent',
+      permissions: { requiresAuth: true },
+      handler: sendMessageTool.handler,
+    })
+
+    // ExitPlanMode 工具 - 退出计划模式
+    const exitPlanModeTool = createExitPlanModeToolDefinition()
+    this.registerTool({
+      name: exitPlanModeTool.name,
+      description: exitPlanModeTool.description,
+      inputSchema: exitPlanModeTool.inputSchema,
+      category: 'plan',
+      handler: exitPlanModeTool.handler,
+    })
+
+    // Sleep 工具 - 暂停执行
+    const sleepTool = createSleepToolDefinition()
+    this.registerTool({
+      name: sleepTool.name,
+      description: sleepTool.description,
+      inputSchema: sleepTool.inputSchema,
+      category: 'system',
+      handler: sleepTool.handler,
+    })
+
+    // NotebookEdit 工具 - 编辑 Jupyter Notebook
+    const notebookEditTool = createNotebookEditToolDefinition()
+    this.registerTool({
+      name: notebookEditTool.name,
+      description: notebookEditTool.description,
+      inputSchema: notebookEditTool.inputSchema,
+      category: 'file',
+      permissions: { dangerous: true },
+      handler: notebookEditTool.handler,
+    })
+
+    console.log('[EnhancedToolExecutor] 已注册所有内置工具，包括 5 个新工具')
   }
 
   // ==================== Helper Methods ====================

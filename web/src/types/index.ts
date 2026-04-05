@@ -10,6 +10,7 @@ export * from './tool'
 export * from './session'
 export * from './websocket'
 export * from './ui'
+export * from './agent'
 
 // 扩展类型（后导出，避免冲突）
 export * from './flowKnowledge'

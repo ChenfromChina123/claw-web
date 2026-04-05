@@ -65,6 +65,9 @@ export type WebSocketMessageType =
   // Message sync types
   | 'message_saved'
   | 'session_saved'
+  // Agent types
+  | 'agent_event'
+  | 'permission_response'
 
 export interface RPCRequest {
   id: string

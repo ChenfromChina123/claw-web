@@ -1,493 +1,512 @@
-<script setup lang="ts">
-/**
- * Agent 状态墙组件
- * 
- * 侧边栏显示，展示所有参与协调的 Agent 状态
- */
-import { computed } from 'vue'
-import type { AgentInstance, MultiAgentOrchestrationState } from '@/services/agentApi'
-import AgentBadge from './AgentBadge.vue'
-
-interface Props {
-  /** 多 Agent 协调状态 */
-  orchestrationState: MultiAgentOrchestrationState
-}
-
-const props = defineProps<Props>()
-
-/**
- * 所有显示的 Agent
- */
-const allAgents = computed(() => {
-  const agents: AgentInstance[] = []
-  if (props.orchestrationState.orchestrator) {
-    agents.push(props.orchestrationState.orchestrator)
-  }
-  agents.push(...props.orchestrationState.subAgents)
-  return agents
-})
-
-/**
- * 工作中的 Agent 数量
- */
-const workingAgentCount = computed(() => 
-  allAgents.value.filter(agent => 
-    agent.status === 'working'
-  ).length
-)
-
-/**
- * 完成的 Agent 数量
- */
-const completedAgentCount = computed(() => 
-  allAgents.value.filter(agent => agent.status === 'completed').length
-)
-</script>
-
 <template>
-  <div class="agent-status-panel">
-    <!-- 面板头部 -->
-    <div class="panel-header">
-      <div class="header-left">
-        <span class="panel-icon">🤝</span>
-        <span class="panel-title">Agent 协调</span>
-      </div>
-      <div class="header-stats">
-        <span class="stat-item" :class="{ active: workingAgentCount > 0 }">
-          🔄 {{ workingAgentCount }}
-        </span>
-        <span class="stat-item" :class="{ active: completedAgentCount > 0 }">
-          ✅ {{ completedAgentCount }}
-        </span>
-      </div>
-    </div>
-
-    <!-- 整体状态 -->
-    <div class="overall-status" :class="orchestrationState.overallStatus">
-      <span class="status-indicator"></span>
-      <span class="status-text">
-        {{ 
-          orchestrationState.overallStatus === 'idle' ? '系统待命' :
-          orchestrationState.overallStatus === 'planning' ? '正在规划...' :
-          orchestrationState.overallStatus === 'executing' ? '正在执行...' :
-          orchestrationState.overallStatus === 'completed' ? '已完成' :
-          '出错'
-        }}
-      </span>
-    </div>
-
-    <!-- Agent 列表 -->
-    <div class="agents-list">
-      <div v-if="allAgents.length === 0" class="empty-state">
-        <span class="empty-icon">🤖</span>
-        <span class="empty-text">暂无活跃 Agent</span>
-      </div>
-
-      <div v-else>
-        <!-- 协调者 Agent -->
-        <div v-if="orchestrationState.orchestrator" class="agent-card orchestrator">
-          <div class="agent-header">
-            <AgentBadge 
-              :agent-type="orchestrationState.orchestrator.agentDefinition.agentType"
-              :show-status="true"
-              :status="orchestrationState.orchestrator.status"
-              size="small"
-            />
-            <span class="agent-role">协调者</span>
-          </div>
-
-          <div class="agent-progress">
-            <div class="progress-bar">
-              <div 
-                class="progress-fill" 
-                :style="{ width: `${orchestrationState.orchestrator.progress}%` }"
-              ></div>
-            </div>
-            <span class="progress-text">{{ orchestrationState.orchestrator.progress }}%</span>
-          </div>
-
-          <div v-if="orchestrationState.orchestrator.currentTask" class="current-task">
-            <span class="task-label">当前任务:</span>
-            <span class="task-text">{{ orchestrationState.orchestrator.currentTask }}</span>
-          </div>
-
-          <div class="task-stats">
-            <span>
-              {{ orchestrationState.orchestrator.completedTasks }} / {{ orchestrationState.orchestrator.totalTasks }} 任务
-            </span>
-          </div>
-        </div>
-
-        <!-- 子 Agent -->
-        <div v-for="agent in orchestrationState.subAgents" :key="agent.agentId" class="agent-card">
-          <div class="agent-header">
-            <AgentBadge 
-              :agent-type="agent.agentDefinition.agentType"
-              :show-status="true"
-              :status="agent.status"
-              size="small"
-            />
-          </div>
-
-          <div class="agent-progress">
-            <div class="progress-bar">
-              <div 
-                class="progress-fill" 
-                :style="{ width: `${agent.progress}%` }"
-              ></div>
-            </div>
-            <span class="progress-text">{{ agent.progress }}%</span>
-          </div>
-
-          <div v-if="agent.currentTask" class="current-task">
-            <span class="task-label">当前:</span>
-            <span class="task-text">{{ agent.currentTask }}</span>
-          </div>
-
-          <div class="task-stats">
-            <span>
-              {{ agent.completedTasks }} / {{ agent.totalTasks }}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 任务步骤预览 -->
-    <div v-if="orchestrationState.taskSteps.length > 0" class="steps-preview">
-      <div class="preview-header">
-        <span class="preview-title">任务步骤</span>
-        <span class="preview-count">{{ orchestrationState.taskSteps.length }}</span>
-      </div>
-      <div class="steps-list">
-        <div 
-          v-for="(step, index) in orchestrationState.taskSteps.slice(0, 5)" 
-          :key="step.id"
-          class="step-item"
-          :class="step.status"
+  <div class="agent-status-panel" :class="{ 'is-running': isRunning, 'is-error': hasError }">
+    <!-- Agent 选择 -->
+    <div class="agent-selector-section">
+      <div class="section-header">
+        <h3>选择 Agent</h3>
+        <button
+          v-if="!disabled"
+          class="refresh-btn"
+          @click="$emit('refresh')"
+          title="刷新 Agent 列表"
         >
-          <span class="step-number">{{ index + 1 }}</span>
-          <span class="step-desc">{{ step.description }}</span>
-          <span class="step-status-icon">
-            {{
-              step.status === 'pending' ? '⏳' :
-              step.status === 'active' ? '🔄' :
-              step.status === 'completed' ? '✅' : '❌'
-            }}
+          <IconRefresh />
+        </button>
+      </div>
+
+      <div class="agent-grid">
+        <button
+          v-for="agent in agents"
+          :key="agent.agentType"
+          class="agent-option"
+          :class="{
+            'is-selected': selectedAgent?.agentType === agent.agentType,
+            [`agent-color-${agent.agentColor}`]: agent.agentColor
+          }"
+          :disabled="disabled"
+          @click="$emit('select', agent)"
+        >
+          <span class="agent-icon">{{ getAgentIcon(agent.agentType) }}</span>
+          <span class="agent-name">{{ agent.agentName }}</span>
+          <span class="agent-desc">{{ agent.agentDescription }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 执行状态 -->
+    <div v-if="executionStatus.status !== 'idle'" class="execution-status-section">
+      <div class="section-header">
+        <h3>执行状态</h3>
+        <span class="status-badge" :class="`status-${executionStatus.status}`">
+          {{ getStatusText(executionStatus.status) }}
+        </span>
+      </div>
+
+      <!-- 进度条 -->
+      <div class="progress-container">
+        <div class="progress-bar">
+          <div
+            class="progress-fill"
+            :style="{ width: `${executionStatus.progress}%` }"
+          ></div>
+        </div>
+        <span class="progress-text">{{ executionStatus.progress }}%</span>
+      </div>
+
+      <!-- 轮次信息 -->
+      <div class="turn-info">
+        <span>轮次: {{ executionStatus.currentTurn }} / {{ executionStatus.maxTurns }}</span>
+      </div>
+
+      <!-- 状态消息 -->
+      <div v-if="executionStatus.message" class="status-message">
+        {{ executionStatus.message }}
+      </div>
+
+      <!-- 工具调用列表 -->
+      <div v-if="toolCalls.length > 0" class="tool-calls-section">
+        <h4>工具调用</h4>
+        <ul class="tool-calls-list">
+          <li
+            v-for="(call, index) in toolCalls"
+            :key="index"
+            class="tool-call-item"
+            :class="{ 'is-executing': call.status === 'executing' }"
+          >
+            <span class="tool-name">{{ call.toolName }}</span>
+            <span v-if="call.status === 'executing'" class="tool-status">
+              执行中...
+            </span>
+            <span v-else-if="call.status === 'completed'" class="tool-status completed">
+              ✓
+            </span>
+            <span v-else-if="call.status === 'failed'" class="tool-status failed">
+              ✗
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="action-buttons">
+        <button
+          v-if="isRunning && !disabled"
+          class="abort-btn"
+          @click="$emit('abort')"
+        >
+          中断执行
+        </button>
+      </div>
+    </div>
+
+    <!-- 团队模式 -->
+    <div v-if="teamMembers.length > 0" class="team-section">
+      <div class="section-header">
+        <h3>团队成员</h3>
+        <button
+          v-if="!disabled"
+          class="add-member-btn"
+          @click="$emit('addMember')"
+        >
+          + 添加
+        </button>
+      </div>
+
+      <div class="team-members">
+        <div
+          v-for="member in teamMembers"
+          :key="member.id"
+          class="team-member"
+          :class="`member-color-${member.color}`"
+        >
+          <span class="member-icon">{{ getAgentIcon(member.agentType) }}</span>
+          <span class="member-name">{{ member.name }}</span>
+          <span class="member-status">
+            {{ getMemberStatusText(member.status) }}
           </span>
         </div>
-      </div>
-      <div v-if="orchestrationState.taskSteps.length > 5" class="more-steps">
-        +{{ orchestrationState.taskSteps.length - 5 }} 更多步骤
       </div>
     </div>
   </div>
 </template>
 
+<script setup lang="ts">
+import { computed } from 'vue'
+import { RefreshOutline as IconRefresh } from '@vicons/ionicons5'
+import type { AgentSelection, AgentExecutionStatus } from '@/composables/useAgentIntegration'
+
+/**
+ * 工具调用记录
+ */
+interface ToolCall {
+  toolName: string
+  status: 'pending' | 'executing' | 'completed' | 'failed'
+}
+
+/**
+ * 团队成员
+ */
+interface TeamMember {
+  id: string
+  name: string
+  agentType: string
+  color?: string
+  status: 'idle' | 'working' | 'completed'
+}
+
+/**
+ * 属性
+ */
+const props = withDefaults(defineProps<{
+  /** 选中的 Agent */
+  modelValue?: AgentSelection | null
+  /** Agent 列表 */
+  agents?: AgentSelection[]
+  /** 执行状态 */
+  executionStatus?: AgentExecutionStatus
+  /** 工具调用列表 */
+  toolCalls?: ToolCall[]
+  /** 团队成员 */
+  teamMembers?: TeamMember[]
+  /** 是否禁用 */
+  disabled?: boolean
+}>(), {
+  agents: () => [],
+  executionStatus: () => ({
+    status: 'idle',
+    currentTurn: 0,
+    maxTurns: 100,
+    progress: 0,
+  }),
+  toolCalls: () => [],
+  teamMembers: () => [],
+  disabled: false,
+})
+
+/**
+ * 事件
+ */
+const emit = defineEmits<{
+  (e: 'select', agent: AgentSelection): void
+  (e: 'abort'): void
+  (e: 'refresh'): void
+  (e: 'addMember'): void
+}>()
+
+/**
+ * 计算属性
+ */
+const selectedAgent = computed(() => props.modelValue)
+const isRunning = computed(() =>
+  ['starting', 'running'].includes(props.executionStatus.status)
+)
+const hasError = computed(() => props.executionStatus.status === 'error')
+
+/**
+ * 获取 Agent 图标
+ */
+function getAgentIcon(agentType: string): string {
+  const icons: Record<string, string> = {
+    'general-purpose': '🤖',
+    'Explore': '🔍',
+    'Plan': '📋',
+    'verification': '✅',
+    'claude-code-guide': '📖',
+    'statusline-setup': '⚙️',
+  }
+  return icons[agentType] || '🤖'
+}
+
+/**
+ * 获取状态文本
+ */
+function getStatusText(status: string): string {
+  const texts: Record<string, string> = {
+    idle: '空闲',
+    starting: '启动中',
+    running: '执行中',
+    completed: '已完成',
+    error: '出错',
+    cancelled: '已中断',
+  }
+  return texts[status] || status
+}
+
+/**
+ * 获取成员状态文本
+ */
+function getMemberStatusText(status: string): string {
+  const texts: Record<string, string> = {
+    idle: '空闲',
+    working: '工作中',
+    completed: '已完成',
+  }
+  return texts[status] || status
+}
+</script>
+
 <style scoped>
 .agent-status-panel {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-secondary, #1e1e1e);
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #3a3a3a);
 }
 
-/* 面板头部 */
-.panel-header {
+.agent-status-panel.is-running {
+  border-color: var(--color-primary, #3b82f6);
+  box-shadow: 0 0 0 1px var(--color-primary, #3b82f6);
+}
+
+.agent-status-panel.is-error {
+  border-color: var(--color-error, #ef4444);
+}
+
+.section-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.2);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.header-left {
-  display: flex;
   align-items: center;
-  gap: 8px;
+  margin-bottom: 0.75rem;
 }
 
-.panel-icon {
-  font-size: 18px;
-}
-
-.panel-title {
+.section-header h3 {
+  font-size: 0.875rem;
   font-weight: 600;
-  font-size: 14px;
-  color: var(--text-primary);
+  color: var(--text-secondary, #a1a1aa);
+  margin: 0;
 }
 
-.header-stats {
-  display: flex;
-  gap: 8px;
+/* Agent 选择器 */
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
 }
 
-.stat-item {
-  font-size: 12px;
-  padding: 2px 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 9999px;
-  color: var(--text-secondary);
-  transition: all var(--transition-fast, 150ms) ease;
-}
-
-.stat-item.active {
-  background: rgba(59, 130, 246, 0.15);
-  color: #60a5fa;
-}
-
-/* 整体状态 */
-.overall-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: rgba(0, 0, 0, 0.1);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.overall-status .status-indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #6b7280;
-  position: relative;
-}
-
-.overall-status.planning .status-indicator {
-  background: #f59e0b;
-}
-
-.overall-status.executing .status-indicator {
-  background: #3b82f6;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-.overall-status.completed .status-indicator {
-  background: #10b981;
-}
-
-.overall-status.error .status-indicator {
-  background: #ef4444;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.2);
-    opacity: 0.5;
-  }
-}
-
-.overall-status .status-text {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-/* Agent 列表 */
-.agents-list {
-  padding: 12px;
-}
-
-.empty-state {
+.agent-option {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 24px 16px;
-  gap: 8px;
-}
-
-.empty-icon {
-  font-size: 32px;
-  opacity: 0.5;
-}
-
-.empty-text {
-  font-size: 12px;
-  color: var(--text-disabled);
-}
-
-/* Agent 卡片 */
-.agent-card {
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--bg-tertiary, #252525);
+  border: 2px solid transparent;
   border-radius: 8px;
-  margin-bottom: 8px;
-  transition: all var(--transition-fast, 150ms) ease;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.agent-card.orchestrator {
-  border-color: rgba(168, 85, 247, 0.3);
-  background: rgba(168, 85, 247, 0.05);
+.agent-option:hover:not(:disabled) {
+  background: var(--bg-hover, #2a2a2a);
+  transform: translateY(-2px);
 }
 
-.agent-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
+.agent-option.is-selected {
+  border-color: var(--color-primary, #3b82f6);
+  background: var(--bg-selected, rgba(59, 130, 246, 0.1));
 }
 
-.agent-role {
-  font-size: 10px;
-  padding: 2px 6px;
-  background: rgba(168, 85, 247, 0.2);
-  color: #c084fc;
+.agent-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.agent-icon {
+  font-size: 1.5rem;
+}
+
+.agent-name {
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+}
+
+.agent-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted, #71717a);
+  text-align: center;
+}
+
+/* 状态 */
+.status-badge {
+  padding: 0.25rem 0.5rem;
   border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
-/* Agent 进度 */
-.agent-progress {
+.status-idle { background: var(--color-gray, #71717a); color: white; }
+.status-starting { background: var(--color-blue, #3b82f6); color: white; }
+.status-running { background: var(--color-green, #22c55e); color: white; }
+.status-completed { background: var(--color-green, #22c55e); color: white; }
+.status-error { background: var(--color-error, #ef4444); color: white; }
+.status-cancelled { background: var(--color-yellow, #eab308); color: black; }
+
+/* 进度条 */
+.progress-container {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 0.75rem;
 }
 
-.agent-progress .progress-bar {
+.progress-bar {
   flex: 1;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
+  height: 8px;
+  background: var(--bg-tertiary, #252525);
+  border-radius: 4px;
   overflow: hidden;
 }
 
-.agent-progress .progress-fill {
+.progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #3b82f6, #10b981);
-  border-radius: 2px;
-  transition: width var(--transition-normal, 250ms) ease;
+  background: linear-gradient(90deg, var(--color-primary, #3b82f6), var(--color-secondary, #8b5cf6));
+  border-radius: 4px;
+  transition: width 0.3s ease;
 }
 
-.agent-progress .progress-text {
-  font-size: 11px;
-  color: var(--text-secondary);
-  min-width: 32px;
+.progress-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary, #a1a1aa);
+  min-width: 3rem;
   text-align: right;
 }
 
-/* 当前任务 */
-.current-task {
+.turn-info {
+  font-size: 0.75rem;
+  color: var(--text-muted, #71717a);
+  margin-top: 0.5rem;
+}
+
+.status-message {
+  font-size: 0.875rem;
+  color: var(--text-primary, #ffffff);
+  padding: 0.75rem;
+  background: var(--bg-tertiary, #252525);
+  border-radius: 6px;
+  margin-top: 0.5rem;
+}
+
+/* 工具调用 */
+.tool-calls-section {
+  margin-top: 0.75rem;
+}
+
+.tool-calls-section h4 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary, #a1a1aa);
+  margin: 0 0 0.5rem 0;
+}
+
+.tool-calls-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
   display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
-  font-size: 11px;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
-.task-label {
-  color: var(--text-disabled);
-  flex-shrink: 0;
-}
-
-.task-text {
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 任务统计 */
-.task-stats {
-  font-size: 11px;
-  color: var(--text-disabled);
-}
-
-/* 任务步骤预览 */
-.steps-preview {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 12px;
-}
-
-.preview-header {
+.tool-call-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-tertiary, #252525);
+  border-radius: 4px;
+  font-size: 0.875rem;
 }
 
-.preview-title {
-  font-size: 12px;
+.tool-name {
+  font-family: monospace;
+  color: var(--text-primary, #ffffff);
+}
+
+.tool-status {
+  font-size: 0.75rem;
+}
+
+.tool-status.completed { color: var(--color-green, #22c55e); }
+.tool-status.failed { color: var(--color-error, #ef4444); }
+
+/* 操作按钮 */
+.action-buttons {
+  margin-top: 1rem;
+}
+
+.abort-btn {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--color-error, #ef4444);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
   font-weight: 600;
-  color: var(--text-primary);
+  transition: background 0.2s ease;
 }
 
-.preview-count {
-  font-size: 11px;
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.05);
-  padding: 2px 6px;
-  border-radius: 9999px;
+.abort-btn:hover {
+  background: #dc2626;
 }
 
-.steps-list {
+/* 团队成员 */
+.team-members {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0.5rem;
 }
 
-.step-item {
+.team-member {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  background: rgba(255, 255, 255, 0.03);
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-tertiary, #252525);
   border-radius: 6px;
-  font-size: 11px;
-  opacity: 0.6;
 }
 
-.step-item.active {
-  opacity: 1;
-  background: rgba(59, 130, 246, 0.08);
+.member-icon {
+  font-size: 1.25rem;
 }
 
-.step-item.completed {
-  opacity: 0.8;
+.member-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--text-primary, #ffffff);
 }
 
-.step-item.error {
-  opacity: 1;
-  background: rgba(239, 68, 68, 0.08);
+.member-status {
+  font-size: 0.75rem;
+  color: var(--text-muted, #71717a);
 }
 
-.step-number {
-  width: 18px;
-  height: 18px;
+/* 刷新按钮 */
+.refresh-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid var(--border-color, #3a3a3a);
   border-radius: 4px;
-  font-size: 10px;
-  color: var(--text-secondary);
-  flex-shrink: 0;
+  cursor: pointer;
+  color: var(--text-secondary, #a1a1aa);
+  transition: all 0.2s ease;
 }
 
-.step-desc {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-secondary);
+.refresh-btn:hover {
+  background: var(--bg-hover, #2a2a2a);
+  color: var(--text-primary, #ffffff);
 }
 
-.step-status-icon {
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-.more-steps {
-  text-align: center;
-  padding: 8px;
-  font-size: 11px;
-  color: var(--text-disabled);
+.refresh-btn :deep(svg) {
+  width: 16px;
+  height: 16px;
 }
 </style>

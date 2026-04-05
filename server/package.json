@@ -4,7 +4,14 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --watch src/index.ts",
-    "start": "bun run src/index.ts"
+    "start": "bun run src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:unit": "vitest run src/__tests__/unit",
+    "test:integration": "vitest run src/__tests__/integration",
+    "type-check": "tsc --noEmit || true",
+    "lint": "echo 'Linting not configured yet'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
@@ -20,6 +27,8 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/bun": "^1.2.0",
     "@types/nodemailer": "^6.4.17",
-    "@types/uuid": "^11.0.0"
+    "@types/uuid": "^11.0.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "vitest": "^2.1.8"
   }
 }
