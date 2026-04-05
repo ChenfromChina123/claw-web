@@ -49,7 +49,7 @@ class ApiClient {
           error.code = response.data.error?.code
           return Promise.reject(error)
         }
-        return response
+        return response.data
       },
       async (error) => {
         const originalRequest = error.config
