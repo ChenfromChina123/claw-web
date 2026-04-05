@@ -68,6 +68,28 @@ export class MessageRepository {
     await pool.query('DELETE FROM messages WHERE session_id = ?', [sessionId])
   }
 
+  /**
+   * 更新消息内容
+   */
+  async updateContent(id: string, content: string | any[]): Promise<void> {
+    const pool = getPool()
+    
+    // 将 content 转换为字符串存储
+    let contentStr: string
+    if (typeof content === 'string') {
+      contentStr = content
+    } else {
+      contentStr = JSON.stringify(content)
+    }
+
+    console.log(`[MessageRepository] Updating message content: id=${id}`)
+
+    await pool.query(
+      'UPDATE messages SET content = ? WHERE id = ?',
+      [contentStr, id]
+    )
+  }
+
   private mapToMessage(row: any): Message {
     let content = row.content
     

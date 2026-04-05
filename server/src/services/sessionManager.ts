@@ -372,6 +372,21 @@ export class SessionManager {
     return session
   }
 
+  /**
+   * 比较两个内容是否相等（处理字符串和数组两种情况）
+   */
+  private isContentEqual(content1: string | any[], content2: string | any[]): boolean {
+    if (typeof content1 === 'string' && typeof content2 === 'string') {
+      return content1 === content2
+    }
+    // 如果一个是字符串，一个是数组，肯定不相等
+    if (typeof content1 !== typeof content2) {
+      return false
+    }
+    // 两个都是数组，比较 JSON 字符串
+    return JSON.stringify(content1) === JSON.stringify(content2)
+  }
+
   async saveSession(sessionId: string): Promise<void> {
     const sessionData = this.sessions.get(sessionId)
     if (!sessionData || !sessionData.dirty) return
@@ -380,32 +395,41 @@ export class SessionManager {
 
     await this.sessionRepo.touch(sessionId)
 
-    // 策略：追加形式保存，保持原始ID
-    console.log(`[SessionManager] Appending data for session ${sessionId}...`)
+    // 策略：保存新增消息 + 更新已存在消息的内容
+    console.log(`[SessionManager] Saving/updating data for session ${sessionId}...`)
 
-    // 1. 获取数据库中已有的消息ID
+    // 1. 获取数据库中已有的消息
     const existingMessages = await this.messageRepo.findBySessionId(sessionId)
-    const existingMessageIds = new Set(existingMessages.map(m => m.id))
-    console.log(`[SessionManager] Existing message IDs in DB: ${Array.from(existingMessageIds).join(', ')}`)
+    const existingMessageMap = new Map(existingMessages.map(m => [m.id, m]))
+    console.log(`[SessionManager] Existing messages in DB: ${Array.from(existingMessageMap.keys()).join(', ')}`)
 
-    // 2. 保存新增的消息（保持原始ID）
+    // 2. 处理所有消息
     for (const msg of sessionData.messages) {
-      if (!existingMessageIds.has(msg.id)) {
+      if (!existingMessageMap.has(msg.id)) {
+        // 新增消息
         console.log(`[SessionManager] Saving new message: ${msg.id}, role=${msg.role}`)
         await this.messageRepo.createWithId(msg.id, sessionId, msg.role, msg.content)
       } else {
-        console.log(`[SessionManager] Message already exists: ${msg.id}, skipping`)
+        // 检查内容是否有变化
+        const existingMsg = existingMessageMap.get(msg.id)!
+        if (!this.isContentEqual(existingMsg.content, msg.content)) {
+          console.log(`[SessionManager] Updating message content: ${msg.id}, role=${msg.role}`)
+          await this.messageRepo.updateContent(msg.id, msg.content)
+        } else {
+          console.log(`[SessionManager] Message content unchanged: ${msg.id}, skipping`)
+        }
       }
     }
 
-    // 3. 获取数据库中已有的工具调用ID
+    // 3. 获取数据库中已有的工具调用
     const existingToolCalls = await this.toolCallRepo.findBySessionId(sessionId)
-    const existingToolCallIds = new Set(existingToolCalls.map(t => t.id))
-    console.log(`[SessionManager] Existing tool call IDs in DB: ${Array.from(existingToolCallIds).join(', ')}`)
+    const existingToolCallMap = new Map(existingToolCalls.map(t => [t.id, t]))
+    console.log(`[SessionManager] Existing tool calls in DB: ${Array.from(existingToolCallMap.keys()).join(', ')}`)
 
-    // 4. 保存新增的工具调用（保持原始ID）
+    // 4. 处理所有工具调用
     for (const toolCall of sessionData.toolCalls) {
-      if (!existingToolCallIds.has(toolCall.id)) {
+      if (!existingToolCallMap.has(toolCall.id)) {
+        // 新增工具调用
         console.log(`[SessionManager] Saving new tool call: ${toolCall.id}, toolName=${toolCall.toolName}`)
         await this.toolCallRepo.createWithId(
           toolCall.id,
@@ -417,7 +441,17 @@ export class SessionManager {
           toolCall.toolOutput
         )
       } else {
-        console.log(`[SessionManager] Tool call already exists: ${toolCall.id}, skipping`)
+        // 检查是否有变化（状态或输出）
+        const existingTc = existingToolCallMap.get(toolCall.id)!
+        const statusChanged = existingTc.status !== toolCall.status
+        const outputChanged = JSON.stringify(existingTc.toolOutput) !== JSON.stringify(toolCall.toolOutput)
+        
+        if (statusChanged || outputChanged) {
+          console.log(`[SessionManager] Updating tool call: ${toolCall.id}, status=${toolCall.status}`)
+          await this.toolCallRepo.updateOutput(toolCall.id, toolCall.toolOutput || {}, toolCall.status)
+        } else {
+          console.log(`[SessionManager] Tool call unchanged: ${toolCall.id}, skipping`)
+        }
       }
     }
 
