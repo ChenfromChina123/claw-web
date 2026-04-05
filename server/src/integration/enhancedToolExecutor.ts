@@ -17,7 +17,7 @@ import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
 import { glob as globAsync } from 'glob'
 import type { EventSender, Tool, ToolCall } from './webStore'
-import { backgroundTaskManager, TaskPriority } from '../integrations/toolExecutor'
+import { BackgroundTaskManager, TaskPriority } from '../services/backgroundTaskManager'
 import { 
   createAgentToolDefinition, 
   createSendMessageToolDefinition,
@@ -37,6 +37,16 @@ import {
 } from '../tools/toolValidator'
 
 const execAsync = promisify(exec)
+
+/**
+ * 全局后台任务管理器实例（供 enhancedToolExecutor 使用）
+ */
+const backgroundTaskManager = new BackgroundTaskManager({
+  maxConcurrentTasks: 5,
+  defaultPriority: TaskPriority.NORMAL,
+  taskTimeout: 300000,
+  enablePersistence: false,
+})
 
 // ==================== Types ====================
 
@@ -1609,3 +1619,6 @@ export class EnhancedToolExecutor {
 
 // Singleton instance
 export const toolExecutor = new EnhancedToolExecutor()
+
+// Export background task manager for use in other modules
+export { backgroundTaskManager }

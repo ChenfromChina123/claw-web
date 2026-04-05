@@ -31,6 +31,8 @@ import {
   type DecompositionResult,
 } from '../agents'
 import { SimpleLLMCaller } from '../agents/taskDecomposer'
+import { getAgentStatusService } from '../services/agentStatusService'
+import type { ToolCall } from '../integration/webStore'
 
 /**
  * 创建 Agent API 路由
@@ -445,6 +447,73 @@ export function createAgentApiRouter(): Router {
         teamManager: teamManager.getStats(),
         mailboxManager: mailboxManager.getStats(),
       })
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+
+  // ==================== Agent 状态面板 API ====================
+
+  /**
+   * @route GET /api/agents/status-panel/agents
+   * @desc 获取可用的 Agent 列表（用于前端 AgentStatusPanel）
+   */
+  router.get('/status-panel/agents', (_req: Request, res: Response) => {
+    try {
+      const statusService = getAgentStatusService()
+      const agents = statusService.getAvailableAgentTypes()
+      res.json({ success: true, agents })
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+
+  /**
+   * @route GET /api/agents/status-panel/state
+   * @desc 获取所有 Agent 的当前状态（用于前端 AgentStatusPanel）
+   */
+  router.get('/status-panel/state', (_req: Request, res: Response) => {
+    try {
+      const statusService = getAgentStatusService()
+      const snapshots = statusService.getAllSnapshots()
+      res.json({ success: true, snapshots })
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+
+  /**
+   * @route GET /api/agents/status-panel/state/:agentId
+   * @desc 获取指定 Agent 的状态
+   */
+  router.get('/status-panel/state/:agentId', (req: Request, res: Response) => {
+    try {
+      const { agentId } = req.params
+      const statusService = getAgentStatusService()
+      const snapshot = statusService.getSnapshot(agentId)
+      
+      if (!snapshot) {
+        return res.status(404).json({ error: `Agent ${agentId} 的状态不存在` })
+      }
+      
+      res.json({ success: true, snapshot })
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+
+  /**
+   * @route POST /api/agents/status-panel/sync-tool-call
+   * @desc 同步工具调用（从工具执行器调用）
+   */
+  router.post('/status-panel/sync-tool-call', (req: Request, res: Response) => {
+    try {
+      const toolCallData: ToolCall = req.body
+      
+      const statusService = getAgentStatusService()
+      statusService.syncFromToolCall(toolCallData)
+      
+      res.json({ success: true })
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
     }

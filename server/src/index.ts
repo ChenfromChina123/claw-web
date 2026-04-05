@@ -31,6 +31,7 @@ import type { ConversationMessage, ToolCall, LoginRequest, RegisterRequest, Rese
 import { getBuiltInAgents, agentManager, initializeDemoOrchestration, executeAgent } from './agents'
 import { toolExecutor, EnhancedToolExecutor, backgroundTaskManager } from './integration/enhancedToolExecutor'
 import { TaskStatus, TaskPriority, type BackgroundTask } from './services/backgroundTaskManager'
+import { getAgentStatusService } from './services/agentStatusService'
 
 const PORT = parseInt(process.env.PORT || '3000', 10)
 const WS_PORT = parseInt(process.env.WS_PORT || '3001', 10)
@@ -729,6 +730,17 @@ async function startServer() {
   } catch (error) {
     console.warn('[AgentPersistence] Failed to initialize Agent persistence service:', error)
     console.warn('[AgentPersistence] Agent state will not be persisted')
+  }
+
+  // Initialize Agent status service (用于前端 AgentStatusPanel 实时推送)
+  try {
+    console.log('\n[AgentStatusService] Initializing Agent status service...')
+    const agentStatusService = getAgentStatusService()
+    agentStatusService.startAutoRefresh()
+    console.log('[AgentStatusService] Agent status service initialized')
+  } catch (error) {
+    console.warn('[AgentStatusService] Failed to initialize Agent status service:', error)
+    console.warn('[AgentStatusService] Agent status will not be pushed to frontend')
   }
 
   // Initialize WebSocket RPC methods
@@ -1666,6 +1678,19 @@ async function startServer() {
         
         // Set up event sender
         wsData.sendEvent = createEventSender(ws)
+
+        // 配置 Agent 状态推送
+        const agentStatusService = getAgentStatusService()
+        agentStatusService.wsPush = (clientId, data) => {
+          if (clientId === 'broadcast') {
+            // 广播到所有连接的客户端
+            wsManager.broadcast('agent_status', {
+              type: data.type,
+              payload: data.payload,
+              timestamp: data.timestamp,
+            } as any)
+          }
+        }
 
         ws.send(JSON.stringify({
           type: 'connected',
