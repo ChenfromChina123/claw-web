@@ -122,9 +122,16 @@ class LLMService {
   private defaultConfig: LLMConfig
 
   constructor(defaultConfig?: Partial<LLMConfig>) {
+    // 先检测提供商
+    const detectedProvider = this.detectProvider()
+    
+    // 再根据提供商检测模型（避免循环依赖）
+    const detectedModel = this.detectModelByProvider(detectedProvider)
+    
+    // 最后合并配置
     this.defaultConfig = {
-      provider: this.detectProvider(),
-      model: this.detectModel(),
+      provider: detectedProvider,
+      model: detectedModel,
       maxTokens: 4096,
       temperature: 0.7,
       ...defaultConfig,
@@ -142,14 +149,14 @@ class LLMService {
   }
 
   /**
-   * 自动检测模型名称
+   * 根据提供商自动检测模型名称
    */
-  private detectModel(): string {
+  private detectModelByProvider(provider: LLMProvider): string {
     const envModel = process.env.LLM_MODEL || process.env.ANTHROPIC_MODEL || process.env.QWEN_MODEL
     if (envModel) return envModel
     
     // 根据提供商返回默认模型
-    switch (this.defaultConfig.provider) {
+    switch (provider) {
       case 'anthropic':
         return 'claude-sonnet-4-20250514'
       case 'qwen':
