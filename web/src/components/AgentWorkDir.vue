@@ -95,12 +95,15 @@ const API_BASE = '/agent/workdir'
 /**
  * 加载目录内容（懒加载）
  * @param nodeKey 节点路径
+ * @param showLoading 是否显示全局加载状态（默认 false，避免干扰树组件懒加载）
  * @returns 子项列表
  */
-async function loadDirectory(nodeKey: string): Promise<TreeOption[]> {
+async function loadDirectory(nodeKey: string, showLoading = false): Promise<TreeOption[]> {
   try {
-    loading.value = true
-    
+    if (showLoading) {
+      loading.value = true
+    }
+
     const response = await apiClient.get(`${API_BASE}/list`, {
       params: {
         sessionId: props.sessionId,
@@ -115,14 +118,16 @@ async function loadDirectory(nodeKey: string): Promise<TreeOption[]> {
       label: item.name,
       prefix: () => getFileIcon(item.isDirectory, item.type, item.extension),
       isLeaf: !item.isDirectory,
-      children: item.isDirectory ? undefined : undefined // 目录需要懒加载
+      children: item.isDirectory ? undefined : undefined
     }))
   } catch (error: any) {
     console.error('[AgentWorkDir] 加载目录失败:', error)
     message.error(error.response?.data?.error?.message || '加载目录失败')
     return []
   } finally {
-    loading.value = false
+    if (showLoading) {
+      loading.value = false
+    }
   }
 }
 
@@ -330,9 +335,9 @@ function destroyEditor() {
 // ==================== 生命周期 ====================
 
 onMounted(async () => {
-  // 初始化文件树根目录
-  treeData.value = await loadDirectory('/')
-  
+  // 初始化文件树根目录（显示加载状态）
+  treeData.value = await loadDirectory('/', true)
+
   // 等待 DOM 更新后初始化编辑器
   await nextTick()
   initEditor()
@@ -345,8 +350,8 @@ onBeforeUnmount(() => {
 // 监听 sessionId 变化
 watch(() => props.sessionId, async (newSessionId) => {
   if (newSessionId) {
-    // 重新加载目录
-    treeData.value = await loadDirectory('/')
+    // 重新加载目录（显示加载状态）
+    treeData.value = await loadDirectory('/', true)
     
     // 清空编辑器
     if (editorInstance) {
@@ -362,7 +367,7 @@ watch(() => props.sessionId, async (newSessionId) => {
 // 暴露方法给父组件
 defineExpose({
   refresh: async () => {
-    treeData.value = await loadDirectory('/')
+    treeData.value = await loadDirectory('/', true)
     message.success('🔄 已刷新')
   }
 })
@@ -375,10 +380,10 @@ defineExpose({
       <div class="panel-header">
         <span class="panel-title">📁 工作目录</span>
         <NSpace :size="8">
-          <NButton 
-            text 
-            size="small" 
-            @click="() => { treeData = []; loadDirectory('/').then(d => treeData = d) }"
+          <NButton
+            text
+            size="small"
+            @click="() => { treeData = []; loadDirectory('/', true).then(d => treeData = d) }"
           >
             <template #icon>
               <NIcon><Refresh /></NIcon>
