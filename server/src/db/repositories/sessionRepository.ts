@@ -99,6 +99,14 @@ export class SessionRepository {
     return this.findById(id)
   }
 
+  async save(session: Session): Promise<void> {
+    const pool = getPool() as Pool
+    await pool.query(
+      'UPDATE sessions SET title = ?, model = ?, is_pinned = ?, is_master = ? WHERE id = ?',
+      [session.title, session.model, session.isPinned ?? false, session.isMaster ?? false, session.id]
+    )
+  }
+
   async touch(id: string): Promise<void> {
     const pool = getPool() as Pool
     await pool.query(
@@ -150,6 +158,7 @@ export class SessionRepository {
       title: row.title,
       model: row.model,
       isPinned: row.is_pinned ?? false,
+      isMaster: row.is_master ?? false,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }

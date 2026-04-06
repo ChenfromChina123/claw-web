@@ -1933,8 +1933,8 @@ async function startServer() {
         const workspaceManager = getWorkspaceManager()
 
         // 检查是否为主会话
-        const session = await sessionManager.getSession(sessionId)
-        if (session && session.isMaster) {
+        const inMemorySession = await sessionManager.loadSession(sessionId)
+        if (inMemorySession && inMemorySession.session.isMaster) {
           console.log(`[WorkDir] 为主会话，使用用户主目录: sessionId=${sessionId}`)
           const userWorkspace = await workspaceManager.getOrCreateUserWorkspace(userId)
           return userWorkspace
