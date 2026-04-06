@@ -17,6 +17,7 @@ export interface Session {
   title: string
   model: string
   isPinned?: boolean
+  isMaster?: boolean  // 是否为主会话
   createdAt: Date
   updatedAt: Date
 }

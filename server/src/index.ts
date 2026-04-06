@@ -2819,6 +2819,26 @@ async function startServer() {
               }
               break
 
+            case 'get_master_session':
+              {
+                const userId = wsData.userId
+                console.log(`[WS] get_master_session: userId=${userId}`)
+                if (!userId) {
+                  console.log('[WS] get_master_session: userId is null, sending error')
+                  sendEvent('error', { message: 'User not registered' })
+                  break
+                }
+
+                sessionManager.getOrCreateMasterSession(userId).then(masterSession => {
+                  console.log(`[WS] get_master_session: found/created master session: ${masterSession.id}`)
+                  ws.send(JSON.stringify({ type: 'master_session', session: masterSession }))
+                }).catch(err => {
+                  console.error('[WS] Failed to get master session:', err)
+                  sendEvent('error', { message: 'Failed to get master session' })
+                })
+              }
+              break
+
             case 'user_message':
               {
                 const sessionId = message.sessionId as string || wsData.sessionId

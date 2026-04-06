@@ -198,6 +198,27 @@ export class SessionManager {
     return sessions
   }
 
+  /**
+   * 获取或创建用户的主会话
+   * 主会话用于管理 skills 和用户配置
+   */
+  async getOrCreateMasterSession(userId: string): Promise<Session> {
+    const sessions = await this.sessionRepo.findByUserId(userId)
+    const masterSession = sessions.find(s => s.isMaster === true)
+
+    if (masterSession) {
+      console.log(`[SessionManager] Found existing master session: ${masterSession.id}`)
+      return masterSession
+    }
+
+    console.log(`[SessionManager] Creating new master session for user: ${userId}`)
+    const newMasterSession = await this.sessionRepo.create(userId, '⭐ 主会话', 'qwen-plus')
+    newMasterSession.isMaster = true
+    await this.sessionRepo.save(newMasterSession)
+
+    return newMasterSession
+  }
+
   getInMemorySession(sessionId: string): InMemorySession | undefined {
     return this.sessions.get(sessionId)
   }
