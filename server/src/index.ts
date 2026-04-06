@@ -1927,9 +1927,20 @@ async function startServer() {
 
       /**
        * 辅助函数：确保工作区存在，不存在则自动创建
+       * 如果是主会话，返回用户主目录
        */
       const ensureWorkspace = async (sessionId: string, userId: string) => {
         const workspaceManager = getWorkspaceManager()
+
+        // 检查是否为主会话
+        const session = await sessionManager.getSession(sessionId)
+        if (session && session.isMaster) {
+          console.log(`[WorkDir] 为主会话，使用用户主目录: sessionId=${sessionId}`)
+          const userWorkspace = await workspaceManager.getOrCreateUserWorkspace(userId)
+          return userWorkspace
+        }
+
+        // 普通会话：使用会话工作区
         let workspace = await workspaceManager.getWorkspace(sessionId)
 
         if (!workspace) {
