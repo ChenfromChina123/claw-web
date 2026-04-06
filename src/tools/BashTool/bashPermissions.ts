@@ -1665,6 +1665,13 @@ export async function bashToolHasPermission(
 ): Promise<PermissionResult> {
   let appState = context.getAppState()
 
+  const command = input.command.trim()
+
+  const earlySecurityCheck = performEarlySecurityCheck(command)
+  if (earlySecurityCheck) {
+    return earlySecurityCheck
+  }
+
   // 0. AST-based security parse. This replaces both tryParseShellCommand
   // (the shell-quote pre-check) and the bashCommandIsSafe misparsing gate.
   // tree-sitter produces either a clean SimpleCommand[] (quotes resolved,
@@ -2616,4 +2623,133 @@ export function commandHasAnyCd(command: string): boolean {
   return splitCommand(command).some(subcmd =>
     isNormalizedCdCommand(subcmd.trim()),
   )
+}
+
+/**
+ * 执行早期安全检查，在所有其他权限检查之前拦截危险操作
+ *
+ * SECURITY: 这是一个关键的安全边界，确保：
+ * 1. 阻止目录遍历攻击（cd ..）
+ * 2. 阻止危险系统命令（sudo, su等）
+ * 3. 阻止破坏性操作（rm -rf /等）
+ *
+ * 这些检查必须在最早期执行，因为它们代表不可协商的安全边界。
+ * 即使有用户配置的允许规则，这些操作也应该被阻止。
+ *
+ * @param command 要检查的命令字符串
+ * @returns 如果检测到危险操作返回PermissionResult，否则返回null
+ */
+function performEarlySecurityCheck(command: string): PermissionResult | null {
+  const trimmed = command.trim()
+
+  if (!trimmed) {
+    return null
+  }
+
+  const baseCommand = trimmed.split(/\s+/)[0]?.toLowerCase() || ''
+
+  if (baseCommand === 'cd' || baseCommand === 'pushd') {
+    if (/^\s*(?:cd|pushd)\s+\.\./.test(trimmed)) {
+      logEvent('tengu_early_security_check_triggered', {
+        checkType: 'directory_traversal',
+        subType: 'parent_directory',
+      })
+      return {
+        behavior: 'deny',
+        message: 'Security violation: Cannot change to parent directory (..). Agents are restricted to the current working directory and its subdirectories.',
+        decisionReason: {
+          type: 'other',
+          reason: 'Early security check blocked cd .. operation',
+        },
+      }
+    }
+
+    if (/\.\.[\/\\]/.test(trimmed) || /\/\.\.(?=[\s;&|>]|$)/.test(trimmed)) {
+      logEvent('tengu_early_security_check_triggered', {
+        checkType: 'directory_traversal',
+        subType: 'path_with_parent_reference',
+      })
+      return {
+        behavior: 'deny',
+        message: 'Security violation: Path contains parent directory reference (..). Agents cannot traverse to parent directories.',
+        decisionReason: {
+          type: 'other',
+          reason: 'Early security check blocked path with .. reference',
+        },
+      }
+    }
+  }
+
+  const PRIVILEGE_ESCALATION_COMMANDS = new Set([
+    'sudo',
+    'doas',
+    'pkexec',
+    'su',
+  ])
+
+  if (PRIVILEGE_ESCALATION_COMMANDS.has(baseCommand)) {
+    logEvent('tengu_early_security_check_triggered', {
+      checkType: 'privilege_escalation',
+      command: baseCommand,
+    })
+    return {
+      behavior: 'deny',
+      message: `Security violation: Privilege escalation command '${baseCommand}' is not allowed. Agents must operate without elevated privileges.`,
+      decisionReason: {
+        type: 'other',
+        reason: `Early security check blocked privilege escalation: ${baseCommand}`,
+      },
+    }
+  }
+
+  const DESTRUCTIVE_SYSTEM_COMMANDS = new Set([
+    'mkfs',
+    'fdisk',
+    'parted',
+    'dd',
+  ])
+
+  if (DESTRUCTIVE_SYSTEM_COMMANDS.has(baseCommand)) {
+    logEvent('tengu_early_security_check_triggered', {
+      checkType: 'destructive_system_command',
+      command: baseCommand,
+    })
+    return {
+      behavior: 'ask',
+      message: `Destructive system command detected: '${baseCommand}'. This operation requires explicit user approval due to potential for irreversible system changes.`,
+      decisionReason: {
+        type: 'other',
+        reason: `Early security check requires approval for destructive command: ${baseCommand}`,
+      },
+      suggestions: [],
+    }
+  }
+
+  if (baseCommand === 'rm') {
+    const dangerousPatterns = [
+      /-rf\s+\/$/,
+      /-rf\s+\/\s/,
+      /-rfs*\/.*$/,
+      /\*\s*\/$/,
+    ]
+
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(trimmed)) {
+        logEvent('tengu_early_security_check_triggered', {
+          checkType: 'destructive_operation',
+          subType: 'dangerous_rm_pattern',
+        })
+        return {
+          behavior: 'deny',
+          message: 'Security violation: Destructive rm command detected (e.g., "rm -rf /"). This operation is permanently blocked to prevent catastrophic data loss.',
+          decisionReason: {
+            type: 'other',
+            reason: 'Early security check blocked destructive rm operation',
+          },
+        }
+      }
+    }
+  }
+
+  return null
 }

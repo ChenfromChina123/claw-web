@@ -2516,6 +2516,13 @@ export function bashCommandIsSafe_DEPRECATED(
     validateMidWordHash,
     validateBraceExpansion,
     validateZshDangerousCommands,
+    // SECURITY: Directory traversal detection - must run early to block cd ..
+    // before other validators process the command. This is a critical security
+    // boundary to prevent agents from escaping their working directory.
+    validateDirectoryTraversal,
+    // SECURITY: Dangerous system commands detection - blocks privileged operations
+    // and system-level modifications that could compromise security.
+    validateDangerousSystemCommands,
     // Run malformed token check last - other validators should catch specific patterns first
     // (e.g., $() substitution, backticks, etc.) since they have more precise error messages
     validateMalformedTokenInjection,
@@ -2709,6 +2716,10 @@ export async function bashCommandIsSafeAsync_DEPRECATED(
     validateMidWordHash,
     validateBraceExpansion,
     validateZshDangerousCommands,
+    // SECURITY: Directory traversal detection - must run early to block cd ..
+    validateDirectoryTraversal,
+    // SECURITY: Dangerous system commands detection - blocks privileged operations
+    validateDangerousSystemCommands,
     validateMalformedTokenInjection,
   ]
 
