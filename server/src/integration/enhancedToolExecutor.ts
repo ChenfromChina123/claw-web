@@ -54,6 +54,7 @@ export interface ToolExecutionContext {
   userId: string
   sessionId?: string
   projectRoot: string
+  workingDirectory?: string
   sandboxed?: boolean
   allowedPaths?: string[]
   deniedPaths?: string[]
@@ -154,6 +155,21 @@ export class EnhancedToolExecutor {
   private getProjectRoot(): string {
     const currentDir = process.cwd()
     return currentDir.replace(/\\server\\src$/i, '').replace(/\/server\/src$/, '').replace(/\\server$/i, '').replace(/\/server$/, '')
+  }
+
+  /**
+   * 获取当前工具执行上下文
+   */
+  getContext(): ToolExecutionContext {
+    return this.context
+  }
+
+  /**
+   * 动态更新工具执行上下文（用于无感沙箱模式）
+   * @param newContext 新的上下文配置
+   */
+  setContext(newContext: Partial<ToolExecutionContext>): void {
+    this.context = { ...this.context, ...newContext }
   }
 
   // ==================== Tool Registration ====================

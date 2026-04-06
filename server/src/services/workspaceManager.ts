@@ -519,6 +519,7 @@ export class WorkspaceManager {
 
   /**
    * 生成工作区摘要（用于注入到AI上下文）
+   * 采用无感模式：不暴露真实路径，Agent 只感知到工作区内的文件
    * @param sessionId 会话ID
    * @returns 工作区摘要文本
    */
@@ -529,19 +530,23 @@ export class WorkspaceManager {
     }
 
     const lines = [
-      `\n## 📁 当前工作区信息`,
-      `- 工作区路径: ${workspace.path}`,
-      `- 已上传文件数: ${workspace.stats.uploadCount}`,
-      `- 总文件大小: ${this.formatFileSize(workspace.stats.totalSize)}`
+      `\n## 📁 当前工作环境`,
+      `- 已就绪的工作区已为您准备好`
     ]
 
     if (workspace.uploadedFiles.length > 0) {
-      lines.push('\n### 📎 已上传文件:')
+      lines.push(`- 📎 您已上传 ${workspace.uploadedFiles.length} 个文件，可直接使用`)
+      lines.push('\n### 📋 可用文件:')
+      
       for (const file of workspace.uploadedFiles) {
+        // 只显示文件名，不暴露完整路径
         lines.push(`- **${file.originalName}** (${this.formatFileSize(file.size)})`)
-        lines.push(`  - 路径: \`${file.path}\``)
         lines.push(`  - 类型: ${file.type}`)
       }
+      
+      lines.push('\n💡 提示：您可以直接引用这些文件名来处理它们')
+    } else {
+      lines.push('- 💡 您可以通过上传按钮添加文件到工作区')
     }
 
     return lines.join('\n')
@@ -579,6 +584,111 @@ export class WorkspaceManager {
    */
   async destroyWorkspace(sessionId: string): Promise<void> {
     await this.clearWorkspace(sessionId)
+  }
+
+  // ==================== 无感路径映射（Agent 透明层）====================
+
+  /**
+   * 获取 Agent 可见的工作目录（简化路径，不暴露真实位置）
+   * Agent 看到的只是 ~/workspace 这样的虚拟路径
+   * @param sessionId 会话ID
+   * @returns 虚拟工作目录路径
+   */
+  async getVirtualWorkingDirectory(sessionId: string): Promise<string> {
+    const workspace = await this.getWorkspace(sessionId)
+    if (!workspace) {
+      return ''
+    }
+    
+    // 返回虚拟路径，让 Agent 感知不到真实位置
+    return `~/workspace`
+  }
+
+  /**
+   * 获取真实的物理工作目录（内部使用）
+   * @param sessionId 会话ID
+   * @returns 真实文件系统路径
+   */
+  async getRealWorkingDirectory(sessionId: string): Promise<string> {
+    const workspace = await this.getWorkspace(sessionId)
+    if (!workspace) {
+      return ''
+    }
+    
+    return workspace.path
+  }
+
+  /**
+   * 将 Agent 提供的虚拟/相对路径转换为真实路径
+   * 例如：'data.csv' → 'D:/.../workspaces/xxx/uploads/data.csv'
+   * @param sessionId 会话ID
+   * @param virtualPath 虚拟或相对路径
+   * @returns 真实文件系统路径
+   */
+  async resolvePath(sessionId: string, virtualPath: string): Promise<string> {
+    const workspace = await this.getWorkspace(sessionId)
+    if (!workspace) {
+      return virtualPath
+    }
+
+    // 如果已经是绝对路径且在 workspace 内部，直接返回
+    if (path.isAbsolute(virtualPath) && virtualPath.startsWith(workspace.path)) {
+      return virtualPath
+    }
+
+    // 尝试匹配已上传的文件名
+    const matchedFile = workspace.uploadedFiles.find(
+      f => f.originalName === virtualPath || 
+           f.filename === virtualPath ||
+           path.basename(virtualPath) === f.originalName
+    )
+
+    if (matchedFile) {
+      return matchedFile.path
+    }
+
+    // 如果是相对路径，解析为 workspace 下的路径
+    if (!path.isAbsolute(virtualPath)) {
+      // 安全检查：防止路径穿越攻击
+      const resolved = path.resolve(workspace.path, virtualPath)
+      if (resolved.startsWith(workspace.path)) {
+        return resolved
+      }
+      
+      // 不安全的路径，返回 uploads 目录下的安全路径
+      return path.join(workspace.path, 'uploads', path.basename(virtualPath))
+    }
+
+    // 默认返回原始路径（外部绝对路径）
+    return virtualPath
+  }
+
+  /**
+   * 将真实路径转换为 Agent 可见的虚拟路径（隐藏细节）
+   * @param sessionId 会话ID
+   * @param realPath 真实路径
+   * @returns 虚拟路径（只显示文件名）
+   */
+  async toVirtualPath(sessionId: string, realPath: string): Promise<string> {
+    const workspace = await this.getWorkspace(sessionId)
+    if (!workspace) {
+      return path.basename(realPath)
+    }
+
+    // 查找对应的上传文件记录
+    const fileRecord = workspace.uploadedFiles.find(f => f.path === realPath)
+    if (fileRecord) {
+      return fileRecord.originalName
+    }
+
+    // 如果路径在 workspace 内部，转换为相对路径
+    if (realPath.startsWith(workspace.path)) {
+      const relative = path.relative(workspace.path, realPath)
+      return relative
+    }
+
+    // 外部路径，只显示文件名
+    return path.basename(realPath)
   }
 
   // ==================== 私有辅助方法 ====================

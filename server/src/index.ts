@@ -581,6 +581,24 @@ class SessionConversationManager {
           setTimeout(() => reject(new Error('Tool execution timeout')), 30000)
         )
 
+        // 无感沙箱：在执行前自动设置工作目录
+        let workspaceDir = ''
+        try {
+          workspaceDir = await this.workspaceManager.getRealWorkingDirectory(sessionId)
+        } catch (e) {
+          console.warn(`[${sessionId}] 获取工作目录失败:`, e)
+        }
+
+        // 如果有工作目录，临时更新工具执行的上下文
+        if (workspaceDir) {
+          this.toolExecutor.setContext({
+            ...this.toolExecutor.getContext(),
+            projectRoot: workspaceDir,
+            workingDirectory: workspaceDir,
+            sessionId: sessionId
+          })
+        }
+
         const result = await Promise.race([
           this.toolExecutor.execute(tool.name, tool.input, sendEvent, tool.id),
           timeoutPromise
