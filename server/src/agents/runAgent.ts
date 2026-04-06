@@ -465,7 +465,7 @@ ${permissionSection}
 }
 
 /**
- * AI 调用接口
+ * AI 调用响应接口
  */
 interface AICallResponse {
   content: string
@@ -477,7 +477,8 @@ interface AICallResponse {
 }
 
 /**
- * 调用 AI API
+ * 调用 AI API（真实实现）
+ * 使用 LLM 服务模块调用 Anthropic/Qwen 等真实 LLM
  */
 async function callAI(params: {
   model: string
@@ -489,16 +490,53 @@ async function callAI(params: {
     return null
   }
 
-  // TODO: 实现实际的 AI API 调用
-  // 目前返回模拟响应
-  console.log(`[callAI] Calling ${params.model} with ${params.messages.length} messages`)
+  console.log(`[callAI] 调用真实 LLM: ${params.model}，消息数: ${params.messages.length}`)
 
-  // 模拟 API 调用
-  await new Promise(resolve => setTimeout(resolve, 100))
+  try {
+    // 将消息格式转换为 LLM 服务需要的格式
+    const chatMessages: ChatMessage[] = params.messages.map(msg => ({
+      role: msg.role as 'user' | 'assistant' | 'system',
+      content: msg.content,
+    }))
 
-  // 返回模拟响应
-  return {
-    content: '这是模拟的 Agent 响应。在实际实现中，这里会调用真实的 AI API。',
+    // 获取可用工具定义（从工具注册表）
+    const toolRegistry = getToolRegistry()
+    const allTools = toolRegistry.getAllTools()
+    
+    // 转换为 LLM 工具格式
+    const tools: LLMToolDef[] = allTools.map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.inputSchema,
+    }))
+
+    // 调用真实的 LLM 服务
+    const response = await llmService.chat(
+      chatMessages,
+      { model: params.model },
+      tools,
+      params.abortSignal
+    )
+
+    console.log(`[callAI] LLM 响应成功，内容长度: ${response.content.length}, 工具调用数: ${response.toolCalls?.length || 0}`)
+
+    // 转换响应格式
+    return {
+      content: response.content,
+      toolCalls: response.toolCalls?.map(tc => ({
+        id: tc.id,
+        name: tc.name,
+        input: tc.input,
+      })),
+    }
+  } catch (error) {
+    if ((error as any)?.name === 'AbortError') {
+      console.log('[callAI] 请求被取消')
+      return null
+    }
+    
+    console.error('[callAI] LLM 调用失败:', error)
+    throw new Error(`LLM 调用失败: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 

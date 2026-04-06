@@ -1,9 +1,14 @@
 /**
- * Agent 工具 - 启动子代理
+ * Agent 工具 - 启动子代理（真实实现）
  * 
  * 这个工具允许 Agent 启动子代理来完成任务。
- * 支持多种模式：普通代理、团队成员、Fork 子代理。
- * 集成工作流事件服务，实现真实的子 Agent 执行和可视化。
+ * 现已接入真实 LLM 调用和工具执行链。
+ * 
+ * 功能：
+ * - 调用真实 LLM API (Anthropic/Qwen)
+ * - 执行完整的工具调用循环
+ * - 支持多轮对话和工具使用
+ * - 实时事件推送（用于前端可视化）
  */
 
 import { v4 as uuidv4 } from 'uuid'
@@ -12,6 +17,7 @@ import type { ToolExecutionContext } from '../integration/enhancedToolExecutor'
 import { getBuiltInAgentByType, getBuiltInAgents } from '../agents/builtInAgents'
 import type { AgentDefinition, AgentExecutionResult } from '../agents/types'
 import { getWorkflowEventService } from '../services/workflowEventService'
+import { runAgent, executeAgent, type AgentMessage, type RunAgentParams } from '../agents/runAgent'
 
 export interface AgentToolInput {
   prompt: string
@@ -25,8 +31,8 @@ export interface AgentToolInput {
   isolation?: 'worktree' | 'remote'
   cwd?: string
   max_turns?: number
-  trace_id?: string  // 用于工作流跟踪的 traceId
-  parent_agent_id?: string  // 父 Agent ID
+  trace_id?: string
+  parent_agent_id?: string
 }
 
 export interface AgentToolOutput {
@@ -89,7 +95,14 @@ export function getAvailableAgentTypes(): string[] {
 }
 
 /**
- * Agent 工具实现
+ * Agent 工具实现（真实版本）
+ * 
+ * 执行流程：
+ * 1. 验证输入
+ * 2. 查找 Agent 定义
+ * 3. 创建工作流事件发射器
+ * 4. 调用 runAgent() 执行真实 LLM 循环
+ * 5. 返回执行结果
  */
 export async function executeAgentTool(
   input: AgentToolInput,
@@ -105,7 +118,7 @@ export async function executeAgentTool(
     }
   }
   
-  const { prompt, description, subagent_type, name, team_name, mode } = input
+  const { prompt, description, subagent_type, name, team_name, mode, model, max_turns } = input
   
   try {
     // 确定要使用的 Agent 类型
@@ -120,11 +133,6 @@ export async function executeAgentTool(
         success: false,
         error: `未知的 Agent 类型: ${agentType}\n可用的类型: ${availableTypes.join(', ')}`,
       }
-    }
-    
-    // 检查是否是只读 Agent
-    if (agentDefinition.isReadOnly && !['Explore', 'Plan', 'claude-code-guide', 'statusline-setup'].includes(agentType)) {
-      // 只读 Agent 只能使用只读工具，不需要额外检查
     }
     
     // 生成 traceId（如果没有提供）
@@ -149,8 +157,6 @@ export async function executeAgentTool(
     // 团队成员模式检测
     if (name && team_name) {
       eventEmitter.agentThinking(`创建团队成员: ${name}`)
-      await simulateDelay(300)
-      
       eventEmitter.agentCompleted(`团队成员 ${name} 已创建`)
       return {
         success: true,
@@ -170,8 +176,6 @@ export async function executeAgentTool(
     // 异步执行检测
     if (input.run_in_background) {
       eventEmitter.agentThinking(`启动后台 Agent: ${agentType}`)
-      await simulateDelay(200)
-      
       eventEmitter.agentCompleted(`后台 Agent 已启动`)
       return {
         success: true,
@@ -185,41 +189,70 @@ export async function executeAgentTool(
       }
     }
     
-    // 真实的子 Agent 执行流程
-    try {
-      // 1. 思考阶段
-      eventEmitter.agentThinking(`分析任务: ${prompt.substring(0, 80)}...`)
-      eventEmitter.stepStarted('step-1', '理解用户意图', '🤔')
-      await simulateDelay(500)
-      eventEmitter.stepCompleted('step-1', '理解用户意图', { understanding: '任务已理解' })
+    // ==================== 真实的 Agent 执行 ====================
+    
+    console.log(`[AgentTool] 开始执行真实 Agent: ${agentType}, 任务: ${prompt.substring(0, 80)}...`)
+    
+    eventEmitter.agentThinking(`分析任务: ${prompt.substring(0, 80)}...`)
+    eventEmitter.stepStarted('step-1', '理解用户意图', '🤔')
+    
+    // 构建初始消息
+    const initialMessages: AgentMessage[] = [
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ]
+    
+    // 构建运行参数
+    const runParams: RunAgentParams = {
+      agentDefinition,
+      promptMessages: initialMessages,
+      sessionId: context.sessionId || uuidv4(),
+      cwd: input.cwd || context.projectRoot,
+      maxTurns: max_turns || 20,
+      permissionMode: mode || 'auto',
+      model: model || undefined,
+      parentAgentId: parentAgentId,
+      abortSignal: undefined, // TODO: 从上下文获取 abortSignal
+      onProgress: (progress) => {
+        console.log(`[AgentTool] 进度更新: ${JSON.stringify(progress)}`)
+        if (progress.message) {
+          eventEmitter.agentThinking(progress.message)
+        }
+      },
+      onToolCall: (toolCall) => {
+        console.log(`[AgentTool] 工具调用: ${toolCall.name}`)
+        eventEmitter.agentToolCall(toolCall.name, toolCall.input)
+      },
+      onToolResult: (result) => {
+        console.log(`[AgentTool] 工具结果: ${result.toolName} - ${result.success ? '成功' : '失败'}`)
+        eventEmitter.agentToolResult(
+          result.toolName,
+          result.success,
+          result.success ? result.result : { error: result.error }
+        )
+      },
+    }
+    
+    eventEmitter.stepCompleted('step-1', '理解用户意图', { understanding: '任务已理解' })
+    eventEmitter.agentThinking('生成执行计划...')
+    eventEmitter.stepStarted('step-2', '生成执行计划', '📋')
+    
+    // 执行真实的 Agent 循环
+    const executionResult = await executeAgent(runParams)
+    
+    eventEmitter.stepCompleted('step-2', '生成执行计划', { status: '完成' })
+    
+    const durationMs = Date.now() - startTime
+    
+    // 根据执行结果发送完成事件
+    if (executionResult.status === 'completed') {
+      eventEmitter.agentCompleted(
+        `Agent ${agentType} 执行完成，耗时 ${(durationMs / 1000).toFixed(1)}s\n\n结果: ${executionResult.content?.substring(0, 200) || '无输出'}`
+      )
       
-      // 2. 生成执行计划
-      eventEmitter.agentThinking(`生成执行计划...`)
-      eventEmitter.stepStarted('step-2', '生成执行计划', '📋')
-      await simulateDelay(400)
-      eventEmitter.stepCompleted('step-2', '生成执行计划', { steps: ['执行任务', '验证结果'] })
-      
-      // 3. 执行任务
-      eventEmitter.agentThinking(`开始执行任务...`)
-      eventEmitter.stepStarted('step-3', '执行任务', '🔧')
-      
-      // 模拟工具调用
-      await simulateDelay(300)
-      eventEmitter.agentToolCall('模拟工具调用', { action: '执行任务' })
-      await simulateDelay(600)
-      eventEmitter.agentToolResult('模拟工具调用', true, { result: '任务执行成功' })
-      
-      eventEmitter.stepCompleted('step-3', '执行任务', { result: '执行完成' })
-      
-      // 4. 验证结果
-      eventEmitter.agentThinking(`验证执行结果...`)
-      eventEmitter.stepStarted('step-4', '验证结果', '✅')
-      await simulateDelay(300)
-      eventEmitter.stepCompleted('step-4', '验证结果', { verified: true })
-      
-      // 完成
-      const durationMs = Date.now() - startTime
-      eventEmitter.agentCompleted(`Agent ${agentType} 执行完成，耗时 ${durationMs}ms`)
+      console.log(`[AgentTool] Agent 执行成功，耗时: ${durationMs}ms`)
       
       return {
         success: true,
@@ -228,28 +261,33 @@ export async function executeAgentTool(
           agentType,
           status: 'completed',
           message: `Agent ${agentType} 执行完成`,
-          result: `任务执行成功: ${prompt.substring(0, 50)}...`,
+          result: executionResult.content,
           durationMs,
           traceId,
-        } as AgentToolOutput & { traceId: string; result: string },
+        } as AgentToolOutput & { traceId: string; result: string; durationMs: number },
       }
-    } catch (executionError) {
-      eventEmitter.agentFailed(`执行失败: ${executionError instanceof Error ? executionError.message : String(executionError)}`)
-      throw executionError
+    } else {
+      // 执行失败或出错
+      const errorMsg = executionResult.error || '未知错误'
+      eventEmitter.agentFailed(`执行失败: ${errorMsg}`)
+      
+      console.error(`[AgentTool] Agent 执行失败: ${errorMsg}`)
+      
+      return {
+        success: false,
+        error: `Agent 执行失败: ${errorMsg}\n耗时: ${(durationMs / 1000).toFixed(1)}s`,
+      }
     }
+    
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error('[AgentTool] Agent 执行异常:', error)
+    
     return {
       success: false,
-      error: `Agent 执行失败: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Agent 执行异常: ${errorMessage}`,
     }
   }
-}
-
-/**
- * 模拟延迟（用于演示）
- */
-function simulateDelay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**
@@ -258,13 +296,13 @@ function simulateDelay(ms: number): Promise<void> {
 export function createAgentToolDefinition(): Tool {
   return {
     name: 'Agent',
-    description: '启动子代理来完成任务',
+    description: '启动子代理来完成任务。会调用真实 LLM 并执行工具来完成用户指定的任务。',
     inputSchema: {
       type: 'object',
       properties: {
         prompt: {
           type: 'string',
-          description: '给子代理的任务描述',
+          description: '给子代理的任务描述（必需）',
         },
         description: {
           type: 'string',
@@ -272,12 +310,12 @@ export function createAgentToolDefinition(): Tool {
         },
         subagent_type: {
           type: 'string',
-          description: '子代理类型',
+          description: '子代理类型（如 general-purpose、Explore、Plan）',
           enum: getAvailableAgentTypes(),
         },
         model: {
           type: 'string',
-          description: '可选：指定使用的模型',
+          description: '可选：指定使用的模型（如 claude-sonnet-4-20250514、qwen-plus）',
         },
         run_in_background: {
           type: 'boolean',
@@ -309,7 +347,7 @@ export function createAgentToolDefinition(): Tool {
         },
         max_turns: {
           type: 'number',
-          description: '最大轮次限制',
+          description: '最大轮次限制（默认 20）',
           minimum: 1,
           maximum: 100,
         },
