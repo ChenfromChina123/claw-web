@@ -117,7 +117,7 @@ async function loadDirectory(nodeKey: string, showLoading = false): Promise<Tree
 
     const items = response.data.data.items
 
-    return items.map((item: any) => {
+    const nodes = items.map((item: any) => {
       const node: TreeOption = {
         key: item.path || `/${item.name}`,
         label: item.name,
@@ -126,8 +126,12 @@ async function loadDirectory(nodeKey: string, showLoading = false): Promise<Tree
       }
       // 目录节点不设置 children 属性，让 NTree 触发懒加载
       // 文件节点也不需要 children
+      console.log('[AgentWorkDir] Created node:', { key: node.key, label: node.label, isLeaf: node.isLeaf, isDirectory: item.isDirectory })
       return node
     })
+
+    console.log('[AgentWorkDir] Returning nodes:', nodes.length)
+    return nodes
   } catch (error: any) {
     console.error('[AgentWorkDir] 加载目录失败:', error)
     message.error(error.response?.data?.error?.message || '加载目录失败')
@@ -144,6 +148,8 @@ async function loadDirectory(nodeKey: string, showLoading = false): Promise<Tree
  * @param filePath 文件路径
  */
 async function loadFileContent(filePath: string) {
+  console.log('[AgentWorkDir] loadFileContent called:', filePath)
+
   try {
     loading.value = true
     currentFilePath.value = filePath
@@ -155,9 +161,20 @@ async function loadFileContent(filePath: string) {
       }
     }) as any
 
+    console.log('[AgentWorkDir] File content response:', response.data)
+
     const data = response.data.data
     fileContent.value = data.content
     fileLanguage.value = data.language || 'plaintext'
+
+    // 等待 DOM 更新（v-if 会导致容器延迟渲染）
+    await nextTick()
+
+    // 如果编辑器未初始化，先初始化
+    if (!editorInstance && editorContainer.value) {
+      console.log('[AgentWorkDir] Editor not initialized, initializing now...')
+      initEditor()
+    }
 
     // 更新编辑器内容
     if (editorInstance) {
@@ -165,7 +182,10 @@ async function loadFileContent(filePath: string) {
       if (model) {
         monaco.editor.setModelLanguage(model, fileLanguage.value)
         model.setValue(data.content)
+        console.log('[AgentWorkDir] Editor content updated, length:', data.content.length)
       }
+    } else {
+      console.error('[AgentWorkDir] Editor instance is null after init!')
     }
 
     hasUnsavedChanges.value = false
@@ -417,7 +437,6 @@ defineExpose({
           :load="handleLoad"
           :virtual-scroll="true"
           :height="500"
-          expand-on-click
           selectable
           block-line
           @update:expanded-keys="(keys: string[]) => expandedKeys = keys"
