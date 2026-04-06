@@ -10,7 +10,7 @@
  * - 实时状态监控
  */
 
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import {
   NButton,
   NInput,
@@ -18,28 +18,16 @@ import {
   NCard,
   NSpace,
   NTag,
-  NSpin,
   NEmpty,
-  NAlert,
   NDivider,
   NProgress,
-  NTimeline,
-  NTimelineItem,
-  NModal,
-  NForm,
+  NInputNumber,
   NFormItem,
   useMessage
 } from 'naive-ui'
 import {
   executeAgent,
-  decomposeTask,
-  createTeam,
-  getTeamState,
-  addTeamMember,
-  addTeamTask,
-  type TaskDecomposeRequest,
-  type TaskDecomposeResponse,
-  type SubTask
+  decomposeTask
 } from '@/api/agentApi'
 import { useAgentStore } from '@/stores/agent'
 import type { AgentType } from '@/types/agent'
@@ -50,13 +38,38 @@ import AgentStatusPanel from './AgentStatusPanel.vue'
 const message = useMessage()
 const agentStore = useAgentStore()
 
+// ==================== 类型定义 ====================
+
+/** 子任务定义 */
+interface SubTaskItem {
+  id: string
+  title: string
+  description: string
+  agentType: string
+  priority: number
+  dependsOn: string[]
+  instructions: string
+}
+
+/** 任务分解结果 */
+interface DecompositionResult {
+  success: boolean
+  subTasks: SubTaskItem[]
+  executionPlan?: {
+    mode: string
+    estimatedDuration: number
+    parallelGroups: string[][]
+  }
+  error?: string
+}
+
 // ==================== 状态 ====================
 
 /** 当前任务输入 */
 const taskInput = ref('')
 
 /** 任务分解结果 */
-const decompositionResult = ref<TaskDecomposeResponse | null>(null)
+const decompositionResult = ref<DecompositionResult | null>(null)
 
 /** 是否正在分解 */
 const isDecomposing = ref(false)
@@ -113,9 +126,9 @@ const maxTasks = ref(8)
 const orchestrationState = computed(() => {
   if (agentStore.currentTrace) {
     return {
-      orchestrator: agentStore.currentAgents.find(a => a.agentId === agentStore.currentTrace?.rootAgentId),
-      subAgents: agentStore.currentAgents.filter(a => a.agentId !== agentStore.currentTrace?.rootAgentId),
-      taskSteps: agentStore.currentAgents.flatMap(a => a.workflowSteps),
+      orchestrator: agentStore.currentAgents.find((a: any) => a.agentId === agentStore.currentTrace?.rootAgentId),
+      subAgents: agentStore.currentAgents.filter((a: any) => a.agentId !== agentStore.currentTrace?.rootAgentId),
+      taskSteps: agentStore.currentAgents.flatMap((a: any) => a.workflowSteps),
       overallStatus: agentStore.currentTrace.status === 'RUNNING' ? 'executing' 
         : agentStore.currentTrace.status === 'COMPLETED' ? 'completed' 
         : 'planning'
@@ -158,29 +171,42 @@ async function handleDecompose() {
   addLog('info', `开始分析任务: "${taskInput.value.slice(0, 50)}..."`)
 
   try {
-    const request: TaskDecomposeRequest = {
-      task: taskInput.value,
-      preferences: {
-        mode: selectedDecomposeMode.value as any,
-        maxTasks: maxTasks.value,
-        preferParallel: true
+    const result = await decomposeTask(taskInput.value, {
+      mode: selectedDecomposeMode.value,
+      maxTasks: maxTasks.value,
+      preferParallel: true
+    })
+    
+    // 转换结果格式
+    const subTasks: SubTaskItem[] = result.subtasks.map((st, index) => ({
+      id: st.id,
+      title: st.description.slice(0, 50),
+      description: st.description,
+      agentType: 'general-purpose',
+      priority: index + 1,
+      dependsOn: st.dependencies,
+      instructions: st.description
+    }))
+    
+    decompositionResult.value = {
+      success: true,
+      subTasks,
+      executionPlan: {
+        mode: selectedDecomposeMode.value,
+        estimatedDuration: subTasks.length * 30000,
+        parallelGroups: [subTasks.map(s => s.id)]
       }
     }
 
-    const result = await decomposeTask(request)
-    decompositionResult.value = result
-
-    if (result.success) {
-      addLog('success', `任务分解完成！生成 ${result.subTasks.length} 个子任务`)
-      addLog('info', `执行模式: ${result.executionPlan.mode}`)
-      addLog('info', `预计时长: ${Math.round(result.executionPlan.estimatedDuration / 1000)}s`)
-      message.success(`分解成功！生成了 ${result.subTasks.length} 个子任务`)
-    } else {
-      addLog('error', `分解失败: ${result.error}`)
-      message.error(result.error || '任务分解失败')
-    }
+    addLog('success', `任务分解完成！生成 ${subTasks.length} 个子任务`)
+    message.success(`分解成功！生成了 ${subTasks.length} 个子任务`)
   } catch (error: any) {
     addLog('error', `分解异常: ${error.message}`)
+    decompositionResult.value = {
+      success: false,
+      subTasks: [],
+      error: error.message
+    }
     message.error('任务分解失败')
   } finally {
     isDecomposing.value = false
@@ -224,12 +250,12 @@ async function handleExecute() {
       try {
         // 执行 Agent 任务
         const result = await executeAgent({
-          task: subTask.instructions,
+          prompt: subTask.instructions,
           agentType: subTask.agentType,
           permissionMode: 'auto'
         })
 
-        if (result.success) {
+        if (result.status === 'completed') {
           addLog('success', `[${i + 1}/${totalTasks}] 完成: ${subTask.title}`)
           agentStore.addWorkflowStep(traceId, agentStore.currentTrace!.rootAgentId, {
             status: 'COMPLETED',
@@ -238,12 +264,12 @@ async function handleExecute() {
             output: { result: result.message }
           })
         } else {
-          addLog('error', `[${i + 1}/${totalTasks}] 失败: ${subTask.title} - ${result.error}`)
+          addLog('error', `[${i + 1}/${totalTasks}] 失败: ${subTask.title} - ${result.message}`)
           agentStore.addWorkflowStep(traceId, agentStore.currentTrace!.rootAgentId, {
             status: 'FAILED',
             actionType: 'THINKING',
             message: `${subTask.title} - 执行失败`,
-            output: { error: result.error }
+            output: { error: result.message }
           })
         }
       } catch (error: any) {
@@ -291,14 +317,14 @@ async function handleQuickExecute() {
     addLog('info', '正在分析任务...')
 
     const result = await executeAgent({
-      task: taskInput.value,
+      prompt: taskInput.value,
       agentType: selectedAgentType.value,
       permissionMode: 'auto'
     })
 
     executionProgress.value = 80
 
-    if (result.success) {
+    if (result.status === 'completed') {
       addLog('success', '任务执行成功')
       agentStore.addWorkflowStep(traceId, agentStore.currentTrace!.rootAgentId, {
         status: 'COMPLETED',
@@ -308,13 +334,13 @@ async function handleQuickExecute() {
       })
       message.success('任务执行成功')
     } else {
-      addLog('error', `任务执行失败: ${result.error}`)
+      addLog('error', `任务执行失败: ${result.message}`)
       agentStore.addWorkflowStep(traceId, agentStore.currentTrace!.rootAgentId, {
         status: 'FAILED',
         actionType: 'THINKING',
-        message: `执行失败: ${result.error}`
+        message: `执行失败: ${result.message}`
       })
-      message.error(result.error || '任务执行失败')
+      message.error(result.message || '任务执行失败')
     }
 
     executionProgress.value = 100
@@ -462,7 +488,7 @@ onMounted(() => {
           <div class="subtasks-list">
             <div
               v-for="(task, index) in decompositionResult?.subTasks"
-              :key="task.taskId"
+              :key="task.id"
               class="subtask-item"
               :class="{
                 'selected': selectedTaskIndex === index,
@@ -488,13 +514,13 @@ onMounted(() => {
 
           <NDivider />
 
-          <div class="execution-plan">
+          <div v-if="decompositionResult?.executionPlan" class="execution-plan">
             <h4>执行计划</h4>
             <NSpace>
-              <NTag type="info">模式: {{ decompositionResult?.executionPlan.mode }}</NTag>
-              <NTag type="warning">预计: {{ Math.round((decompositionResult?.executionPlan.estimatedDuration || 0) / 1000) }}s</NTag>
-              <NTag v-if="decompositionResult?.executionPlan.parallelGroups.length > 1" type="success">
-                可并行: {{ decompositionResult?.executionPlan.parallelGroups.length }} 组
+              <NTag type="info">模式: {{ decompositionResult.executionPlan.mode }}</NTag>
+              <NTag type="warning">预计: {{ Math.round(decompositionResult.executionPlan.estimatedDuration / 1000) }}s</NTag>
+              <NTag v-if="decompositionResult.executionPlan.parallelGroups.length > 1" type="success">
+                可并行: {{ decompositionResult.executionPlan.parallelGroups.length }} 组
               </NTag>
             </NSpace>
           </div>
@@ -560,7 +586,7 @@ onMounted(() => {
         <NCard v-if="hasDecomposition" title="🔗 任务流水线" class="pipeline-card">
           <TaskPipeline
             :steps="decompositionResult?.subTasks.map((t, i) => ({
-              id: t.taskId,
+              id: t.id,
               agentType: t.agentType,
               description: t.title,
               status: selectedTaskIndex === null ? 'pending'

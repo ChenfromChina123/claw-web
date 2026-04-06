@@ -16,3 +16,14 @@ export function unwrapApiData<T>(body: ApiResponse<T> | T): T {
   // 如果 body 已经是 data 本身（拦截器已经解包）
   return body as T
 }
+
+/**
+ * 类型安全的 API 响应解包函数
+ * 用于处理 axios 拦截器返回的 ApiResponse
+ */
+export function unwrapApiResponse<T>(response: ApiResponse<T>): T {
+  if (!response.success || response.data === undefined) {
+    throw new Error(response.error?.message || '请求失败')
+  }
+  return response.data
+}

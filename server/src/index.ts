@@ -805,7 +805,7 @@ async function startServer() {
       let sentCount = 0
       for (const [, connection] of wsManager.getAllConnections()) {
         if (connection.isConnected()) {
-          connection.send(message)
+          connection.send(JSON.parse(message))
           sentCount++
         }
       }
@@ -835,7 +835,7 @@ async function startServer() {
       let sentCount = 0
       for (const [, connection] of wsManager.getAllConnections()) {
         if (connection.isConnected()) {
-          connection.send(message)
+          connection.send(JSON.parse(message))
           sentCount++
         }
       }
@@ -1654,7 +1654,7 @@ async function startServer() {
       // GET /api/monitoring/alerts - 获取告警
       if (path === '/api/monitoring/alerts' && method === 'GET') {
         const unacknowledgedOnly = url.searchParams.get('unacknowledged') === 'true'
-        const alerts = performanceMonitor.getAlerts(unacknowledgedOnly)
+        const alerts = performanceMonitor.getAlerts(undefined, unacknowledgedOnly)
         return createSuccessResponse({ alerts, count: alerts.length })
       }
 
@@ -1754,7 +1754,7 @@ async function startServer() {
         const rules = performanceMonitor.getAlertRules()
         
         // 获取未确认的告警
-        const alerts = performanceMonitor.getAlerts(true)
+        const alerts = performanceMonitor.getAlerts(undefined, true)
         
         return createSuccessResponse({
           health: updatedHealthStatus,

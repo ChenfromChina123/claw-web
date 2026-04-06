@@ -52,7 +52,8 @@ class ApiClient {
           error.code = response.data.error?.code
           return Promise.reject(error)
         }
-        return response.data
+        // 返回完整的 response 对象以保持 Axios 类型兼容
+        return response
       },
       async (error) => {
         const originalRequest = error.config

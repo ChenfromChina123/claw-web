@@ -7,15 +7,13 @@
 import { ref, onMounted } from 'vue'
 import type { 
   MultiAgentOrchestrationState,
-  AgentRuntimeState,
   AgentTaskStep
 } from '@/types/agent'
 import { AgentType } from '@/types/agent'
 import {
   createInitialOrchestrationState,
   createAgentRuntimeState,
-  getAgentDefinition,
-  BUILT_IN_AGENTS
+  getAgentDefinition
 } from '@/types/agent'
 import AgentBadge from './AgentBadge.vue'
 import TaskPipeline from './TaskPipeline.vue'

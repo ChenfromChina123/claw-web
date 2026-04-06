@@ -4,7 +4,6 @@
  */
 
 import client from './client'
-import { unwrapApiData } from './unwrapApiResponse'
 import type {
   ExecuteAgentRequest,
   ExecuteAgentResponse,
@@ -35,7 +34,7 @@ export async function executeAgent(request: ExecuteAgentRequest): Promise<Execut
     background: request.background || false,
     teamId: request.teamId
   })
-  return unwrapApiData(response)
+  return response.data.data as ExecuteAgentResponse
 }
 
 /**
@@ -43,7 +42,7 @@ export async function executeAgent(request: ExecuteAgentRequest): Promise<Execut
  */
 export async function interruptAgent(agentId: string): Promise<{ success: boolean; message?: string }> {
   const response = await client.post(`/agents/${agentId}/interrupt`)
-  return unwrapApiData(response)
+  return response.data.data as { success: boolean; message?: string }
 }
 
 /**
@@ -56,7 +55,7 @@ export async function approvePermission(
   const response = await client.post(`/agents/${agentId || 'pending'}/approve`, {
     permissionId
   })
-  return unwrapApiData(response)
+  return response.data.data as { success: boolean; message?: string }
 }
 
 /**
@@ -69,7 +68,7 @@ export async function denyPermission(
   const response = await client.post(`/agents/${agentId || 'pending'}/deny`, {
     permissionId
   })
-  return unwrapApiData(response)
+  return response.data.data as { success: boolean; message?: string }
 }
 
 // ============================================================================
@@ -81,7 +80,7 @@ export async function denyPermission(
  */
 export async function spawnTeam(request: SpawnTeamRequest): Promise<SpawnTeamResponse> {
   const response = await client.post<SpawnTeamResponse>('/agents/team/spawn', request)
-  return unwrapApiData(response)
+  return response.data.data as SpawnTeamResponse
 }
 
 /**
@@ -89,7 +88,7 @@ export async function spawnTeam(request: SpawnTeamRequest): Promise<SpawnTeamRes
  */
 export async function getTeamTopology(teamId: string): Promise<TeamTopology> {
   const response = await client.get<TeamTopology>(`/agents/team/${teamId}/topology`)
-  return unwrapApiData(response)
+  return response.data.data as TeamTopology
 }
 
 /**
@@ -97,8 +96,7 @@ export async function getTeamTopology(teamId: string): Promise<TeamTopology> {
  */
 export async function listTeams(): Promise<TeamTopology[]> {
   const response = await client.get<{ teams: TeamTopology[] }>('/agents/teams')
-  const data = unwrapApiData(response)
-  return data.teams
+  return (response.data.data as { teams: TeamTopology[] }).teams
 }
 
 /**
@@ -109,7 +107,7 @@ export async function sendMessageToAgent(
   message: string
 ): Promise<{ success: boolean; messageId?: string }> {
   const response = await client.post(`/agents/${agentId}/message`, { message })
-  return unwrapApiData(response)
+  return response.data.data as { success: boolean; messageId?: string }
 }
 
 // ============================================================================
@@ -132,7 +130,7 @@ export async function listTasks(
   const response = await client.get<{ tasks: BackgroundTask[]; total: number }>(
     `/tasks?${params.toString()}`
   )
-  return unwrapApiData(response)
+  return response.data.data as { tasks: BackgroundTask[]; total: number }
 }
 
 /**
@@ -140,7 +138,7 @@ export async function listTasks(
  */
 export async function getTaskStatus(taskId: string): Promise<BackgroundTask> {
   const response = await client.get<BackgroundTask>(`/tasks/${taskId}/status`)
-  return unwrapApiData(response)
+  return response.data.data as BackgroundTask
 }
 
 /**
@@ -148,7 +146,7 @@ export async function getTaskStatus(taskId: string): Promise<BackgroundTask> {
  */
 export async function cancelTask(taskId: string): Promise<{ success: boolean }> {
   const response = await client.post(`/tasks/${taskId}/cancel`)
-  return unwrapApiData(response)
+  return response.data.data as { success: boolean }
 }
 
 /**
@@ -156,7 +154,7 @@ export async function cancelTask(taskId: string): Promise<{ success: boolean }> 
  */
 export async function getTaskTrace(taskId: string): Promise<{ traceId: string } | null> {
   const response = await client.get<{ traceId: string } | null>(`/tasks/${taskId}/trace`)
-  return unwrapApiData(response)
+  return response.data.data as { traceId: string } | null
 }
 
 // ============================================================================
@@ -168,7 +166,7 @@ export async function getTaskTrace(taskId: string): Promise<{ traceId: string } 
  */
 export async function getAgentState(agentId: string): Promise<AgentRuntimeEvent> {
   const response = await client.get<AgentRuntimeEvent>(`/agents/${agentId}/state`)
-  return unwrapApiData(response)
+  return response.data.data as AgentRuntimeEvent
 }
 
 /**
@@ -176,8 +174,7 @@ export async function getAgentState(agentId: string): Promise<AgentRuntimeEvent>
  */
 export async function listActiveAgents(): Promise<AgentRuntimeEvent[]> {
   const response = await client.get<{ agents: AgentRuntimeEvent[] }>('/agents/active')
-  const data = unwrapApiData(response)
-  return data.agents
+  return (response.data.data as { agents: AgentRuntimeEvent[] }).agents
 }
 
 /**
@@ -194,7 +191,7 @@ export async function initOrchestration(
     '/agents/orchestration/init',
     config
   )
-  return unwrapApiData(response)
+  return response.data.data as { orchestratorId: string; teamId?: string }
 }
 
 /**
@@ -206,7 +203,11 @@ export async function getOrchestrationState(): Promise<{
   traces: string[]
 }> {
   const response = await client.get('/agents/orchestration/state')
-  return unwrapApiData(response)
+  return response.data.data as {
+    orchestrator: AgentRuntimeEvent | null
+    agents: AgentRuntimeEvent[]
+    traces: string[]
+  }
 }
 
 // ============================================================================
@@ -229,7 +230,15 @@ export async function decomposeTask(
   }>
 }> {
   const response = await client.post('/agents/decompose', { task, context })
-  return unwrapApiData(response)
+  return response.data.data as {
+    subtasks: Array<{
+      id: string
+      description: string
+      estimatedComplexity: 'low' | 'medium' | 'high'
+      parallelizable: boolean
+      dependencies: string[]
+    }>
+  }
 }
 
 // ============================================================================
@@ -241,8 +250,7 @@ export async function decomposeTask(
  */
 export async function listAgentTypes(): Promise<AgentDefinition[]> {
   const response = await client.get<{ agents: AgentDefinition[] }>('/agents')
-  const data = unwrapApiData(response)
-  return data.agents
+  return (response.data.data as { agents: AgentDefinition[] }).agents
 }
 
 /**
@@ -250,7 +258,7 @@ export async function listAgentTypes(): Promise<AgentDefinition[]> {
  */
 export async function getAgentDefinition(agentType: string): Promise<AgentDefinition | null> {
   const response = await client.get<AgentDefinition | null>(`/agents/${agentType}`)
-  return unwrapApiData(response)
+  return response.data.data as AgentDefinition | null
 }
 
 // ============================================================================
@@ -271,7 +279,7 @@ export async function createIsolationContext(
     mode,
     ...options
   })
-  return unwrapApiData(response)
+  return response.data.data as { contextId: string; mode: string }
 }
 
 /**
@@ -284,7 +292,12 @@ export async function getIsolationStatus(contextId: string): Promise<{
   changes?: unknown
 }> {
   const response = await client.get(`/agents/isolation/${contextId}/status`)
-  return unwrapApiData(response)
+  return response.data.data as {
+    contextId: string
+    mode: string
+    status: 'active' | 'completed' | 'failed'
+    changes?: unknown
+  }
 }
 
 /**
@@ -296,7 +309,11 @@ export async function mergeIsolationChanges(contextId: string): Promise<{
   conflicts?: unknown[]
 }> {
   const response = await client.post(`/agents/isolation/${contextId}/merge`)
-  return unwrapApiData(response)
+  return response.data.data as {
+    success: boolean
+    merged: number
+    conflicts?: unknown[]
+  }
 }
 
 // ============================================================================

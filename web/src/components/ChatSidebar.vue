@@ -8,6 +8,7 @@ import {
   NScrollbar,
   NDropdown,
   NModal,
+  NSpin,
   useMessage,
 } from 'naive-ui'
 import { useChatStore } from '@/stores/chat'
@@ -25,11 +26,10 @@ const searchValue = ref('')
 const collapsed = ref(false)
 const visibleSessionCount = ref(10)
 const SESSIONS_PER_PAGE = 10
-const scrollbarRef = ref<InstanceType<typeof NScrollbar>>()
-let isLoadingMore = ref(false)
-let scrollContainer: HTMLElement | null = null
+const loadMoreTriggerRef = ref<HTMLElement | null>(null)
+const isLoadingMore = ref(false)
+let intersectionObserver: IntersectionObserver | null = null
 
-// 监听折叠状态变化并通知父组件
 watch(collapsed, (newVal) => {
   emit('update:collapsed', newVal)
 })
@@ -42,35 +42,12 @@ const showDeleteModal = ref(false)
 const deleteTarget = ref<Session | null>(null)
 
 /**
- * 处理滚动事件，检测是否滚动到底部
+ * 设置观察者监听指定元素
  */
-function handleScroll(event?: Event) {
-  if (isLoadingMore.value) return
-  
-  let scrollTop: number, scrollHeight: number, clientHeight: number
-  
-  if (event && event.target) {
-    // 来自 @scroll 事件
-    const target = event.target as HTMLElement
-    scrollTop = target.scrollTop
-    scrollHeight = target.scrollHeight
-    clientHeight = target.clientHeight
-  } else if (scrollContainer) {
-    // 来自 addEventListener
-    scrollTop = scrollContainer.scrollTop
-    scrollHeight = scrollContainer.scrollHeight
-    clientHeight = scrollContainer.clientHeight
-  } else {
-    return
-  }
-  
-  const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100
-  
-  console.log('[ChatSidebar] 滚动事件:', { scrollTop, scrollHeight, clientHeight, isNearBottom, hasMore: hasMoreSessions.value })
-  
-  if (isNearBottom && hasMoreSessions.value) {
-    console.log('[ChatSidebar] 加载更多会话')
-    loadMoreSessions()
+function observeTrigger() {
+  if (intersectionObserver && loadMoreTriggerRef.value) {
+    intersectionObserver.disconnect()
+    intersectionObserver.observe(loadMoreTriggerRef.value)
   }
 }
 
@@ -78,58 +55,49 @@ function handleScroll(event?: Event) {
  * 加载更多会话
  */
 function loadMoreSessions() {
-  if (isLoadingMore.value) return
+  if (isLoadingMore.value || !hasMoreSessions.value) return
   
   isLoadingMore.value = true
   visibleSessionCount.value += SESSIONS_PER_PAGE
   
-  // 重置加载状态
   setTimeout(() => {
     isLoadingMore.value = false
-  }, 300)
+    nextTick(observeTrigger)
+  }, 200)
 }
 
 /**
- * 设置滚动容器监听
+ * 设置 IntersectionObserver 监听加载更多触发器
  */
 onMounted(() => {
-  nextTick(() => {
-    if (scrollbarRef.value) {
-      const scrollbar = scrollbarRef.value as any
-      
-      console.log('[ChatSidebar] scrollbar 实例:', scrollbar)
-      
-      // 尝试获取滚动容器
-      if (scrollbar.containerRef) {
-        scrollContainer = scrollbar.containerRef
-        console.log('[ChatSidebar] 使用 containerRef')
-      } else if (scrollbar.$el && typeof scrollbar.$el.querySelector === 'function') {
-        scrollContainer = scrollbar.$el.querySelector('.n-scrollbar-container') || 
-                         scrollbar.$el.querySelector('.n-scrollbar-rail-container') ||
-                         scrollbar.$el
-        console.log('[ChatSidebar] 使用 $el 查询')
-      } else {
-        console.warn('[ChatSidebar] 无法获取滚动容器，尝试其他方法')
-        // 如果 $el 不存在或没有 querySelector，直接使用 scrollbar 实例
-        scrollContainer = scrollbar
+  intersectionObserver = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0]
+      if (entry.isIntersecting && hasMoreSessions.value && !isLoadingMore.value) {
+        loadMoreSessions()
       }
-      
-      if (scrollContainer && typeof scrollContainer.addEventListener === 'function') {
-        console.log('[ChatSidebar] 滚动容器已找到:', scrollContainer)
-        scrollContainer.addEventListener('scroll', handleScroll)
-      } else {
-        console.warn('[ChatSidebar] 未找到有效的滚动容器，尝试使用 NScrollbar 的 scroll 事件')
-      }
+    },
+    {
+      root: null,
+      rootMargin: '100px',
+      threshold: 0,
     }
-  })
+  )
+
+  nextTick(observeTrigger)
+})
+
+watch(hasMoreSessions, () => {
+  nextTick(observeTrigger)
 })
 
 /**
- * 清理滚动监听
+ * 清理 IntersectionObserver
  */
 onUnmounted(() => {
-  if (scrollContainer) {
-    scrollContainer.removeEventListener('scroll', handleScroll)
+  if (intersectionObserver) {
+    intersectionObserver.disconnect()
+    intersectionObserver = null
   }
 })
 
@@ -273,11 +241,7 @@ function formatTime(date: Date | string) {
         </div>
 
         <!-- 会话列表 -->
-        <NScrollbar 
-          ref="scrollbarRef"
-          class="sidebar-list"
-          @scroll="handleScroll"
-        >
+        <NScrollbar class="sidebar-list">
           <div class="session-list">
             <div
               v-for="session in visibleSessions"
@@ -312,7 +276,11 @@ function formatTime(date: Date | string) {
             </div>
 
             <!-- 加载更多提示 -->
-            <div v-if="hasMoreSessions" class="load-more-trigger">
+            <div 
+              v-if="hasMoreSessions" 
+              ref="loadMoreTriggerRef"
+              class="load-more-trigger"
+            >
               <NSpin size="small" v-if="isLoadingMore" />
               <span>{{ isLoadingMore ? '加载中...' : '滚动加载更多' }}</span>
             </div>
