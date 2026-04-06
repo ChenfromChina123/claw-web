@@ -107,7 +107,10 @@ const API_BASE = '/agent/workdir'
 async function loadDirectory(nodeKey: string, showLoading = false): Promise<TreeOption[]> {
   console.log('[AgentWorkDir] loadDirectory called:', { nodeKey, showLoading })
 
-  const normalizedPath = nodeKey || '/'
+  let normalizedPath = nodeKey || '/'
+  if (!normalizedPath.startsWith('/')) {
+    normalizedPath = '/' + normalizedPath
+  }
 
   if (loadingPaths.has(normalizedPath)) {
     console.log('[AgentWorkDir] Path is already loading, skipping:', normalizedPath)
@@ -142,7 +145,8 @@ async function loadDirectory(nodeKey: string, showLoading = false): Promise<Tree
         key: item.path || `/${item.name}`,
         label: item.name,
         prefix: () => getFileIcon(item.isDirectory, item.type, item.extension),
-        isLeaf: !item.isDirectory
+        isLeaf: !item.isDirectory,
+        children: item.isDirectory ? [] : undefined
       }
       console.log('[AgentWorkDir] Created node:', { key: node.key, label: node.label, isLeaf: node.isLeaf, isDirectory: item.isDirectory })
       return node
