@@ -90,7 +90,7 @@ let editorInstance: monaco.editor.IStandaloneCodeEditor | null = null
 
 // ==================== API 调用 ====================
 
-const API_BASE = '/api/agent/workdir'
+const API_BASE = '/agent/workdir'
 
 /**
  * 加载目录内容（懒加载）
