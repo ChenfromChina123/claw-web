@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { NInput, NButton, NUpload, NIcon, NSpin, NTag, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
-import { PaperclipOutline, CloseOutline } from '@vicons/ionicons5'
+import { CloudUploadOutline } from '@vicons/ionicons5'
 
 const props = defineProps<{
   disabled?: boolean
@@ -194,7 +194,7 @@ defineExpose({
         </template>
         <template v-else>
           <NIcon size="22" color="#6366f1">
-            <PaperclipOutline />
+            <CloudUploadOutline />
           </NIcon>
         </template>
         
