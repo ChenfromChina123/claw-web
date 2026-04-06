@@ -34,6 +34,50 @@ import {
 import { SimpleLLMCaller } from '../agents/taskDecomposer'
 import { getAgentStatusService } from '../services/agentStatusService'
 import type { ToolCall } from '../integration/webStore'
+import { executeAgent, type AgentMessage, type RunAgentParams } from '../agents/runAgent'
+import { v4 as uuidv4 } from 'uuid'
+import { WebSocket } from 'ws'
+
+/** WebSocket 连接映射 */
+const wsConnections = new Map<string, Set<WebSocket>>()
+
+/**
+ * 注册 WebSocket 连接
+ */
+export function registerWsConnection(sessionId: string, ws: WebSocket): void {
+  if (!wsConnections.has(sessionId)) {
+    wsConnections.set(sessionId, new Set())
+  }
+  wsConnections.get(sessionId)!.add(ws)
+}
+
+/**
+ * 取消注册 WebSocket 连接
+ */
+export function unregisterWsConnection(sessionId: string, ws: WebSocket): void {
+  const connections = wsConnections.get(sessionId)
+  if (connections) {
+    connections.delete(ws)
+    if (connections.size === 0) {
+      wsConnections.delete(sessionId)
+    }
+  }
+}
+
+/**
+ * 通过 WebSocket 发送事件
+ */
+function sendWsEvent(sessionId: string, event: string, data: unknown): void {
+  const connections = wsConnections.get(sessionId)
+  if (connections) {
+    const message = JSON.stringify({ event, data })
+    for (const ws of connections) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message)
+      }
+    }
+  }
+}
 
 /**
  * 创建 Agent API 路由
@@ -93,7 +137,7 @@ export function createAgentApiRouter(): Router {
    */
   router.post('/execute', async (req: Request, res: Response) => {
     try {
-      const { agentType, prompt, options } = req.body
+      const { agentType, prompt, options, sessionId: optionsSessionId } = req.body
 
       if (!agentType || !prompt) {
         return res.status(400).json({ error: '缺少必需参数: agentType, prompt' })
@@ -109,17 +153,87 @@ export function createAgentApiRouter(): Router {
 
       // 注册 Agent
       const registry = getAgentRegistry()
+      const sessionId = optionsSessionId || uuidv4()
       const agent = registry.register({
         agentDefinition: agentDef,
         ...options,
+        sessionId,
       })
 
-      // TODO: 启动实际执行 (需要集成到 runAgent)
+      // 创建 AbortController 用于中断
+      const abortController = new AbortController()
+
+      // 构建初始消息
+      const initialMessages: AgentMessage[] = [
+        { role: 'user', content: prompt },
+      ]
+
+      // 构建运行参数
+      const runParams: RunAgentParams = {
+        agentDefinition: agentDef,
+        promptMessages: initialMessages,
+        sessionId,
+        cwd: options?.cwd || process.cwd(),
+        maxTurns: options?.maxTurns || 20,
+        permissionMode: options?.permissionMode || 'auto',
+        model: options?.model,
+        abortSignal: abortController.signal,
+        onProgress: (progress) => {
+          console.log(`[AgentApi] ${agentType} 进度:`, progress.message)
+          sendWsEvent(sessionId, 'agent_progress', progress)
+        },
+        onToolCall: (toolCall) => {
+          console.log(`[AgentApi] ${agentType} 工具调用:`, toolCall.name)
+          sendWsEvent(sessionId, 'agent_tool_call', toolCall)
+        },
+        onToolResult: (result) => {
+          console.log(`[AgentApi] ${agentType} 工具结果:`, result.toolName, result.success)
+          sendWsEvent(sessionId, 'agent_tool_result', result)
+        },
+      }
+
+      // 发送启动事件
+      sendWsEvent(sessionId, 'agent_started', {
+        agentId: agent.agentId,
+        agentType,
+        sessionId,
+      })
+
+      // 异步执行 Agent，避免超时
+      executeAgent(runParams)
+        .then((executionResult) => {
+          if (executionResult.status === 'completed') {
+            registry.updateAgentStatus(agent.agentId, 'completed')
+            sendWsEvent(sessionId, 'agent_completed', {
+              agentId: agent.agentId,
+              result: executionResult.content,
+              durationMs: executionResult.durationMs,
+            })
+          } else {
+            registry.updateAgentStatus(agent.agentId, 'error')
+            sendWsEvent(sessionId, 'agent_error', {
+              agentId: agent.agentId,
+              error: executionResult.error,
+            })
+          }
+        })
+        .catch((error) => {
+          console.error(`[AgentApi] Agent ${agent.agentId} 执行异常:`, error)
+          registry.updateAgentStatus(agent.agentId, 'error')
+          sendWsEvent(sessionId, 'agent_error', {
+            agentId: agent.agentId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        })
+
+      // 立即返回，让执行在后台继续
       res.json({
         success: true,
         agentId: agent.agentId,
         agentType: agentDef.agentType,
-        status: 'created',
+        sessionId,
+        status: 'started',
+        message: `Agent ${agentType} 已启动执行`,
       })
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) })

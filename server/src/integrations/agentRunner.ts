@@ -6,6 +6,8 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import type { WebSocketData } from '../index'
+import { llmService, type ChatMessage, type ToolDefinition } from '../services/llmService'
+import { getToolRegistry } from '../integrations/toolRegistry'
 
 // Agent 消息类型
 export interface AgentMessage {
@@ -45,6 +47,7 @@ export type EventSender = (event: string, data: unknown) => void
  */
 export class WebAgentRunner {
   private projectRoot: string
+  private abortController?: AbortController
   
   constructor() {
     this.projectRoot = this.getProjectRoot()
@@ -54,14 +57,26 @@ export class WebAgentRunner {
     const currentDir = process.cwd()
     return currentDir.replace(/\\server\\src$/i, '').replace(/\/server\/src$/, '')
   }
-  
+
+  /**
+   * 中断当前正在执行的 Agent
+   */
+  interrupt(): void {
+    if (this.abortController) {
+      this.abortController.abort()
+      this.abortController = undefined
+    }
+  }
+
   /**
    * 处理用户消息并生成 Agent 响应
    */
   async processMessage(
     messages: AgentMessage[],
     config: AgentConfig,
-    toolExecutor: unknown,
+    toolExecutor: {
+      executeTool: (name: string, input: Record<string, unknown>, sendEvent?: EventSender) => Promise<{ success: boolean; result?: unknown; error?: string }>
+    },
     sendEvent: EventSender
   ): Promise<AgentResult> {
     const result: AgentResult = {
@@ -72,10 +87,124 @@ export class WebAgentRunner {
     
     sendEvent('agent_thinking', { status: 'processing' })
     
-    // 这里会调用实际的 AI API
-    // 暂时返回模拟响应
-    result.message = 'Agent response placeholder - 需要接入实际 AI API'
-    result.finishReason = 'stop'
+    // 创建新的 AbortController 用于本次请求
+    this.abortController = new AbortController()
+    
+    try {
+      // 获取工具注册表
+      const toolRegistry = getToolRegistry()
+      const allTools = toolRegistry.getAllTools()
+      
+      // 转换工具格式
+      const tools: ToolDefinition[] = allTools.map(tool => ({
+        name: tool.name,
+        description: tool.description || '',
+        input_schema: tool.inputSchema as ToolDefinition['input_schema'],
+      }))
+      
+      // 准备消息格式
+      const chatMessages: ChatMessage[] = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      }))
+      
+      // 调用真实的 LLM 服务
+      console.log(`[WebAgentRunner] 调用 LLM: ${config.model}, 消息数: ${chatMessages.length}`)
+      
+      const response = await llmService.chat(
+        chatMessages,
+        {
+          model: config.model,
+          maxTokens: config.maxTokens,
+          temperature: config.temperature,
+          systemPrompt: config.systemPrompt,
+        },
+        tools,
+        this.abortController.signal
+      )
+      
+      // 解析响应
+      result.message = response.content
+      
+      if (response.toolCalls && response.toolCalls.length > 0) {
+        result.finishReason = 'tool_use'
+        result.toolCalls = response.toolCalls.map(tc => ({
+          id: tc.id,
+          name: tc.name,
+          input: tc.input,
+          status: 'pending' as const,
+        }))
+        
+        sendEvent('agent_thinking', { status: 'tool_use', toolCalls: result.toolCalls.map(tc => tc.name) })
+        
+        // 执行工具调用
+        for (const toolCall of result.toolCalls) {
+          sendEvent('tool_call', { name: toolCall.name, input: toolCall.input })
+          
+          try {
+            const toolResult = await toolExecutor.executeTool(
+              toolCall.name,
+              toolCall.input,
+              sendEvent
+            )
+            
+            toolCall.output = toolResult.result
+            toolCall.status = toolResult.success ? 'completed' : 'error'
+            
+            sendEvent('tool_result', {
+              name: toolCall.name,
+              success: toolResult.success,
+              result: toolResult.result,
+              error: toolResult.error,
+            })
+            
+            // 将工具结果添加到消息列表继续对话
+            const toolResultMessage: AgentMessage = {
+              role: 'user',
+              content: `工具 ${toolCall.name} 执行结果: ${JSON.stringify(toolResult.success ? toolResult.result : toolResult.error)}`,
+            }
+            
+            // 递归调用获取最终响应
+            const followUpResult = await this.processMessage(
+              [...messages, toolResultMessage],
+              config,
+              toolExecutor,
+              sendEvent
+            )
+            
+            result.message = followUpResult.message
+            result.finishReason = followUpResult.finishReason
+            result.toolCalls = followUpResult.toolCalls
+            
+          } catch (error) {
+            toolCall.output = { error: error instanceof Error ? error.message : String(error) }
+            toolCall.status = 'error'
+            
+            sendEvent('tool_error', {
+              name: toolCall.name,
+              error: error instanceof Error ? error.message : String(error),
+            })
+          }
+        }
+      } else {
+        result.finishReason = 'stop'
+        sendEvent('agent_thinking', { status: 'completed' })
+      }
+      
+    } catch (error) {
+      if ((error as any)?.name === 'AbortError') {
+        result.message = '请求已被取消'
+        result.finishReason = 'error'
+        sendEvent('agent_interrupted', {})
+      } else {
+        console.error('[WebAgentRunner] LLM 调用失败:', error)
+        result.message = `错误: ${error instanceof Error ? error.message : String(error)}`
+        result.finishReason = 'error'
+        sendEvent('agent_error', { error: result.message })
+      }
+    } finally {
+      this.abortController = undefined
+    }
     
     return result
   }
@@ -147,20 +276,128 @@ export class WebAgentRunner {
       finishReason: 'stop',
     }
     
+    // 创建 AbortController
+    const abortController = new AbortController()
+    
+    // 获取工具注册表
+    const toolRegistry = getToolRegistry()
+    const allTools = toolRegistry.getAllTools()
+    
+    // 转换工具格式
+    const tools: ToolDefinition[] = allTools.map(tool => ({
+      name: tool.name,
+      description: tool.description || '',
+      input_schema: tool.inputSchema as ToolDefinition['input_schema'],
+    }))
+    
     let iteration = 0
+    let conversationMessages = [...messages]
+    
+    // 如果有系统提示，添加到消息开头
+    if (config.systemPrompt) {
+      conversationMessages = [
+        { role: 'system' as const, content: config.systemPrompt },
+        ...conversationMessages,
+      ]
+    }
     
     while (iteration < maxIterations) {
       iteration++
       sendEvent('agent_iteration', { iteration, maxIterations })
       
-      // 调用 AI API 获取响应
-      // 这里需要接入实际的 API
-      
-      // 模拟响应
-      result.finishReason = 'stop'
-      result.message = 'Response generated'
-      
-      break // 单次响应，暂不实现多轮工具调用
+      try {
+        // 调用真实的 LLM API
+        const chatMessages: ChatMessage[] = conversationMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content,
+        }))
+        
+        console.log(`[WebAgentRunner.runAgentLoop] 第 ${iteration} 轮，调用 LLM`)
+        
+        const response = await llmService.chat(
+          chatMessages,
+          {
+            model: config.model,
+            maxTokens: config.maxTokens,
+            temperature: config.temperature,
+          },
+          tools,
+          abortController.signal
+        )
+        
+        result.message = response.content
+        result.finishReason = response.stopReason === 'tool_use' ? 'tool_use' : 'stop'
+        
+        // 如果有工具调用，执行它们
+        if (response.toolCalls && response.toolCalls.length > 0) {
+          result.toolCalls = response.toolCalls.map(tc => ({
+            id: tc.id,
+            name: tc.name,
+            input: tc.input,
+            status: 'pending' as const,
+          }))
+          
+          // 将助手消息添加到对话
+          conversationMessages.push({
+            role: 'assistant',
+            content: response.content,
+            toolCalls: result.toolCalls,
+          })
+          
+          // 执行工具
+          for (const toolCall of result.toolCalls) {
+            sendEvent('tool_call', { name: toolCall.name, input: toolCall.input })
+            
+            const toolResult = await toolExecutor.executeTool(
+              toolCall.name,
+              toolCall.input,
+              sendEvent
+            )
+            
+            toolCall.output = toolResult.success ? toolResult.result : toolResult.error
+            toolCall.status = toolResult.success ? 'completed' : 'error'
+            
+            sendEvent('tool_result', {
+              name: toolCall.name,
+              success: toolResult.success,
+              result: toolResult.result,
+              error: toolResult.error,
+            })
+            
+            // 将工具结果添加到对话
+            conversationMessages.push({
+              role: 'user',
+              content: `工具 ${toolCall.name} 执行结果: ${JSON.stringify(toolResult.success ? toolResult.result : { error: toolResult.error })}`,
+            })
+          }
+          
+          // 继续下一轮
+          continue
+        } else {
+          // 没有工具调用，结束循环
+          sendEvent('agent_completed', { message: result.message })
+          break
+        }
+        
+      } catch (error) {
+        if ((error as any)?.name === 'AbortError') {
+          result.message = '请求已被取消'
+          result.finishReason = 'error'
+          sendEvent('agent_interrupted', {})
+          break
+        }
+        
+        console.error(`[WebAgentRunner.runAgentLoop] 第 ${iteration} 轮错误:`, error)
+        result.message = `执行错误: ${error instanceof Error ? error.message : String(error)}`
+        result.finishReason = 'error'
+        sendEvent('agent_error', { error: result.message })
+        break
+      }
+    }
+    
+    if (iteration >= maxIterations) {
+      result.message += '\n\n[达到最大迭代次数限制]'
+      sendEvent('agent_max_iterations', { iterations: iteration })
     }
     
     return result

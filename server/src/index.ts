@@ -2124,6 +2124,202 @@ async function startServer() {
         }
       }
 
+      // ==================== Agent UserDir API (用户主工作目录) ====================
+
+      /**
+       * 获取用户主工作目录信息
+       */
+      const ensureUserWorkspace = async (userId: string) => {
+        const workspaceManager = getWorkspaceManager()
+        return await workspaceManager.getOrCreateUserWorkspace(userId)
+      }
+
+      // GET /api/agent/userdir/info - 获取用户主目录信息
+      if (path === '/api/agent/userdir/info' && method === 'GET') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const workspace = await ensureUserWorkspace(auth.userId)
+
+          return createSuccessResponse({
+            workspaceId: workspace.workspaceId,
+            userId: workspace.userId,
+            path: workspace.path,
+            virtualPath: '~/home',
+            createdAt: workspace.createdAt,
+            lastModifiedAt: workspace.lastModifiedAt,
+            skillsCount: workspace.installedSkills.length,
+            hasConfig: Object.keys(workspace.config).length > 0
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取用户目录失败'
+          console.error('[UserDir] 获取信息失败:', message)
+          return createErrorResponse('GET_INFO_FAILED', message, 500)
+        }
+      }
+
+      // GET /api/agent/userdir/list - 获取用户主目录内容
+      if (path === '/api/agent/userdir/list' && method === 'GET') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const workspace = await ensureUserWorkspace(auth.userId)
+
+          const items = await readDirectory(workspace.path, workspace.path)
+
+          return createSuccessResponse({
+            items,
+            path: '/',
+            userId: auth.userId,
+            timestamp: new Date().toISOString()
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取目录列表失败'
+          console.error('[UserDir] 列表失败:', message)
+          return createErrorResponse('LIST_FAILED', message, 500)
+        }
+      }
+
+      // GET /api/agent/userdir/skills - 获取用户已安装的 skills
+      if (path === '/api/agent/userdir/skills' && method === 'GET') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const workspaceManager = getWorkspaceManager()
+          const skills = await workspaceManager.listUserSkills(auth.userId)
+
+          return createSuccessResponse({
+            skills,
+            count: skills.length
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取 skills 失败'
+          console.error('[UserDir] 获取 skills 失败:', message)
+          return createErrorResponse('GET_SKILLS_FAILED', message, 500)
+        }
+      }
+
+      // POST /api/agent/userdir/skills/install - 安装 skill
+      if (path === '/api/agent/userdir/skills/install' && method === 'POST') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const body = await req.json() as {
+            skillId: string
+            name: string
+            version?: string
+            data: any
+          }
+
+          if (!body.skillId || !body.name || !body.data) {
+            return createErrorResponse('INVALID_PARAMS', '缺少必需参数: skillId, name, data', 400)
+          }
+
+          const workspaceManager = getWorkspaceManager()
+          const result = await workspaceManager.installSkill(
+            auth.userId,
+            body.skillId,
+            body.data,
+            body.name,
+            body.version || '1.0.0'
+          )
+
+          if (!result.success) {
+            return createErrorResponse('INSTALL_FAILED', result.error || '安装失败', 500)
+          }
+
+          return createSuccessResponse({
+            success: true,
+            skillId: body.skillId,
+            path: result.path,
+            message: `Skill "${body.name}" 安装成功`
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '安装 skill 失败'
+          console.error('[UserDir] 安装 skill 失败:', message)
+          return createErrorResponse('INSTALL_FAILED', message, 500)
+        }
+      }
+
+      // DELETE /api/agent/userdir/skills/:skillId - 卸载 skill
+      if (path.startsWith('/api/agent/userdir/skills/') && method === 'DELETE') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const skillId = path.split('/').pop()
+          if (!skillId) {
+            return createErrorResponse('INVALID_PARAMS', '缺少 skillId', 400)
+          }
+
+          const workspaceManager = getWorkspaceManager()
+          const success = await workspaceManager.uninstallSkill(auth.userId, skillId)
+
+          if (!success) {
+            return createErrorResponse('NOT_FOUND', 'Skill 不存在或卸载失败', 404)
+          }
+
+          return createSuccessResponse({
+            success: true,
+            skillId,
+            message: `Skill "${skillId}" 已卸载`
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '卸载 skill 失败'
+          console.error('[UserDir] 卸载 skill 失败:', message)
+          return createErrorResponse('UNINSTALL_FAILED', message, 500)
+        }
+      }
+
+      // GET /api/agent/userdir/skills/:skillId - 获取 skill 内容
+      if (path.match(/^\/api\/agent\/userdir\/skills\/[^/]+$/) && method === 'GET') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const skillId = path.split('/').pop()
+          if (!skillId) {
+            return createErrorResponse('INVALID_PARAMS', '缺少 skillId', 400)
+          }
+
+          const workspaceManager = getWorkspaceManager()
+          const workspace = await workspaceManager.getOrCreateUserWorkspace(auth.userId)
+          const skillPath = path.join(workspace.path, 'skills', `${skillId}.json`)
+
+          const fs = await import('fs/promises')
+          if (!fs.existsSync(skillPath)) {
+            return createErrorResponse('NOT_FOUND', 'Skill 不存在', 404)
+          }
+
+          const skillData = JSON.parse(await fs.readFile(skillPath, 'utf-8'))
+
+          return createSuccessResponse({
+            skillId,
+            data: skillData
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取 skill 失败'
+          console.error('[UserDir] 获取 skill 失败:', message)
+          return createErrorResponse('GET_SKILL_FAILED', message, 500)
+        }
+      }
+
       // ==================== Models API ====================
 
       // GET /api/models - 获取可用模型列表
@@ -3181,8 +3377,8 @@ async function readDirectory(dirPath: string, basePath: string): Promise<Array<{
     const items = []
 
     for (const entry of entries) {
-      // 跳过隐藏文件和系统文件
-      if (entry.name.startsWith('.') && entry.name !== '.workspace.json') {
+      // 跳过所有隐藏文件（以 . 开头的文件），但保留目录
+      if (entry.name.startsWith('.')) {
         continue
       }
 

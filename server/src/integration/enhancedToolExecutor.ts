@@ -62,6 +62,8 @@ export interface ToolExecutionContext {
   allowedTools?: string[]
   deniedTools?: string[]
   maxExecutionTime?: number
+  /** 中断信号，用于取消长时间运行的操作 */
+  abortSignal?: AbortSignal
 }
 
 export interface ToolResult {

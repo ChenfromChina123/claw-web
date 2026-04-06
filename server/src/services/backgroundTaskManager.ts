@@ -6,6 +6,8 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import { EventEmitter } from 'events'
+import * as fs from 'fs'
+import * as path from 'path'
 
 /**
  * 任务状态枚举
@@ -108,13 +110,17 @@ export class BackgroundTaskManager extends EventEmitter {
       maxConcurrentTasks: config.maxConcurrentTasks || 5,
       defaultPriority: config.defaultPriority || TaskPriority.NORMAL,
       taskTimeout: config.taskTimeout || 3600000, // 1小时默认
-      enablePersistence: config.enablePersistence ?? false,
-      persistencePath: config.persistencePath || './data/tasks.json',
+      enablePersistence: config.enablePersistence ?? true, // 默认启用持久化
+      persistencePath: config.persistencePath || path.join(process.cwd(), 'data', 'tasks.json'),
     }
 
     this.startCleanupTimer()
     if (this.config.enablePersistence) {
       this.startPersistenceTimer()
+      // 启动时尝试恢复任务
+      this.restoreTasks().catch(err => {
+        console.warn('[BackgroundTaskManager] 启动时恢复任务失败:', err)
+      })
     }
   }
 
@@ -399,16 +405,112 @@ export class BackgroundTaskManager extends EventEmitter {
    * 持久化任务到磁盘
    */
   private async persistTasks(): Promise<void> {
-    // TODO: 实现持久化逻辑
-    console.log('[BackgroundTaskManager] Persisting tasks...')
+    try {
+      // 确保目录存在
+      const dir = path.dirname(this.config.persistencePath)
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+
+      // 准备持久化数据
+      const tasksToPersist = Array.from(this.tasks.values()).filter(task => {
+        // 只持久化非终态任务（可能在恢复时需要继续）
+        return task.status !== TaskStatus.COMPLETED && 
+               task.status !== TaskStatus.CANCELLED &&
+               task.status !== TaskStatus.FAILED
+      })
+
+      const persistData = {
+        version: 1,
+        timestamp: new Date().toISOString(),
+        tasks: tasksToPersist.map(task => ({
+          ...task,
+          createdAt: task.createdAt.toISOString(),
+          startedAt: task.startedAt?.toISOString(),
+          completedAt: task.completedAt?.toISOString(),
+        })),
+        queue: this.taskQueue,
+        runningTasks: Array.from(this.runningTasks),
+      }
+
+      // 写入文件（先写临时文件再重命名，保证原子性）
+      const tempPath = `${this.config.persistencePath}.tmp`
+      await fs.promises.writeFile(tempPath, JSON.stringify(persistData, null, 2), 'utf-8')
+      await fs.promises.rename(tempPath, this.config.persistencePath)
+
+      console.log(`[BackgroundTaskManager] 已持久化 ${tasksToPersist.length} 个任务到 ${this.config.persistencePath}`)
+    } catch (error) {
+      console.error('[BackgroundTaskManager] 持久化任务失败:', error)
+    }
   }
 
   /**
    * 从磁盘恢复任务
    */
-  async restoreTasks(): Promise<void> {
-    // TODO: 实现恢复逻辑
-    console.log('[BackgroundTaskManager] Restoring tasks...')
+  async restoreTasks(): Promise<{ restored: number; queue: number; running: number }> {
+    const result = { restored: 0, queue: 0, running: 0 }
+
+    try {
+      // 检查文件是否存在
+      if (!fs.existsSync(this.config.persistencePath)) {
+        console.log('[BackgroundTaskManager] 没有找到持久化文件，跳过恢复')
+        return result
+      }
+
+      // 读取文件
+      const data = await fs.promises.readFile(this.config.persistencePath, 'utf-8')
+      const persistData = JSON.parse(data)
+
+      if (!persistData.tasks || !Array.isArray(persistData.tasks)) {
+        console.warn('[BackgroundTaskManager] 持久化文件格式无效')
+        return result
+      }
+
+      // 恢复任务
+      for (const taskData of persistData.tasks) {
+        const task: BackgroundTask = {
+          ...taskData,
+          createdAt: new Date(taskData.createdAt),
+          startedAt: taskData.startedAt ? new Date(taskData.startedAt) : undefined,
+          completedAt: taskData.completedAt ? new Date(taskData.completedAt) : undefined,
+        }
+
+        // 如果是运行中的任务，需要重新加入队列
+        if (task.status === TaskStatus.RUNNING) {
+          task.status = TaskStatus.QUEUED
+          result.running++
+        }
+
+        this.tasks.set(task.id, task)
+        result.restored++
+      }
+
+      // 恢复队列顺序
+      if (persistData.queue && Array.isArray(persistData.queue)) {
+        for (const taskId of persistData.queue) {
+          if (this.tasks.has(taskId)) {
+            const task = this.tasks.get(taskId)!
+            if (task.status === TaskStatus.QUEUED) {
+              this.taskQueue.push(taskId)
+              result.queue++
+            }
+          }
+        }
+      }
+
+      console.log(`[BackgroundTaskManager] 已从 ${this.config.persistencePath} 恢复 ${result.restored} 个任务 (队列: ${result.queue}, 重新排队: ${result.running})`)
+
+      // 触发恢复后的事件
+      this.emit('tasks_restored', result)
+
+      // 尝试启动队列中的任务
+      this.tryStartNextTask()
+
+    } catch (error) {
+      console.error('[BackgroundTaskManager] 恢复任务失败:', error)
+    }
+
+    return result
   }
 
   /**

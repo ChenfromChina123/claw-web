@@ -214,7 +214,8 @@ export async function executeAgentTool(
       permissionMode: mode || 'auto',
       model: model || undefined,
       parentAgentId: parentAgentId,
-      abortSignal: undefined, // TODO: 从上下文获取 abortSignal
+      // 从上下文获取 abortSignal，支持中断 Agent 执行
+      abortSignal: context.abortSignal,
       onProgress: (progress) => {
         console.log(`[AgentTool] 进度更新: ${JSON.stringify(progress)}`)
         if (progress.message) {
