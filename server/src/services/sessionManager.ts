@@ -303,18 +303,27 @@ export class SessionManager {
     sessionData.dirty = true
 
     this.scheduleSave(sessionId)
-    
+
     // 如果是用户消息且当前标题还是默认的"新对话"，就并行生成会话标题
     console.log(`[SessionManager] addMessage: role=${role}, session.title="${sessionData.session.title}", sessionId=${sessionId}`)
     if (role === 'user') {
       if (sessionData.session.title === '新对话') {
-        console.log(`[SessionManager] Detected first user message, generating title for session ${sessionId}`)
-        this.generateAndUpdateSessionTitle(sessionId, content)
+        // 检查是否已在生成中，防止重复触发
+        if (!this.titleGeneratingSessions.has(sessionId)) {
+          console.log(`[SessionManager] Detected first user message, generating title for session ${sessionId}`)
+          this.titleGeneratingSessions.add(sessionId)
+          this.generateAndUpdateSessionTitle(sessionId, content).finally(() => {
+            // 无论成功失败，都要移除锁定
+            this.titleGeneratingSessions.delete(sessionId)
+          })
+        } else {
+          console.log(`[SessionManager] Title already generating for session ${sessionId}, skipping duplicate request`)
+        }
       } else {
         console.log(`[SessionManager] Session title is already set to "${sessionData.session.title}", skipping title generation`)
       }
     }
-    
+
     return message
   }
 
@@ -324,57 +333,68 @@ export class SessionManager {
    * @param userContent 用户消息内容
    */
   private async generateAndUpdateSessionTitle(sessionId: string, userContent: string | any[]): Promise<void> {
+    const startTime = Date.now()
     try {
       console.log(`[SessionManager] generateAndUpdateSessionTitle called for session ${sessionId}`)
-      
+
       // 将内容转换为字符串
-      const contentString = typeof userContent === 'string' 
-        ? userContent 
+      const contentString = typeof userContent === 'string'
+        ? userContent
         : JSON.stringify(userContent)
-      
+
       console.log(`[SessionManager] Content string: "${contentString.substring(0, 50)}..."`)
-      
+
       // 检查当前会话状态
       const sessionData = this.sessions.get(sessionId)
       console.log(`[SessionManager] sessionData exists: ${!!sessionData}, current title: "${sessionData?.session?.title}"`)
-      
+
       if (!sessionData || sessionData.session.title !== '新对话') {
-        console.log(`[SessionManager] Skipping title update: session not found or title already set`)
+        console.log(`[SessionManager] Skipping title update: session not found or title already set to "${sessionData?.session?.title}"`)
         return
       }
-      
+
       // 使用 LLM 生成标题
       console.log(`[SessionManager] Calling LLM to generate title...`)
       let title = await generateSessionTitleWithLLM(contentString)
       console.log(`[SessionManager] LLM generated title: "${title}"`)
-      
+
       // 如果 LLM 返回了默认标题，强制使用简单规则重新生成
       if (title === '新对话') {
         console.log(`[SessionManager] LLM returned default title, falling back to simple rule`)
         title = generateSimpleTitle(contentString)
         console.log(`[SessionManager] Simple rule generated title: "${title}"`)
       }
-      
+
       // 强制更新标题，只要是第一个消息！
       console.log(`[SessionManager] Updating title for session ${sessionId}: "${title}"`)
-      
+
       // 更新内存中的会话
       sessionData.session.title = title
-      
+
       // 异步更新数据库
       await this.sessionRepo.updateTitle(sessionId, title)
       console.log(`[SessionManager] Title saved to database`)
-      
+
       // 通知前端会话标题已更新
       if (this.onSessionTitleUpdated) {
         console.log(`[SessionManager] Calling onSessionTitleUpdated callback`)
         this.onSessionTitleUpdated(sessionId, title)
       } else {
-        console.log(`[SessionManager] onSessionTitleUpdated callback is not set`)
+        console.warn(`[SessionManager] onSessionTitleUpdated callback is not set, title updated but frontend not notified!`)
       }
+
+      const duration = Date.now() - startTime
+      console.log(`[SessionManager] ✅ Title generation completed successfully in ${duration}ms for session ${sessionId}: "${title}"`)
     } catch (error) {
-      console.error(`[SessionManager] Failed to generate/update session title:`, error)
-      // 标题生成失败不影响主要功能，静默处理
+      const duration = Date.now() - startTime
+      console.error(`[SessionManager] ❌ Failed to generate/update session title after ${duration}ms:`, error)
+      console.error(`[SessionManager] Error details:`, {
+        sessionId,
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      })
+      // 标题生成失败不影响主要功能，但记录详细的错误信息以便排查
     }
   }
 

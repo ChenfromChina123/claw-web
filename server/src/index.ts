@@ -978,11 +978,11 @@ async function startServer() {
     console.log('\n[SessionTitle] Setting up session title update callback...')
     sessionManager.setOnSessionTitleUpdated((sessionId: string, title: string) => {
       const message = JSON.stringify({
-        type: 'session_renamed',
+        type: 'session_title_updated',  // ✅ 使用正确的事件类型，与前端监听一致
         sessionId,
         title,
       })
-      
+
       // 广播到所有连接的客户端
       let sentCount = 0
       for (const [, connection] of wsManager.getAllConnections()) {
@@ -991,12 +991,14 @@ async function startServer() {
           sentCount++
         }
       }
-      
+
       if (sentCount > 0) {
-        console.log(`[SessionTitle] 广播会话标题更新到 ${sentCount} 个客户端: sessionId=${sessionId}, title="${title}"`)
+        console.log(`[SessionTitle] ✅ 广播会话标题更新到 ${sentCount} 个客户端: sessionId=${sessionId}, title="${title}"`)
+      } else {
+        console.warn(`[SessionTitle] ⚠️ 没有已连接的客户端，标题更新未发送: sessionId=${sessionId}, title="${title}"`)
       }
     })
-    console.log('[SessionTitle] Session title update callback set up')
+    console.log('[SessionTitle] Session title update callback set up successfully')
   } catch (error) {
     console.warn('[SessionTitle] Failed to set up session title update callback:', error)
   }
