@@ -335,7 +335,7 @@ onUnmounted(() => {
             <NTooltip trigger="hover">
               <template #trigger>
                 <NButton size="small" secondary @click.stop="handleDownloadFile">
-                  <template #icon><NIcon :size="14" component={DownloadOutline} /></template>
+                  <template #icon><NIcon :size="14" :component="DownloadOutline" /></template>
                   下载
                 </NButton>
               </template>
@@ -347,7 +347,7 @@ onUnmounted(() => {
         <!-- 错误状态 -->
         <div v-if="toolCall.status === 'error'" class="fw-error-section">
           <div class="error-header">
-            <NIcon :size="16" component={CloseCircleOutline} color="#ef4444" />
+            <NIcon :size="16" :component="CloseCircleOutline" color="#ef4444" />
             <span>文件写入失败</span>
           </div>
           <div v-if="toolCall.error" class="error-content">{{ toolCall.error }}</div>

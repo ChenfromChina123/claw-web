@@ -14,7 +14,7 @@
  * - Axios HTTP 请求
  */
 
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick, h } from 'vue'
 import { 
   NTree, 
   NIcon, 
@@ -515,24 +515,6 @@ defineExpose({
     </div>
   </div>
 </template>
-
-<script lang="ts">
-import { h } from 'vue'
-export default {
-  components: {
-    FolderOpen,
-    Folder,
-    DocumentText,
-    Code,
-    Image,
-    LogoMarkdown,
-    Settings,
-    Refresh,
-    Save,
-    Download
-  }
-}
-</script>
 
 <style scoped>
 .agent-workdir {

@@ -235,7 +235,7 @@ async function handleCopyContent() {
           <NTooltip trigger="hover">
             <template #trigger>
               <NButton size="tiny" secondary circle @click="handleDownload">
-                <template #icon><NIcon :size="14" component={DownloadOutline} /></template>
+                <template #icon><NIcon :size="14" :component="DownloadOutline" /></template>
               </NButton>
             </template>
             下载文件
@@ -305,7 +305,7 @@ async function handleCopyContent() {
 
           <!-- 不支持的文件类型 -->
           <div v-else class="unsupported-preview">
-            <NIcon :size="48" component={GridOutline} color="#6b7280" />
+            <NIcon :size="48" :component="GridOutline" color="#6b7280" />
             <p>此文件类型不支持在线预览</p>
             <p class="hint">点击下载按钮获取完整文件</p>
           </div>
