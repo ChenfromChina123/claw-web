@@ -34,7 +34,7 @@ import {
   Refresh,
   Save,
   Home,
-  FolderShared
+  Briefcase
 } from '@vicons/ionicons5'
 import apiClient from '@/api/client'
 import * as monaco from 'monaco-editor'
@@ -559,7 +559,7 @@ defineExpose({
               @click="switchDirectoryType('session')"
             >
               <template #icon>
-                <NIcon><FolderShared /></NIcon>
+                <NIcon><Briefcase /></NIcon>
               </template>
               会话
             </NTag>
