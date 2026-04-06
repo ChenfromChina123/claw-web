@@ -39,6 +39,7 @@ import { getBuiltInAgents, agentManager, initializeDemoOrchestration, engineExec
 import { TaskStatus, TaskPriority, type BackgroundTask } from './services/backgroundTaskManager'
 import { getAgentStatusService, createAgentStatusService, setAgentStatusService } from './services/agentStatusService'
 import { getWorkflowEventService } from './services/workflowEventService'
+import { getWorkspaceManager } from './services/workspaceManager'
 
 const PORT = parseInt(process.env.PORT || '3000', 10)
 const WS_PORT = parseInt(process.env.WS_PORT || '3001', 10)
@@ -166,12 +167,26 @@ class SessionConversationManager {
   private agentRunner: WebAgentRunner
   private sessionBridge: WebSessionBridge
   private isolationManager: any = null
+  private workspaceManager = getWorkspaceManager()
 
   constructor() {
     this.toolExecutor = toolExecutor
     this.commandBridge = new WebCommandBridge()
     this.agentRunner = new WebAgentRunner()
     this.sessionBridge = new WebSessionBridge()
+  }
+
+  /**
+   * 初始化会话的工作目录（Workspace）
+   */
+  private async initializeSessionWorkspace(sessionId: string, userId: string): Promise<void> {
+    try {
+      const workspace = await this.workspaceManager.createWorkspace(userId, sessionId)
+      console.log(`[SessionWorkspace] Workspace initialized for session ${sessionId}:`, workspace.path)
+    } catch (error) {
+      console.error(`[SessionWorkspace] Failed to initialize workspace for session ${sessionId}:`, error)
+      // 不抛出错误，允许在没有工作目录的情况下继续
+    }
   }
 
   /**
@@ -247,6 +262,12 @@ class SessionConversationManager {
       console.warn(`[SessionIsolation] Cannot initialize: userId is missing`)
     } else if (this.isolationManager) {
       console.log(`[SessionIsolation] Isolation manager already initialized`)
+    }
+
+    // 1.1 初始化工作目录（Workspace）
+    if (userId) {
+      console.log(`[SessionWorkspace] Initializing workspace for session ${sessionId}, userId=${userId}`)
+      await this.initializeSessionWorkspace(sessionId, userId)
     }
 
     // 2. 检查是否为命令
@@ -435,9 +456,22 @@ class SessionConversationManager {
 
     console.log(`[${sessionId}] Calling AI API with ${messages.length} messages`)
 
+    // 获取工作区信息并注入到系统提示中
+    let systemPrompt = ''
+    try {
+      const workspaceSummary = await this.workspaceManager.getWorkspaceSummaryForContext(sessionId)
+      if (workspaceSummary) {
+        systemPrompt = workspaceSummary
+        console.log(`[${sessionId}] Workspace info injected into context`)
+      }
+    } catch (error) {
+      console.warn(`[${sessionId}] Failed to get workspace summary:`, error)
+    }
+
     const stream = client.messages.stream({
       model,
       max_tokens: 4096,
+      system: systemPrompt || undefined,
       tools: this.toolExecutor.getAnthropicTools() as Anthropic.Tool[],
       messages: messages.map(m => {
         // 如果 content 已经是数组，直接使用；否则用字符串格式
@@ -1709,6 +1743,167 @@ async function startServer() {
         }
       }
 
+      // ==================== Workspace API ====================
+
+      // POST /api/workspace/:sessionId/upload - 上传文件到工作区
+      const workspaceUploadMatch = path.match(/^\/api\/workspace\/([^\/]+)\/upload$/)
+      if (workspaceUploadMatch && method === 'POST') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const sessionId = workspaceUploadMatch[1]
+          
+          // 解析 multipart/form-data
+          const contentType = req.headers.get('content-type') || ''
+          if (!contentType.includes('multipart/form-data')) {
+            return createErrorResponse('INVALID_CONTENT_TYPE', '需要 multipart/form-data 格式', 400)
+          }
+
+          // 使用 Bun 的内置文件处理
+          const formData = await req.formData()
+          const file = formData.get('file') as File | null
+          
+          if (!file) {
+            return createErrorResponse('NO_FILE', '未找到上传的文件', 400)
+          }
+
+          // 转换为 Buffer
+          const arrayBuffer = await file.arrayBuffer()
+          const buffer = Buffer.from(arrayBuffer)
+
+          // 上传到工作区
+          const workspaceManager = getWorkspaceManager()
+          const result = await workspaceManager.uploadFile(
+            sessionId,
+            buffer,
+            file.name,
+            file.type || 'application/octet-stream'
+          )
+
+          if (!result.success) {
+            return createErrorResponse('UPLOAD_FAILED', result.error || '文件上传失败', 400)
+          }
+
+          return createSuccessResponse({
+            success: true,
+            fileId: result.fileId,
+            filename: result.filename,
+            originalName: result.originalName,
+            path: result.path,
+            size: result.size,
+            message: '文件上传成功'
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '文件上传失败'
+          return createErrorResponse('UPLOAD_ERROR', message, 500)
+        }
+      }
+
+      // GET /api/workspace/:sessionId/files - 获取工作区文件列表
+      const workspaceFilesMatch = path.match(/^\/api\/workspace\/([^\/]+)\/files$/)
+      if (workspaceFilesMatch && method === 'GET') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const sessionId = workspaceFilesMatch[1]
+          const workspaceManager = getWorkspaceManager()
+          const files = await workspaceManager.listFiles(sessionId)
+
+          return createSuccessResponse({
+            files,
+            count: files.length,
+            sessionId
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取文件列表失败'
+          return createErrorResponse('LIST_FILES_FAILED', message, 500)
+        }
+      }
+
+      // DELETE /api/workspace/:sessionId/files/:filename - 删除工作区中的文件
+      const workspaceDeleteMatch = path.match(/^\/api\/workspace\/([^\/]+)\/files\/([^\/]+)$/)
+      if (workspaceDeleteMatch && method === 'DELETE') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const sessionId = workspaceDeleteMatch[1]
+          const filename = decodeURIComponent(workspaceDeleteMatch[2])
+          const workspaceManager = getWorkspaceManager()
+          const success = await workspaceManager.deleteFile(sessionId, filename)
+
+          if (!success) {
+            return createErrorResponse('DELETE_FAILED', '文件删除失败或文件不存在', 404)
+          }
+
+          return createSuccessResponse({ 
+            success: true, 
+            message: '文件删除成功' 
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '文件删除失败'
+          return createErrorResponse('DELETE_ERROR', message, 500)
+        }
+      }
+
+      // GET /api/workspace/:sessionId/info - 获取工作区信息
+      const workspaceInfoMatch = path.match(/^\/api\/workspace\/([^\/]+)$/i)
+      if (workspaceInfoMatch && method === 'GET') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const sessionId = workspaceInfoMatch[1]
+          const workspaceManager = getWorkspaceManager()
+          const workspace = await workspaceManager.getWorkspace(sessionId)
+
+          if (!workspace) {
+            return createErrorResponse('NOT_FOUND', '工作区不存在', 404)
+          }
+
+          return createSuccessResponse({ workspace })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取工作区信息失败'
+          return createErrorResponse('INFO_FAILED', message, 500)
+        }
+      }
+
+      // DELETE /api/workspace/:sessionId - 清空工作区
+      if (workspaceInfoMatch && method === 'DELETE') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const sessionId = workspaceInfoMatch[1]
+          const workspaceManager = getWorkspaceManager()
+          const success = await workspaceManager.clearWorkspace(sessionId)
+
+          if (!success) {
+            return createErrorResponse('CLEAR_FAILED', '工作区清空失败或不存在', 404)
+          }
+
+          return createSuccessResponse({ 
+            success: true, 
+            message: '工作区已清空' 
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '清空工作区失败'
+          return createErrorResponse('CLEAR_ERROR', message, 500)
+        }
+      }
+
       // ==================== Models API ====================
 
       // GET /api/models - 获取可用模型列表
@@ -2496,6 +2691,12 @@ async function startServer() {
   console.log(`       GET    /api/agents/isolation/:id      - 获取隔离上下文详情`)
   console.log(`       POST   /api/agents/isolation/:id/execute - 在隔离上下文中执行命令`)
   console.log(`       DELETE /api/agents/isolation/:id      - 销毁隔离上下文`)
+  console.log(`\n[API]  Workspace Endpoints (工作区管理):`)
+  console.log(`       POST   /api/workspace/:sessionId/upload   - 上传文件到工作区`)
+  console.log(`       GET    /api/workspace/:sessionId/files    - 获取工作区文件列表`)
+  console.log(`       DELETE /api/workspace/:sessionId/files/:filename - 删除文件`)
+  console.log(`       GET    /api/workspace/:sessionId          - 获取工作区信息`)
+  console.log(`       DELETE /api/workspace/:sessionId          - 清空工作区`)
   console.log(`\n[API]  Diagnostics Endpoints:`)
   console.log(`       GET    /api/diagnostics/health        - 健康检查`)
   console.log(`       GET    /api/diagnostics/components    - 获取组件详细信息`)
