@@ -439,6 +439,7 @@ function handleAddTeamMember() {
                 ref="inputRef"
                 :disabled="!chatStore.currentSessionId"
                 :sidebar-collapsed="sidebarCollapsed"
+                :session-id="chatStore.currentSessionId || undefined"
                 @send="handleSendMessage"
                 @focus="showCommandPalette = false"
               />
