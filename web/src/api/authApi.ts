@@ -3,6 +3,7 @@
  */
 
 import apiClient from './client'
+import { unwrapApiData } from './unwrapApiResponse'
 import type {
   LoginRequest,
   RegisterRequest,
@@ -21,7 +22,7 @@ export const authApi = {
    */
   async sendRegisterCode(email: string): Promise<SendCodeResponse> {
     const response = await apiClient.post<SendCodeResponse>('/auth/register/send-code', { email })
-    return response.data as SendCodeResponse
+    return unwrapApiData(response)
   },
 
   /**
@@ -29,7 +30,7 @@ export const authApi = {
    */
   async register(request: RegisterRequest): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>('/auth/register', request)
-    const data = response.data as AuthResponse
+    const data = unwrapApiData(response)
     if (data.accessToken) {
       localStorage.setItem('token', data.accessToken)
     }
@@ -43,7 +44,7 @@ export const authApi = {
     console.log('[authApi] 发送登录请求:', request)
     const response = await apiClient.post<AuthResponse>('/auth/login', request)
     console.log('[authApi] 收到登录响应:', response)
-    const data = response.data as AuthResponse
+    const data = unwrapApiData(response)
     if (data.accessToken) {
       localStorage.setItem('token', data.accessToken)
     }
@@ -55,7 +56,7 @@ export const authApi = {
    */
   async sendForgotPasswordCode(email: string): Promise<SendCodeResponse> {
     const response = await apiClient.post<SendCodeResponse>('/auth/forgot-password/send-code', { email })
-    return response.data as SendCodeResponse
+    return unwrapApiData(response)
   },
 
   /**
@@ -63,7 +64,7 @@ export const authApi = {
    */
   async resetPassword(request: ResetPasswordRequest): Promise<{ message: string }> {
     const response = await apiClient.post<{ message: string }>('/auth/forgot-password', request)
-    return response.data as { message: string }
+    return unwrapApiData(response)
   },
 
   /**
@@ -71,7 +72,7 @@ export const authApi = {
    */
   async getCurrentUser(): Promise<User> {
     const response = await apiClient.get<User>('/auth/me')
-    return response.data as User
+    return unwrapApiData(response)
   },
 
   /**
