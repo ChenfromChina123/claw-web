@@ -14,7 +14,7 @@ import {
   NIcon,
   useMessage,
 } from 'naive-ui'
-import { FolderOpen } from '@vicons/ionicons5'
+import { FolderOpen, Home } from '@vicons/ionicons5'
 import { useChatStore } from '@/stores/chat'
 import type { Session } from '@/types'
 import AgentWorkDir from './AgentWorkDir.vue'
@@ -248,6 +248,18 @@ function formatTime(date: Date | string) {
           </NInput>
         </div>
 
+        <!-- 主会话入口 -->
+        <div class="master-session-entry" @click="showWorkDir = true">
+          <div class="master-session-icon">🏠</div>
+          <div class="master-session-content">
+            <div class="master-session-title">用户主目录</div>
+            <div class="master-session-desc">Skills · 配置 · 永久存储</div>
+          </div>
+          <div class="master-session-badge">
+            <span class="badge-star">⭐</span>
+          </div>
+        </div>
+
         <!-- 会话列表 -->
         <NScrollbar class="sidebar-list">
           <div class="session-list">
@@ -284,8 +296,8 @@ function formatTime(date: Date | string) {
             </div>
 
             <!-- 加载更多提示 -->
-            <div 
-              v-if="hasMoreSessions" 
+            <div
+              v-if="hasMoreSessions"
               ref="loadMoreTriggerRef"
               class="load-more-trigger"
             >
@@ -428,6 +440,81 @@ function formatTime(date: Date | string) {
 .sidebar-list {
   flex: 1;
   overflow: hidden;
+}
+
+/* 主会话入口样式 */
+.master-session-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: 8px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(217, 119, 6, 0.06));
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.master-session-entry::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.5);
+}
+
+.master-session-entry:hover {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.18), rgba(217, 119, 6, 0.10));
+  border-color: rgba(251, 191, 36, 0.4);
+  transform: translateX(4px);
+  box-shadow: 0 4px 16px rgba(251, 191, 36, 0.15);
+}
+
+.master-session-icon {
+  font-size: 28px;
+  filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.4));
+}
+
+.master-session-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.master-session-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fbbf24;
+  letter-spacing: 0.3px;
+  margin-bottom: 2px;
+}
+
+.master-session-desc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+}
+
+.master-session-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.badge-star {
+  font-size: 18px;
+  filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.6));
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.8; }
 }
 
 .session-list {
