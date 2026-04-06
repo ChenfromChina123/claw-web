@@ -9,10 +9,15 @@ import {
   NDropdown,
   NModal,
   NSpin,
+  NDrawer,
+  NDrawerContent,
+  NIcon,
   useMessage,
 } from 'naive-ui'
+import { FolderOpen } from '@vicons/ionicons5'
 import { useChatStore } from '@/stores/chat'
 import type { Session } from '@/types'
+import AgentWorkDir from './AgentWorkDir.vue'
 
 const router = useRouter()
 const chatStore = useChatStore()
@@ -29,6 +34,9 @@ const SESSIONS_PER_PAGE = 10
 const loadMoreTriggerRef = ref<HTMLElement | null>(null)
 const isLoadingMore = ref(false)
 let intersectionObserver: IntersectionObserver | null = null
+
+// 工作目录抽屉状态
+const showWorkDir = ref(false)
 
 watch(collapsed, (newVal) => {
   emit('update:collapsed', newVal)
@@ -297,6 +305,12 @@ function formatTime(date: Date | string) {
         <!-- 底部 -->
         <div class="sidebar-footer">
           <div class="sidebar-footer-actions">
+            <NButton block quaternary size="small" @click="showWorkDir = true">
+              <template #icon>
+                <NIcon><FolderOpen /></NIcon>
+              </template>
+              工作目录
+            </NButton>
             <NButton block quaternary size="small" @click="router.push('/integration')">
               集成工作台
             </NButton>
@@ -356,6 +370,25 @@ function formatTime(date: Date | string) {
         确定删除「{{ deleteTarget?.title || '未命名' }}」吗？聊天记录将一并删除，且不可恢复。
       </p>
     </NModal>
+
+    <!-- 工作目录抽屉 -->
+    <NDrawer
+      v-model:show="showWorkDir"
+      :width="800"
+      placement="right"
+      :trap-focus="false"
+      :block-scroll="true"
+    >
+      <NDrawerContent title="工作目录" closable>
+        <AgentWorkDir 
+          v-if="chatStore.currentSessionId"
+          :session-id="chatStore.currentSessionId"
+        />
+        <div v-else class="no-session-hint">
+          <p>请先选择一个会话</p>
+        </div>
+      </NDrawerContent>
+    </NDrawer>
   </div>
 </template>
 
@@ -657,5 +690,14 @@ function formatTime(date: Date | string) {
 
 .collapse-icon.rotated {
   transform: rotate(180deg);
+}
+
+.no-session-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 </style>
