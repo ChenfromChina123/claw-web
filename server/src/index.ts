@@ -2019,7 +2019,7 @@ async function startServer() {
           const content = await fs.readFile(fullPath, 'utf-8')
 
           // 检测文件类型（用于语法高亮）
-          const ext = path.extname(filePath).toLowerCase()
+          const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase()
           const language = detectLanguage(ext)
 
           return createSuccessResponse({
