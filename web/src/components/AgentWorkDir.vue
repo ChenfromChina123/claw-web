@@ -138,8 +138,8 @@ let editorInstance: monaco.editor.IStandaloneCodeEditor | null = null
 /**
  * 获取 API 基础路径
  */
-const API_WORKDIR_BASE = '/api/agent/workdir'
-const API_USERDIR_BASE = '/api/agent/userdir'
+const API_WORKDIR_BASE = '/agent/workdir'
+const API_USERDIR_BASE = '/agent/userdir'
 
 /**
  * 计算当前 API 基础路径
