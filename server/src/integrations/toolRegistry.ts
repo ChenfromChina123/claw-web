@@ -685,7 +685,28 @@ export class ToolRegistry {
       isConcurrencySafe: true,
     })
     
-    console.log(`[ToolRegistry] 注册了 ${this.builtinTools.size} 个内置工具`)
+    this.registerBuiltinTool({
+      name: 'ImageRead',
+      displayName: '读取图片',
+      description: '读取图片文件并返回给 Agent 分析。支持 PNG、JPG、JPEG、GIF、WebP 等格式，自动压缩优化',
+      category: TOOL_CATEGORIES.FILE.id,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: '图片文件路径' },
+          maxWidth: { type: 'number', description: '最大宽度（像素）' },
+          maxHeight: { type: 'number', description: '最大高度（像素）' },
+          quality: { type: 'number', description: '图片质量 (0-100)' },
+          fullSize: { type: 'boolean', description: '是否返回原始尺寸' },
+        },
+        required: ['path'],
+      },
+      isReadOnly: true,
+      isConcurrencySafe: true,
+      aliases: ['read_image', 'view_image', 'image'],
+    })
+    
+    console.log(`[ToolRegistry] 注册了 ${this.builtinTools.size} 个内置工具，包括图片查看功能`)
   }
   
   // ==================== 工具查询 ====================

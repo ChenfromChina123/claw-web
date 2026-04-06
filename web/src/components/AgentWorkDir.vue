@@ -37,7 +37,7 @@ import {
   SettingOutlined,
   ReloadOutlined,
   SaveOutlined,
-  DownloadOutlined
+  DownloadOutline
 } from '@vicons/ionicons5'
 import axios from 'axios'
 import * as monaco from 'monaco-editor'
@@ -489,7 +489,7 @@ export default {
     SettingOutlined,
     ReloadOutlined,
     SaveOutlined,
-    DownloadOutlined
+    DownloadOutline
   }
 }
 </script>
