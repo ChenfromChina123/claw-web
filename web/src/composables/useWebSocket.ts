@@ -381,6 +381,13 @@ class EnhancedWebSocketClient {
           break
         }
 
+        case 'master_session': {
+          const masterSession = (message as { session?: Session }).session
+          console.log('[WS] Master session received:', masterSession)
+          this.emitEvent('master_session', masterSession)
+          break
+        }
+
         case 'session_created':
           console.log('[WS] Session created:', (message as { session?: unknown }).session)
           this.emitEvent('session_created', (message as { session?: unknown }).session)

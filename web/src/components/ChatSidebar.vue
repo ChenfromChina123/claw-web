@@ -58,7 +58,13 @@ const filteredSessions = computed(() => {
 })
 
 const visibleSessions = computed(() => {
-  return filteredSessions.value.slice(0, visibleSessionCount.value)
+  const sessions = filteredSessions.value.slice(0, visibleSessionCount.value)
+  // 主会话始终在最前面
+  return sessions.sort((a, b) => {
+    if (a.isMaster && !b.isMaster) return -1
+    if (!a.isMaster && b.isMaster) return 1
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  })
 })
 
 const hasMoreSessions = computed(() => {
