@@ -984,12 +984,12 @@ async function startServer() {
     port: PORT,
     async fetch(req, server) {
       const url = new URL(req.url)
-      const urlPath = url.pathname
+      const path = url.pathname
       const method = req.method
 
       // Auth routes
-      if (urlPath.startsWith('/api/auth/')) {
-        return handleAuthRoutes(urlPath, method, req)
+      if (path.startsWith('/api/auth/')) {
+        return handleAuthRoutes(path, method, req)
       }
 
       // WebSocket upgrade
@@ -1926,7 +1926,7 @@ async function startServer() {
       // ==================== Agent WorkDir API (工作目录浏览器) ====================
 
       // GET /api/agent/workdir/list - 获取目录/文件列表（懒加载）
-      if (urlPath === '/api/agent/workdir/list' && method === 'GET') {
+      if (path === '/api/agent/workdir/list' && method === 'GET') {
         try {
           const auth = await authMiddleware(req)
           if (!auth.userId) {
@@ -1972,7 +1972,7 @@ async function startServer() {
       }
 
       // GET /api/agent/workdir/content - 获取文件内容
-      if (urlPath === '/api/agent/workdir/content' && method === 'GET') {
+      if (path === '/api/agent/workdir/content' && method === 'GET') {
         try {
           const auth = await authMiddleware(req)
           if (!auth.userId) {
@@ -2042,7 +2042,7 @@ async function startServer() {
       }
 
       // POST /api/agent/workdir/save - 保存文件修改
-      if (urlPath === '/api/agent/workdir/save' && method === 'POST') {
+      if (path === '/api/agent/workdir/save' && method === 'POST') {
         try {
           const auth = await authMiddleware(req)
           if (!auth.userId) {
