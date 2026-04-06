@@ -99,6 +99,8 @@ const API_BASE = '/agent/workdir'
  * @returns 子项列表
  */
 async function loadDirectory(nodeKey: string, showLoading = false): Promise<TreeOption[]> {
+  console.log('[AgentWorkDir] loadDirectory called:', { nodeKey, showLoading })
+
   try {
     if (showLoading) {
       loading.value = true
@@ -111,15 +113,21 @@ async function loadDirectory(nodeKey: string, showLoading = false): Promise<Tree
       }
     }) as any
 
+    console.log('[AgentWorkDir] API response:', response.data)
+
     const items = response.data.data.items
 
-    return items.map((item: any) => ({
-      key: item.path || `/${item.name}`,
-      label: item.name,
-      prefix: () => getFileIcon(item.isDirectory, item.type, item.extension),
-      isLeaf: !item.isDirectory,
-      children: item.isDirectory ? undefined : undefined
-    }))
+    return items.map((item: any) => {
+      const node: TreeOption = {
+        key: item.path || `/${item.name}`,
+        label: item.name,
+        prefix: () => getFileIcon(item.isDirectory, item.type, item.extension),
+        isLeaf: !item.isDirectory
+      }
+      // 目录节点不设置 children 属性，让 NTree 触发懒加载
+      // 文件节点也不需要 children
+      return node
+    })
   } catch (error: any) {
     console.error('[AgentWorkDir] 加载目录失败:', error)
     message.error(error.response?.data?.error?.message || '加载目录失败')
@@ -204,10 +212,18 @@ async function saveCurrentFile() {
 /**
  * 处理树节点展开（懒加载子目录）
  */
-async function handleLoad(node: TreeOption) {
-  if (!node.key) return []
+async function handleLoad(node: TreeOption): Promise<TreeOption[]> {
+  console.log('[AgentWorkDir] handleLoad called for node:', node.key)
 
-  return await loadDirectory(node.key as string)
+  if (!node.key) {
+    console.log('[AgentWorkDir] node.key is empty, returning []')
+    return []
+  }
+
+  const children = await loadDirectory(node.key as string)
+  console.log('[AgentWorkDir] Loaded children:', children.length, 'items for path:', node.key)
+
+  return children
 }
 
 /**
