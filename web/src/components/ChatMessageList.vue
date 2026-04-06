@@ -123,7 +123,7 @@ const showStandaloneLoadingRow = computed(() => {
   const last = props.messages[props.messages.length - 1]
   if (last?.role === 'assistant') return false
   return true
-}
+})
 
 /**
  * 判断工具调用是否为 FileWrite（文件写入）类型
@@ -181,7 +181,7 @@ function handleDownloadFile(filePath: string, content: string): void {
     console.error('[ChatMessageList] 下载文件失败:', err)
     message.error('下载失败，请重试')
   }
-})
+}
 
 // 解析工具调用序列，生成流程图和知识
 const flowKnowledgeData = computed(() => {

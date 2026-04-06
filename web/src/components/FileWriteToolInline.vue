@@ -138,7 +138,7 @@ const displayPath = computed(() => {
   if (path.length <= 50) return path
   const start = path.substring(0, 25)
   const end = path.substring(path.length - 20)
-  return `${start}...${end}
+  return `${start}...${end}`
 })
 
 /** 内容预览（最多显示前5行） */
