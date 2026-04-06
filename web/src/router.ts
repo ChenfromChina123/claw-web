@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { checkLoginStatus } from '@/services/authService'
-import { authApi } from '@/api'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -59,47 +58,9 @@ const router = createRouter({
   routes
 })
 
-const DEV_AUTO_LOGIN_EMAIL = '3301767269@qq.com'
-const DEV_AUTO_LOGIN_PASSWORD = '123456'
-let devAutoLoginAttempted = false
-
-/**
- * 开发环境自动登录
- */
-async function devAutoLogin(): Promise<boolean> {
-  if (import.meta.env.PROD) return false
-  if (devAutoLoginAttempted) return false
-  
-  devAutoLoginAttempted = true
-  
-  try {
-    console.log('[Dev] 开发环境自动登录中...')
-    const response = await authApi.login({
-      email: DEV_AUTO_LOGIN_EMAIL,
-      password: DEV_AUTO_LOGIN_PASSWORD,
-    })
-    
-    if (response.accessToken) {
-      console.log('[Dev] 自动登录成功')
-      return true
-    }
-    return false
-  } catch (error) {
-    console.error('[Dev] 自动登录失败:', error)
-    return false
-  }
-}
-
-router.beforeEach(async (to, _from, next) => {
+router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token')
-  let isTokenValid = token ? checkLoginStatus() : false
-  
-  if (!isTokenValid && import.meta.env.DEV && !devAutoLoginAttempted) {
-    const loginSuccess = await devAutoLogin()
-    if (loginSuccess) {
-      isTokenValid = true
-    }
-  }
+  const isTokenValid = token ? checkLoginStatus() : false
   
   if (to.meta.requiresAuth && !isTokenValid) {
     localStorage.removeItem('token')
