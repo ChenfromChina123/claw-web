@@ -564,7 +564,7 @@ defineExpose({
               会话
             </NTag>
             <NTag
-              :type="currentDirType === 'user' ? 'success' : 'default'"
+              :type="currentDirType === 'user' ? 'warning' : 'default'"
               size="small"
               round
               :style="{ cursor: 'pointer' }"
@@ -573,7 +573,7 @@ defineExpose({
               <template #icon>
                 <NIcon><Home /></NIcon>
               </template>
-              主目录
+              🏠 主目录
             </NTag>
           </div>
         </div>
@@ -586,11 +586,32 @@ defineExpose({
         </NSpace>
       </div>
 
+      <!-- 主目录特殊提示 -->
+      <div v-if="currentDirType === 'user'" class="user-dir-banner">
+        <div class="banner-icon">⭐</div>
+        <div class="banner-content">
+          <div class="banner-title">用户主目录</div>
+          <div class="banner-desc">永久存储 · Skills 安装 · 个人配置</div>
+        </div>
+      </div>
+
       <!-- 用户主目录信息 -->
       <div v-if="currentDirType === 'user' && userDirInfo" class="user-dir-info">
-        <NText depth="3" style="font-size: 11px;">
-          Skills: {{ userDirInfo.skillsCount }} | 路径: {{ userDirInfo.path.split(/[/\\]/).pop() }}
-        </NText>
+        <NTag :bordered="false" size="small" type="success">
+          {{ userDirInfo.skillsCount }} 个 Skills 已安装
+        </NTag>
+        <NTag :bordered="false" size="small" type="info">
+          {{ userDirInfo.path.split(/[/\\]/).pop() }}
+        </NTag>
+      </div>
+
+      <!-- 会话目录提示 -->
+      <div v-if="currentDirType === 'session'" class="session-dir-banner">
+        <div class="banner-icon">📂</div>
+        <div class="banner-content">
+          <div class="banner-title">会话工作目录</div>
+          <div class="banner-desc">临时存储 · 上传文件 · AI 输出</div>
+        </div>
       </div>
 
       <NSpin :show="loading" class="tree-container">
@@ -739,6 +760,69 @@ defineExpose({
   padding: 6px 14px;
   background: rgba(99, 102, 241, 0.08);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.user-dir-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(217, 119, 6, 0.08));
+  border-bottom: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.user-dir-banner .banner-icon {
+  font-size: 24px;
+  filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.5));
+}
+
+.user-dir-banner .banner-content {
+  flex: 1;
+}
+
+.user-dir-banner .banner-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fbbf24;
+  margin-bottom: 2px;
+}
+
+.user-dir-banner .banner-desc {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.session-dir-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(79, 70, 229, 0.05));
+  border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+.session-dir-banner .banner-icon {
+  font-size: 20px;
+  opacity: 0.7;
+}
+
+.session-dir-banner .banner-content {
+  flex: 1;
+}
+
+.session-dir-banner .banner-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 2px;
+}
+
+.session-dir-banner .banner-desc {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .tree-container {
