@@ -1948,7 +1948,7 @@ async function startServer() {
           }
 
           // 构建完整路径
-          const fullPath = path.join(workspace.path, dirPath === '/' ? '' : dirPath)
+          const fullPath = `${workspace.path}${dirPath === '/' ? '' : dirPath}`
 
           // 安全检查：确保路径在工作区内
           if (!fullPath.startsWith(workspace.path)) {
@@ -1994,7 +1994,7 @@ async function startServer() {
           }
 
           // 构建完整路径
-          const fullPath = path.join(workspace.path, filePath)
+          const fullPath = `${workspace.path}${filePath.startsWith('/') ? filePath : '/' + filePath}`
 
           // 安全检查
           if (!fullPath.startsWith(workspace.path)) {
@@ -2069,7 +2069,7 @@ async function startServer() {
           }
 
           // 构建完整路径
-          const fullPath = path.join(workspace.path, filePath)
+          const fullPath = `${workspace.path}${filePath.startsWith('/') ? filePath : '/' + filePath}`
 
           // 安全检查
           if (!fullPath.startsWith(workspace.path)) {
