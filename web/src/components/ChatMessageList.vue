@@ -3,7 +3,7 @@
  * 增强版消息列表组件 - 集成流程和知识可视化
  */
 import { ref, watch, nextTick, computed } from 'vue'
-import { NScrollbar, NSpin, NTag, NSwitch, NTooltip } from 'naive-ui'
+import { NScrollbar, NSpin, NTag, NSwitch, NTooltip, NModal, NCode, useMessage } from 'naive-ui'
 import type { Message, ToolCall } from '@/types'
 import type { KnowledgeCard } from '@/types/flowKnowledge'
 import type { AgentTaskStep } from '@/types/agent'
@@ -13,6 +13,8 @@ import FlowVisualizer from './FlowVisualizer.vue'
 import KnowledgeCardComponent from './KnowledgeCard.vue'
 import ToolUseEnhanced from './ToolUseEnhanced.vue'
 import TaskPipeline from './TaskPipeline.vue'
+import FileWriteToolInline from './FileWriteToolInline.vue'
+import FileOutputCard from './FileOutputCard.vue'
 
 const props = defineProps<{
   messages: Message[]
@@ -23,6 +25,32 @@ const props = defineProps<{
 
 const scrollbarRef = ref<InstanceType<typeof NScrollbar> | null>(null)
 const settingsStore = useSettingsStore()
+const message = useMessage()
+
+/** Agent 输出的文件列表（用于展示 FileOutputCard） */
+const agentOutputFiles = ref<Array<{
+  id: string
+  messageId: string
+  fileName: string
+  filePath: string
+  content: string
+  mimeType?: string
+  size?: number
+  description?: string
+}>>([])
+
+/** 文件预览弹窗状态 */
+const filePreviewModal = ref<{
+  show: boolean
+  fileName: string
+  content: string
+  filePath: string
+}>({
+  show: false,
+  fileName: '',
+  content: '',
+  filePath: '',
+})
 
 // 流程知识展示开关 - 从设置 store 读取
 const showFlowVisualization = computed(() => settingsStore.preferences.showFlowVisualization)
@@ -82,6 +110,64 @@ const showStandaloneLoadingRow = computed(() => {
   const last = props.messages[props.messages.length - 1]
   if (last?.role === 'assistant') return false
   return true
+}
+
+/**
+ * 判断工具调用是否为 FileWrite（文件写入）类型
+ * @param toolCall - 工具调用对象
+ * @returns 是否为文件写入工具
+ */
+function isFileWriteTool(toolCall: ToolCall): boolean {
+  const name = toolCall.toolName.toLowerCase()
+  return name === 'filewrite' || name === 'file_write' || name === 'write'
+}
+
+/**
+ * 判断消息是否包含 Agent 输出的文件
+ * @param messageId - 消息 ID
+ * @returns 该消息关联的输出文件列表
+ */
+function getOutputFilesForMessage(messageId: string): typeof agentOutputFiles.value {
+  return agentOutputFiles.value.filter(f => f.messageId === messageId)
+}
+
+/**
+ * 处理查看文件事件
+ * @param filePath - 文件路径
+ * @param content - 文件内容
+ */
+function handleViewFile(filePath: string, content: string): void {
+  const fileName = filePath.replace(/\\/g, '/').split('/').pop() || filePath
+  filePreviewModal.value = {
+    show: true,
+    fileName,
+    content,
+    filePath,
+  }
+}
+
+/**
+ * 处理下载文件事件
+ * @param filePath - 文件路径
+ * @param content - 文件内容
+ */
+function handleDownloadFile(filePath: string, content: string): void {
+  try {
+    const fileName = filePath.replace(/\\/g, '/').split('/').pop() || 'download.txt'
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    message.success(`文件 "${fileName}" 下载成功`)
+  } catch (err) {
+    console.error('[ChatMessageList] 下载文件失败:', err)
+    message.error('下载失败，请重试')
+  }
 })
 
 // 解析工具调用序列，生成流程图和知识
@@ -386,38 +472,49 @@ function shouldShowMessage(message: any): boolean {
                         class="inline-tool-step-item"
                         :class="[toolCall.status]"
                       >
-                        <!-- 工具头部（可折叠） -->
-                        <div class="inline-tool-header" @click="handleStepClick(toolCall.id)">
-                          <span class="inline-tool-icon">{{ getToolIcon(toolCall.toolName) }}</span>
-                          <span class="inline-tool-name">{{ toolCall.toolName }}</span>
-                          <NTag size="small" :type="getStatusType(toolCall.status) as any">
-                            {{ toolCall.status === 'pending' ? '等待中' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
-                          </NTag>
-                          <span class="inline-expand-icon">{{ activeStep === toolCall.id ? '▼' : '▶' }}</span>
-                        </div>
+                        <!-- 文件写入工具 - 使用专用动态UI组件 -->
+                        <FileWriteToolInline
+                          v-if="isFileWriteTool(toolCall)"
+                          :tool-call="toolCall"
+                          @view-file="handleViewFile"
+                          @download-file="handleDownloadFile"
+                        />
                         
-                        <!-- 展开内容：直接显示结果，不再嵌套 ToolUseEnhanced -->
-                        <Transition name="slide-toggle">
-                          <div v-if="activeStep === toolCall.id" class="inline-tool-result">
-                            <div class="result-title">执行结果</div>
-                            <div class="result-content">
-                              <pre>{{ formatToolOutput(toolCall.toolOutput) }}</pre>
-                            </div>
-                            
-                            <!-- 错误提示 -->
-                            <div v-if="toolCall.status === 'error' && getErrorInfo(toolCall)" class="inline-error-alert">
-                              <div class="error-header">
-                                <span class="error-icon">⚠️</span>
-                                <span class="error-title">工具执行失败</span>
-                                <NTag size="small" type="error">{{ getErrorInfo(toolCall)?.type }}</NTag>
-                              </div>
-                              <div class="error-message">{{ getErrorInfo(toolCall)?.message }}</div>
-                              <div class="error-suggestion" v-if="getErrorInfo(toolCall)?.suggestion">
-                                💡 建议：{{ getErrorInfo(toolCall)?.suggestion }}
-                              </div>
-                            </div>
+                        <!-- 其他工具 - 使用通用组件 -->
+                        <template v-else>
+                          <!-- 工具头部（可折叠） -->
+                          <div class="inline-tool-header" @click="handleStepClick(toolCall.id)">
+                            <span class="inline-tool-icon">{{ getToolIcon(toolCall.toolName) }}</span>
+                            <span class="inline-tool-name">{{ toolCall.toolName }}</span>
+                            <NTag size="small" :type="getStatusType(toolCall.status) as any">
+                              {{ toolCall.status === 'pending' ? '等待中' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
+                            </NTag>
+                            <span class="inline-expand-icon">{{ activeStep === toolCall.id ? '▼' : '▶' }}</span>
                           </div>
-                        </Transition>
+                          
+                          <!-- 展开内容 -->
+                          <Transition name="slide-toggle">
+                            <div v-if="activeStep === toolCall.id" class="inline-tool-result">
+                              <div class="result-title">执行结果</div>
+                              <div class="result-content">
+                                <pre>{{ formatToolOutput(toolCall.toolOutput) }}</pre>
+                              </div>
+                              
+                              <!-- 错误提示 -->
+                              <div v-if="toolCall.status === 'error' && getErrorInfo(toolCall)" class="inline-error-alert">
+                                <div class="error-header">
+                                  <span class="error-icon">⚠️</span>
+                                  <span class="error-title">工具执行失败</span>
+                                  <NTag size="small" type="error">{{ getErrorInfo(toolCall)?.type }}</NTag>
+                                </div>
+                                <div class="error-message">{{ getErrorInfo(toolCall)?.message }}</div>
+                                <div class="error-suggestion" v-if="getErrorInfo(toolCall)?.suggestion">
+                                  💡 建议：{{ getErrorInfo(toolCall)?.suggestion }}
+                                </div>
+                              </div>
+                            </div>
+                          </Transition>
+                        </template>
                       </div>
                     </div>
                     
@@ -470,6 +567,35 @@ function shouldShowMessage(message: any): boolean {
         </div>
       </NScrollbar>
     </div>
+
+    <!-- 文件预览弹窗 -->
+    <NModal
+      v-model:show="filePreviewModal.show"
+      preset="card"
+      :title="`📄 ${filePreviewModal.fileName}`"
+      style="max-width: 850px; width: 92vw;"
+      :bordered="false"
+      :segmented="{ content: true, footer: 'soft' }"
+    >
+      <div class="file-preview-content">
+        <NCode
+          :code="filePreviewModal.content"
+          language="plaintext"
+          :show-line-numbers="true"
+          style="max-height: 60vh; overflow-y: auto; font-size: 12.5px; line-height: 1.6;"
+        />
+      </div>
+      <template #footer>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="preview-path">路径：{{ filePreviewModal.filePath }}</span>
+          <div style="display: flex; gap: 8px;">
+            <NButton size="small" secondary @click="handleDownloadFile(filePreviewModal.filePath, filePreviewModal.content)">
+              📥 下载文件
+            </NButton>
+          </div>
+        </div>
+      </template>
+    </NModal>
   </div>
 </template>
 
@@ -1306,5 +1432,21 @@ function shouldShowMessage(message: any): boolean {
 .inline-tool-result .inline-error-alert .error-suggestion {
   font-size: 11px;
   padding: 6px;
+}
+
+/* 文件预览弹窗 */
+.file-preview-content {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.preview-path {
+  font-size: 12px;
+  color: #9ca3af;
+  font-family: 'Monaco', 'Menlo', monospace;
+  max-width: 50%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
