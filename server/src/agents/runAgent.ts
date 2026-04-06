@@ -12,6 +12,7 @@ import type { AgentDefinition, AgentExecutionResult, IsolationMode } from './typ
 import { createRuntimeContext, AgentRuntimeContext, RuntimeStatus, PermissionMode } from './runtimeContext'
 import { getToolRegistry, RegisteredTool } from '../integrations/toolRegistry'
 import type { IsolationContextConfig, WorktreeConfig, RemoteConfig } from './contextIsolation'
+import { llmService, type ChatMessage, type ToolDefinition as LLMToolDef } from '../services/llmService'
 
 /**
  * Agent 消息类型
