@@ -25,6 +25,7 @@ import {
   decomposeResultToTeamTasks,
   IsolationContextManager,
   getIsolationManager,
+  agentManager,
   type ForkOptions,
   type SendMessageOptions,
   type TaskDecompositionRequest,
@@ -41,6 +42,50 @@ export function createAgentApiRouter(): Router {
   const router = Router()
 
   // ==================== Agent 执行 ====================
+
+  /**
+   * @route POST /api/agents/:agentId/interrupt
+   * @desc 中断正在执行的 Agent（参考 claude-code-haha/src 的 AbortController 机制）
+   */
+  router.post('/:agentId/interrupt', (req: Request, res: Response) => {
+    try {
+      const { agentId } = req.params
+
+      if (!agentId) {
+        return res.status(400).json({
+          success: false,
+          error: '缺少必需参数: agentId'
+        })
+      }
+
+      console.log(`[AgentApi] 收到中断请求，agentId: ${agentId}`)
+
+      // 调用 AgentManager 的 interruptAgent 方法
+      const success = agentManager.interruptAgent(agentId)
+
+      if (!success) {
+        return res.status(404).json({
+          success: false,
+          error: `Agent ${agentId} 不存在或无法中断`
+        })
+      }
+
+      console.log(`[AgentApi] Agent ${agentId} 中断成功`)
+
+      res.json({
+        success: true,
+        message: `Agent ${agentId} 已被成功中断`,
+        agentId,
+        interruptedAt: new Date().toISOString()
+      })
+    } catch (error) {
+      console.error('[AgentApi] 中断 Agent 失败:', error)
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : '中断 Agent 时发生未知错误'
+      })
+    }
+  })
 
   /**
    * @route POST /api/agents/execute

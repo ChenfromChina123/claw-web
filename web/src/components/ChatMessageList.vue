@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
- * 增强版消息列表组件 - 集成流程和知识可视化
+ * 增强版消息列表组件 - 集成流程和知识可视化，支持 Agent 中断功能
  */
 import { ref, watch, nextTick, computed } from 'vue'
-import { NScrollbar, NSpin, NTag, NSwitch, NTooltip, NModal, NCode, useMessage } from 'naive-ui'
+import { NScrollbar, NSpin, NTag, NSwitch, NTooltip, NModal, NCode, NButton, NIcon, useMessage } from 'naive-ui'
 import type { Message, ToolCall } from '@/types'
 import type { KnowledgeCard } from '@/types/flowKnowledge'
 import type { AgentTaskStep } from '@/types/agent'
@@ -15,17 +15,30 @@ import ToolUseEnhanced from './ToolUseEnhanced.vue'
 import TaskPipeline from './TaskPipeline.vue'
 import FileWriteToolInline from './FileWriteToolInline.vue'
 import FileOutputCard from './FileOutputCard.vue'
+import { StopCircleOutline } from '@vicons/ionicons5'
+import { interruptAgent } from '@/api/agentApi'
 
 const props = defineProps<{
   messages: Message[]
   toolCalls: ToolCall[]
   isLoading: boolean
   agentTaskSteps?: AgentTaskStep[]
+  /** 当前活跃的 Agent ID（用于中断） */
+  currentAgentId?: string
+}>()
+
+/**
+ * 定义事件
+ */
+const emit = defineEmits<{
+  interrupt: [agentId: string]
 }>()
 
 const scrollbarRef = ref<InstanceType<typeof NScrollbar> | null>(null)
 const settingsStore = useSettingsStore()
 const message = useMessage()
+/** 中断按钮加载状态 */
+const isInterrupting = ref(false)
 
 /** Agent 输出的文件列表（用于展示 FileOutputCard） */
 const agentOutputFiles = ref<Array<{
@@ -389,7 +402,7 @@ function getMessageText(content: any): string {
  */
 function shouldShowMessage(message: any): boolean {
   const content = (message as any).content
-  
+
   // 用户消息：检查是否是 tool_result 格式（内部消息）
   if (message.role === 'user') {
     if (Array.isArray(content)) {
@@ -401,15 +414,52 @@ function shouldShowMessage(message: any): boolean {
     // 显示有内容的用户消息
     return getMessageText(content).length > 0
   }
-  
+
   // 助手消息：只要有内容或有关联的工具调用就显示
   if (message.role === 'assistant') {
     const hasContent = getMessageText(content).length > 0
     const hasTools = toolsForMessage(message.id).length > 0
     return hasContent || hasTools
   }
-  
+
   return true
+}
+
+/**
+ * 处理中断 Agent 执行（参考 claude-code-haha/src 的 useCancelRequest.ts）
+ * 调用后端 API 中断当前正在执行的 Agent
+ */
+async function handleInterruptExecution() {
+  if (!props.currentAgentId) {
+    message.warning('无法中断：当前没有活跃的 Agent')
+    return
+  }
+
+  if (isInterrupting.value) return
+
+  isInterrupting.value = true
+
+  try {
+    console.log(`[ChatMessageList] 正在中断 Agent: ${props.currentAgentId}`)
+
+    // 调用后端中断 API
+    const result = await interruptAgent(props.currentAgentId)
+
+    if (result.success) {
+      message.success('✅ Agent 执行已中断')
+      console.log(`[ChatMessageList] Agent ${props.currentAgentId} 中断成功`)
+
+      // 触发父组件事件
+      emit('interrupt', props.currentAgentId)
+    } else {
+      message.error(`❌ 中断失败: ${result.message || '未知错误'}`)
+    }
+  } catch (error: any) {
+    console.error('[ChatMessageList] 中断 Agent 失败:', error)
+    message.error(`❌ 中断失败: ${error?.message || '网络错误'}`)
+  } finally {
+    isInterrupting.value = false
+  }
 }
 </script>
 
@@ -557,8 +607,27 @@ function shouldShowMessage(message: any): boolean {
             </div>
           </div>
           
-          <!-- 活动工具调用 -->
+          <!-- 活动工具调用（带中断按钮） -->
           <div v-if="activeToolCalls.length > 0" class="active-tools">
+            <div class="active-tools-header">
+              <span class="active-tools-title">🔄 正在执行工具</span>
+
+              <!-- 中断按钮：参考 claude-code-haha 的取消机制 -->
+              <NButton
+                v-if="currentAgentId"
+                type="error"
+                size="small"
+                :loading="isInterrupting"
+                class="interrupt-button"
+                @click="handleInterruptExecution"
+              >
+                <template #icon>
+                  <NIcon><StopCircleOutline /></NIcon>
+                </template>
+                {{ isInterrupting ? '中断中...' : '中断执行' }}
+              </NButton>
+            </div>
+
             <div v-for="tool in activeToolCalls" :key="tool.id" class="tool-call active">
               <span class="tool-name">{{ tool.toolName }}</span>
               <NSpin size="small" />
@@ -1023,9 +1092,48 @@ function shouldShowMessage(message: any): boolean {
 
 .active-tools {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-left: 48px;
   margin-top: 12px;
+}
+
+/* 活动工具头部（包含中断按钮） */
+.active-tools-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.active-tools-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f59e0b;
+}
+
+/* 中断按钮样式 */
+.interrupt-button {
+  font-size: 12px !important;
+  padding: 0 12px !important;
+  height: 28px !important;
+  border-radius: 6px !important;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+  transition: all 0.2s ease !important;
+}
+
+.interrupt-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
+}
+
+.interrupt-button:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .tool-call.active {

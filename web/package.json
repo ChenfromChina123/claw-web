@@ -10,11 +10,13 @@
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix"
   },
   "dependencies": {
+    "@monaco-editor/loader": "^1.7.0",
     "@vicons/ionicons5": "^0.12.0",
     "axios": "^1.6.7",
     "highlight.js": "^11.9.0",
     "jwt-decode": "^4.0.0",
     "marked": "^12.0.0",
+    "monaco-editor": "^0.55.1",
     "naive-ui": "^2.38.1",
     "pinia": "^2.1.7",
     "vue": "^3.4.21",

@@ -240,6 +240,7 @@ export interface AgentExecutionContext {
   prompt: string
   tools: string[]
   maxTurns?: number
+  abortSignal?: AbortSignal
 }
 
 /**

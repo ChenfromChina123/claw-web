@@ -1922,6 +1922,186 @@ async function startServer() {
         }
       }
 
+      // ==================== Agent WorkDir API (工作目录浏览器) ====================
+
+      // GET /api/agent/workdir/list - 获取目录/文件列表（懒加载）
+      if (path === '/api/agent/workdir/list' && method === 'GET') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const sessionId = url.searchParams.get('sessionId')
+          const dirPath = url.searchParams.get('path') || '/'
+
+          if (!sessionId) {
+            return createErrorResponse('INVALID_PARAMS', '缺少必需参数: sessionId', 400)
+          }
+
+          const workspaceManager = getWorkspaceManager()
+          const workspace = await workspaceManager.getWorkspace(sessionId)
+
+          if (!workspace) {
+            return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区不存在，请先发送消息初始化', 404)
+          }
+
+          // 构建完整路径
+          const fullPath = path.join(workspace.path, dirPath === '/' ? '' : dirPath)
+
+          // 安全检查：确保路径在工作区内
+          if (!fullPath.startsWith(workspace.path)) {
+            return createErrorResponse('FORBIDDEN', '禁止访问工作区外的目录', 403)
+          }
+
+          // 读取目录内容
+          const items = await readDirectory(fullPath, workspace.path)
+
+          return createSuccessResponse({
+            items,
+            path: dirPath,
+            sessionId,
+            timestamp: new Date().toISOString()
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取目录列表失败'
+          console.error('[WorkDir] 列表失败:', message)
+          return createErrorResponse('LIST_FAILED', message, 500)
+        }
+      }
+
+      // GET /api/agent/workdir/content - 获取文件内容
+      if (path === '/api/agent/workdir/content' && method === 'GET') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const sessionId = url.searchParams.get('sessionId')
+          const filePath = url.searchParams.get('path')
+
+          if (!sessionId || !filePath) {
+            return createErrorResponse('INVALID_PARAMS', '缺少必需参数: sessionId, path', 400)
+          }
+
+          const workspaceManager = getWorkspaceManager()
+          const workspace = await workspaceManager.getWorkspace(sessionId)
+
+          if (!workspace) {
+            return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区不存在', 404)
+          }
+
+          // 构建完整路径
+          const fullPath = path.join(workspace.path, filePath)
+
+          // 安全检查
+          if (!fullPath.startsWith(workspace.path)) {
+            return createErrorResponse('FORBIDDEN', '禁止访问工作区外的文件', 403)
+          }
+
+          // 检查文件是否存在且是文件
+          const fs = await import('fs/promises')
+          const stat = await fs.stat(fullPath)
+
+          if (!stat.isFile()) {
+            return createErrorResponse('NOT_FILE', '目标不是文件', 400)
+          }
+
+          // 文件大小限制（10MB）
+          const MAX_FILE_SIZE = 10 * 1024 * 1024
+          if (stat.size > MAX_FILE_SIZE) {
+            return createErrorResponse('FILE_TOO_LARGE', `文件过大 (${(stat.size / 1024 / 1024).toFixed(2)}MB)，超过 10MB 限制，建议下载查看`, 400)
+          }
+
+          // 读取文件内容
+          const content = await fs.readFile(fullPath, 'utf-8')
+
+          // 检测文件类型（用于语法高亮）
+          const ext = path.extname(filePath).toLowerCase()
+          const language = detectLanguage(ext)
+
+          return createSuccessResponse({
+            content,
+            language,
+            size: stat.size,
+            lastModified: stat.mtime.toISOString(),
+            path: filePath
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取文件内容失败'
+          console.error('[WorkDir] 读取失败:', message)
+          
+          if (message.includes('ENOENT') || message.includes('not found')) {
+            return createErrorResponse('FILE_NOT_FOUND', '文件不存在', 404)
+          }
+          
+          return createErrorResponse('READ_FAILED', message, 500)
+        }
+      }
+
+      // POST /api/agent/workdir/save - 保存文件修改
+      if (path === '/api/agent/workdir/save' && method === 'POST') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const body = await req.json() as {
+            sessionId: string
+            filePath: string
+            content: string
+          }
+
+          const { sessionId, filePath, content } = body
+
+          if (!sessionId || !filePath || content === undefined) {
+            return createErrorResponse('INVALID_PARAMS', '缺少必需参数: sessionId, filePath, content', 400)
+          }
+
+          const workspaceManager = getWorkspaceManager()
+          const workspace = await workspaceManager.getWorkspace(sessionId)
+
+          if (!workspace) {
+            return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区不存在', 404)
+          }
+
+          // 构建完整路径
+          const fullPath = path.join(workspace.path, filePath)
+
+          // 安全检查
+          if (!fullPath.startsWith(workspace.path)) {
+            return createErrorResponse('FORBIDDEN', '禁止写入工作区外的位置', 403)
+          }
+
+          // 原子写入（先写临时文件，再重命名）
+          const fs = await import('fs/promises')
+          const tmpPath = `${fullPath}.tmp.${Date.now()}`
+          
+          await fs.writeFile(tmpPath, content, 'utf-8')
+          await fs.rename(tmpPath, fullPath)
+
+          // 更新工作区元数据时间戳
+          workspace.lastModifiedAt = new Date().toISOString()
+          await workspaceManager['saveMetadata'](workspace)
+
+          console.log(`[WorkDir] 文件已保存: ${filePath} (${content.length} 字符)`)
+
+          return createSuccessResponse({
+            success: true,
+            message: '文件已保存',
+            path: filePath,
+            savedAt: new Date().toISOString(),
+            size: Buffer.byteLength(content, 'utf-8')
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '保存文件失败'
+          console.error('[WorkDir] 保存失败:', message)
+          return createErrorResponse('SAVE_FAILED', message, 500)
+        }
+      }
+
       // ==================== Models API ====================
 
       // GET /api/models - 获取可用模型列表
@@ -2953,6 +3133,177 @@ function initializeRPCMethods() {
       return await commandBridge.executeCommand(command, context.sendEvent)
     },
   })
+}
+
+// ==================== WorkDir 辅助函数 ====================
+
+/**
+ * 读取目录内容（用于工作目录浏览器）
+ * @param dirPath 目录路径
+ * @param basePath 基础路径（用于计算相对路径）
+ * @returns 文件/目录列表
+ */
+async function readDirectory(dirPath: string, basePath: string): Promise<Array<{
+  name: string
+  path: string
+  isDirectory: boolean
+  size: number
+  lastModified: string
+  extension?: string
+  type?: string
+}>> {
+  const fs = await import('fs/promises')
+  
+  try {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true })
+    const items = []
+
+    for (const entry of entries) {
+      // 跳过隐藏文件和系统文件
+      if (entry.name.startsWith('.') && entry.name !== '.workspace.json') {
+        continue
+      }
+
+      const fullPath = `${dirPath}/${entry.name}`
+      const relativePath = fullPath.replace(basePath, '').replace(/\\/g, '/') || '/'
+      
+      try {
+        const stat = await fs.stat(fullPath)
+        
+        items.push({
+          name: entry.name,
+          path: relativePath,
+          isDirectory: entry.isDirectory(),
+          size: stat.size,
+          lastModified: stat.mtime.toISOString(),
+          extension: entry.isDirectory() ? undefined : entry.name.includes('.') ? `.${entry.name.split('.').pop()}` : '',
+          type: entry.isDirectory() ? 'directory' : getFileType(entry.name)
+        })
+      } catch (statError) {
+        // 无法获取状态的项目跳过
+        console.warn(`[WorkDir] 无法读取 ${fullPath} 状态`)
+      }
+    }
+
+    // 排序：目录在前，然后按名称排序
+    items.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) {
+        return a.isDirectory ? -1 : 1
+      }
+      return a.name.localeCompare(b.name)
+    })
+
+    return items
+  } catch (error) {
+    console.error('[WorkDir] 读取目录失败:', error)
+    throw error
+  }
+}
+
+/**
+ * 根据文件扩展名检测语言类型（用于 Monaco Editor 语法高亮）
+ * @param ext 文件扩展名（包含点号，如 .ts）
+ * @returns Monaco Editor 支持的语言标识符
+ */
+function detectLanguage(ext: string): string {
+  const languageMap: Record<string, string> = {
+    '.js': 'javascript',
+    '.jsx': 'javascript',
+    '.ts': 'typescript',
+    '.tsx': 'typescript',
+    '.py': 'python',
+    '.java': 'java',
+    '.c': 'c',
+    '.cpp': 'cpp',
+    '.h': 'cpp',
+    '.cs': 'csharp',
+    '.go': 'go',
+    '.rs': 'rust',
+    '.rb': 'ruby',
+    '.php': 'php',
+    '.swift': 'swift',
+    '.kt': 'kotlin',
+    '.scala': 'scala',
+    '.r': 'r',
+    '.m': 'objective-c',
+    '.html': 'html',
+    '.htm': 'html',
+    '.css': 'css',
+    '.scss': 'scss',
+    '.less': 'less',
+    '.sass': 'sass',
+    '.json': 'json',
+    '.xml': 'xml',
+    '.yaml': 'yaml',
+    '.yml': 'yaml',
+    '.toml': 'ini',
+    '.md': 'markdown',
+    '.markdown': 'markdown',
+    '.sql': 'sql',
+    '.sh': 'shell',
+    '.bash': 'shell',
+    '.zsh': 'shell',
+    '.bat': 'batch',
+    '.ps1': 'powershell',
+    '.dockerfile': 'dockerfile',
+    '.env': 'plaintext',
+    '.txt': 'plaintext',
+    '.log': 'plaintext',
+    '.csv': 'plaintext',
+    '.ini': 'ini',
+    '.conf': 'ini',
+    '.vue': 'html',
+    '.svelte': 'html'
+  }
+
+  return languageMap[ext.toLowerCase()] || 'plaintext'
+}
+
+/**
+ * 获取文件的类型分类（用于图标显示）
+ * @param filename 文件名
+ * @returns 类型分类
+ */
+function getFileType(filename: string): string {
+  const ext = filename.includes('.') ? `.${filename.split('.').pop()?.toLowerCase()}` : ''
+  
+  const typeMap: Record<string, string> = {
+    // 代码文件
+    '.js': 'code', '.jsx': 'code', '.ts': 'code', '.tsx': 'code',
+    '.py': 'code', '.java': 'code', '.c': 'code', '.cpp': 'code',
+    '.go': 'code', '.rs': 'code', '.rb': 'code', '.php': 'code',
+    '.swift': 'code', '.kt': 'code', '.scala': 'code',
+    
+    // Web前端
+    '.html': 'web', '.htm': 'web', '.css': 'web', 
+    '.scss': 'web', '.less': 'web', '.vue': 'web', '.svelte': 'web',
+    
+    // 数据/配置
+    '.json': 'data', '.xml': 'data', '.yaml': 'config', 
+    '.yml': 'config', '.toml': 'config', '.ini': 'config',
+    '.env': 'config', '.conf': 'config',
+    
+    // 文档
+    '.md': 'doc', '.markdown': 'doc', '.txt': 'text',
+    '.rst': 'doc', '.adoc': 'doc',
+    
+    // 数据
+    '.csv': 'data', '.tsv': 'data', '.sql': 'database',
+    
+    // 脚本
+    '.sh': 'script', '.bash': 'script', '.zsh': 'script',
+    '.bat': 'script', '.ps1': 'script',
+    
+    // 图片
+    '.png': 'image', '.jpg': 'image', '.jpeg': 'image',
+    '.gif': 'image', '.svg': 'image', '.webp': 'image', '.ico': 'image',
+    
+    // 其他
+    '.pdf': 'pdf', '.zip': 'archive', '.tar': 'archive',
+    '.gz': 'archive', '.log': 'log', '.dockerfile': 'docker'
+  }
+
+  return typeMap[ext] || 'file'
 }
 
 // ==================== Shutdown Handler ====================

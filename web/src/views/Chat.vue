@@ -350,11 +350,50 @@ function handleCommandSelect(command: string): void {
 }
 
 /**
- * 中断 Agent 执行
+ * 中断 Agent 执行（参考 claude-code-haha/src 的 useCancelRequest.ts）
+ * @param agentId 要中断的 Agent ID
  */
-function handleAbortAgent() {
-  message.warning('Agent 执行已中断')
-  // TODO: 调用后端 API 中断 Agent
+async function handleInterruptAgent(agentId: string) {
+  console.log(`[Chat] 用户请求中断 Agent: ${agentId}`)
+
+  try {
+    // 调用 API 中断 Agent
+    const { interruptAgent } = await import('@/api/agentApi')
+    const result = await interruptAgent(agentId)
+
+    if (result.success) {
+      message.success(`✅ Agent 已被成功中断`)
+      console.log(`[Chat] Agent ${agentId} 中断成功`)
+
+      // 更新本地状态：将相关工具调用标记为错误/已中断
+      const interruptedToolCalls = chatStore.toolCalls.filter(
+        tc => tc.status === 'executing'
+      )
+      interruptedToolCalls.forEach(tc => {
+        tc.status = 'error'
+        tc.toolOutput = {
+          error: '用户中断执行',
+          errorType: 'INTERRUPTED',
+          timestamp: new Date().toISOString(),
+        }
+      })
+
+      // 触发响应式更新
+      chatStore.toolCalls = [...chatStore.toolCalls]
+    } else {
+      message.error(`❌ 中断失败: ${result.message || '未知错误'}`)
+    }
+  } catch (error: any) {
+    console.error('[Chat] 中断 Agent 失败:', error)
+    message.error(`❌ 中断失败: ${error?.message || '网络错误'}`)
+  }
+}
+
+/**
+ * 处理 ToolUse 组件的中断事件
+ */
+function handleToolInterrupt(agentId: string) {
+  handleInterruptAgent(agentId)
 }
 
 /**

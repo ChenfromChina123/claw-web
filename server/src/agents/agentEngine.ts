@@ -18,11 +18,13 @@ import { getBuiltInAgents } from './builtInAgents'
 
 /**
  * Agent 管理器类
- * 
- * 管理所有 Agent 实例的生命周期
+ *
+ * 管理 Agent 实例的生命周期，支持中断机制
  */
 class AgentManager {
   private agents: Map<string, AgentInstance> = new Map()
+  /** 存储 Agent 的 AbortController，用于中断 */
+  private abortControllers: Map<string, AbortController> = new Map()
   private orchestrationState: MultiAgentOrchestrationState = {
     subAgents: [],
     taskSteps: [],
@@ -35,7 +37,7 @@ class AgentManager {
   createAgent(agentDefinition: AgentDefinition): AgentInstance {
     const agentId = `agent_${randomUUID().slice(0, 8)}`
     const now = new Date()
-    
+
     const agentInstance: AgentInstance = {
       agentId,
       agentDefinition,
@@ -72,11 +74,68 @@ class AgentManager {
         agent.progress = progress
       }
       agent.lastActivityTime = new Date()
-      
+
       if (status === 'completed') {
         agent.completedTasks++
       }
     }
+  }
+
+  /**
+   * 为 Agent 注册 AbortController（用于中断）
+   * @param agentId Agent ID
+   * @returns AbortController 实例
+   */
+  registerAbortController(agentId: string): AbortController {
+    const controller = new AbortController()
+    this.abortControllers.set(agentId, controller)
+    return controller
+  }
+
+  /**
+   * 获取 Agent 的 AbortController
+   * @param agentId Agent ID
+   * @returns AbortController 实例或 undefined
+   */
+  getAbortController(agentId: string): AbortController | undefined {
+    return this.abortControllers.get(agentId)
+  }
+
+  /**
+   * 中断指定 Agent 的执行
+   * @param agentId Agent ID
+   * @returns 是否成功中断
+   */
+  interruptAgent(agentId: string): boolean {
+    const controller = this.abortControllers.get(agentId)
+    const agent = this.agents.get(agentId)
+
+    if (!controller || !agent) {
+      return false
+    }
+
+    // 检查是否已经中断
+    if (controller.signal.aborted) {
+      return false
+    }
+
+    // 触发中断
+    controller.abort()
+
+    // 更新状态
+    this.updateAgentStatus(agentId, 'error', undefined, agent.progress)
+
+    console.log(`[AgentEngine] Agent ${agentId} 已被用户中断`)
+
+    return true
+  }
+
+  /**
+   * 清理 Agent 相关资源（包括 AbortController）
+   * @param agentId Agent ID
+   */
+  cleanupAgent(agentId: string): void {
+    this.abortControllers.delete(agentId)
   }
 
   /**
@@ -166,7 +225,10 @@ class AgentManager {
 const agentManager = new AgentManager()
 
 /**
- * 执行 Agent 任务
+ * 执行 Agent 任务（支持中断）
+ * @param context 执行上下文（包含可选的 abortSignal）
+ * @param onProgress 进度回调
+ * @returns 执行结果
  */
 export async function executeAgent(
   context: AgentExecutionContext,
@@ -174,20 +236,32 @@ export async function executeAgent(
 ): Promise<AgentExecutionResult> {
   const startTime = Date.now()
   const builtInAgents = getBuiltInAgents()
-  
+
   // 查找对应的 Agent 定义
-  const agentDef = builtInAgents.find(a => a.agentType === context.agentId.split('_')[1]) 
+  const agentDef = builtInAgents.find(a => a.agentType === context.agentId.split('_')[1])
     || builtInAgents[0] // 默认使用通用 Agent
-  
+
   // 创建 Agent 实例
   const agent = agentManager.createAgent(agentDef)
   agentManager.updateAgentStatus(agent.agentId, 'working', context.task, 0)
-  
+
+  // 注册 AbortController 用于中断
+  const abortController = agentManager.registerAbortController(agent.agentId)
+
+  // 如果外部提供了 abortSignal，则使用外部的；否则使用新创建的
+  const signal = context.abortSignal || abortController.signal
+
   // 模拟执行过程（实际应该调用 LLM）
   try {
     // 更新进度
     let progress = 0
     const progressInterval = setInterval(() => {
+      // 检查是否被中断
+      if (signal.aborted) {
+        clearInterval(progressInterval)
+        return
+      }
+
       progress += 10
       if (progress <= 100) {
         agentManager.updateAgentStatus(agent.agentId, 'working', context.task, progress)
@@ -197,25 +271,55 @@ export async function executeAgent(
       }
     }, 500)
 
-    // 模拟任务执行
-    await new Promise(resolve => setTimeout(resolve, 3000))
-    
+    // 模拟任务执行（支持中断检测）
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        clearTimeout(timeout)
+        resolve()
+      }, 3000)
+
+      // 监听中断信号
+      signal.addEventListener('abort', () => {
+        clearTimeout(timeout)
+        reject(new DOMException('Agent execution was interrupted by user', 'AbortError'))
+      }, { once: true })
+    })
+
     clearInterval(progressInterval)
-    
+
     // 完成
     agentManager.updateAgentStatus(agent.agentId, 'completed', undefined, 100)
-    
+    agentManager.cleanupAgent(agent.agentId)
+
     const result: AgentExecutionResult = {
       agentId: agent.agentId,
       status: 'completed',
       content: `Agent ${agentDef.agentType} 已完成任务: ${context.task}`,
       durationMs: Date.now() - startTime
     }
-    
+
     return result
   } catch (error) {
+    // 清理资源
+    agentManager.cleanupAgent(agent.agentId)
+
+    // 检查是否是中断错误
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      agentManager.updateAgentStatus(agent.agentId, 'error', undefined, agent.progress || 0)
+
+      console.log(`[AgentEngine] Agent ${agent.agentId} 执行被中断`)
+
+      return {
+        agentId: agent.agentId,
+        status: 'error',
+        content: '',
+        durationMs: Date.now() - startTime,
+        error: 'Execution interrupted by user'
+      }
+    }
+
     agentManager.updateAgentStatus(agent.agentId, 'error', undefined, 0)
-    
+
     return {
       agentId: agent.agentId,
       status: 'error',

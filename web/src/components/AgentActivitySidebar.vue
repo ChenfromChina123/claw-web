@@ -28,7 +28,9 @@ import AgentTeamPanel from './AgentTeamPanel.vue'
 import BackgroundTasksPanel from './BackgroundTasksPanel.vue'
 import PermissionInterceptor from './PermissionInterceptor.vue'
 import PermissionModeSelector from './PermissionModeSelector.vue'
+import AgentWorkDir from './AgentWorkDir.vue'
 import { useAgentStore } from '@/stores/agent'
+import { useChatStore } from '@/stores/chat'
 
 // Props
 interface Props {
@@ -47,6 +49,7 @@ const emit = defineEmits<{
 }>()
 
 const agentStore = useAgentStore()
+const chatStore = useChatStore()
 
 // 抽屉关闭
 function handleClose() {
@@ -273,6 +276,28 @@ const hasWorkflow = computed(() => {
               @task-click="handleTaskClick"
               @jump-to-trace="handleJumpToTrace"
             />
+          </div>
+        </NTabPane>
+
+        <!-- 工作目录 Tab -->
+        <NTabPane name="workdir" tab="工作目录">
+          <template #tab>
+            <div class="tab-label">
+              <span>📂</span>
+              <span>工作目录</span>
+            </div>
+          </template>
+          
+          <div class="tab-content workdir-tab">
+            <AgentWorkDir 
+              v-if="chatStore.currentSessionId"
+              :session-id="chatStore.currentSessionId"
+            />
+            <div v-else class="empty-state">
+              <span class="empty-icon">📂</span>
+              <span class="empty-text">暂无活动会话</span>
+              <span class="empty-hint">开始对话后可查看工作目录</span>
+            </div>
           </div>
         </NTabPane>
         
@@ -550,5 +575,12 @@ const hasWorkflow = computed(() => {
 .setting-desc {
   font-size: 11px;
   color: var(--text-color-3);
+}
+
+/* 工作目录标签页特殊样式 */
+.workdir-tab {
+  padding: 0 !important;
+  min-height: 500px;
+  height: calc(100vh - 300px);
 }
 </style>
