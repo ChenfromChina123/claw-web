@@ -5,6 +5,7 @@ import type { ToolCall } from '../../models/types'
 export class ToolCallRepository {
   /**
    * 创建工具调用（使用指定ID）
+   * 使用 UPSERT 避免重复插入错误
    */
   async createWithId(
     id: string,
@@ -17,8 +18,10 @@ export class ToolCallRepository {
   ): Promise<ToolCall> {
     const pool = getPool()
 
+    // 使用 INSERT ... ON DUPLICATE KEY UPDATE 避免重复插入错误
     await pool.query(
-      'INSERT INTO tool_calls (id, message_id, session_id, tool_name, tool_input, status, tool_output) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      `INSERT INTO tool_calls (id, message_id, session_id, tool_name, tool_input, status, tool_output) VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE tool_input = VALUES(tool_input), status = VALUES(status), tool_output = VALUES(tool_output)`,
       [id, messageId, sessionId, toolName, JSON.stringify(toolInput), status, toolOutput ? JSON.stringify(toolOutput) : null]
     )
 

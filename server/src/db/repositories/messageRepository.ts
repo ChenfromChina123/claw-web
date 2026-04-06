@@ -5,11 +5,11 @@ import type { Message } from '../../models/types'
 export class MessageRepository {
   /**
    * 创建消息（使用指定ID）
+   * 使用 UPSERT 避免重复插入错误
    */
   async createWithId(id: string, sessionId: string, role: 'user' | 'assistant' | 'system', content: string | any[]): Promise<Message> {
     const pool = getPool()
 
-    // 将 content 转换为字符串存储
     let contentStr: string
     if (typeof content === 'string') {
       contentStr = content
@@ -17,10 +17,12 @@ export class MessageRepository {
       contentStr = JSON.stringify(content)
     }
 
-    console.log(`[MessageRepository] Creating message with id: ${id}, role=${role}`)
+    console.log(`[MessageRepository] Creating/updating message with id: ${id}, role=${role}`)
 
+    // 使用 INSERT ... ON DUPLICATE KEY UPDATE 避免重复插入错误
     await pool.query(
-      'INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)',
+      `INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE content = VALUES(content)`,
       [id, sessionId, role, contentStr]
     )
 
