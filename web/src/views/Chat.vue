@@ -390,6 +390,28 @@ async function handleInterruptAgent(agentId: string) {
 }
 
 /**
+ * 获取当前活跃的 Agent ID（用于中断功能）
+ * 从 agentStore 或 toolCalls 中提取
+ */
+function getCurrentAgentId(): string | undefined {
+  // 优先从 agentStore 获取
+  const runningAgents = agentStore.currentAgents.filter(
+    a => a.status === 'RUNNING' || a.status === 'THINKING'
+  )
+  if (runningAgents.length > 0) {
+    return runningAgents[0].agentId
+  }
+
+  // 其次从正在执行的工具调用中获取
+  const executingTool = chatStore.toolCalls.find(tc => tc.status === 'executing')
+  if (executingTool) {
+    return executingTool.id
+  }
+
+  return undefined
+}
+
+/**
  * 处理 ToolUse 组件的中断事件
  */
 function handleToolInterrupt(agentId: string) {
@@ -468,7 +490,9 @@ function handleAddTeamMember() {
             :messages="chatStore.messages"
             :tool-calls="chatStore.toolCalls"
             :is-loading="chatStore.isLoading"
+            :current-agent-id="getCurrentAgentId()"
             class="message-list-container"
+            @interrupt="handleToolInterrupt"
           />
 
           <!-- 输入区包装器 -->
