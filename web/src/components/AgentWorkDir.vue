@@ -31,7 +31,7 @@ import {
   FolderOpenOutlined,
   FolderOutlined,
   FileTextOutlined,
-  CodeOutlined,
+  FileCodeOutline,
   FileImageOutlined,
   FileMarkdownOutlined,
   SettingOutlined,
@@ -255,7 +255,7 @@ function getFileIcon(isDirectory: boolean, fileType?: string, extension?: string
   // 根据文件类型返回不同图标
   switch (fileType) {
     case 'code':
-      return h(NIcon, { size: 16 }, { default: () => h(CodeOutlined) })
+      return h(NIcon, { size: 16 }, { default: () => h(FileCodeOutline) })
     case 'doc':
     case 'markdown':
       return h(NIcon, { size: 16 }, { default: () => h(FileMarkdownOutlined) })
@@ -483,7 +483,7 @@ export default {
     FolderOpenOutlined,
     FolderOutlined,
     FileTextOutlined,
-    CodeOutlined,
+    FileCodeOutline,
     FileImageOutlined,
     FileMarkdownOutlined,
     SettingOutlined,

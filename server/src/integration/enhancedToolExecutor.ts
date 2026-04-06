@@ -25,6 +25,7 @@ import {
   createSleepToolDefinition,
   createNotebookEditToolDefinition,
 } from '../tools'
+import { executeImageRead, createImageDescription } from '../tools/imageReadTool'
 import {
   normalizeToolName,
   isValidToolName,
@@ -1550,7 +1551,108 @@ export class EnhancedToolExecutor {
       handler: notebookEditTool.handler,
     })
 
-    console.log('[EnhancedToolExecutor] 已注册所有内置工具，包括 5 个新工具')
+    // ImageRead 工具 - 读取和查看图片
+    this.registerTool({
+      name: 'ImageRead',
+      description: '读取图片文件并返回给 Agent 分析。支持 PNG、JPG、JPEG、GIF、WebP、SVG、BMP、TIFF 格式。自动压缩大图片以优化性能，返回 Base64 编码的图片数据和元信息（尺寸、格式、大小等）。',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { 
+            type: 'string', 
+            description: '图片文件路径（支持绝对路径或相对路径）' 
+          },
+          maxWidth: { 
+            type: 'number', 
+            description: '最大输出宽度（像素），默认 2048',
+            maximum: 4096,
+            minimum: 100
+          },
+          maxHeight: { 
+            type: 'number', 
+            description: '最大输出高度（像素），默认 2048',
+            maximum: 4096,
+            minimum: 100
+          },
+          quality: { 
+            type: 'number', 
+            description: '图片质量 (0-100)，默认 80。值越小文件越小但质量越低',
+            maximum: 100,
+            minimum: 1
+          },
+          fullSize: { 
+            type: 'boolean', 
+            description: '是否返回原始尺寸图片（不压缩）。注意：大图可能消耗大量 token',
+            default: false
+          },
+        },
+        required: ['path'],
+      },
+      category: 'file',
+      permissions: { requiresAuth: false },
+      handler: async (input, context, sendEvent) => {
+        const imagePath = input.path as string
+        
+        sendEvent?.('tool_progress', { 
+          output: `📷 正在读取图片: ${imagePath}\n` 
+        })
+        
+        const result = await executeImageRead(
+          {
+            path: imagePath,
+            maxWidth: input.maxWidth as number,
+            maxHeight: input.maxHeight as number,
+            quality: input.quality as number,
+            fullSize: input.fullSize as boolean,
+          },
+          context.projectRoot
+        )
+        
+        if (!result.success) {
+          return {
+            success: false,
+            error: result.error
+          }
+        }
+        
+        if (!result.result) {
+          return {
+            success: false,
+            error: '图片处理结果为空'
+          }
+        }
+        
+        const { base64, mimeType, metadata, path } = result.result
+        
+        // 创建图片描述文本
+        const description = createImageDescription(metadata)
+        
+        sendEvent?.('tool_progress', { 
+          output: `${description}\n✅ 图片读取完成\n` 
+        })
+        
+        // 返回包含完整图片数据的结果
+        return {
+          success: true,
+          result: {
+            image: {
+              base64,
+              mimeType,
+              metadata
+            },
+            description,
+            path,
+            size: {
+              original: metadata.originalSize,
+              processed: metadata.outputSize,
+              reduction: ((1 - metadata.outputSize / metadata.originalSize) * 100).toFixed(1) + '%'
+            }
+          }
+        }
+      },
+    })
+
+    console.log('[EnhancedToolExecutor] 已注册所有内置工具，包括 ImageRead 工具')
   }
 
   // ==================== Helper Methods ====================
