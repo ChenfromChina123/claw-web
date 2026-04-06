@@ -41,6 +41,22 @@ const renameTarget = ref<Session | null>(null)
 const showDeleteModal = ref(false)
 const deleteTarget = ref<Session | null>(null)
 
+const filteredSessions = computed(() => {
+  const sessions = chatStore.sessions || []
+  if (!searchValue.value) return sessions
+  return sessions.filter(s =>
+    (s.title || '').toLowerCase().includes(searchValue.value.toLowerCase())
+  )
+})
+
+const visibleSessions = computed(() => {
+  return filteredSessions.value.slice(0, visibleSessionCount.value)
+})
+
+const hasMoreSessions = computed(() => {
+  return filteredSessions.value.length > visibleSessionCount.value
+})
+
 /**
  * 设置观察者监听指定元素
  */
@@ -99,22 +115,6 @@ onUnmounted(() => {
     intersectionObserver.disconnect()
     intersectionObserver = null
   }
-})
-
-const filteredSessions = computed(() => {
-  const sessions = chatStore.sessions || []
-  if (!searchValue.value) return sessions
-  return sessions.filter(s =>
-    (s.title || '').toLowerCase().includes(searchValue.value.toLowerCase())
-  )
-})
-
-const visibleSessions = computed(() => {
-  return filteredSessions.value.slice(0, visibleSessionCount.value)
-})
-
-const hasMoreSessions = computed(() => {
-  return filteredSessions.value.length > visibleSessionCount.value
 })
 
 watch(showRenameModal, (open) => {
