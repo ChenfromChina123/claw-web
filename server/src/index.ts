@@ -1372,26 +1372,34 @@ async function startServer() {
       // GET /api/agents/:type - 获取特定 Agent 详情
       if (path.startsWith('/api/agents/') && method === 'GET') {
         const agentType = path.replace('/api/agents/', '')
-        const agents = getBuiltInAgents()
-        const agent = agents.find(a => a.agentType === agentType)
         
-        if (!agent) {
-          return createErrorResponse('AGENT_NOT_FOUND', `Agent '${agentType}' not found`, 404)
+        // 排除特殊路由
+        if (agentType === 'isolation' || agentType.startsWith('isolation/') ||
+            agentType === 'orchestration' || agentType.startsWith('orchestration/') ||
+            agentType === 'execute' || agentType === 'active') {
+          // 让其他路由处理
+        } else {
+          const agents = getBuiltInAgents()
+          const agent = agents.find(a => a.agentType === agentType)
+          
+          if (!agent) {
+            return createErrorResponse('AGENT_NOT_FOUND', `Agent '${agentType}' not found`, 404)
+          }
+          
+          return createSuccessResponse({
+            agentType: agent.agentType,
+            name: agent.agentType,
+            description: agent.description || agent.whenToUse,
+            whenToUse: agent.whenToUse,
+            icon: agent.icon,
+            color: agent.color,
+            isReadOnly: agent.isReadOnly,
+            model: agent.model,
+            source: agent.source,
+            tools: agent.tools,
+            disallowedTools: agent.disallowedTools
+          })
         }
-        
-        return createSuccessResponse({
-          agentType: agent.agentType,
-          name: agent.agentType,
-          description: agent.description || agent.whenToUse,
-          whenToUse: agent.whenToUse,
-          icon: agent.icon,
-          color: agent.color,
-          isReadOnly: agent.isReadOnly,
-          model: agent.model,
-          source: agent.source,
-          tools: agent.tools,
-          disallowedTools: agent.disallowedTools
-        })
       }
 
       // GET /api/agents/orchestration/state - 获取多 Agent 协调状态
