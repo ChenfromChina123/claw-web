@@ -434,7 +434,7 @@ defineExpose({
           :data="treeData"
           :expanded-keys="expandedKeys"
           :selected-keys="selectedKey ? [selectedKey] : []"
-          :load="handleLoad"
+          :on-load="handleLoad"
           :virtual-scroll="true"
           :height="500"
           selectable
