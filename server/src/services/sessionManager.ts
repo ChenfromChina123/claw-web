@@ -199,37 +199,64 @@ export class SessionManager {
   }
 
   /**
+   * 清理用户的重复主会话
+   * 将所有标题为"主会话"的会话中只保留一个 is_master=true，其他的设为 false
+   */
+  async cleanupDuplicateMasterSessions(userId: string): Promise<void> {
+    const sessions = await this.sessionRepo.findByUserId(userId)
+    
+    // 找到所有标题为"主会话"的会话
+    const masterTitleSessions = sessions.filter(s => s.title === '主会话')
+    
+    if (masterTitleSessions.length === 0) {
+      return
+    }
+    
+    console.log(`[SessionManager] Found ${masterTitleSessions.length} sessions with title '主会话' for user ${userId}`)
+    
+    // 保留第一个，其他的取消主会话标记
+    const primarySession = masterTitleSessions[0]
+    
+    // 如果第一个没有 isMaster 标记，设置它
+    if (!primarySession.isMaster) {
+      primarySession.isMaster = true
+      await this.sessionRepo.save(primarySession)
+      console.log(`[SessionManager] Set isMaster=true for primary session: ${primarySession.id}`)
+    }
+    
+    // 其他的取消标记
+    for (let i = 1; i < masterTitleSessions.length; i++) {
+      const session = masterTitleSessions[i]
+      if (session.isMaster) {
+        session.isMaster = false
+        await this.sessionRepo.save(session)
+        console.log(`[SessionManager] Removed master flag from duplicate session: ${session.id}`)
+      }
+    }
+  }
+
+  /**
    * 获取或创建用户的主会话
    * 主会话用于管理 skills 和用户配置
    * 确保每个用户只有一个主会话
    */
   async getOrCreateMasterSession(userId: string): Promise<Session> {
+    // 先清理重复的主会话
+    await this.cleanupDuplicateMasterSessions(userId)
+    
     const sessions = await this.sessionRepo.findByUserId(userId)
     const masterSessions = sessions.filter(s => s.isMaster === true)
 
-    // 如果已经有主会话，返回第一个，并清理其他重复的主会话标记
+    // 如果已经有主会话，返回第一个
     if (masterSessions.length > 0) {
       const primaryMasterSession = masterSessions[0]
       console.log(`[SessionManager] Found existing master session: ${primaryMasterSession.id}`)
-      
-      // 如果有多个主会话，清理多余的标记（保留第一个）
-      if (masterSessions.length > 1) {
-        console.warn(`[SessionManager] Found ${masterSessions.length} master sessions for user ${userId}, cleaning up duplicates`)
-        for (let i = 1; i < masterSessions.length; i++) {
-          const duplicateSession = masterSessions[i]
-          duplicateSession.isMaster = false
-          await this.sessionRepo.save(duplicateSession)
-          console.log(`[SessionManager] Removed master flag from duplicate session: ${duplicateSession.id}`)
-        }
-      }
-      
       return primaryMasterSession
     }
 
     console.log(`[SessionManager] Creating new master session for user: ${userId}`)
-    const newMasterSession = await this.sessionRepo.create(userId, '主会话', 'qwen-plus')
-    newMasterSession.isMaster = true
-    await this.sessionRepo.save(newMasterSession)
+    // 直接创建时设置 isMaster=true，避免后续的 UPDATE 操作
+    const newMasterSession = await this.sessionRepo.create(userId, '主会话', 'qwen-plus', true)
 
     return newMasterSession
   }

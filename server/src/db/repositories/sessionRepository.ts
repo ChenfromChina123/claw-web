@@ -4,13 +4,13 @@ import type { Session } from '../../models/types'
 import type { Pool } from 'mysql2/promise'
 
 export class SessionRepository {
-  async create(userId: string, title: string = '新对话', model: string = 'qwen-plus'): Promise<Session> {
+  async create(userId: string, title: string = '新对话', model: string = 'qwen-plus', isMaster: boolean = false): Promise<Session> {
     const pool = getPool() as Pool
     const id = uuidv4()
 
     await pool.query(
-      'INSERT INTO sessions (id, user_id, title, model) VALUES (?, ?, ?, ?)',
-      [id, userId, title, model]
+      'INSERT INTO sessions (id, user_id, title, model, is_master) VALUES (?, ?, ?, ?, ?)',
+      [id, userId, title, model, isMaster]
     )
 
     const [rows] = await pool.query(
