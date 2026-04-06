@@ -19,6 +19,7 @@ console.log('[Env] ANTHROPIC_BASE_URL:', process.env.ANTHROPIC_BASE_URL)
 
 import Anthropic from '@anthropic-ai/sdk'
 import { v4 as uuidv4 } from 'uuid'
+import * as path from 'path'
 import { initDatabase, closePool } from './db/mysql'
 import { SessionManager } from './services/sessionManager'
 import { authService } from './services/authService'
