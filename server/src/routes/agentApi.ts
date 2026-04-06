@@ -590,6 +590,7 @@ export function createIsolationApiRouter(): Router {
   router.post('/', async (req: Request, res: Response) => {
     try {
       const { name, mode, description, worktree, remote } = req.body
+      const userId = (req as any).userId
 
       if (!name || !mode) {
         return res.status(400).json({ 
@@ -598,9 +599,17 @@ export function createIsolationApiRouter(): Router {
         })
       }
 
+      if (!userId) {
+        return res.status(401).json({ 
+          success: false,
+          error: '用户未登录' 
+        })
+      }
+
       const manager = getIsolationManager()
       const isolationId = await manager.create({
-        isolationId: `iso_${Date.now()}`,
+        isolationId: `iso_${userId}_${Date.now()}`,
+        userId,
         mode,
         name,
         description,
@@ -615,7 +624,7 @@ export function createIsolationApiRouter(): Router {
       })
 
       const context = manager.getContext(isolationId)
-      res.json(context)
+      res.json({ success: true, context })
     } catch (error) {
       res.status(500).json({ 
         success: false,
@@ -626,15 +635,24 @@ export function createIsolationApiRouter(): Router {
 
   /**
    * @route GET /api/agents/isolation
-   * @desc 获取所有隔离上下文
+   * @desc 获取当前用户的所有隔离上下文
    */
-  router.get('/', (_req: Request, res: Response) => {
+  router.get('/', (req: Request, res: Response) => {
     try {
+      const userId = (req as any).userId
+      if (!userId) {
+        return res.status(401).json({ 
+          success: false,
+          error: '用户未登录' 
+        })
+      }
+
       const manager = getIsolationManager()
-      const contexts = manager.listContexts()
-      res.json(contexts)
+      const contexts = manager.getContextsByUser(userId)
+      res.json({ success: true, contexts })
     } catch (error) {
       res.status(500).json({ 
+        success: false,
         error: error instanceof Error ? error.message : String(error) 
       })
     }
@@ -647,59 +665,34 @@ export function createIsolationApiRouter(): Router {
   router.get('/:isolationId', (req: Request, res: Response) => {
     try {
       const { isolationId } = req.params
+      const userId = (req as any).userId
+      
+      if (!userId) {
+        return res.status(401).json({ 
+          success: false,
+          error: '用户未登录' 
+        })
+      }
+
       const manager = getIsolationManager()
+      
+      if (!manager.validateUserAccess(isolationId, userId)) {
+        return res.status(403).json({ 
+          success: false,
+          error: '无权访问此隔离上下文' 
+        })
+      }
+
       const context = manager.getContext(isolationId)
 
       if (!context) {
-        return res.status(404).json({ error: `隔离上下文 ${isolationId} 不存在` })
+        return res.status(404).json({ 
+          success: false,
+          error: `隔离上下文 ${isolationId} 不存在` 
+        })
       }
 
-      res.json(context)
-    } catch (error) {
-      res.status(500).json({ 
-        error: error instanceof Error ? error.message : String(error) 
-      })
-    }
-  })
-
-  /**
-   * @route POST /api/agents/isolation/:isolationId/execute
-   * @desc 在隔离上下文中执行命令
-   */
-  router.post('/:isolationId/execute', async (req: Request, res: Response) => {
-    try {
-      const { isolationId } = req.params
-      const { command, args, cwd, env, timeout } = req.body
-
-      const manager = getIsolationManager()
-      const result = await manager.execute({
-        isolationId,
-        command,
-        args,
-        cwd,
-        env,
-        timeout
-      })
-
-      res.json(result)
-    } catch (error) {
-      res.status(500).json({ 
-        success: false,
-        error: error instanceof Error ? error.message : String(error) 
-      })
-    }
-  })
-
-  /**
-   * @route DELETE /api/agents/isolation/:isolationId
-   * @desc 销毁隔离上下文
-   */
-  router.delete('/:isolationId', async (req: Request, res: Response) => {
-    try {
-      const { isolationId } = req.params
-      const manager = getIsolationManager()
-      await manager.destroy(isolationId)
-      res.json({ success: true })
+      res.json({ success: true, context })
     } catch (error) {
       res.status(500).json({ 
         success: false,
@@ -716,6 +709,14 @@ export function createIsolationApiRouter(): Router {
     try {
       const { isolationId } = req.params
       const { command, args, cwd, env, timeout } = req.body
+      const userId = (req as any).userId
+
+      if (!userId) {
+        return res.status(401).json({ 
+          success: false,
+          error: '用户未登录' 
+        })
+      }
 
       if (!command) {
         return res.status(400).json({ 
@@ -725,6 +726,14 @@ export function createIsolationApiRouter(): Router {
       }
 
       const manager = getIsolationManager()
+      
+      if (!manager.validateUserAccess(isolationId, userId)) {
+        return res.status(403).json({ 
+          success: false,
+          error: '无权访问此隔离上下文' 
+        })
+      }
+
       const result = await manager.execute({
         isolationId,
         command,
@@ -734,7 +743,7 @@ export function createIsolationApiRouter(): Router {
         timeout
       })
 
-      res.json(result)
+      res.json({ success: true, result })
     } catch (error) {
       res.status(500).json({ 
         success: false,
@@ -750,7 +759,24 @@ export function createIsolationApiRouter(): Router {
   router.delete('/:isolationId', async (req: Request, res: Response) => {
     try {
       const { isolationId } = req.params
+      const userId = (req as any).userId
+
+      if (!userId) {
+        return res.status(401).json({ 
+          success: false,
+          error: '用户未登录' 
+        })
+      }
+
       const manager = getIsolationManager()
+      
+      if (!manager.validateUserAccess(isolationId, userId)) {
+        return res.status(403).json({ 
+          success: false,
+          error: '无权访问此隔离上下文' 
+        })
+      }
+
       await manager.destroy(isolationId)
       res.json({ success: true })
     } catch (error) {

@@ -1450,6 +1450,183 @@ async function startServer() {
         }
       }
 
+      // ==================== Isolation API ====================
+
+      const isolationMatch = path.match(/^\/api\/agents\/isolation(\/([^\/]+)(\/(execute))?)?$/)
+      
+      // POST /api/agents/isolation - 创建隔离上下文
+      if (path === '/api/agents/isolation' && method === 'POST') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const body = await req.json() as {
+            name: string
+            mode: 'worktree' | 'remote'
+            description?: string
+            worktree?: {
+              mainRepoPath: string
+              worktreeName?: string
+              branchName?: string
+            }
+            remote?: {
+              type: 'ssh' | 'docker'
+              connection: Record<string, unknown>
+            }
+          }
+
+          const { name, mode, description, worktree, remote } = body
+
+          if (!name || !mode) {
+            return createErrorResponse('INVALID_PARAMS', '缺少必需参数: name, mode', 400)
+          }
+
+          const { getIsolationManager, IsolationMode: ContextIsolationMode } = await import('./agents/contextIsolation')
+          const manager = getIsolationManager()
+          
+          const isolationId = await manager.create({
+            isolationId: `iso_${auth.userId}_${Date.now()}`,
+            userId: auth.userId,
+            mode: mode === 'worktree' ? ContextIsolationMode.WORKTREE : ContextIsolationMode.REMOTE,
+            name,
+            description,
+            workingDirectory: mode === 'worktree' && worktree 
+              ? worktree.mainRepoPath 
+              : mode === 'remote' && remote?.connection 
+                ? `/remote/${(remote.connection as any).host || 'unknown'}` 
+                : '/tmp',
+            cleanupPolicy: 'delayed',
+            worktree: mode === 'worktree' ? worktree : undefined,
+            remote: mode === 'remote' ? remote : undefined
+          })
+
+          const context = manager.getContext(isolationId)
+          return createSuccessResponse({ context })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '创建隔离上下文失败'
+          return createErrorResponse('ISOLATION_CREATE_FAILED', message, 500)
+        }
+      }
+
+      // GET /api/agents/isolation - 获取当前用户的隔离上下文列表
+      if (path === '/api/agents/isolation' && method === 'GET') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const { getIsolationManager } = await import('./agents/contextIsolation')
+          const manager = getIsolationManager()
+          const contexts = manager.getContextsByUser(auth.userId)
+          
+          return createSuccessResponse({ contexts })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取隔离上下文失败'
+          return createErrorResponse('ISOLATION_LIST_FAILED', message, 500)
+        }
+      }
+
+      // GET /api/agents/isolation/:isolationId - 获取隔离上下文详情
+      if (isolationMatch && isolationMatch[2] && !isolationMatch[4] && method === 'GET') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const isolationId = isolationMatch[2]
+          const { getIsolationManager } = await import('./agents/contextIsolation')
+          const manager = getIsolationManager()
+          
+          if (!manager.validateUserAccess(isolationId, auth.userId)) {
+            return createErrorResponse('FORBIDDEN', '无权访问此隔离上下文', 403)
+          }
+
+          const context = manager.getContext(isolationId)
+          if (!context) {
+            return createErrorResponse('NOT_FOUND', `隔离上下文 ${isolationId} 不存在`, 404)
+          }
+
+          return createSuccessResponse({ context })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取隔离上下文失败'
+          return createErrorResponse('ISOLATION_GET_FAILED', message, 500)
+        }
+      }
+
+      // POST /api/agents/isolation/:isolationId/execute - 在隔离上下文中执行命令
+      if (isolationMatch && isolationMatch[2] && isolationMatch[4] === 'execute' && method === 'POST') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const isolationId = isolationMatch[2]
+          const body = await req.json() as {
+            command: string
+            args?: string[]
+            cwd?: string
+            env?: Record<string, string>
+            timeout?: number
+          }
+
+          const { command, args, cwd, env, timeout } = body
+
+          if (!command) {
+            return createErrorResponse('INVALID_PARAMS', '缺少必需参数: command', 400)
+          }
+
+          const { getIsolationManager } = await import('./agents/contextIsolation')
+          const manager = getIsolationManager()
+          
+          if (!manager.validateUserAccess(isolationId, auth.userId)) {
+            return createErrorResponse('FORBIDDEN', '无权访问此隔离上下文', 403)
+          }
+
+          const result = await manager.execute({
+            isolationId,
+            command,
+            args,
+            cwd,
+            env,
+            timeout
+          })
+
+          return createSuccessResponse({ result })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '执行命令失败'
+          return createErrorResponse('ISOLATION_EXECUTE_FAILED', message, 500)
+        }
+      }
+
+      // DELETE /api/agents/isolation/:isolationId - 销毁隔离上下文
+      if (isolationMatch && isolationMatch[2] && !isolationMatch[4] && method === 'DELETE') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const isolationId = isolationMatch[2]
+          const { getIsolationManager } = await import('./agents/contextIsolation')
+          const manager = getIsolationManager()
+          
+          if (!manager.validateUserAccess(isolationId, auth.userId)) {
+            return createErrorResponse('FORBIDDEN', '无权访问此隔离上下文', 403)
+          }
+
+          await manager.destroy(isolationId)
+          return createSuccessResponse({ success: true })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '销毁隔离上下文失败'
+          return createErrorResponse('ISOLATION_DESTROY_FAILED', message, 500)
+        }
+      }
+
       // ==================== Models API ====================
 
       // GET /api/models - 获取可用模型列表
@@ -2231,6 +2408,12 @@ async function startServer() {
   console.log(`       GET    /api/agents/orchestration/state - 获取协调状态`)
   console.log(`       POST   /api/agents/orchestration/init  - 初始化多 Agent 协调`)
   console.log(`       POST   /api/agents/execute            - 执行 Agent 任务`)
+  console.log(`\n[API]  Isolation Endpoints (用户隔离):`)
+  console.log(`       POST   /api/agents/isolation          - 创建隔离上下文`)
+  console.log(`       GET    /api/agents/isolation          - 获取用户的隔离上下文列表`)
+  console.log(`       GET    /api/agents/isolation/:id      - 获取隔离上下文详情`)
+  console.log(`       POST   /api/agents/isolation/:id/execute - 在隔离上下文中执行命令`)
+  console.log(`       DELETE /api/agents/isolation/:id      - 销毁隔离上下文`)
   console.log(`\n[API]  Diagnostics Endpoints:`)
   console.log(`       GET    /api/diagnostics/health        - 健康检查`)
   console.log(`       GET    /api/diagnostics/components    - 获取组件详细信息`)

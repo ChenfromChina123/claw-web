@@ -266,42 +266,103 @@ export async function getAgentDefinition(agentType: string): Promise<AgentDefini
 // ============================================================================
 
 /**
- * Create isolated execution context
+ * 隔离上下文信息
+ */
+export interface IsolationContext {
+  isolationId: string
+  userId?: string
+  name: string
+  mode: 'worktree' | 'remote'
+  status: 'initializing' | 'ready' | 'running' | 'paused' | 'terminated' | 'error'
+  workingDirectory: string
+  createdAt: string
+  lastActivity: string
+  executionCount: number
+  totalDuration: number
+}
+
+/**
+ * 创建隔离上下文请求
+ */
+export interface CreateIsolationRequest {
+  name: string
+  mode: 'worktree' | 'remote'
+  description?: string
+  worktree?: {
+    mainRepoPath: string
+    worktreeName?: string
+    branchName?: string
+  }
+  remote?: {
+    type: 'ssh' | 'docker'
+    connection: Record<string, unknown>
+  }
+}
+
+/**
+ * 创建隔离上下文
  */
 export async function createIsolationContext(
-  mode: 'worktree' | 'remote',
+  request: CreateIsolationRequest
+): Promise<IsolationContext> {
+  const response = await client.post('/agents/isolation', request)
+  return (response.data.data as { context: IsolationContext }).context
+}
+
+/**
+ * 获取当前用户的隔离上下文列表
+ */
+export async function listIsolationContexts(): Promise<IsolationContext[]> {
+  const response = await client.get('/agents/isolation')
+  return (response.data.data as { contexts: IsolationContext[] }).contexts
+}
+
+/**
+ * 获取隔离上下文状态
+ */
+export async function getIsolationStatus(contextId: string): Promise<IsolationContext> {
+  const response = await client.get(`/agents/isolation/${contextId}`)
+  return (response.data.data as { context: IsolationContext }).context
+}
+
+/**
+ * 在隔离上下文中执行命令
+ */
+export async function executeInIsolation(
+  contextId: string,
+  command: string,
+  args?: string[],
   options?: {
-    branchName?: string
-    remoteName?: string
+    cwd?: string
+    env?: Record<string, string>
+    timeout?: number
   }
-): Promise<{ contextId: string; mode: string }> {
-  const response = await client.post('/agents/isolation/create', {
-    mode,
+): Promise<{
+  success: boolean
+  isolationId: string
+  output?: string
+  error?: string
+  exitCode?: number
+  duration: number
+}> {
+  const response = await client.post(`/agents/isolation/${contextId}/execute`, {
+    command,
+    args,
     ...options
   })
-  return response.data.data as { contextId: string; mode: string }
+  return (response.data.data as { result: any }).result
 }
 
 /**
- * Get isolation context status
+ * 销毁隔离上下文
  */
-export async function getIsolationStatus(contextId: string): Promise<{
-  contextId: string
-  mode: string
-  status: 'active' | 'completed' | 'failed'
-  changes?: unknown
-}> {
-  const response = await client.get(`/agents/isolation/${contextId}/status`)
-  return response.data.data as {
-    contextId: string
-    mode: string
-    status: 'active' | 'completed' | 'failed'
-    changes?: unknown
-  }
+export async function destroyIsolationContext(contextId: string): Promise<{ success: boolean }> {
+  const response = await client.delete(`/agents/isolation/${contextId}`)
+  return response.data.data as { success: boolean }
 }
 
 /**
- * Merge isolation changes back
+ * 合并隔离更改（worktree模式）
  */
 export async function mergeIsolationChanges(contextId: string): Promise<{
   success: boolean
@@ -410,7 +471,10 @@ export default {
 
   // Isolation
   createIsolationContext,
+  listIsolationContexts,
   getIsolationStatus,
+  executeInIsolation,
+  destroyIsolationContext,
   mergeIsolationChanges,
 
   // Utilities

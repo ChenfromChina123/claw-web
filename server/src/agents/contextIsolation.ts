@@ -89,6 +89,8 @@ export interface RemoteConfig {
 export interface IsolationContextConfig {
   /** 隔离 ID */
   isolationId: string
+  /** 用户 ID（用于区分不同用户的隔离环境） */
+  userId?: string
   /** 隔离模式 */
   mode: IsolationMode
   /** 隔离名称 */
@@ -155,6 +157,8 @@ export interface IsolationExecutionRequest {
 export interface IsolationContextInfo {
   /** 隔离 ID */
   isolationId: string
+  /** 用户 ID */
+  userId?: string
   /** 隔离名称 */
   name: string
   /** 模式 */
@@ -768,11 +772,14 @@ export class IsolationContextManager {
 
     let workingDirectory = config.workingDirectory
 
-    // 根据模式初始化
     if (config.mode === IsolationMode.WORKTREE && config.worktree) {
+      const worktreeName = config.userId 
+        ? `${config.userId}_${config.worktree.worktreeName || isolationId}`
+        : config.worktree.worktreeName || isolationId
+      
       workingDirectory = await this.worktreeIsolation.create({
         ...config.worktree,
-        worktreeName: config.worktree.worktreeName || isolationId
+        worktreeName
       })
     } else if (config.mode === IsolationMode.REMOTE && config.remote) {
       await this.remoteIsolation.connect(isolationId, config.remote)
@@ -793,11 +800,10 @@ export class IsolationContextManager {
       lastActivity: new Date()
     })
 
-    // 更新状态为就绪
     const context = this.contexts.get(isolationId)!
     context.status = IsolationStatus.READY
 
-    console.log(`[IsolationContextManager] 已创建隔离上下文: ${isolationId} (${config.mode})`)
+    console.log(`[IsolationContextManager] 已创建隔离上下文: ${isolationId} (${config.mode})${config.userId ? ` 用户: ${config.userId}` : ''}`)
     return isolationId
   }
 
@@ -810,6 +816,7 @@ export class IsolationContextManager {
 
     return {
       isolationId: context.config.isolationId,
+      userId: context.config.userId,
       name: context.config.name,
       mode: context.config.mode,
       status: context.status,
@@ -819,6 +826,40 @@ export class IsolationContextManager {
       executionCount: context.executionCount,
       totalDuration: context.totalDuration
     }
+  }
+
+  /**
+   * 获取用户的所有隔离上下文
+   */
+  getContextsByUser(userId: string): IsolationContextInfo[] {
+    const result: IsolationContextInfo[] = []
+    for (const [id, context] of this.contexts) {
+      if (context.config.userId === userId) {
+        result.push({
+          isolationId: context.config.isolationId,
+          userId: context.config.userId,
+          name: context.config.name,
+          mode: context.config.mode,
+          status: context.status,
+          workingDirectory: context.config.workingDirectory,
+          createdAt: context.createdAt,
+          lastActivity: context.lastActivity,
+          executionCount: context.executionCount,
+          totalDuration: context.totalDuration
+        })
+      }
+    }
+    return result
+  }
+
+  /**
+   * 验证用户是否有权访问隔离上下文
+   */
+  validateUserAccess(isolationId: string, userId: string): boolean {
+    const context = this.contexts.get(isolationId)
+    if (!context) return false
+    if (!context.config.userId) return true
+    return context.config.userId === userId
   }
 
   /**
