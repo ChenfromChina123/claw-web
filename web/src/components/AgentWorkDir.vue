@@ -39,7 +39,7 @@ import {
   Save,
   Download
 } from '@vicons/ionicons5'
-import axios from 'axios'
+import apiClient from '@/api/client'
 import * as monaco from 'monaco-editor'
 
 // Props
@@ -101,12 +101,12 @@ async function loadDirectory(nodeKey: string): Promise<TreeOption[]> {
   try {
     loading.value = true
     
-    const response = await axios.get(`${API_BASE}/list`, {
+    const response = await apiClient.get(`${API_BASE}/list`, {
       params: {
         sessionId: props.sessionId,
         path: nodeKey || '/'
       }
-    })
+    }) as any
 
     const items = response.data.data.items
 
@@ -135,12 +135,12 @@ async function loadFileContent(filePath: string) {
     loading.value = true
     currentFilePath.value = filePath
 
-    const response = await axios.get(`${API_BASE}/content`, {
+    const response = await apiClient.get(`${API_BASE}/content`, {
       params: {
         sessionId: props.sessionId,
         path: filePath
       }
-    })
+    }) as any
 
     const data = response.data.data
     fileContent.value = data.content
@@ -178,7 +178,7 @@ async function saveCurrentFile() {
 
     const content = editorInstance.getValue()
 
-    await axios.post(`${API_BASE}/save`, {
+    await apiClient.post(`${API_BASE}/save`, {
       sessionId: props.sessionId,
       filePath: currentFilePath.value,
       content
