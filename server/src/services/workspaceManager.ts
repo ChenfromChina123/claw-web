@@ -770,9 +770,16 @@ export class WorkspaceManager {
    * 根据会话ID加载元数据
    */
   private async loadMetadataBySession(sessionId: string): Promise<WorkspaceMetadata | null> {
-    // 遍历用户目录查找
     try {
       const usersDir = this.config.baseDir
+
+      // 检查基础目录是否存在
+      const { existsSync } = await import('fs')
+      if (!existsSync(usersDir)) {
+        console.log(`[WorkspaceManager] 工作区基础目录不存在: ${usersDir}`)
+        return null
+      }
+
       const users = await fs.readdir(usersDir)
 
       for (const userId of users) {

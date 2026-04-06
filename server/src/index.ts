@@ -1925,6 +1925,27 @@ async function startServer() {
 
       // ==================== Agent WorkDir API (工作目录浏览器) ====================
 
+      /**
+       * 辅助函数：确保工作区存在，不存在则自动创建
+       */
+      const ensureWorkspace = async (sessionId: string, userId: string) => {
+        const workspaceManager = getWorkspaceManager()
+        let workspace = await workspaceManager.getWorkspace(sessionId)
+
+        if (!workspace) {
+          console.log(`[WorkDir] 工作区不存在，自动创建: sessionId=${sessionId}, userId=${userId}`)
+          try {
+            workspace = await workspaceManager.createWorkspace(userId, sessionId)
+            console.log(`[WorkDir] 工作区已自动创建: ${workspace.path}`)
+          } catch (error) {
+            console.error(`[WorkDir] 自动创建工作区失败:`, error)
+            return null
+          }
+        }
+
+        return workspace
+      }
+
       // GET /api/agent/workdir/list - 获取目录/文件列表（懒加载）
       if (path === '/api/agent/workdir/list' && method === 'GET') {
         try {
@@ -1940,11 +1961,11 @@ async function startServer() {
             return createErrorResponse('INVALID_PARAMS', '缺少必需参数: sessionId', 400)
           }
 
-          const workspaceManager = getWorkspaceManager()
-          const workspace = await workspaceManager.getWorkspace(sessionId)
+          // 确保工作区存在（自动创建）
+          const workspace = await ensureWorkspace(sessionId, auth.userId)
 
           if (!workspace) {
-            return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区不存在，请先发送消息初始化', 404)
+            return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区创建失败，请重试', 500)
           }
 
           // 构建完整路径
@@ -1986,11 +2007,11 @@ async function startServer() {
             return createErrorResponse('INVALID_PARAMS', '缺少必需参数: sessionId, path', 400)
           }
 
-          const workspaceManager = getWorkspaceManager()
-          const workspace = await workspaceManager.getWorkspace(sessionId)
+          // 确保工作区存在（自动创建）
+          const workspace = await ensureWorkspace(sessionId, auth.userId)
 
           if (!workspace) {
-            return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区不存在', 404)
+            return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区创建失败，请重试', 500)
           }
 
           // 构建完整路径
