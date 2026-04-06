@@ -2,7 +2,7 @@
 /**
  * 增强版消息列表组件 - 集成流程和知识可视化，支持 Agent 中断功能
  */
-import { ref, watch, nextTick, computed } from 'vue'
+import { ref, watch, nextTick, computed, onMounted } from 'vue'
 import { NScrollbar, NSpin, NTag, NSwitch, NTooltip, NModal, NCode, NButton, NIcon, useMessage } from 'naive-ui'
 import type { Message, ToolCall } from '@/types'
 import type { KnowledgeCard } from '@/types/flowKnowledge'
@@ -70,6 +70,13 @@ const showFlowVisualization = computed(() => settingsStore.preferences.showFlowV
 const showKnowledgeCards = computed(() => settingsStore.preferences.showKnowledgeCards)
 const useEnhancedToolDisplay = computed(() => settingsStore.preferences.useEnhancedToolDisplay)
 
+/**
+ * 滚动到底部
+ */
+function scrollToBottom() {
+  scrollbarRef.value?.scrollTo({ top: 1000000, behavior: 'smooth' })
+}
+
 // 监听消息变化，自动滚动到底部
 watch(() => props.messages.length, async () => {
   await nextTick()
@@ -83,9 +90,11 @@ watch(() => props.isLoading, async (loading) => {
   }
 })
 
-function scrollToBottom() {
-  scrollbarRef.value?.scrollTo({ top: 1000000, behavior: 'smooth' })
-}
+// 组件挂载时滚动到底部（确保刷新和切换会话时生效）
+onMounted(async () => {
+  await nextTick()
+  scrollToBottom()
+})
 
 // 格式化工具输出
 function formatToolOutput(output: unknown): string {
