@@ -31,6 +31,18 @@ export class SessionManager {
   /** 会话标题更新回调 */
   private onSessionTitleUpdated: ((sessionId: string, title: string) => void) | null = null
 
+  /** 定时同步间隔定时器（每5分钟同步一次脏会话） */
+  private syncIntervalTimer: NodeJS.Timeout | null = null
+  
+  /** 每日同步定时器（每天凌晨3点同步所有会话） */
+  private dailySyncTimer: NodeJS.Timeout | null = null
+
+  /** 同步间隔时间（毫秒）- 默认5分钟 */
+  private readonly SYNC_INTERVAL_MS = 5 * 60 * 1000
+
+  /** 每日同步时间（小时）- 默认凌晨3点 */
+  private readonly DAILY_SYNC_HOUR = 3
+
   /**
    * 设置会话标题更新回调
    */
@@ -600,6 +612,166 @@ export class SessionManager {
       } catch (error) {
         console.error(`[SessionManager] Failed to save session ${sessionId}:`, error)
       }
+    }
+  }
+
+  /**
+   * 启动定时同步任务
+   * 包括：每5分钟同步脏会话 + 每日凌晨3点同步所有会话
+   */
+  startSyncScheduler(): void {
+    console.log('[SessionManager] Starting sync scheduler...')
+    
+    // 1. 启动间隔同步（每5分钟同步脏会话）
+    this.syncIntervalTimer = setInterval(async () => {
+      try {
+        await this.syncDirtySessions()
+      } catch (error) {
+        console.error('[SessionManager] Interval sync error:', error)
+      }
+    }, this.SYNC_INTERVAL_MS)
+    
+    console.log(`[SessionManager] Interval sync started: every ${this.SYNC_INTERVAL_MS / 1000 / 60} minutes`)
+    
+    // 2. 启动每日同步（每天凌晨3点同步所有会话）
+    this.scheduleDailySync()
+  }
+
+  /**
+   * 停止定时同步任务
+   */
+  stopSyncScheduler(): void {
+    console.log('[SessionManager] Stopping sync scheduler...')
+    
+    if (this.syncIntervalTimer) {
+      clearInterval(this.syncIntervalTimer)
+      this.syncIntervalTimer = null
+      console.log('[SessionManager] Interval sync stopped')
+    }
+    
+    if (this.dailySyncTimer) {
+      clearTimeout(this.dailySyncTimer)
+      this.dailySyncTimer = null
+      console.log('[SessionManager] Daily sync stopped')
+    }
+  }
+
+  /**
+   * 同步所有脏会话到数据库
+   */
+  private async syncDirtySessions(): Promise<void> {
+    const dirtySessionIds = Array.from(this.sessions.entries())
+      .filter(([_, data]) => data.dirty)
+      .map(([id, _]) => id)
+
+    if (dirtySessionIds.length === 0) {
+      console.log('[SessionManager] No dirty sessions to sync')
+      return
+    }
+
+    console.log(`[SessionManager] Syncing ${dirtySessionIds.length} dirty sessions...`)
+    
+    for (const sessionId of dirtySessionIds) {
+      try {
+        await this.forceSaveSession(sessionId)
+        console.log(`[SessionManager] Synced session ${sessionId}`)
+      } catch (error) {
+        console.error(`[SessionManager] Failed to sync session ${sessionId}:`, error)
+      }
+    }
+    
+    console.log(`[SessionManager] Sync completed: ${dirtySessionIds.length} sessions processed`)
+  }
+
+  /**
+   * 同步所有会话到数据库（包括非脏会话，确保数据完整性）
+   */
+  async syncAllSessions(): Promise<void> {
+    const allSessionIds = Array.from(this.sessions.keys())
+    
+    console.log(`[SessionManager] Starting full sync of ${allSessionIds.length} sessions...`)
+    
+    let syncedCount = 0
+    let errorCount = 0
+    
+    for (const sessionId of allSessionIds) {
+      try {
+        const sessionData = this.sessions.get(sessionId)
+        if (sessionData && sessionData.dirty) {
+          await this.forceSaveSession(sessionId)
+          syncedCount++
+        }
+      } catch (error) {
+        console.error(`[SessionManager] Failed to sync session ${sessionId}:`, error)
+        errorCount++
+      }
+    }
+    
+    console.log(`[SessionManager] Full sync completed: ${syncedCount} synced, ${errorCount} errors`)
+  }
+
+  /**
+   * 调度每日同步任务
+   */
+  private scheduleDailySync(): void {
+    const now = new Date()
+    const target = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + (now.getHours() >= this.DAILY_SYNC_HOUR ? 1 : 0),
+      this.DAILY_SYNC_HOUR,
+      0,
+      0,
+      0
+    )
+    
+    const delay = target.getTime() - now.getTime()
+    
+    console.log(`[SessionManager] Daily sync scheduled at ${target.toLocaleString('zh-CN')} (in ${Math.round(delay / 1000 / 60)} minutes)`)
+    
+    this.dailySyncTimer = setTimeout(async () => {
+      try {
+        console.log('[SessionManager] Starting daily sync...')
+        await this.syncAllSessions()
+      } catch (error) {
+        console.error('[SessionManager] Daily sync error:', error)
+      } finally {
+        // 重新调度下一次每日同步
+        this.scheduleDailySync()
+      }
+    }, delay)
+  }
+
+  /**
+   * 获取同步状态统计
+   */
+  getSyncStats(): {
+    totalSessions: number
+    dirtySessions: number
+    memoryUsage: NodeJS.MemoryUsage
+    nextDailySync: Date | null
+  } {
+    const dirtyCount = Array.from(this.sessions.values()).filter(s => s.dirty).length
+    
+    let nextDailySync: Date | null = null
+    if (this.dailySyncTimer) {
+      const now = new Date()
+      nextDailySync = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + (now.getHours() >= this.DAILY_SYNC_HOUR ? 1 : 0),
+        this.DAILY_SYNC_HOUR,
+        0,
+        0,
+        0
+      )
+    }
+    
+    return {
+      totalSessions: this.sessions.size,
+      dirtySessions: dirtyCount,
+      memoryUsage: process.memoryUsage(),
+      nextDailySync
     }
   }
 }

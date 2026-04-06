@@ -849,6 +849,20 @@ async function startServer() {
     console.warn('[SessionTitle] Failed to set up session title update callback:', error)
   }
 
+  // 启动会话定时同步任务
+  try {
+    console.log('\n[SessionSync] Starting session sync scheduler...')
+    sessionManager.startSyncScheduler()
+    const syncStats = sessionManager.getSyncStats()
+    console.log(`[SessionSync] Sync scheduler started:`)
+    console.log(`  - Interval sync: every 5 minutes`)
+    console.log(`  - Daily sync: at 3:00 AM`)
+    console.log(`  - Current sessions in memory: ${syncStats.totalSessions}`)
+    console.log(`  - Dirty sessions: ${syncStats.dirtySessions}`)
+  } catch (error) {
+    console.warn('[SessionSync] Failed to start sync scheduler:', error)
+  }
+
   // Initialize WebSocket RPC methods
   initializeRPCMethods()
 
@@ -1959,6 +1973,39 @@ async function startServer() {
         })
       }
 
+      // GET /api/diagnostics/sync-status - 获取会话同步状态
+      if (path === '/api/diagnostics/sync-status' && method === 'GET') {
+        try {
+          const syncStats = sessionManager.getSyncStats()
+          return createSuccessResponse({
+            sync: {
+              intervalMs: 5 * 60 * 1000,
+              dailySyncHour: 3,
+              ...syncStats,
+            },
+            timestamp: new Date().toISOString(),
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取同步状态失败'
+          return createErrorResponse('SYNC_STATUS_FAILED', message, 500)
+        }
+      }
+
+      // POST /api/diagnostics/sync-now - 手动触发同步
+      if (path === '/api/diagnostics/sync-now' && method === 'POST') {
+        try {
+          await sessionManager.syncAllSessions()
+          const syncStats = sessionManager.getSyncStats()
+          return createSuccessResponse({
+            message: '同步完成',
+            ...syncStats,
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '同步失败'
+          return createErrorResponse('SYNC_FAILED', message, 500)
+        }
+      }
+
       return createErrorResponse('NOT_FOUND', `Route ${path} not found`, 404)
     },
 
@@ -2425,6 +2472,8 @@ async function startServer() {
   console.log(`\n[API]  Diagnostics Endpoints:`)
   console.log(`       GET    /api/diagnostics/health        - 健康检查`)
   console.log(`       GET    /api/diagnostics/components    - 获取组件详细信息`)
+  console.log(`       GET    /api/diagnostics/sync-status   - 获取会话同步状态`)
+  console.log(`       POST   /api/diagnostics/sync-now      - 手动触发会话同步`)
   console.log(`\n[WS]   WebSocket Events:`)
   console.log(`       create_session, load_session, list_sessions`)
   console.log(`       user_message, delete_session, rename_session`)
@@ -2666,6 +2715,14 @@ function initializeRPCMethods() {
 
 process.on('SIGINT', async () => {
   console.log('\n[Server] Shutting down...')
+  
+  // 停止定时同步任务
+  try {
+    console.log('[Server] Stopping sync scheduler...')
+    sessionManager.stopSyncScheduler()
+  } catch (error) {
+    console.error('[Server] Failed to stop sync scheduler:', error)
+  }
   
   // Save all dirty sessions
   await sessionManager.saveAllDirtySessions()
