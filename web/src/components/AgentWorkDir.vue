@@ -28,16 +28,16 @@ import {
   type TreeOption
 } from 'naive-ui'
 import {
-  FolderOpenOutlined,
-  FolderOutlined,
-  FileTextOutlined,
-  FileCodeOutline,
-  FileImageOutlined,
-  FileMarkdownOutlined,
-  SettingOutlined,
-  ReloadOutlined,
-  SaveOutlined,
-  DownloadOutline
+  FolderOpen,
+  Folder,
+  DocumentText,
+  Code,
+  Image,
+  LogoMarkdown,
+  Settings,
+  Refresh,
+  Save,
+  Download
 } from '@vicons/ionicons5'
 import axios from 'axios'
 import * as monaco from 'monaco-editor'
@@ -249,20 +249,20 @@ function findNodeByKey(nodes: TreeOption[], key: string): TreeOption | null {
  */
 function getFileIcon(isDirectory: boolean, fileType?: string, extension?: string) {
   if (isDirectory) {
-    return h(NIcon, { size: 16 }, { default: () => h(FolderOutlined) })
+    return h(NIcon, { size: 16 }, { default: () => h(Folder) })
   }
 
   // 根据文件类型返回不同图标
   switch (fileType) {
     case 'code':
-      return h(NIcon, { size: 16 }, { default: () => h(FileCodeOutline) })
+      return h(NIcon, { size: 16 }, { default: () => h(Code) })
     case 'doc':
     case 'markdown':
-      return h(NIcon, { size: 16 }, { default: () => h(FileMarkdownOutlined) })
+      return h(NIcon, { size: 16 }, { default: () => h(LogoMarkdown) })
     case 'image':
-      return h(NIcon, { size: 16 }, { default: () => h(FileImageOutlined) })
+      return h(NIcon, { size: 16 }, { default: () => h(Image) })
     default:
-      return h(NIcon, { size: 16 }, { default: () => h(FileTextOutlined) })
+      return h(NIcon, { size: 16 }, { default: () => h(DocumentText) })
   }
 }
 
@@ -381,7 +381,7 @@ defineExpose({
             @click="() => { treeData = []; loadDirectory('/').then(d => treeData = d) }"
           >
             <template #icon>
-              <NIcon><ReloadOutlined /></NIcon>
+              <NIcon><Refresh /></NIcon>
             </template>
           </NButton>
         </NSpace>
@@ -445,7 +445,7 @@ defineExpose({
             @click="saveCurrentFile"
           >
             <template #icon>
-              <NIcon><SaveOutlined /></NIcon>
+              <NIcon><Save /></NIcon>
             </template>
             保存
           </NButton>
@@ -480,16 +480,16 @@ defineExpose({
 import { h } from 'vue'
 export default {
   components: {
-    FolderOpenOutlined,
-    FolderOutlined,
-    FileTextOutlined,
-    FileCodeOutline,
-    FileImageOutlined,
-    FileMarkdownOutlined,
-    SettingOutlined,
-    ReloadOutlined,
-    SaveOutlined,
-    DownloadOutline
+    FolderOpen,
+    Folder,
+    DocumentText,
+    Code,
+    Image,
+    LogoMarkdown,
+    Settings,
+    Refresh,
+    Save,
+    Download
   }
 }
 </script>
