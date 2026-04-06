@@ -245,7 +245,7 @@ async function handleCopyContent() {
             <template #trigger>
               <NButton size="tiny" secondary circle @click="handleCopyContent">
                 <template #icon>
-                  <NIcon :size="14" :component="copied ? CheckmarkCircleOutline : CopyOutline}" />
+                  <NIcon :size="14" :component="copied ? CheckmarkCircleOutline : CopyOutline" />
                 </template>
               </NButton>
             </template>
@@ -314,15 +314,15 @@ async function handleCopyContent() {
         <!-- 操作栏 -->
         <div class="full-actions">
           <NButton type="primary" @click="handleDownload">
-            <template #icon><NIcon :component={DownloadOutline} /></template>
+            <template #icon><NIcon :component="DownloadOutline" /></template>
             下载文件
           </NButton>
           <NButton v-if="canPreviewAsText" secondary @click="handleCopyContent">
-            <template #icon><NIcon :component={copied ? CheckmarkCircleOutline : CopyOutline}" /></template>
+            <template #icon><NIcon :component="copied ? CheckmarkCircleOutline : CopyOutline" /></template>
             {{ copied ? '已复制' : '复制内容' }}
           </NButton>
           <NButton secondary @click="showDetailModal = true">
-            <template #icon><NIcon :component={EyeOutline} /></template>
+            <template #icon><NIcon :component="EyeOutline" /></template>
             查看详情
           </NButton>
         </div>

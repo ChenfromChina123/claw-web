@@ -316,7 +316,7 @@ onUnmounted(() => {
         <!-- 完成状态的结果展示 -->
         <div v-if="toolCall.status === 'completed'" class="fw-result-section">
           <div class="result-header">
-            <NIcon :size="16" component={CheckmarkCircleOutline} color="#22c55e" />
+            <NIcon :size="16" :component="CheckmarkCircleOutline" color="#22c55e" />
             <span>文件{{ operationType === 'create' ? '创建' : '更新' }}成功</span>
           </div>
           
@@ -325,7 +325,7 @@ onUnmounted(() => {
             <NTooltip trigger="hover">
               <template #trigger>
                 <NButton size="small" type="primary" secondary @click.stop="handleViewFile">
-                  <template #icon><NIcon :size="14" component={EyeOutline} /></template>
+                  <template #icon><NIcon :size="14" :component="EyeOutline" /></template>
                   查看
                 </NButton>
               </template>
