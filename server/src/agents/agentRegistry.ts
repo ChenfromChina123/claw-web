@@ -134,6 +134,20 @@ export class AgentRegistry {
   }
 
   /**
+   * 获取所有 Agent（包括已完成的）
+   */
+  getAllAgents(): AgentRuntimeState[] {
+    return Array.from(this.agents.values())
+  }
+
+  /**
+   * 获取 Agent 数量
+   */
+  getAgentCount(): number {
+    return this.agents.size
+  }
+
+  /**
    * 按团队名称获取 Agent
    */
   getAgentsByTeam(teamName: string): AgentRuntimeState[] {

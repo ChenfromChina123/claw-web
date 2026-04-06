@@ -460,23 +460,19 @@ export class AgentPersistenceService {
   async forceSaveAll(): Promise<void> {
     console.log('[AgentPersistenceService] 强制保存所有数据...')
 
-    // 清除防抖定时器
     if (this.saveDebounceTimer) {
       clearTimeout(this.saveDebounceTimer)
       this.saveDebounceTimer = null
     }
 
-    // 标记所有内容为脏
-    // Agent
-    for (const [agentId] of this.agentRegistry.getInstance()['agents']) {
-      this.state.pendingChanges.add(`agent:${agentId}`)
+    const allAgents = this.agentRegistry.getAllAgents()
+    for (const agent of allAgents) {
+      this.state.pendingChanges.add(`agent:${agent.agentId}`)
     }
 
-    // Mailbox
     const stats = this.mailboxManager.getStats()
-    console.log(`[AgentPersistenceService] 待保存: ${this.agentRegistry.getInstance()['agents'].size} Agents, ${stats.mailboxCount} Mailboxes`)
+    console.log(`[AgentPersistenceService] 待保存: ${this.agentRegistry.getAgentCount()} Agents, ${stats.mailboxCount} Mailboxes`)
 
-    // 保存所有
     await this.saveAllDirty()
 
     console.log('[AgentPersistenceService] 强制保存完成')
