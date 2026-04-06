@@ -210,7 +210,7 @@ defineExpose({
           v-for="file in uploadedFiles"
           :key="file.id"
           class="uploaded-file-item"
-          :title="`${file.name} (${formatFileSize((file.file as File)?.size || 0)})`}"
+          :title="`${file.name} (${formatFileSize(file.file?.size || 0)})`"
         >
           <NTag 
             size="small" 
