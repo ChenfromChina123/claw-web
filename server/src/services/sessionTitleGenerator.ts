@@ -85,11 +85,18 @@ function generateSimpleTitle(userMessage: string): string {
  * 获取 Anthropic 客户端
  */
 function getAnthropicClient(): Anthropic {
-  return new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY ?? undefined,
-    authToken: process.env.ANTHROPIC_AUTH_TOKEN ?? undefined,
-    baseURL: process.env.ANTHROPIC_BASE_URL || undefined,
-  })
+  // ✅ 修复：只传有值的字段，不传递 undefined
+  const clientOptions: ConstructorParameters<typeof Anthropic>[0] = {
+    timeout: parseInt(process.env.API_TIMEOUT_MS || String(300000), 10),
+    maxRetries: 0,
+  }
+
+  // 只在有值时才加入配置，彻底避免鉴权错误
+  if (process.env.ANTHROPIC_API_KEY) clientOptions.apiKey = process.env.ANTHROPIC_API_KEY
+  if (process.env.ANTHROPIC_AUTH_TOKEN) clientOptions.authToken = process.env.ANTHROPIC_AUTH_TOKEN
+  if (process.env.ANTHROPIC_BASE_URL) clientOptions.baseURL = process.env.ANTHROPIC_BASE_URL
+
+  return new Anthropic(clientOptions)
 }
 
 /**

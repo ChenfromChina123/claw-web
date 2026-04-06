@@ -86,13 +86,18 @@ function getAnthropicClient(): Anthropic {
   console.log('[getAnthropicClient] ANTHROPIC_AUTH_TOKEN:', process.env.ANTHROPIC_AUTH_TOKEN ? 'exists' : 'not set')
   console.log('[getAnthropicClient] ANTHROPIC_BASE_URL:', process.env.ANTHROPIC_BASE_URL)
   
-  return new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY ?? undefined,
-    authToken: process.env.ANTHROPIC_AUTH_TOKEN ?? undefined,
-    baseURL: process.env.ANTHROPIC_BASE_URL || undefined,
+  // ✅ 修复：只传有值的字段，不传递 undefined
+  const clientOptions: ConstructorParameters<typeof Anthropic>[0] = {
     timeout: parseInt(process.env.API_TIMEOUT_MS || String(300000), 10),
     maxRetries: 0,
-  })
+  }
+
+  // 只在有值时才加入配置，彻底避免鉴权错误
+  if (process.env.ANTHROPIC_API_KEY) clientOptions.apiKey = process.env.ANTHROPIC_API_KEY
+  if (process.env.ANTHROPIC_AUTH_TOKEN) clientOptions.authToken = process.env.ANTHROPIC_AUTH_TOKEN
+  if (process.env.ANTHROPIC_BASE_URL) clientOptions.baseURL = process.env.ANTHROPIC_BASE_URL
+
+  return new Anthropic(clientOptions)
 }
 
 // ==================== Response Helpers ====================
@@ -231,10 +236,17 @@ class SessionConversationManager {
     // 0. 获取用户 ID
     const sessionDataTemp = sessionManager.getInMemorySession(sessionId)
     const userId = sessionDataTemp?.session.userId
+    
+    console.log(`[SessionConversationManager] processMessage called: sessionId=${sessionId}, userId=${userId}, isolationManager=${!!this.isolationManager}`)
 
     // 1. 初始化隔离上下文（如果是第一次处理消息）
     if (userId && !this.isolationManager) {
+      console.log(`[SessionIsolation] Initializing isolation context for session ${sessionId}, userId=${userId}`)
       await this.initializeSessionIsolation(sessionId, userId)
+    } else if (!userId) {
+      console.warn(`[SessionIsolation] Cannot initialize: userId is missing`)
+    } else if (this.isolationManager) {
+      console.log(`[SessionIsolation] Isolation manager already initialized`)
     }
 
     // 2. 检查是否为命令
