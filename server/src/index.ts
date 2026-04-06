@@ -160,12 +160,61 @@ class SessionConversationManager {
   private commandBridge: WebCommandBridge
   private agentRunner: WebAgentRunner
   private sessionBridge: WebSessionBridge
+  private isolationManager: any = null
 
   constructor() {
     this.toolExecutor = toolExecutor
     this.commandBridge = new WebCommandBridge()
     this.agentRunner = new WebAgentRunner()
     this.sessionBridge = new WebSessionBridge()
+  }
+
+  /**
+   * 初始化会话的隔离上下文（沙箱/Worktree）
+   */
+  private async initializeSessionIsolation(sessionId: string, userId: string): Promise<void> {
+    try {
+      // 动态导入以避免循环依赖
+      const { getIsolationManager, IsolationMode } = await import('./agents/contextIsolation')
+      this.isolationManager = getIsolationManager()
+
+      // 检查是否已有隔离上下文
+      const contexts = this.isolationManager.getContextsByUser(userId)
+      const existingContext = contexts.find(ctx => ctx.name === `session_${sessionId}`)
+
+      if (existingContext) {
+        console.log(`[SessionIsolation] Reusing existing isolation context: ${existingContext.isolationId}`)
+        return
+      }
+
+      // 创建新的隔离上下文
+      const isolationId = await this.isolationManager.create({
+        isolationId: `iso_${userId}_${sessionId}`,
+        userId,
+        mode: IsolationMode.WORKTREE,
+        name: `session_${sessionId}`,
+        description: `Isolation context for session ${sessionId}`,
+        workingDirectory: process.cwd().replace(/\\server\\src$/i, '').replace(/\/server\/src$/, ''),
+        cleanupPolicy: 'delayed',
+      })
+
+      const context = this.isolationManager.getContext(isolationId)
+      console.log(`[SessionIsolation] Created isolation context for session ${sessionId}:`, context)
+    } catch (error) {
+      console.error(`[SessionIsolation] Failed to initialize isolation for session ${sessionId}:`, error)
+      // 不抛出错误，允许在没有隔离的情况下继续
+    }
+  }
+
+  /**
+   * 获取会话的隔离上下文 ID
+   */
+  private getSessionIsolationId(sessionId: string, userId: string): string | undefined {
+    if (!this.isolationManager) return undefined
+    
+    const contexts = this.isolationManager.getContextsByUser(userId)
+    const context = contexts.find(ctx => ctx.name === `session_${sessionId}`)
+    return context?.isolationId
   }
 
   /**
@@ -179,7 +228,16 @@ class SessionConversationManager {
     sessionManager: SessionManager,
     sendEvent: (event: string, data: unknown) => void
   ): Promise<void> {
-    // 1. 检查是否为命令
+    // 0. 获取用户 ID
+    const sessionDataTemp = sessionManager.getInMemorySession(sessionId)
+    const userId = sessionDataTemp?.session.userId
+
+    // 1. 初始化隔离上下文（如果是第一次处理消息）
+    if (userId && !this.isolationManager) {
+      await this.initializeSessionIsolation(sessionId, userId)
+    }
+
+    // 2. 检查是否为命令
     const parsed = parseUserInput(userMessage)
     if (parsed.isCommand && parsed.command) {
       const result = await this.commandBridge.executeCommand(parsed.command, sendEvent)
@@ -187,7 +245,7 @@ class SessionConversationManager {
       return
     }
 
-    // 2. 保存用户消息到 session
+    // 3. 保存用户消息到 session
     const savedUserMessage = sessionManager.addMessage(sessionId, 'user', userMessage)
 
     const sessionData = sessionManager.getInMemorySession(sessionId)
@@ -196,7 +254,7 @@ class SessionConversationManager {
       return
     }
 
-    // 3. 发送 message_saved 事件
+    // 4. 发送 message_saved 事件
     if (savedUserMessage) {
       sendEvent('message_saved', {
         sessionId,
@@ -207,6 +265,10 @@ class SessionConversationManager {
 
     console.log(`[${sessionId}] Starting Agent Loop with model: ${model}`)
     console.log(`[${sessionId}] Total messages in history: ${sessionData.messages.length}`)
+    if (userId) {
+      const isolationId = this.getSessionIsolationId(sessionId, userId)
+      console.log(`[${sessionId}] Using isolation context: ${isolationId || 'none'}`)
+    }
 
     try {
       // 4. 进入 Agent Loop (最多10次迭代)
