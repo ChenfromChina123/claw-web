@@ -2197,6 +2197,128 @@ async function startServer() {
         }
       }
 
+      // GET /api/agent/userdir/content - 获取用户主目录文件内容
+      if (path === '/api/agent/userdir/content' && method === 'GET') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const filePath = url.searchParams.get('path')
+
+          if (!filePath) {
+            return createErrorResponse('INVALID_PARAMS', '缺少必需参数: path', 400)
+          }
+
+          // 确保用户工作区存在
+          const workspace = await ensureUserWorkspace(auth.userId)
+
+          if (!workspace) {
+            return createErrorResponse('WORKSPACE_NOT_FOUND', '用户工作区创建失败，请重试', 500)
+          }
+
+          // 构建完整路径
+          const fullPath = `${workspace.path}${filePath.startsWith('/') ? filePath : '/' + filePath}`
+
+          // 安全检查
+          if (!fullPath.startsWith(workspace.path)) {
+            return createErrorResponse('FORBIDDEN', '禁止访问工作区外的文件', 403)
+          }
+
+          // 检查文件是否存在且是文件
+          const fs = await import('fs/promises')
+          const stat = await fs.stat(fullPath)
+
+          if (!stat.isFile()) {
+            return createErrorResponse('NOT_FILE', '目标不是文件', 400)
+          }
+
+          // 文件大小限制（10MB）
+          const MAX_FILE_SIZE = 10 * 1024 * 1024
+          if (stat.size > MAX_FILE_SIZE) {
+            return createErrorResponse('FILE_TOO_LARGE', `文件过大 (${(stat.size / 1024 / 1024).toFixed(2)}MB)，超过 10MB 限制，建议下载查看`, 400)
+          }
+
+          // 读取文件内容
+          const content = await fs.readFile(fullPath, 'utf-8')
+
+          // 检测文件类型（用于语法高亮）
+          const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase()
+          const language = detectLanguage(ext)
+
+          return createSuccessResponse({
+            content,
+            language,
+            size: stat.size,
+            lastModified: stat.mtime.toISOString(),
+            path: filePath
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取文件内容失败'
+          console.error('[UserDir] 读取失败:', message)
+
+          if (message.includes('ENOENT') || message.includes('not found')) {
+            return createErrorResponse('FILE_NOT_FOUND', '文件不存在', 404)
+          }
+
+          return createErrorResponse('READ_FAILED', message, 500)
+        }
+      }
+
+      // POST /api/agent/userdir/save - 保存用户主目录文件
+      if (path === '/api/agent/userdir/save' && method === 'POST') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const body = await req.json() as {
+            filePath: string
+            content: string
+          }
+
+          if (!body.filePath || body.content === undefined) {
+            return createErrorResponse('INVALID_PARAMS', '缺少必需参数: filePath, content', 400)
+          }
+
+          // 确保用户工作区存在
+          const workspace = await ensureUserWorkspace(auth.userId)
+
+          if (!workspace) {
+            return createErrorResponse('WORKSPACE_NOT_FOUND', '用户工作区创建失败，请重试', 500)
+          }
+
+          // 构建完整路径
+          const fullPath = `${workspace.path}${body.filePath.startsWith('/') ? body.filePath : '/' + body.filePath}`
+
+          // 安全检查
+          if (!fullPath.startsWith(workspace.path)) {
+            return createErrorResponse('FORBIDDEN', '禁止访问工作区外的文件', 403)
+          }
+
+          // 确保目录存在
+          const fs = await import('fs/promises')
+          const path = await import('path')
+          const dir = path.dirname(fullPath)
+          await fs.mkdir(dir, { recursive: true })
+
+          // 写入文件
+          await fs.writeFile(fullPath, body.content, 'utf-8')
+
+          return createSuccessResponse({
+            success: true,
+            path: body.filePath,
+            message: '文件保存成功'
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '保存文件失败'
+          console.error('[UserDir] 保存失败:', message)
+          return createErrorResponse('SAVE_FAILED', message, 500)
+        }
+      }
+
       // GET /api/agent/userdir/skills - 获取用户已安装的 skills
       if (path === '/api/agent/userdir/skills' && method === 'GET') {
         try {
