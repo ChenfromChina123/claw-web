@@ -6,6 +6,7 @@ import naive from 'naive-ui'
 import { authApi } from './api'
 import { checkLoginStatus } from './services/authService'
 import './assets/main.css'
+import 'markstream-vue/index.css'
 
 const DEV_AUTO_LOGIN_EMAIL = '3301767269@qq.com'
 const DEV_AUTO_LOGIN_PASSWORD = '123456'

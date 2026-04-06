@@ -27,9 +27,12 @@ export class SessionManager {
   private toolCallRepo = new ToolCallRepository()
 
   private saveDebounceTimers: Map<string, NodeJS.Timeout> = new Map()
-  
+
   /** 会话标题更新回调 */
   private onSessionTitleUpdated: ((sessionId: string, title: string) => void) | null = null
+
+  /** 标题生成中的会话ID集合，防止重复触发 */
+  private titleGeneratingSessions: Set<string> = new Set()
 
   /**
    * 设置会话标题更新回调
