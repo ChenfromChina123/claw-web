@@ -4,7 +4,6 @@
  */
 
 import apiClient from './client'
-import { unwrapApiData } from './unwrapApiResponse'
 import type { ToolDefinition } from '@/types'
 import type { ApiResponse } from '@/types'
 
@@ -62,39 +61,49 @@ export interface ToolHistoryResponse {
   count: number
 }
 
+/**
+ * 解包 API 响应数据
+ */
+function unwrapData<T>(response: ApiResponse<T>): T {
+  if (!response.success || response.data === undefined) {
+    throw new Error(response.error?.message || '请求失败')
+  }
+  return response.data
+}
+
 export const toolApi = {
   async listTools(category?: string): Promise<ToolListResponse> {
     const params = category ? { category } : {}
-    const { data } = await apiClient.get<ApiResponse<ToolListResponse>>('/tools', { params })
-    return unwrapApiData(data)
+    const response = await apiClient.get<ApiResponse<ToolListResponse>>('/tools', { params })
+    return unwrapData(response.data)
   },
 
   async getTool(toolName: string): Promise<ToolDefinition> {
-    const { data } = await apiClient.get<ApiResponse<ToolDefinition>>(
+    const response = await apiClient.get<ApiResponse<ToolDefinition>>(
       `/tools/${encodeURIComponent(toolName)}`
     )
-    return unwrapApiData(data)
+    return unwrapData(response.data)
   },
 
   async executeTool(request: ToolExecutionRequest): Promise<ToolExecutionResponse> {
-    const { data } = await apiClient.post<ApiResponse<ToolExecutionResponse>>('/tools/execute', request)
-    return unwrapApiData(data)
+    const response = await apiClient.post<ApiResponse<ToolExecutionResponse>>('/tools/execute', request)
+    return unwrapData(response.data)
   },
 
   async getHistory(limit?: number): Promise<ToolHistoryResponse> {
     const params = limit ? { limit } : {}
-    const { data } = await apiClient.get<ApiResponse<ToolHistoryResponse>>('/tools/history', { params })
-    return unwrapApiData(data)
+    const response = await apiClient.get<ApiResponse<ToolHistoryResponse>>('/tools/history', { params })
+    return unwrapData(response.data)
   },
 
   async clearHistory(): Promise<{ message: string }> {
-    const { data } = await apiClient.post<ApiResponse<{ message: string }>>('/tools/history/clear')
-    return unwrapApiData(data)
+    const response = await apiClient.post<ApiResponse<{ message: string }>>('/tools/history/clear')
+    return unwrapData(response.data)
   },
 
   async validateInput(request: ToolValidationRequest): Promise<ToolValidationResponse> {
-    const { data } = await apiClient.post<ApiResponse<ToolValidationResponse>>('/tools/validate', request)
-    return unwrapApiData(data)
+    const response = await apiClient.post<ApiResponse<ToolValidationResponse>>('/tools/validate', request)
+    return unwrapData(response.data)
   },
 }
 

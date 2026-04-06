@@ -37,12 +37,4 @@ export type {
   ToolCallInfo,
   ExecuteAgentRequest,
   ExecuteAgentResponse,
-  TaskDecomposeRequest,
-  TaskDecomposeResponse,
-  SubTask,
-  AgentStatusSnapshot,
-  AgentStatusUpdate,
-  AgentSelection,
-  AgentExecutionStatus,
-  ToolCallRecord,
 } from './agentWorkflow'
