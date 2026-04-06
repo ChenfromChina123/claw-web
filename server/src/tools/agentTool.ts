@@ -14,6 +14,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import type { ToolResult } from '../integration/enhancedToolExecutor'
 import type { ToolExecutionContext } from '../integration/enhancedToolExecutor'
+import type { Tool } from '../integration/webStore'
 import { getBuiltInAgentByType, getBuiltInAgents } from '../agents/builtInAgents'
 import type { AgentDefinition, AgentExecutionResult } from '../agents/types'
 import { getWorkflowEventService } from '../services/workflowEventService'
@@ -138,7 +139,8 @@ export async function executeAgentTool(
     // 生成 traceId（如果没有提供）
     const traceId = input.trace_id || uuidv4()
     const agentId = uuidv4()
-    const agentName = agentDefinition.name || agentDefinition.agentType
+    // BuiltInAgentDefinition 有 description 和 icon，没有 name
+    const agentName = agentDefinition.description || agentDefinition.agentType
     const parentAgentId = input.parent_agent_id
     
     // 获取工作流事件服务
@@ -295,6 +297,82 @@ export async function executeAgentTool(
  * 创建 Agent 工具定义
  */
 export function createAgentToolDefinition(): Tool {
+  return {
+    name: 'Agent',
+    description: '启动子代理来完成任务。会调用真实 LLM 并执行工具来完成用户指定的任务。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: '给子代理的任务描述（必需）',
+        },
+        description: {
+          type: 'string',
+          description: '任务描述（用于日志和调试）',
+        },
+        subagent_type: {
+          type: 'string',
+          description: '子代理类型（如 general-purpose、Explore、Plan）',
+          enum: getAvailableAgentTypes(),
+        },
+        model: {
+          type: 'string',
+          description: '可选：指定使用的模型（如 claude-sonnet-4-20250514、qwen-plus）',
+        },
+        run_in_background: {
+          type: 'boolean',
+          description: '是否在后台运行',
+          default: false,
+        },
+        name: {
+          type: 'string',
+          description: '团队成员名称（需配合 team_name 使用）',
+        },
+        team_name: {
+          type: 'string',
+          description: '团队名称（需配合 name 使用）',
+        },
+        mode: {
+          type: 'string',
+          description: '权限模式',
+          enum: ['bypassPermissions', 'acceptEdits', 'auto', 'plan', 'bubble'],
+          default: 'auto',
+        },
+        isolation: {
+          type: 'string',
+          description: '隔离模式',
+          enum: ['worktree', 'remote'],
+        },
+        cwd: {
+          type: 'string',
+          description: '工作目录',
+        },
+        max_turns: {
+          type: 'number',
+          description: '最大轮次限制（默认 20）',
+          minimum: 1,
+          maximum: 100,
+        },
+      },
+      required: ['prompt'],
+    },
+    category: 'agent',
+  }
+}
+
+/**
+ * 带 handler 的工具定义类型
+ */
+export interface AgentToolDefinition extends Tool {
+  /** 工具执行处理器 */
+  handler: typeof executeAgentTool
+}
+
+/**
+ * 获取 Agent 工具定义（带 handler）
+ */
+export function createAgentToolDefinitionWithHandler(): AgentToolDefinition {
   return {
     name: 'Agent',
     description: '启动子代理来完成任务。会调用真实 LLM 并执行工具来完成用户指定的任务。',
