@@ -597,9 +597,20 @@ class SessionConversationManager {
         )
 
         // 无感沙箱：在执行前自动设置工作目录
+        // 主会话使用用户主目录，普通会话使用会话工作区
         let workspaceDir = ''
         try {
-          workspaceDir = await this.workspaceManager.getRealWorkingDirectory(sessionId)
+          const sm = SessionManager.getInstance()
+          const session = sm.getInMemorySession(sessionId)
+          
+          if (session?.session.isMaster) {
+            // 主会话：使用用户主目录
+            workspaceDir = await this.workspaceManager.getRealHomeDirectory(session.session.userId)
+            console.log(`[${sessionId}] Master session using user home: ${workspaceDir}`)
+          } else {
+            // 普通会话：使用会话工作区
+            workspaceDir = await this.workspaceManager.getRealWorkingDirectory(sessionId)
+          }
         } catch (e) {
           console.warn(`[${sessionId}] 获取工作目录失败:`, e)
         }
