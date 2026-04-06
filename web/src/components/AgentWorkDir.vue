@@ -80,6 +80,12 @@ const expandedKeys = ref<string[]>([])
 /** 选中的节点 key */
 const selectedKey = ref<string | null>(null)
 
+/** 已加载的目录缓存（防止重复加载） */
+const loadedPaths = new Map<string, TreeOption[]>()
+
+/** 正在加载的路径集合（防止并发重复请求） */
+const loadingPaths = new Set<string>()
+
 // ==================== 编辑器相关 ====================
 
 /** 编辑器容器引用 */
@@ -101,7 +107,21 @@ const API_BASE = '/agent/workdir'
 async function loadDirectory(nodeKey: string, showLoading = false): Promise<TreeOption[]> {
   console.log('[AgentWorkDir] loadDirectory called:', { nodeKey, showLoading })
 
+  const normalizedPath = nodeKey || '/'
+
+  if (loadingPaths.has(normalizedPath)) {
+    console.log('[AgentWorkDir] Path is already loading, skipping:', normalizedPath)
+    return []
+  }
+
+  if (loadedPaths.has(normalizedPath)) {
+    console.log('[AgentWorkDir] Path already loaded, returning cached:', normalizedPath)
+    return loadedPaths.get(normalizedPath) || []
+  }
+
   try {
+    loadingPaths.add(normalizedPath)
+    
     if (showLoading) {
       loading.value = true
     }
@@ -109,7 +129,7 @@ async function loadDirectory(nodeKey: string, showLoading = false): Promise<Tree
     const response = await apiClient.get(`${API_BASE}/list`, {
       params: {
         sessionId: props.sessionId,
-        path: nodeKey || '/'
+        path: normalizedPath
       }
     }) as any
 
@@ -124,12 +144,11 @@ async function loadDirectory(nodeKey: string, showLoading = false): Promise<Tree
         prefix: () => getFileIcon(item.isDirectory, item.type, item.extension),
         isLeaf: !item.isDirectory
       }
-      // 目录节点不设置 children 属性，让 NTree 触发懒加载
-      // 文件节点也不需要 children
       console.log('[AgentWorkDir] Created node:', { key: node.key, label: node.label, isLeaf: node.isLeaf, isDirectory: item.isDirectory })
       return node
     })
 
+    loadedPaths.set(normalizedPath, nodes)
     console.log('[AgentWorkDir] Returning nodes:', nodes.length)
     return nodes
   } catch (error: any) {
@@ -137,6 +156,7 @@ async function loadDirectory(nodeKey: string, showLoading = false): Promise<Tree
     message.error(error.response?.data?.error?.message || '加载目录失败')
     return []
   } finally {
+    loadingPaths.delete(normalizedPath)
     if (showLoading) {
       loading.value = false
     }
@@ -386,10 +406,11 @@ onBeforeUnmount(() => {
 // 监听 sessionId 变化
 watch(() => props.sessionId, async (newSessionId) => {
   if (newSessionId) {
-    // 重新加载目录（显示加载状态）
+    loadedPaths.clear()
+    loadingPaths.clear()
+    
     treeData.value = await loadDirectory('/', true)
     
-    // 清空编辑器
     if (editorInstance) {
       editorInstance.setValue('')
     }
@@ -400,9 +421,11 @@ watch(() => props.sessionId, async (newSessionId) => {
   }
 })
 
-// 暴露方法给父组件
 defineExpose({
   refresh: async () => {
+    loadedPaths.clear()
+    loadingPaths.clear()
+    
     treeData.value = await loadDirectory('/', true)
     message.success('🔄 已刷新')
   }
