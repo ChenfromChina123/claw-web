@@ -179,11 +179,25 @@ class SessionConversationManager {
 
   /**
    * 初始化会话的工作目录（Workspace）
+   * 主会话使用用户主目录，普通会话使用会话工作区
    */
   private async initializeSessionWorkspace(sessionId: string, userId: string): Promise<void> {
     try {
-      const workspace = await this.workspaceManager.createWorkspace(userId, sessionId)
-      console.log(`[SessionWorkspace] Workspace initialized for session ${sessionId}:`, workspace.path)
+      // 获取会话信息，判断是否为主会话
+      const sm = SessionManager.getInstance()
+      const session = sm.getInMemorySession(sessionId)
+      
+      let workspace
+      
+      if (session?.session.isMaster) {
+        // 主会话：使用用户主目录
+        workspace = await this.workspaceManager.getOrCreateUserWorkspace(userId)
+        console.log(`[SessionWorkspace] Master session using user home: ${workspace.path}`)
+      } else {
+        // 普通会话：创建会话工作区
+        workspace = await this.workspaceManager.createWorkspace(userId, sessionId)
+        console.log(`[SessionWorkspace] Workspace initialized for session ${sessionId}:`, workspace.path)
+      }
     } catch (error) {
       console.error(`[SessionWorkspace] Failed to initialize workspace for session ${sessionId}:`, error)
       // 不抛出错误，允许在没有工作目录的情况下继续

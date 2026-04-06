@@ -101,9 +101,12 @@ export class SessionRepository {
 
   async save(session: Session): Promise<void> {
     const pool = getPool() as Pool
+    // 将布尔值转换为整数（0/1）以确保 MySQL 正确存储
+    const isMasterValue = session.isMaster ? 1 : 0
+    const isPinnedValue = session.isPinned ? 1 : 0
     await pool.query(
       'UPDATE sessions SET title = ?, model = ?, is_pinned = ?, is_master = ? WHERE id = ?',
-      [session.title, session.model, session.isPinned ?? false, session.isMaster ?? false, session.id]
+      [session.title, session.model, isPinnedValue, isMasterValue, session.id]
     )
   }
 
