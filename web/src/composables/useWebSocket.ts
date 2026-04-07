@@ -352,6 +352,13 @@ class EnhancedWebSocketClient {
           this.handlePong()
           break
 
+        // 服务端 wsBridge 心跳会主动向客户端发 ping，需回复 pong，否则会误落入 default 并刷警告
+        case 'ping':
+          if (this.ws?.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }))
+          }
+          break
+
         case 'rpc_response':
           this.handleRPCResponse(message as unknown as RPCResponse)
           break

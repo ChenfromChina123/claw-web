@@ -50,6 +50,12 @@ const routes: RouteRecordRaw[] = [
     name: 'AgentWorkflow',
     component: () => import('@/components/AgentWorkflowViewer.vue'),
     meta: { requiresAuth: false }
+  },
+  {
+    path: '/ide',
+    name: 'IdeWorkbench',
+    component: () => import('@/views/IdeWorkbench.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 

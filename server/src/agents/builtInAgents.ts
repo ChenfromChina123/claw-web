@@ -5,6 +5,12 @@
  */
 
 import type { BuiltInAgentDefinition } from './types'
+import {
+  getOutputEfficiencySection,
+  isNumericLengthAnchorsEnabled,
+  EXPLORE_AGENT_EFFICIENCY,
+  VERIFICATION_AGENT_RULES,
+} from '../prompts/efficiencyPrompts'
 
 /**
  * 共享前缀提示
@@ -31,7 +37,12 @@ Guidelines:
  * 获取通用 Agent 的系统提示
  */
 function getGeneralPurposeSystemPrompt(): string {
+  const efficiency = getOutputEfficiencySection()
+  const anchors = isNumericLengthAnchorsEnabled() ? '\n\n' : ''
+
   return `${SHARED_PREFIX} When you complete the task, respond with a concise report covering what was done and any key findings — the caller will relay this to the user, so it only needs the essentials.
+
+${efficiency}${anchors}
 
 ${SHARED_GUIDELINES}`
 }
@@ -55,6 +66,9 @@ export const GENERAL_PURPOSE_AGENT: BuiltInAgentDefinition = {
  * 获取探索 Agent 的系统提示
  */
 function getExploreSystemPrompt(): string {
+  const efficiency = getOutputEfficiencySection()
+  const anchors = isNumericLengthAnchorsEnabled() ? '\n\n' : ''
+
   return `You are a file search specialist for Claude Code, Anthropic's official CLI for Claude. You excel at thoroughly navigating and exploring codebases.
 
 === CRITICAL: READ-ONLY MODE - NO FILE MODIFICATIONS ===
@@ -83,11 +97,9 @@ Guidelines:
 - Adapt your search approach based on the thoroughness level specified by the caller
 - Communicate your final report directly as a regular message - do NOT attempt to create files
 
-NOTE: You are meant to be a fast agent that returns output as quickly as possible. In order to achieve this you must:
-- Make efficient use of the tools that you have at your disposal: be smart about how you search for files and implementations
-- Wherever possible you should try to spawn multiple parallel tool calls for grepping and reading files
+${efficiency}${anchors}
 
-Complete the user's search request efficiently and report your findings clearly.`
+${EXPLORE_AGENT_EFFICIENCY}`
 }
 
 /**
@@ -112,7 +124,12 @@ export const EXPLORE_AGENT: BuiltInAgentDefinition = {
  * 获取规划 Agent 的系统提示
  */
 function getPlanSystemPrompt(): string {
+  const efficiency = getOutputEfficiencySection()
+  const anchors = isNumericLengthAnchorsEnabled() ? '\n\n' : ''
+
   return `You are a planning specialist for Claude Code, Anthropic's official CLI for Claude. Your role is to analyze tasks and create detailed, actionable plans.
+
+${efficiency}${anchors}
 
 === CRITICAL: PLAN-ONLY MODE - NO EXECUTION ===
 This is a PLAN-ONLY task. You are STRICTLY PROHIBITED from:
@@ -169,7 +186,12 @@ export const PLAN_AGENT: BuiltInAgentDefinition = {
  * 获取验证 Agent 的系统提示
  */
 function getVerificationSystemPrompt(): string {
+  const efficiency = getOutputEfficiencySection()
+  const anchors = isNumericLengthAnchorsEnabled() ? '\n\n' : ''
+
   return `You are a verification specialist for Claude Code, Anthropic's official CLI for Claude. Your role is to verify that implementations are correct, complete, and working as expected.
+
+${efficiency}${anchors}
 
 Your strengths:
 - Thoroughly reviewing code changes
@@ -187,9 +209,11 @@ Guidelines:
 6. Look for any potential issues or edge cases
 7. Provide a comprehensive verification report
 
+${VERIFICATION_AGENT_RULES}
+
 Your verification should include:
 - What you checked
-- What tests you ran
+- What tests you ran (include **Command run:** blocks as proof)
 - Any issues you found
 - Confirmation that the implementation is working correctly
 - Recommendations for improvements (if any)
@@ -216,7 +240,12 @@ export const VERIFICATION_AGENT: BuiltInAgentDefinition = {
  * 获取 Claude Code 指南 Agent 的系统提示
  */
 function getClaudeCodeGuideSystemPrompt(): string {
+  const efficiency = getOutputEfficiencySection()
+  const anchors = isNumericLengthAnchorsEnabled() ? '\n\n' : ''
+
   return `You are a Claude Code guide and mentor. You help users understand how to use Claude Code effectively.
+
+${efficiency}${anchors}
 
 Your role is to:
 - Explain how Claude Code works
@@ -262,7 +291,12 @@ export const CLAUDE_CODE_GUIDE_AGENT: BuiltInAgentDefinition = {
  * 获取状态栏设置 Agent 的系统提示
  */
 function getStatuslineSetupSystemPrompt(): string {
+  const efficiency = getOutputEfficiencySection()
+  const anchors = isNumericLengthAnchorsEnabled() ? '\n\n' : ''
+
   return `You are a status line configuration specialist for Claude Code. You help users customize and optimize their status line display.
+
+${efficiency}${anchors}
 
 Your role is to help users:
 - Understand the available status line options

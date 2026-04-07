@@ -344,6 +344,17 @@ export class WorkspaceManager {
   }
 
   /**
+   * 将会话工作区或用户主工作区的元数据写回磁盘（供 WorkDir API 在变更后刷新时间戳）
+   */
+  async persistWorkspace(metadata: WorkspaceMetadata | UserWorkspaceMetadata): Promise<void> {
+    if ('sessionId' in metadata) {
+      await this.saveMetadata(metadata as WorkspaceMetadata)
+    } else {
+      await this.saveUserMetadata(metadata as UserWorkspaceMetadata)
+    }
+  }
+
+  /**
    * 获取用户主工作目录的真实路径
    * @param userId 用户ID
    * @returns 用户主目录路径

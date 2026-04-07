@@ -16,8 +16,10 @@ export const modelApi = {
    * 获取所有可用模型列表
    */
   async listModels(): Promise<Model[]> {
-    const { data } = await apiClient.get<{ models: Model[] }>('/models')
-    return data.models
+    const res = await apiClient.get<{ models: Model[] }>('/models')
+    const body = res.data as { success?: boolean; data?: { models: Model[] }; models?: Model[] }
+    if (body?.success === false) return []
+    return (body?.data?.models ?? body?.models) ?? []
   },
 
   /**

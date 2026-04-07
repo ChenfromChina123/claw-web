@@ -1,21 +1,33 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Session, Message, ToolCall } from '@/types'
 import wsClient from '@/composables/useWebSocket'
 
 /** 避免每次 connect() 重复注册 WS 监听，导致同一事件触发多次（重复 unshift 会话、错误 resolve loadSession 等） */
 let wsListenersAttached = false
 
+const LAST_SESSION_KEY = 'lastSessionId'
+
 export const useChatStore = defineStore('chat', () => {
   const sessions = ref<Session[]>([])
-  const currentSessionId = ref<string | null>(null)
+  // 从 localStorage 恢复上次选中的会话 ID，服务重启后自动恢复
+  const currentSessionId = ref<string | null>(localStorage.getItem(LAST_SESSION_KEY))
   const messages = ref<Message[]>([])
   const toolCalls = ref<ToolCall[]>([])
   const isLoading = ref(false)
   const isConnected = ref(false)
   /** 当前正在流式输出的助手消息 id，用于将 toolCall 归属到对应轮次 */
   const currentStreamingAssistantId = ref<string | null>(null)
-  
+
+  // 监听会话切换，自动持久化到 localStorage
+  watch(currentSessionId, (newId) => {
+    if (newId) {
+      localStorage.setItem(LAST_SESSION_KEY, newId)
+    } else {
+      localStorage.removeItem(LAST_SESSION_KEY)
+    }
+  })
+
   const currentSession = computed(() => {
     return sessions.value.find(s => s.id === currentSessionId.value)
   })

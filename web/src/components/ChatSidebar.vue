@@ -12,9 +12,14 @@ import {
   NDrawer,
   NDrawerContent,
   NIcon,
+  NTag,
   useMessage,
 } from 'naive-ui'
-import { FolderOpen } from '@vicons/ionicons5'
+import {
+  FolderOpen,
+  CodeSlash,
+  Add,
+} from '@vicons/ionicons5'
 import { useChatStore } from '@/stores/chat'
 import type { Session } from '@/types'
 import AgentWorkDir from './AgentWorkDir.vue'
@@ -232,21 +237,34 @@ function formatTime(date: Date | string) {
       class="chat-sidebar"
     >
       <div class="sidebar">
+        <!-- 与 IDE 活动栏统一的「新建」入口（蓝色强调，避免与沉浸式内其他黄色主按钮混用） -->
+        <div
+          class="sidebar-global-new"
+          title="新建会话"
+          role="button"
+          tabindex="0"
+          @click="handleNewChat"
+          @keydown.enter.prevent="handleNewChat"
+          @keydown.space.prevent="handleNewChat"
+        >
+          <NIcon :size="18"><Add /></NIcon>
+          <span>新建会话</span>
+        </div>
+
         <!-- 头部 -->
         <div class="sidebar-header">
           <h2>Claude Code</h2>
-          <NButton type="primary" size="small" @click="handleNewChat">
-            新对话
-          </NButton>
         </div>
 
         <!-- 搜索 -->
         <div class="sidebar-search">
+          <p class="sidebar-search-hint">在当前会话列表中筛选</p>
           <NInput
             v-model:value="searchValue"
-            placeholder="搜索会话..."
+            placeholder="搜索标题…"
             size="small"
             clearable
+            aria-label="筛选会话列表"
           >
             <template #prefix>
               <span>🔍</span>
@@ -270,8 +288,15 @@ function formatTime(date: Date | string) {
                   {{ session.title }}
                 </div>
                 <div class="session-meta">
-                  <span>{{ session.model }}</span>
-                  <span>{{ formatTime(session.updatedAt) }}</span>
+                  <NTag
+                    v-if="session.model && session.model.trim()"
+                    size="small"
+                    :bordered="false"
+                    class="session-model-tag"
+                  >
+                    {{ session.model }}
+                  </NTag>
+                  <span class="session-time-only">{{ formatTime(session.updatedAt) }}</span>
                 </div>
               </div>
               <NDropdown
@@ -304,7 +329,8 @@ function formatTime(date: Date | string) {
 
             <div v-if="filteredSessions.length === 0" class="empty-state">
               <p>暂无会话</p>
-              <NButton size="small" @click="handleNewChat">
+              <p class="empty-hint">点击顶部「新建会话」开始</p>
+              <NButton size="small" quaternary @click="handleNewChat">
                 创建新对话
               </NButton>
             </div>
@@ -322,6 +348,12 @@ function formatTime(date: Date | string) {
             </NButton>
             <NButton block quaternary size="small" @click="router.push('/integration')">
               集成工作台
+            </NButton>
+            <NButton block quaternary size="small" @click="router.push('/ide')">
+              <template #icon>
+                <NIcon><CodeSlash /></NIcon>
+              </template>
+              IDE 工作台
             </NButton>
             <NButton block quaternary size="small" @click="router.push('/settings')">
               设置
@@ -412,10 +444,38 @@ function formatTime(date: Date | string) {
   border-right: 1px solid var(--glass-border);
 }
 
-.sidebar-header {
-  padding: 20px 16px 16px;
+.sidebar-global-new {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 12px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(64, 158, 255, 0.95);
+  border: 1px solid rgba(64, 158, 255, 0.4);
+  background: rgba(64, 158, 255, 0.08);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-global-new:hover {
+  color: #fff;
+  background: rgba(64, 158, 255, 0.22);
+  border-color: rgba(64, 158, 255, 0.55);
+}
+
+.sidebar-global-new:focus-visible {
+  outline: 2px solid rgba(64, 158, 255, 0.7);
+  outline-offset: 2px;
+}
+
+.sidebar-header {
+  padding: 14px 16px 12px;
+  display: flex;
+  justify-content: flex-start;
   align-items: center;
   border-bottom: 1px solid var(--border-color, rgba(99, 102, 241, 0.1));
 }
@@ -431,7 +491,20 @@ function formatTime(date: Date | string) {
 }
 
 .sidebar-search {
-  padding: 12px 16px;
+  padding: 10px 16px 12px;
+}
+
+.sidebar-search-hint {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.empty-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-bottom: 8px !important;
 }
 
 .sidebar-list {
@@ -486,15 +559,16 @@ function formatTime(date: Date | string) {
 }
 
 .session-item.active {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(79, 70, 229, 0.08) 100%);
-  border-color: var(--primary-color);
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.12);
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.12) 0%, rgba(99, 102, 241, 0.08) 100%);
+  border-color: #409eff;
+  box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.35);
   color: var(--text-primary);
 }
 
 .session-item.active::before {
   transform: scaleY(1);
   opacity: 1;
+  background: #409eff;
 }
 
 .session-item.active:hover {
@@ -534,23 +608,35 @@ function formatTime(date: Date | string) {
   color: var(--text-tertiary);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
 }
 
-.session-meta::before {
-  content: '';
-  width: 12px;
-  height: 1px;
-  background: var(--border-color);
+.session-model-tag {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100px;
+  font-size: 10px !important;
+  padding: 0 6px !important;
+  height: 20px !important;
+  line-height: 20px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-time-only {
   flex-shrink: 0;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-tertiary);
 }
 
 .session-item.active .session-meta {
   color: var(--text-secondary);
 }
 
-.session-item.active .session-meta::before {
-  background: rgba(99, 102, 241, 0.3);
+.session-item.active .session-time-only {
+  color: var(--text-secondary);
 }
 
 /* 主会话样式 */

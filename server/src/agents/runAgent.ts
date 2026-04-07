@@ -13,6 +13,12 @@ import { createRuntimeContext, AgentRuntimeContext, RuntimeStatus, PermissionMod
 import { getToolRegistry, RegisteredTool } from '../integrations/toolRegistry'
 import type { IsolationContextConfig, WorktreeConfig, RemoteConfig } from './contextIsolation'
 import { llmService, type ChatMessage, type ToolDefinition as LLMToolDef } from '../services/llmService'
+import {
+  getOutputEfficiencySection,
+  isNumericLengthAnchorsEnabled,
+  PROACTIVE_SECTION,
+  FORK_BOILERPLATE,
+} from '../prompts/efficiencyPrompts'
 
 /**
  * Agent 消息类型
@@ -435,6 +441,19 @@ ${availableTools.map(tool => `- ${tool}`).join('\n')}
 ${context.toolPermission.readOnly ? '**注意**: 此 Agent 是只读模式，不能执行写入操作。' : ''}
 `.trim()
 
+  // 添加输出效率指令（来自 claude-code-haha）
+  const efficiencySection = `
+${getOutputEfficiencySection()}
+${isNumericLengthAnchorsEnabled() ? '\n' + '' : ''}
+`.trim()
+
+  // 添加 Proactive 自驱模式规则（如果启用了主动模式）
+  const proactiveSection = process.env.ENABLE_PROACTIVE === 'true' ? PROACTIVE_SECTION : ''
+
+  // Fork Worker 模式：如果是子代理，注入强制规则覆盖默认行为
+  const isForkWorker = !!context.parentAgentId
+  const forkSection = isForkWorker ? '\n\n' + FORK_BOILERPLATE : ''
+
   // 添加权限模式信息
   let permissionSection = ''
   switch (context.permissionMode) {
@@ -495,6 +514,9 @@ ${context.toolPermission.readOnly ? '**注意**: 此 Agent 是只读模式，不
   return `${basePrompt}
 
 ${toolsSection}
+
+${efficiencySection}
+${proactiveSection ? '\n\n' + proactiveSection : ''}${forkSection}
 
 ${permissionSection}
 

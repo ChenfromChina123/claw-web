@@ -1,19 +1,72 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { NInput, NButton, NUpload, NIcon, NSpin, NTag, useMessage } from 'naive-ui'
+import { ref, computed, watch, onMounted } from 'vue'
+import { NInput, NButton, NIcon, NSpin, NTag, NSelect, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
 import { CloudUploadOutline } from '@vicons/ionicons5'
+import { modelApi, type Model } from '@/api/modelApi'
+import { useChatStore } from '@/stores/chat'
 
 const props = defineProps<{
   disabled?: boolean
   sidebarCollapsed?: boolean
   sessionId?: string
+  /** 占位文案（IDE 等场景可传入英文） */
+  placeholder?: string
+  /** default：全屏聊天大输入区；ide：侧栏紧凑 + 模型选择 */
+  variant?: 'default' | 'ide'
 }>()
 
 const emit = defineEmits<{
-  send: [content: string]
+  send: [content: string, modelId?: string]
   focus: []
 }>()
+
+const chatStore = useChatStore()
+const models = ref<Model[]>([])
+const selectedModelId = ref<string>('')
+
+const modelOptions = computed(() =>
+  (models.value ?? []).map(m => ({ label: m.name, value: m.id })),
+)
+
+async function loadModels(): Promise<void> {
+  try {
+    const list = await modelApi.listModels()
+    models.value = list
+    if (!selectedModelId.value && list.length > 0) {
+      selectedModelId.value = list[0].id
+    }
+  } catch {
+    models.value = []
+  }
+}
+
+function syncModelFromSession(): void {
+  if (props.variant !== 'ide') return
+  const m = chatStore.currentSession?.model
+  if (m) {
+    const list = models.value ?? []
+    if (list.some(x => x.id === m)) {
+      selectedModelId.value = m
+    } else {
+      selectedModelId.value = m
+    }
+  }
+}
+
+watch(
+  () => [props.variant, props.sessionId, chatStore.currentSession?.model] as const,
+  () => {
+    syncModelFromSession()
+  },
+  { immediate: true },
+)
+
+onMounted(() => {
+  if (props.variant === 'ide') {
+    void loadModels().then(() => syncModelFromSession())
+  }
+})
 
 const inputValue = ref('')
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
@@ -32,7 +85,11 @@ const currentSessionId = computed(() => props.sessionId || '')
  */
 function handleSend() {
   if (!inputValue.value.trim() || props.disabled) return
-  emit('send', inputValue.value)
+  if (props.variant === 'ide') {
+    emit('send', inputValue.value, selectedModelId.value || undefined)
+  } else {
+    emit('send', inputValue.value)
+  }
   inputValue.value = ''
 }
 
@@ -170,7 +227,20 @@ defineExpose({
 </script>
 
 <template>
-  <div class="chat-input">
+  <div class="chat-input" :class="`chat-input--${variant || 'default'}`">
+    <div v-if="variant === 'ide'" class="ide-input-toolbar">
+      <NSelect
+        v-model:value="selectedModelId"
+        :options="modelOptions"
+        :disabled="disabled || modelOptions.length === 0"
+        size="small"
+        placeholder="模型"
+        class="ide-model-select"
+        :consistent-menu-width="false"
+      />
+    </div>
+
+    <div class="chat-input-body">
     <!-- 左侧：文件上传区域 -->
     <div class="upload-section">
       <!-- 隐藏的文件输入框 -->
@@ -193,7 +263,7 @@ defineExpose({
           <NSpin size="18" stroke="#6366f1" />
         </template>
         <template v-else>
-          <NIcon size="22" color="#6366f1">
+          <NIcon :size="variant === 'ide' ? 18 : 22" :color="variant === 'ide' ? '#3b9eff' : '#6366f1'">
             <CloudUploadOutline />
           </NIcon>
         </template>
@@ -231,8 +301,8 @@ defineExpose({
         ref="inputRef"
         v-model:value="inputValue"
         type="textarea"
-        placeholder="输入消息... (Shift+Enter 换行)"
-        :autosize="{ minRows: 3, maxRows: 8 }"
+        :placeholder="props.placeholder || '输入消息... (Shift+Enter 换行)'"
+        :autosize="variant === 'ide' ? { minRows: 2, maxRows: 6 } : { minRows: 3, maxRows: 8 }"
         :disabled="disabled"
         @keydown="handleKeyDown"
         @focus="handleFocus"
@@ -250,6 +320,7 @@ defineExpose({
         发送
       </NButton>
     </div>
+    </div>
   </div>
 </template>
 
@@ -263,6 +334,26 @@ defineExpose({
   gap: 10px;
   padding: 10px;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chat-input-body {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-input--ide {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px;
+}
+
+.chat-input--ide .chat-input-body {
+  width: 100%;
 }
 
 /* ====== 左侧上传区域样式 ====== */
@@ -424,11 +515,90 @@ defineExpose({
   box-shadow: none;
 }
 
+/* ========== IDE 侧栏变体 ========== */
+.ide-input-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ide-model-select {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chat-input--ide .ide-input-toolbar :deep(.n-base-selection) {
+  --n-height: 28px !important;
+  font-size: 12px !important;
+  background-color: #1e1e1e !important;
+  border: 1px solid #3c3c3c !important;
+}
+
+.chat-input--ide .upload-section {
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.chat-input--ide .upload-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border-width: 1px;
+  border-style: dashed;
+  border-color: rgba(0, 122, 204, 0.65);
+  background: rgba(0, 122, 204, 0.08);
+}
+
+.chat-input--ide .upload-button:hover:not(.disabled) {
+  border-color: #007acc;
+  background: rgba(0, 122, 204, 0.14);
+  transform: none;
+  box-shadow: none;
+}
+
+.chat-input--ide .uploaded-files-list {
+  max-width: 100%;
+  flex: 1;
+}
+
+.chat-input--ide .input-wrapper :deep(.n-input) {
+  border-radius: 8px;
+  background: #1a1a1a;
+}
+
+.chat-input--ide .input-wrapper :deep(.n-input__textarea-el) {
+  padding: 8px 10px !important;
+  font-size: 13px !important;
+}
+
+.chat-input--ide .input-actions {
+  align-self: flex-end;
+}
+
+.chat-input--ide .send-button {
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 16px !important;
+  font-size: 13px !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+.chat-input--ide .send-button:hover:not(:disabled) {
+  transform: none;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .chat-input {
     flex-direction: column;
     gap: 8px;
+  }
+
+  .chat-input-body {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .upload-section {

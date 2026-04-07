@@ -2068,20 +2068,53 @@ async function startServer() {
             return createErrorResponse('NOT_FILE', '目标不是文件', 400)
           }
 
-          // 文件大小限制（10MB）
-          const MAX_FILE_SIZE = 10 * 1024 * 1024
-          if (stat.size > MAX_FILE_SIZE) {
-            return createErrorResponse('FILE_TOO_LARGE', `文件过大 (${(stat.size / 1024 / 1024).toFixed(2)}MB)，超过 10MB 限制，建议下载查看`, 400)
+          // 二进制文件（图片/PDF/压缩包/Office）直接返回 metadata，不返回 content
+          const BINARY_EXTS = [
+            '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.svg',
+            '.pdf', '.zip', '.tar', '.gz', '.rar', '.7z',
+            '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+            '.mp3', '.mp4', '.wav', '.avi', '.mov', '.wmv', '.flv',
+            '.ttf', '.otf', '.woff', '.woff2', '.eot',
+            '.exe', '.dll', '.so', '.dylib',
+          ]
+          const ext = (filePath.substring(filePath.lastIndexOf('.')).toLowerCase() || '').split('?')[0]
+          const isBinary = BINARY_EXTS.includes(ext)
+          const MAX_TEXT_SIZE = 10 * 1024 * 1024
+          const MAX_BINARY_SIZE = 50 * 1024 * 1024
+          const maxSize = isBinary ? MAX_BINARY_SIZE : MAX_TEXT_SIZE
+
+          if (stat.size > maxSize) {
+            return createErrorResponse(
+              'FILE_TOO_LARGE',
+              `文件过大 (${(stat.size / 1024 / 1024).toFixed(2)}MB)，${isBinary ? '超过 50MB' : '超过 10MB'}限制，建议下载查看`,
+              400
+            )
           }
 
-          // 读取文件内容
-          const content = await fs.readFile(fullPath, 'utf-8')
+          if (isBinary) {
+            // 二进制文件：转 Base64 返回（前端可还原为 Blob）
+            const buffer = await fs.readFile(fullPath)
+            const base64 = buffer.toString('base64')
+            const mimeType = getMimeType(ext)
 
-          // 检测文件类型（用于语法高亮）
-          const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase()
+            return createSuccessResponse({
+              mode: 'binary',
+              encoding: 'base64',
+              content: base64,
+              mimeType,
+              ext,
+              size: stat.size,
+              lastModified: stat.mtime.toISOString(),
+              path: filePath
+            })
+          }
+
+          // 文本文件：读取内容并检测语言
+          const content = await fs.readFile(fullPath, 'utf-8')
           const language = detectLanguage(ext)
 
           return createSuccessResponse({
+            mode: 'text',
             content,
             language,
             size: stat.size,
@@ -2091,11 +2124,11 @@ async function startServer() {
         } catch (error) {
           const message = error instanceof Error ? error.message : '获取文件内容失败'
           console.error('[WorkDir] 读取失败:', message)
-          
+
           if (message.includes('ENOENT') || message.includes('not found')) {
             return createErrorResponse('FILE_NOT_FOUND', '文件不存在', 404)
           }
-          
+
           return createErrorResponse('READ_FAILED', message, 500)
         }
       }
@@ -2121,10 +2154,10 @@ async function startServer() {
           }
 
           const workspaceManager = getWorkspaceManager()
-          const workspace = await workspaceManager.getWorkspace(sessionId)
+          const workspace = await ensureWorkspace(sessionId, auth.userId)
 
           if (!workspace) {
-            return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区不存在', 404)
+            return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区创建失败，请重试', 500)
           }
 
           // 构建完整路径
@@ -2144,7 +2177,7 @@ async function startServer() {
 
           // 更新工作区元数据时间戳
           workspace.lastModifiedAt = new Date().toISOString()
-          await workspaceManager['saveMetadata'](workspace)
+          await workspaceManager.persistWorkspace(workspace)
 
           console.log(`[WorkDir] 文件已保存: ${filePath} (${content.length} 字符)`)
 
@@ -2159,6 +2192,177 @@ async function startServer() {
           const message = error instanceof Error ? error.message : '保存文件失败'
           console.error('[WorkDir] 保存失败:', message)
           return createErrorResponse('SAVE_FAILED', message, 500)
+        }
+      }
+
+      // POST /api/agent/workdir/upload - 多文件上传到工作区子目录（默认 uploads/，保留原始文件名）
+      if (path === '/api/agent/workdir/upload' && method === 'POST') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const contentType = req.headers.get('content-type') || ''
+          if (!contentType.includes('multipart/form-data')) {
+            return createErrorResponse('INVALID_CONTENT_TYPE', '需要 multipart/form-data 格式', 400)
+          }
+
+          const formData = await req.formData()
+          const sessionId = String(formData.get('sessionId') || '')
+          let directory = String(formData.get('directory') ?? 'uploads')
+
+          if (!sessionId) {
+            return createErrorResponse('INVALID_PARAMS', '缺少 sessionId', 400)
+          }
+
+          const workspace = await ensureWorkspace(sessionId, auth.userId)
+          if (!workspace) {
+            return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区创建失败，请重试', 500)
+          }
+
+          directory = directory.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '') || 'uploads'
+          if (directory.includes('..')) {
+            return createErrorResponse('FORBIDDEN', '非法目录路径', 400)
+          }
+
+          const fs = await import('fs/promises')
+          const pathMod = await import('path')
+          const workspaceRoot = pathMod.resolve(workspace.path)
+          const dirSegments = directory.split('/').filter(Boolean)
+          const baseDir = pathMod.join(workspace.path, ...dirSegments)
+          const baseResolved = pathMod.resolve(baseDir)
+          const baseRel = pathMod.relative(workspaceRoot, baseResolved)
+          if (baseRel.startsWith('..') || pathMod.isAbsolute(baseRel)) {
+            return createErrorResponse('FORBIDDEN', '禁止写入工作区外的位置', 403)
+          }
+
+          const MAX_FILE_SIZE = 10 * 1024 * 1024
+          const uploaded: { path: string; name: string; size: number }[] = []
+          const failed: { name: string; reason: string }[] = []
+
+          const entries = formData.getAll('files')
+          if (!entries.length) {
+            return createErrorResponse('NO_FILE', '未选择文件', 400)
+          }
+
+          for (const item of entries) {
+            if (!(item instanceof File)) continue
+            if (item.size === 0) {
+              failed.push({ name: item.name || '(空文件)', reason: '文件为空' })
+              continue
+            }
+            if (item.size > MAX_FILE_SIZE) {
+              failed.push({ name: item.name, reason: `超过 ${MAX_FILE_SIZE / 1024 / 1024}MB 限制` })
+              continue
+            }
+
+            const baseName = pathMod.basename(item.name || 'file')
+            if (!baseName || baseName === '.' || baseName === '..') {
+              failed.push({ name: item.name, reason: '非法文件名' })
+              continue
+            }
+
+            const fullPath = pathMod.join(baseResolved, baseName)
+            const fullRel = pathMod.relative(workspaceRoot, pathMod.resolve(fullPath))
+            if (fullRel.startsWith('..') || pathMod.isAbsolute(fullRel)) {
+              failed.push({ name: baseName, reason: '路径越界' })
+              continue
+            }
+
+            try {
+              await fs.mkdir(pathMod.dirname(fullPath), { recursive: true })
+              const buffer = Buffer.from(await item.arrayBuffer())
+              await fs.writeFile(fullPath, buffer)
+              const webPath = `/${directory}/${baseName}`.replace(/\/+/g, '/')
+              uploaded.push({ path: webPath, name: baseName, size: buffer.length })
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : '写入失败'
+              failed.push({ name: baseName, reason: msg })
+            }
+          }
+
+          if (uploaded.length === 0) {
+            return createErrorResponse(
+              'UPLOAD_FAILED',
+              failed.map(f => `${f.name}: ${f.reason}`).join('; ') || '没有成功上传的文件',
+              400
+            )
+          }
+
+          const workspaceManager = getWorkspaceManager()
+          workspace.lastModifiedAt = new Date().toISOString()
+          await workspaceManager.persistWorkspace(workspace)
+
+          console.log(`[WorkDir] 批量上传: ${uploaded.length} 个文件 -> ${directory}/`)
+
+          return createSuccessResponse({
+            uploaded,
+            failed,
+            count: uploaded.length,
+            directory: `/${directory}`.replace(/\/+/g, '/')
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '上传失败'
+          console.error('[WorkDir] 上传失败:', message)
+          return createErrorResponse('UPLOAD_ERROR', message, 500)
+        }
+      }
+
+      // GET /api/agent/workdir/download - 流式下载文件（用于打开外部程序）
+      if (path === '/api/agent/workdir/download' && method === 'GET') {
+        try {
+          const auth = await authMiddleware(req)
+          if (!auth.userId) {
+            return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+          }
+
+          const sessionId = url.searchParams.get('sessionId')
+          const filePath = url.searchParams.get('path')
+
+          if (!sessionId || !filePath) {
+            return createErrorResponse('INVALID_PARAMS', '缺少必需参数: sessionId, path', 400)
+          }
+
+          const workspace = await ensureWorkspace(sessionId, auth.userId)
+          if (!workspace) {
+            return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区创建失败，请重试', 500)
+          }
+
+          const fullPath = `${workspace.path}${filePath.startsWith('/') ? filePath : '/' + filePath}`
+          if (!fullPath.startsWith(workspace.path)) {
+            return createErrorResponse('FORBIDDEN', '禁止访问工作区外的文件', 403)
+          }
+
+          const fs = await import('fs/promises')
+          const stat = await fs.stat(fullPath)
+          if (!stat.isFile()) {
+            return createErrorResponse('NOT_FILE', '目标不是文件', 400)
+          }
+
+          const ext = (filePath.substring(filePath.lastIndexOf('.')).toLowerCase() || '').split('?')[0]
+          const mimeType = getMimeType(ext)
+          const fileName = filePath.split(/[/\\]/).pop() || 'download'
+
+          // 流式响应，带 Content-Disposition 让浏览器直接下载
+          const fileBuffer = await fs.readFile(fullPath)
+
+          return new Response(fileBuffer, {
+            status: 200,
+            headers: {
+              'Content-Type': mimeType,
+              'Content-Length': String(stat.size),
+              'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+              'Cache-Control': 'no-cache',
+            }
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '下载失败'
+          console.error('[WorkDir] 下载失败:', message)
+          if (message.includes('ENOENT') || message.includes('not found')) {
+            return createErrorResponse('FILE_NOT_FOUND', '文件不存在', 404)
+          }
+          return createErrorResponse('DOWNLOAD_FAILED', message, 500)
         }
       }
 
@@ -3655,6 +3859,51 @@ function detectLanguage(ext: string): string {
   }
 
   return languageMap[ext.toLowerCase()] || 'plaintext'
+}
+
+/**
+ * 根据扩展名返回 MIME Type
+ */
+function getMimeType(ext: string): string {
+  const mimeMap: Record<string, string> = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.bmp': 'image/bmp',
+    '.webp': 'image/webp',
+    '.ico': 'image/x-icon',
+    '.svg': 'image/svg+xml',
+    '.pdf': 'application/pdf',
+    '.zip': 'application/zip',
+    '.tar': 'application/x-tar',
+    '.gz': 'application/gzip',
+    '.rar': 'application/vnd.rar',
+    '.7z': 'application/x-7z-compressed',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.mp3': 'audio/mpeg',
+    '.mp4': 'video/mp4',
+    '.wav': 'audio/wav',
+    '.avi': 'video/x-msvideo',
+    '.mov': 'video/quicktime',
+    '.wmv': 'video/x-ms-wmv',
+    '.flv': 'video/x-flv',
+    '.ttf': 'font/ttf',
+    '.otf': 'font/otf',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.eot': 'application/vnd.ms-fontobject',
+    '.exe': 'application/x-msdownload',
+    '.dll': 'application/x-msdownload',
+    '.so': 'application/x-shared-lib',
+    '.dylib': 'application/x-mach-binary',
+  }
+  return mimeMap[ext.toLowerCase()] || 'application/octet-stream'
 }
 
 /**

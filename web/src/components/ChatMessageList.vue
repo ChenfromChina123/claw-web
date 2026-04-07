@@ -25,6 +25,8 @@ const props = defineProps<{
   agentTaskSteps?: AgentTaskStep[]
   /** 当前活跃的 Agent ID（用于中断） */
   currentAgentId?: string
+  /** IDE 窄栏：工具卡片与加载条使用更紧凑、偏 VS Code 的深色样式 */
+  ideDensity?: boolean
 }>()
 
 /**
@@ -473,7 +475,10 @@ async function handleInterruptExecution() {
 </script>
 
 <template>
-  <div class="message-list-wrapper">
+  <div
+    class="message-list-wrapper"
+    :class="{ 'message-list-wrapper--ide': ideDensity }"
+  >
     <!-- 主消息列表 -->
     <div class="message-list">
       <NScrollbar ref="scrollbarRef" class="scrollbar">
@@ -1565,5 +1570,81 @@ async function handleInterruptExecution() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ========== IDE 窄栏：任务卡片与「正在执行」条 ========== */
+.message-list-wrapper--ide .message-list {
+  background: transparent;
+}
+
+.message-list-wrapper--ide .inline-tool-sequence-container {
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.message-list-wrapper--ide .inline-tool-step-item {
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.message-list-wrapper--ide .inline-tool-step-item:hover {
+  border-color: #4a4a4a;
+}
+
+.message-list-wrapper--ide .inline-tool-header {
+  padding: 8px 10px;
+  background: #1e1e1e;
+  border-radius: 4px;
+  gap: 6px;
+}
+
+.message-list-wrapper--ide .inline-tool-header:hover {
+  background: #2a2a2a;
+}
+
+.message-list-wrapper--ide .inline-tool-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #d4d4d4;
+  letter-spacing: 0.02em;
+}
+
+.message-list-wrapper--ide .inline-tool-icon {
+  font-size: 15px;
+  filter: saturate(0.9);
+}
+
+.message-list-wrapper--ide .inline-expand-icon {
+  color: #858585;
+  font-size: 9px;
+  opacity: 0.9;
+}
+
+.message-list-wrapper--ide .active-tools {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+}
+
+.message-list-wrapper--ide .active-tools-header {
+  margin-bottom: 6px;
+}
+
+.message-list-wrapper--ide .active-tools-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: #b0b0b0;
+}
+
+.message-list-wrapper--ide .tool-call.active {
+  padding: 6px 8px;
+  font-size: 11px;
+  background: #1e1e1e;
+  border-radius: 4px;
+  border: 1px solid #333;
 }
 </style>
