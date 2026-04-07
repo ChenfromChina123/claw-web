@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import ActivityBar from './ActivityBar.vue'
@@ -120,8 +120,8 @@ function handleResize(event: any) {
 </script>
 
 <template>
-  <div class="ide-wrapper">
-    <!-- 左侧活动栏 -->
+  <div class="ide-container">
+    <!-- 左侧活动栏 - 固定定位，独立于主工作区 -->
     <ActivityBar
       :file-explorer-visible="fileExplorerVisible"
       :chat-panel-visible="agentPanelVisible"
@@ -140,7 +140,7 @@ function handleResize(event: any) {
 
       <!-- 分割面板区域 -->
       <Splitpanes
-        class="default-theme"
+        class="default-theme ide-splitpanes"
         style="flex: 1;"
         @resize="handleResize"
       >
@@ -166,7 +166,7 @@ function handleResize(event: any) {
           :size="isFullscreenMode ? 100 : agentSize"
           :min-size="20"
         >
-          <Splitpanes horizontal class="default-theme">
+          <Splitpanes horizontal class="default-theme ide-splitpanes">
             <!-- 上部：AI 对话框 -->
             <Pane :size="70" :min-size="40">
               <AgentChatPane />
@@ -184,14 +184,13 @@ function handleResize(event: any) {
 </template>
 
 <style scoped>
-@import '@/styles/ide-theme.css';
-
-.ide-wrapper {
+.ide-container {
   display: flex;
-  height: 100%;
-  width: 100%;
+  height: 100vh;
+  width: 100vw;
   background: var(--ide-bg);
   overflow: hidden;
+  position: relative;
 }
 
 .main-workspace {
@@ -199,7 +198,9 @@ function handleResize(event: any) {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  height: 100vh;
   overflow: hidden;
+  margin-left: 48px;
 }
 
 .project-header {
@@ -218,5 +219,32 @@ function handleResize(event: any) {
   color: #6a9955;
   margin-right: 8px;
   font-weight: 500;
+}
+
+/* 自定义分割线样式 - 极简风格 */
+:deep(.ide-splitpanes .splitpanes__splitter) {
+  background: var(--ide-border) !important;
+  border: none !important;
+  transition: background 0.2s ease;
+}
+
+:deep(.ide-splitpanes .splitpanes__splitter:hover) {
+  background: var(--ide-accent) !important;
+}
+
+:deep(.splitpanes--vertical > .splitpanes__splitter) {
+  width: 1px !important;
+}
+
+:deep(.splitpanes--vertical > .splitpanes__splitter:hover) {
+  width: 3px !important;
+}
+
+:deep(.splitpanes--horizontal > .splitpanes__splitter) {
+  height: 1px !important;
+}
+
+:deep(.splitpanes--horizontal > .splitpanes__splitter:hover) {
+  height: 3px !important;
 }
 </style>

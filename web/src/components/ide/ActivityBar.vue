@@ -50,7 +50,7 @@ function toggleFullscreen() {
       title="文件管理器"
       @click="toggleFileExplorer"
     >
-      <NIcon :size="24"><FileTrayOutline /></NIcon>
+      <NIcon :size="22" :depth="2"><FileTrayOutline /></NIcon>
     </div>
 
     <div
@@ -59,7 +59,7 @@ function toggleFullscreen() {
       title="AI 对话"
       @click="toggleChatPanel"
     >
-      <NIcon :size="24"><ChatbubblesOutline /></NIcon>
+      <NIcon :size="22" :depth="2"><ChatbubblesOutline /></NIcon>
     </div>
 
     <div
@@ -67,22 +67,25 @@ function toggleFullscreen() {
       title="全屏对话模式"
       @click="toggleFullscreen"
     >
-      <NIcon :size="24"><DesktopOutline /></NIcon>
+      <NIcon :size="22" :depth="2"><DesktopOutline /></NIcon>
     </div>
 
     <div class="activity-spacer"></div>
 
     <div class="activity-item" title="设置">
-      <NIcon :size="24"><GearOutline /></NIcon>
+      <NIcon :size="22" :depth="2"><GearOutline /></NIcon>
     </div>
   </div>
 </template>
 
 <style scoped>
 .activity-bar {
+  position: fixed;
+  left: 0;
+  top: 0;
   width: 48px;
-  height: 100%;
-  background: #333333;
+  height: 100vh;
+  background: var(--ide-activity, #333333);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -90,7 +93,7 @@ function toggleFullscreen() {
   gap: 4px;
   flex-shrink: 0;
   border-right: 1px solid #111;
-  z-index: 10;
+  z-index: 1000;
 }
 
 .activity-item {
@@ -103,11 +106,12 @@ function toggleFullscreen() {
   width: 100%;
   height: 48px;
   position: relative;
-  transition: color 0.2s ease;
+  transition: color 0.2s ease, background 0.2s ease;
 }
 
 .activity-item:hover {
   color: #fff;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .activity-item.active {
