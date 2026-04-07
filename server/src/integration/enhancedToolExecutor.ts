@@ -23,7 +23,6 @@ import {
   createSendMessageToolDefinition,
   createExitPlanModeToolDefinition,
   createSleepToolDefinition,
-  createNotebookEditToolDefinition,
   createLSPToolDefinition,
   createPowerShellToolDefinition,
   createDatabaseQueryToolDefinition,
@@ -37,10 +36,15 @@ import {
   getStandardToolName,
   TOOL_ALIASES,
 } from '../tools/toolAliases'
-import {
+import { 
   validateToolInput,
   validateInputAgainstSchema,
 } from '../tools/toolValidator'
+import {
+  validateCommandForTraversal,
+  validateCommandSecurity,
+  containsParentDirectoryReference,
+} from '../utils/pathSecurity'
 
 const execAsync = promisify(exec)
 
@@ -430,6 +434,51 @@ export class EnhancedToolExecutor {
           throw new Error(`Tool '${tool.name}' requires elevated permissions`)
         }
         return await this.executeInSandbox(tool, input, toolId, startTime, sendEvent)
+      }
+
+      // ==================== 路径安全检查（防止目录遍历）====================
+      if (tool.name === 'Bash' || tool.name === 'PowerShell') {
+        const command = (input.command || '') as string
+        const workingDir = (input.cwd || this.context.projectRoot) as string
+        const cmdType = tool.name === 'PowerShell' ? 'powershell' : 'bash'
+        
+        // 1. 检测目录遍历攻击（cd .. 等）
+        const traversalCheck = validateCommandForTraversal(command)
+        if (!traversalCheck.allowed && traversalCheck.severity === 'block') {
+          throw new Error(traversalCheck.reason || '安全限制：禁止访问父目录')
+        }
+
+        // 2. 综合命令安全性验证
+        const securityCheck = validateCommandSecurity(command, workingDir, cmdType as 'bash' | 'powershell')
+        if (!securityCheck.allowed && securityCheck.severity === 'block') {
+          throw new Error(securityCheck.reason || '安全限制：命令包含不安全的操作')
+        }
+
+        // 3. 警告但不阻止的情况
+        if (!securityCheck.allowed && securityCheck.severity === 'warn') {
+          sendEvent?.('tool_progress', { 
+            output: `⚠️ 安全警告: ${securityCheck.reason}\n` 
+          })
+        }
+      }
+
+      // 文件操作工具的路径检查
+      if (['FileRead', 'FileWrite', 'Glob', 'Grep', 'ImageRead', 'NotebookEdit'].includes(tool.name)) {
+        const filePath = input.filepath || input.path || input.notebook_path || ''
+        
+        if (filePath && typeof filePath === 'string') {
+          if (containsParentDirectoryReference(filePath)) {
+            throw new Error('🚫 安全限制：文件路径不能包含 ".."（父目录引用）。Agent 只能访问当前工作目录及其子目录。')
+          }
+          
+          const pathCheck = await import('../utils/pathSecurity').then(m => 
+            m.validatePathWithinRoot(filePath as string, this.context.projectRoot)
+          )
+          
+          if (pathCheck && !pathCheck.allowed && pathCheck.severity === 'block') {
+            throw new Error(pathCheck.reason || '安全限制：文件路径超出工作目录范围')
+          }
+        }
       }
 
       toolCall.status = 'executing'
@@ -1547,17 +1596,6 @@ export class EnhancedToolExecutor {
       handler: sleepTool.handler,
     })
 
-    // NotebookEdit 工具 - 编辑 Jupyter Notebook
-    const notebookEditTool = createNotebookEditToolDefinition()
-    this.registerTool({
-      name: notebookEditTool.name,
-      description: notebookEditTool.description,
-      inputSchema: notebookEditTool.inputSchema,
-      category: 'file',
-      permissions: { dangerous: true },
-      handler: notebookEditTool.handler,
-    })
-
     // ImageRead 工具 - 读取和查看图片
     this.registerTool({
       name: 'ImageRead',
@@ -1717,7 +1755,7 @@ export class EnhancedToolExecutor {
       handler: gitAdvancedTool.handler,
     })
 
-    console.log('[EnhancedToolExecutor] 已注册所有内置工具，包括高级桥接工具：NotebookEdit、LSP、PowerShell、DatabaseQuery、DockerManager、GitAdvanced')
+    console.log('[EnhancedToolExecutor] 已注册所有内置工具，包括高级桥接工具：LSP、PowerShell、DatabaseQuery、DockerManager、GitAdvanced')
   }
 
   // ==================== Helper Methods ====================

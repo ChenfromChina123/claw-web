@@ -2,17 +2,15 @@
  * 高级工具桥接测试套件
  * 
  * 测试所有新增的高级工具：
- * - NotebookEdit
- * - LSP
+ * - LSP (语言服务器协议)
  * - PowerShell
  * - DatabaseQuery
  * - DockerManager
  * - GitAdvanced
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import {
-  createNotebookEditToolDefinition,
   createLSPToolDefinition,
   createPowerShellToolDefinition,
   createDatabaseQueryToolDefinition,
@@ -35,82 +33,6 @@ const mockContext = {
 const mockSendEvent = (event: string, data: unknown) => {
   console.log(`[Test Event] ${event}:`, JSON.stringify(data, null, 2))
 }
-
-// ==================== NotebookEdit 工具测试 ====================
-
-describe('NotebookEdit Tool', () => {
-  let notebookEditTool: ReturnType<typeof createNotebookEditToolDefinition>
-
-  beforeAll(() => {
-    notebookEditTool = createNotebookEditToolDefinition()
-  })
-
-  it('应该正确定义工具名称和描述', () => {
-    expect(notebookEditTool.name).toBe('NotebookEdit')
-    expect(notebookEditTool.description).toContain('Jupyter')
-    expect(notebookEditTool.category).toBe('file')
-  })
-
-  it('应该包含完整的输入模式', () => {
-    const schema = notebookEditTool.inputSchema
-    
-    expect(schema.properties).toHaveProperty('notebook_path')
-    expect(schema.properties).toHaveProperty('new_source')
-    expect(schema.properties).toHaveProperty('cell_id')
-    expect(schema.properties).toHaveProperty('cell_type')
-    expect(schema.properties).toHaveProperty('edit_mode')
-    
-    expect(schema.required).toContain('notebook_path')
-    expect(schema.required).toContain('new_source')
-  })
-
-  it('应该支持 replace 模式', async () => {
-    const result = await notebookEditTool.handler(
-      {
-        notebook_path: 'test.ipynb',
-        cell_id: 'cell-1',
-        new_source: 'print("Hello World")',
-        edit_mode: 'replace',
-      },
-      mockContext as never,
-      mockSendEvent
-    )
-
-    // 由于文件不存在，预期会失败，但我们应该能正确处理错误
-    expect(result).toBeDefined()
-    expect(typeof result.success).toBe('boolean')
-  })
-
-  it('应该支持 insert 模式', async () => {
-    const result = await notebookEditTool.handler(
-      {
-        notebook_path: 'test.ipynb',
-        new_source: '# New Cell',
-        cell_type: 'markdown',
-        edit_mode: 'insert',
-      },
-      mockContext as never,
-      mockSendEvent
-    )
-
-    expect(result).toBeDefined()
-  })
-
-  it('应该支持 delete 模式', async () => {
-    const result = await notebookEditTool.handler(
-      {
-        notebook_path: 'test.ipynb',
-        cell_id: 'cell-1',
-        new_source: '',
-        edit_mode: 'delete',
-      },
-      mockContext as never,
-      mockSendEvent
-    )
-
-    expect(result).toBeDefined()
-  })
-})
 
 // ==================== LSP 工具测试 ====================
 
@@ -156,7 +78,6 @@ describe('LSP Tool', () => {
   })
 
   it('应该处理有效的操作', async () => {
-    // 创建一个临时文件进行测试
     const fs = await import('fs/promises')
     const tmpFile = 'test-lsp-file.txt'
     await fs.writeFile(tmpFile, 'test content')
@@ -319,7 +240,6 @@ describe('DockerManager Tool', () => {
       mockSendEvent
     )
 
-    // 如果 Docker 未安装，应该返回错误信息
     expect(result).toBeDefined()
   }, 10000)
 })
@@ -401,7 +321,6 @@ describe('GitAdvanced Tool', () => {
 describe('高级工具集成测试', () => {
   it('所有工具都应该有正确的结构', () => {
     const tools = [
-      createNotebookEditToolDefinition(),
       createLSPToolDefinition(),
       createPowerShellToolDefinition(),
       createDatabaseQueryToolDefinition(),
@@ -420,7 +339,6 @@ describe('高级工具集成测试', () => {
 
   it('工具应该覆盖不同的类别', () => {
     const categories = new Set([
-      createNotebookEditToolDefinition().category,
       createLSPToolDefinition().category,
       createPowerShellToolDefinition().category,
       createDatabaseQueryToolDefinition().category,
@@ -428,7 +346,6 @@ describe('高级工具集成测试', () => {
       createGitAdvancedToolDefinition().category,
     ])
 
-    // 应该至少有5个不同的类别
     expect(categories.size).toBeGreaterThanOrEqual(5)
   })
 
