@@ -167,6 +167,11 @@ export const TOOL_CATEGORIES = {
   PLAN: { id: 'plan', name: '计划模式', icon: 'map' },
   TEAM: { id: 'team', name: '团队协作', icon: 'users' },
   CRON: { id: 'cron', name: '定时任务', icon: 'clock' },
+  DEVELOPMENT: { id: 'development', name: '开发工具', icon: 'code' },
+  DATABASE: { id: 'database', name: '数据库', icon: 'database' },
+  DEVOPS: { id: 'devops', name: 'DevOps', icon: 'container' },
+  VCS: { id: 'vcs', name: '版本控制', icon: 'git' },
+  CLOUD: { id: 'cloud', name: '云服务', icon: 'cloud' },
   OTHER: { id: 'other', name: '其他', icon: 'box' },
 } as const
 
@@ -706,7 +711,138 @@ export class ToolRegistry {
       aliases: ['read_image', 'view_image', 'image'],
     })
     
-    console.log(`[ToolRegistry] 注册了 ${this.builtinTools.size} 个内置工具，包括图片查看功能`)
+    // NotebookEdit 工具 - 编辑 Jupyter Notebook
+    this.registerBuiltinTool({
+      name: 'NotebookEdit',
+      displayName: '编辑 Notebook',
+      description: '编辑 Jupyter Notebook (.ipynb) 文件的单元格。支持替换、插入和删除操作。',
+      category: TOOL_CATEGORIES.FILE.id,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          notebook_path: { type: 'string', description: 'Notebook 文件路径' },
+          cell_id: { type: 'string', description: '单元格 ID' },
+          new_source: { type: 'string', description: '新源代码' },
+          cell_type: { type: 'string', enum: ['code', 'markdown'], description: '单元格类型' },
+          edit_mode: { type: 'string', enum: ['replace', 'insert', 'delete'], description: '编辑模式' },
+        },
+        required: ['notebook_path', 'new_source'],
+      },
+      isReadOnly: false,
+      isConcurrencySafe: false,
+    })
+    
+    // LSP 工具 - 语言服务器协议
+    this.registerBuiltinTool({
+      name: 'LSP',
+      displayName: '代码智能',
+      description: '语言服务器协议工具，提供代码智能功能：跳转定义、查找引用、悬停信息等。',
+      category: TOOL_CATEGORIES.DEVELOPMENT.id,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          operation: { 
+            type: 'string', 
+            enum: ['goToDefinition', 'findReferences', 'hover', 'documentSymbol', 'workspaceSymbol'],
+            description: 'LSP 操作类型' 
+          },
+          filePath: { type: 'string', description: '文件路径' },
+          line: { type: 'number', description: '行号' },
+          character: { type: 'number', description: '字符偏移' },
+        },
+        required: ['operation', 'filePath'],
+      },
+      isReadOnly: true,
+      isConcurrencySafe: true,
+    })
+    
+    // PowerShell 工具
+    this.registerBuiltinTool({
+      name: 'PowerShell',
+      displayName: 'PowerShell 命令',
+      description: '执行 Windows PowerShell 命令。提供完整的 PowerShell 环境访问。',
+      category: TOOL_CATEGORIES.SHELL.id,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: 'PowerShell 命令' },
+          cwd: { type: 'string', description: '工作目录' },
+          timeout: { type: 'number', description: '超时时间（毫秒）' },
+          executionPolicy: { type: 'string', enum: ['Restricted', 'AllSigned', 'RemoteSigned', 'Unrestricted', 'Bypass'], description: '执行策略' },
+        },
+        required: ['command'],
+      },
+      isReadOnly: false,
+      isConcurrencySafe: false,
+    })
+    
+    // DatabaseQuery 工具
+    this.registerBuiltinTool({
+      name: 'DatabaseQuery',
+      displayName: '数据库查询',
+      description: '执行数据库查询操作。支持 MySQL、PostgreSQL、SQLite、MongoDB。',
+      category: TOOL_CATEGORIES.DATABASE.id,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          databaseType: { type: 'string', enum: ['mysql', 'postgresql', 'sqlite', 'mongodb'], description: '数据库类型' },
+          connectionString: { type: 'string', description: '连接字符串' },
+          query: { type: 'string', description: '查询语句' },
+          operation: { type: 'string', enum: ['select', 'insert', 'update', 'delete'], description: '操作类型' },
+        },
+        required: ['databaseType', 'connectionString', 'query'],
+      },
+      isReadOnly: false,
+      isConcurrencySafe: true,
+    })
+    
+    // DockerManager 工具
+    this.registerBuiltinTool({
+      name: 'DockerManager',
+      displayName: 'Docker 管理',
+      description: 'Docker 容器和镜像管理工具。支持容器生命周期管理、镜像管理等。',
+      category: TOOL_CATEGORIES.DEVOPS.id,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          action: { 
+            type: 'string', 
+            enum: ['listContainers', 'listImages', 'startContainer', 'stopContainer', 'removeContainer', 'getLogs', 'buildImage'],
+            description: 'Docker 操作' 
+          },
+          containerId: { type: 'string', description: '容器 ID' },
+          imageName: { type: 'string', description: '镜像名称' },
+        },
+        required: ['action'],
+      },
+      isReadOnly: false,
+      isConcurrencySafe: false,
+    })
+    
+    // GitAdvanced 工具
+    this.registerBuiltinTool({
+      name: 'GitAdvanced',
+      displayName: 'Git 高级操作',
+      description: 'Git 高级操作工具。提供 PR 管理、Code Review、分支策略等功能。',
+      category: TOOL_CATEGORIES.VCS.id,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          action: { 
+            type: 'string', 
+            enum: ['createBranch', 'listBranches', 'createTag', 'listTags', 'changelog', 'stash', 'createPR', 'mergePR'],
+            description: 'Git 操作' 
+          },
+          branchName: { type: 'string', description: '分支名称' },
+          title: { type: 'string', description: '标题' },
+        },
+        required: ['action'],
+      },
+      isReadOnly: false,
+      isConcurrencySafe: false,
+    })
+    
+    console.log(`[ToolRegistry] 注册了 ${this.builtinTools.size} 个内置工具，包括高级桥接工具：NotebookEdit、LSP、PowerShell、DatabaseQuery、DockerManager、GitAdvanced`)
   }
   
   // ==================== 工具查询 ====================

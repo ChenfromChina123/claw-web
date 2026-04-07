@@ -24,6 +24,11 @@ import {
   createExitPlanModeToolDefinition,
   createSleepToolDefinition,
   createNotebookEditToolDefinition,
+  createLSPToolDefinition,
+  createPowerShellToolDefinition,
+  createDatabaseQueryToolDefinition,
+  createDockerManagerToolDefinition,
+  createGitAdvancedToolDefinition,
 } from '../tools'
 import { executeImageRead, createImageDescription } from '../tools/imageReadTool'
 import {
@@ -1654,7 +1659,65 @@ export class EnhancedToolExecutor {
       },
     })
 
-    console.log('[EnhancedToolExecutor] 已注册所有内置工具，包括 ImageRead 工具')
+    // ==================== 高级工具桥接 ====================
+
+    // LSP 工具 - 语言服务器协议
+    const lspTool = createLSPToolDefinition()
+    this.registerTool({
+      name: lspTool.name,
+      description: lspTool.description,
+      inputSchema: lspTool.inputSchema,
+      category: 'development',
+      permissions: { requiresAuth: false },
+      isReadOnly: true,
+      handler: lspTool.handler,
+    })
+
+    // PowerShell 工具 - Windows PowerShell 命令执行
+    const powerShellTool = createPowerShellToolDefinition()
+    this.registerTool({
+      name: powerShellTool.name,
+      description: powerShellTool.description,
+      inputSchema: powerShellTool.inputSchema,
+      category: 'shell',
+      permissions: { dangerous: true },
+      handler: powerShellTool.handler,
+    })
+
+    // DatabaseQuery 工具 - 数据库查询
+    const databaseQueryTool = createDatabaseQueryToolDefinition()
+    this.registerTool({
+      name: databaseQueryTool.name,
+      description: databaseQueryTool.description,
+      inputSchema: databaseQueryTool.inputSchema,
+      category: 'database',
+      permissions: { dangerous: true },
+      handler: databaseQueryTool.handler,
+    })
+
+    // DockerManager 工具 - Docker 容器管理
+    const dockerManagerTool = createDockerManagerToolDefinition()
+    this.registerTool({
+      name: dockerManagerTool.name,
+      description: dockerManagerTool.description,
+      inputSchema: dockerManagerTool.inputSchema,
+      category: 'devops',
+      permissions: { dangerous: true },
+      handler: dockerManagerTool.handler,
+    })
+
+    // GitAdvanced 工具 - Git 高级操作
+    const gitAdvancedTool = createGitAdvancedToolDefinition()
+    this.registerTool({
+      name: gitAdvancedTool.name,
+      description: gitAdvancedTool.description,
+      inputSchema: gitAdvancedTool.inputSchema,
+      category: 'vcs',
+      permissions: { dangerous: true },
+      handler: gitAdvancedTool.handler,
+    })
+
+    console.log('[EnhancedToolExecutor] 已注册所有内置工具，包括高级桥接工具：NotebookEdit、LSP、PowerShell、DatabaseQuery、DockerManager、GitAdvanced')
   }
 
   // ==================== Helper Methods ====================
