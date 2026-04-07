@@ -2,7 +2,7 @@
 import { NIcon } from 'naive-ui'
 import {
   FolderOpen,
-  ChatbubblesEllipseOutline,
+  ChatbubblesOutline,
   ExpandOutline,
   CreateOutline
 } from '@vicons/ionicons5'
@@ -20,23 +20,14 @@ const emit = defineEmits<{
   'toggle:fullscreen': []
 }>()
 
-/**
- * 切换文件管理器面板显示状态
- */
 function toggleFileExplorer() {
   emit('toggle:fileExplorer')
 }
 
-/**
- * 切换 AI 对话面板显示状态
- */
 function toggleChatPanel() {
   emit('toggle:chatPanel')
 }
 
-/**
- * 切换全屏对话模式
- */
 function toggleFullscreen() {
   emit('toggle:fullscreen')
 }
@@ -50,7 +41,7 @@ function toggleFullscreen() {
       title="文件管理器"
       @click="toggleFileExplorer"
     >
-      <NIcon :size="22" :depth="2"><FolderOpen /></NIcon>
+      <NIcon :size="22"><FolderOpen /></NIcon>
     </div>
 
     <div
@@ -59,7 +50,7 @@ function toggleFullscreen() {
       title="AI 对话"
       @click="toggleChatPanel"
     >
-      <NIcon :size="22" :depth="2"><ChatbubblesEllipseOutline /></NIcon>
+      <NIcon :size="22"><ChatbubblesOutline /></NIcon>
     </div>
 
     <div
@@ -67,13 +58,13 @@ function toggleFullscreen() {
       title="全屏对话模式"
       @click="toggleFullscreen"
     >
-      <NIcon :size="22" :depth="2"><ExpandOutline /></NIcon>
+      <NIcon :size="22"><ExpandOutline /></NIcon>
     </div>
 
     <div class="activity-spacer"></div>
 
     <div class="activity-item" title="设置">
-      <NIcon :size="22" :depth="2"><CreateOutline /></NIcon>
+      <NIcon :size="22"><CreateOutline /></NIcon>
     </div>
   </div>
 </template>
@@ -85,7 +76,7 @@ function toggleFullscreen() {
   top: 0;
   width: 48px;
   height: 100vh;
-  background: var(--ide-activity, #333333);
+  background: #333333;
   display: flex;
   flex-direction: column;
   align-items: center;
