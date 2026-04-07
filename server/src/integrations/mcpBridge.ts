@@ -3,11 +3,18 @@
  * 
  * 这个模块桥接了 Claude Code HAHA 的 MCP 客户端功能
  * 支持 Stdio、WebSocket、SSE 和 StreamableHTTP 传输协议
+ * 
+ * 增强功能：
+ * - 真实的外部服务器连接
+ * - 自动重连机制
+ * - 健康检查
+ * - 完整的生命周期管理
  */
 
 import { v4 as uuidv4 } from 'uuid'
 import { spawn, ChildProcess } from 'child_process'
 import { EventEmitter } from 'events'
+import { getMCPConnectionManager, type MCPServerConfig } from './mcpConnectionManager'
 
 // MCP 服务器配置
 export interface MCPServerConfig {
@@ -74,11 +81,57 @@ export class WebMCPBridge extends EventEmitter {
   private resources: Map<string, MCPResource[]> = new Map()
   private toolCallHandlers: Map<string, (args: Record<string, unknown>) => Promise<MCPResult>> = new Map()
   
+  /** MCP 连接管理器实例 */
+  private connectionManager = getMCPConnectionManager()
+  
   constructor() {
     super()
     this.projectRoot = this.getProjectRoot()
     this.loadServers()
     this.registerBuiltInMCPServers()
+    this.setupConnectionManagerEvents()
+  }
+  
+  /**
+   * 设置连接管理器事件监听
+   */
+  private setupConnectionManagerEvents(): void {
+    this.connectionManager.on('serverConnected', ({ serverId, tools }) => {
+      console.log(`[WebMCPBridge] 外部服务器已连接: ${serverId}`)
+      
+      // 同步工具到本地
+      if (Array.isArray(tools) && tools.length > 0) {
+        const mcpTools = tools.map((tool: { name: string; description?: string; inputSchema?: Record<string, unknown> }) => ({
+          name: tool.name,
+          description: tool.description || '',
+          inputSchema: tool.inputSchema || {},
+          serverId,
+          serverName: `External-${serverId}`,
+        }))
+        
+        this.tools.set(serverId, mcpTools)
+        console.log(`[WebMCPBridge] 从外部服务器加载了 ${mcpTools.length} 个工具`)
+      }
+      
+      this.emit('externalServerConnected', { serverId, tools })
+    })
+    
+    this.connectionManager.on('serverError', ({ serverId, error }) => {
+      console.error(`[WebMCPBridge] 外部服务器错误: ${serverId} - ${error}`)
+      this.emit('externalServerError', { serverId, error })
+    })
+    
+    this.connectionManager.on('toolCallStart', ({ serverId, toolName, args }) => {
+      this.emit('mcp_tool_start', { tool: toolName, input: args, server: `External-${serverId}` })
+    })
+    
+    this.connectionManager.on('toolCallEnd', ({ serverId, toolName, result }) => {
+      this.emit('mcp_tool_end', { tool: toolName, result, server: `External-${serverId}` })
+    }
+    
+    this.connectionManager.on('toolCallError', ({ serverId, toolName, error }) => {
+      this.emit('mcp_tool_error', { tool: toolName, error, server: `External-${serverId}` })
+    })
   }
   
   private getProjectRoot(): string {
@@ -491,6 +544,200 @@ export class WebMCPBridge extends EventEmitter {
       }
     }
     return imported
+  }
+  
+  // ==================== 外部服务器连接（增强功能）====================
+  
+  /**
+   * 添加并连接外部 MCP 服务器
+   * 
+   * @param config - 服务器配置
+   * @returns 服务器 ID 和连接状态
+   */
+  async addAndConnectExternalServer(
+    config: Omit<MCPServerConfig, 'id'>
+  ): Promise<{ serverId: string; connected: boolean; error?: string }> {
+    try {
+      const server = this.connectionManager.addServer(config)
+      
+      console.log(`[WebMCPBridge] 正在连接外部服务器: ${config.name}`)
+      
+      const connected = await this.connectionManager.connectServer(server.id)
+      
+      if (connected) {
+        // 同步到本地配置
+        this.servers.set(server.id, server as unknown as MCPServerConfig)
+        
+        return { serverId: server.id, connected: true }
+      } else {
+        return {
+          serverId: server.id,
+          connected: false,
+          error: '连接失败，请检查服务器配置',
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`[WebMCPBridge] 添加外部服务器失败: ${errorMessage}`)
+      return { serverId: '', connected: false, error: errorMessage }
+    }
+  }
+  
+  /**
+   * 批量添加外部 MCP 服务器
+   * 
+   * @param configs - 服务器配置数组
+   * @returns 连接结果数组
+   */
+  async addExternalServers(
+    configs: Array<Omit<MCPServerConfig, 'id'>>
+  ): Promise<Array<{ name: string; connected: boolean; error?: string }>> {
+    const results: Array<{ name: string; connected: boolean; error?: string }> = []
+    
+    for (const config of configs) {
+      const result = await this.addAndConnectExternalServer(config)
+      results.push({
+        name: config.name,
+        connected: result.connected,
+        error: result.error,
+      })
+    }
+    
+    return results
+  }
+  
+  /**
+   * 断开外部服务器
+   */
+  async disconnectExternalServer(serverId: string): Promise<boolean> {
+    try {
+      await this.connectionManager.disconnectServer(serverId)
+      this.tools.delete(serverId)
+      this.resources.delete(serverId)
+      return true
+    } catch (error) {
+      console.error(`[WebMCPBridge] 断开服务器失败: ${error instanceof Error ? error.message : String(error)}`)
+      return false
+    }
+  }
+  
+  /**
+   * 获取所有已连接的外部服务器统计信息
+   */
+  getExternalServersStats() {
+    return this.connectionManager.getStats()
+  }
+  
+  /**
+   * 预设的常用 MCP 服务器配置
+   * 
+   * 返回一些常用的 MCP 服务器配置模板
+   */
+  static getPredefinedServerConfigs(): Record<string, Omit<MCPServerConfig, 'id'>> {
+    return {
+      // GitHub MCP Server
+      github: {
+        name: 'GitHub',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-github'],
+        transport: 'stdio',
+        enabled: true,
+        env: {
+          GITHUB_PERSONAL_ACCESS_TOKEN: process.env.GITHUB_TOKEN || '',
+        },
+      },
+      
+      // Slack MCP Server
+      slack: {
+        name: 'Slack',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-slack'],
+        transport: 'stdio',
+        enabled: true,
+        env: {
+          SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN || '',
+        },
+      },
+      
+      // PostgreSQL MCP Server
+      postgresql: {
+        name: 'PostgreSQL',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-postgres'],
+        transport: 'stdio',
+        enabled: true,
+        env: {
+          POSTGRES_CONNECTION_STRING: process.env.DATABASE_URL || '',
+        },
+      },
+      
+      // Filesystem MCP Server (增强版)
+      filesystem: {
+        name: 'Filesystem',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-filesystem', '--', '/path/to/allowed/directory'],
+        transport: 'stdio',
+        enabled: true,
+      },
+      
+      // Puppeteer (Browser Automation)
+      puppeteer: {
+        name: 'Puppeteer',
+        command: 'npx',
+        args: ['-y', '@anthropic-ai/mcp-server-puppeteer'],
+        transport: 'stdio',
+        enabled: true,
+      },
+      
+      // Sequential Thinking
+      sequentialThinking: {
+        name: 'Sequential Thinking',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
+        transport: 'stdio',
+        enabled: true,
+      },
+    }
+  }
+  
+  /**
+   * 快速连接预设服务器
+   * 
+   * @param serverNames - 要连接的服务器名称数组
+   * @returns 连接结果
+   */
+  async connectPresetServers(
+    serverNames: string[]
+  ): Promise<{ connected: number; failed: number; results: Array<{ name: string; success: boolean }> }> {
+    const predefined = WebMCPBridge.getPredefinedServerConfigs()
+    const results: Array<{ name: string; success: boolean }> = []
+    let connected = 0
+    let failed = 0
+    
+    for (const name of serverNames) {
+      const config = predefined[name]
+      if (!config) {
+        results.push({ name, success: false })
+        failed++
+        continue
+      }
+      
+      try {
+        const result = await this.addAndConnectExternalServer(config)
+        results.push({ name, success: result.connected })
+        
+        if (result.connected) {
+          connected++
+        } else {
+          failed++
+        }
+      } catch {
+        results.push({ name, success: false })
+        failed++
+      }
+    }
+    
+    return { connected, failed, results }
   }
 }
 
