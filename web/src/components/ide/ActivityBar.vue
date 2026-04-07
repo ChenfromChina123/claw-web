@@ -4,7 +4,7 @@ import {
   FileTrayOutline,
   ChatbubblesOutline,
   DesktopOutline,
-  CogsOutline
+  GearOutline
 } from '@vicons/ionicons5'
 
 interface Props {
@@ -73,7 +73,7 @@ function toggleFullscreen() {
     <div class="activity-spacer"></div>
 
     <div class="activity-item" title="设置">
-      <NIcon :size="24"><CogsOutline /></NIcon>
+      <NIcon :size="24"><GearOutline /></NIcon>
     </div>
   </div>
 </template>
