@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { NIcon } from 'naive-ui'
 import {
-  FileTrayOutline,
-  ChatbubblesOutline,
-  DesktopOutline,
-  GearOutline
+  FolderOpen,
+  ChatbubblesEllipseOutline,
+  ExpandOutline,
+  CreateOutline
 } from '@vicons/ionicons5'
 
 interface Props {
@@ -50,7 +50,7 @@ function toggleFullscreen() {
       title="文件管理器"
       @click="toggleFileExplorer"
     >
-      <NIcon :size="22" :depth="2"><FileTrayOutline /></NIcon>
+      <NIcon :size="22" :depth="2"><FolderOpen /></NIcon>
     </div>
 
     <div
@@ -59,7 +59,7 @@ function toggleFullscreen() {
       title="AI 对话"
       @click="toggleChatPanel"
     >
-      <NIcon :size="22" :depth="2"><ChatbubblesOutline /></NIcon>
+      <NIcon :size="22" :depth="2"><ChatbubblesEllipseOutline /></NIcon>
     </div>
 
     <div
@@ -67,13 +67,13 @@ function toggleFullscreen() {
       title="全屏对话模式"
       @click="toggleFullscreen"
     >
-      <NIcon :size="22" :depth="2"><DesktopOutline /></NIcon>
+      <NIcon :size="22" :depth="2"><ExpandOutline /></NIcon>
     </div>
 
     <div class="activity-spacer"></div>
 
     <div class="activity-item" title="设置">
-      <NIcon :size="22" :depth="2"><GearOutline /></NIcon>
+      <NIcon :size="22" :depth="2"><CreateOutline /></NIcon>
     </div>
   </div>
 </template>
