@@ -127,7 +127,7 @@ export class WebMCPBridge extends EventEmitter {
     
     this.connectionManager.on('toolCallEnd', ({ serverId, toolName, result }) => {
       this.emit('mcp_tool_end', { tool: toolName, result, server: `External-${serverId}` })
-    }
+    })
     
     this.connectionManager.on('toolCallError', ({ serverId, toolName, error }) => {
       this.emit('mcp_tool_error', { tool: toolName, error, server: `External-${serverId}` })
