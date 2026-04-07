@@ -458,37 +458,37 @@ ${context.toolPermission.readOnly ? '**注意**: 此 Agent 是只读模式，不
 ### [WARNING] 绝对禁止的操作
 
 **1. 禁止访问父目录（上层目录）**
-- [BLOCK] **严禁使用** \`cd ..\`、\`pushd ..\` 切换到父目录
-- [BLOCK] **严禁在路径中使用** \`../\` 或 \`..\\\`
-- [BLOCK] **严禁尝试** 查看或列出上层目录结构（如 \`ls ../\`, \`dir ..\\\`）
-- Agent 必须始终保持在当前工作目录 \`${context.cwd}\` 及其子目录内
+- [BLOCK] 严禁使用 "cd .." 或 "pushd .." 切换到父目录
+- [BLOCK] 严禁在路径中使用 "../" 或 "..\\"
+- [BLOCK] 严禁尝试查看或列出上层目录结构（如 "ls ../", "dir .."）
+- Agent 必须始终保持在当前工作目录 ${context.cwd} 及其子目录内
 
 **2. 禁止的路径遍历攻击**
-- [BLOCK] \`cat ../../etc/passwd\`
-- [BLOCK] \`cd .. && rm -rf important_files\`
-- [BLOCK] \`cp /etc/shadow ./stolen\`
-- [BLOCK] \`ls ../../../windows/\`
+- [BLOCK] cat ../../etc/passwd
+- [BLOCK] cd .. && rm -rf important_files
+- [BLOCK] cp /etc/shadow ./stolen
+- [BLOCK] ls ../../../windows/
 
 **3. 禁止访问的系统敏感路径**
-- [BLOCK] \`/etc/\`, \`/usr/share/\`, \`/var/log/\` (Linux)
-- [BLOCK] \`C:\\Windows\\\`, \`C:\\Program Files\\` (Windows)
-- [BLOCK] \`~/.ssh/\`, \`~/.aws/\`, \`.env\`, \`credentials\` 文件
+- [BLOCK] /etc/, /usr/share/, /var/log/ (Linux)
+- [BLOCK] C:\\Windows\\, C:\\Program Files\\ (Windows)
+- [BLOCK] ~/.ssh/, ~/.aws/, .env, credentials 文件
 
 ### [ALLOWED] 允许的操作
 
-- [OK] 在工作目录及其**直接子目录**内自由操作
-- [OK] 使用相对路径访问项目文件：\`./src/\`, \`./config/\`
+- [OK] 在工作目录及其直接子目录内自由操作
+- [OK] 使用相对路径访问项目文件：./src/, .config/
 - [OK] 使用绝对路径但必须在工作目录范围内
 - [OK] 创建新的子目录用于临时文件或构建输出
 
 ### [SHIELD] 安全机制说明
 
 本系统已实施多层安全防护：
-1. **命令层检测** - 自动拦截 \`cd ..\` 和包含 \`..\` 的命令
-2. **路径层验证** - 所有文件操作路径都会验证是否在工作目录内
-3. **实时监控** - 所有工具调用都经过安全检查器过滤
+1. 命令层检测 - 自动拦截 cd .. 和包含 .. 的命令
+2. 路径层验证 - 所有文件操作路径都会验证是否在工作目录内
+3. 实时监控 - 所有工具调用都经过安全检查器过滤
 
-**违反安全约束的操作将被自动阻止并记录。**
+违反安全约束的操作将被自动阻止并记录。
 
 `.trim()
 
