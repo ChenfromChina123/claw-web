@@ -457,11 +457,10 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
           key: item.path || `/${item.name}`,
           label: item.name,
           prefix: () => getFileIcon(item.isDirectory, item.type),
-          isLeaf: !item.isDirectory,
-          children: item.isDirectory ? [] : undefined
+          isLeaf: !item.isDirectory
         }
         console.log('[useAgentWorkdir] Created node:', {
-          key: node.key, label: node.label, isLeaf: node.isLeaf, isDirectory: item.isDirectory, hasChildren: !!node.children
+          key: node.key, label: node.label, isLeaf: node.isLeaf, isDirectory: item.isDirectory
         })
         return node
       })
