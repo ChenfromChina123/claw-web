@@ -1,29 +1,16 @@
-# Claude Code HAHA - 多租户 Docker Compose 配置（无 Redis 版本）
+# Claude Code HAHA - 国内镜像加速版 Docker Compose（无 Redis 版本）
 #
-# 特性：
-# ✅ 完整的多租户用户隔离
-# ✅ 资源配额管理与内存优化
-# ✅ 三种预设配置：开发/标准/高性能
-# ✅ 生产级部署配置
-# ✅ 轻量化部署（无 Redis 依赖）
+# 使用国内镜像源，解决 Docker Hub 访问问题
+# 轻量化部署：仅包含 MySQL + 后端 + 前端
 #
-# 使用说明：
-# 1. 复制 .env.docker.example 为 .env 并填写配置
-# 2. 选择合适的配置方案（见下方注释）
-# 3. 运行: docker compose up -d
-# 4. 访问: http://localhost (前端) | http://localhost:3000/api (后端 API)
-#
-# 📚 内存配置文档：docs/DOCKER_MEMORY_CONFIG.md
-#
-# ⚙️ 配置方案选择（根据服务器内存）：
-#   方案 A: 开发环境  (2GB RAM)  → 取消注释 [DEV] 部分
-#   方案 B: 标准生产  (4GB RAM)  → 当前默认配置 ⭐ 推荐
-#   方案 C: 高性能    (8GB+ RAM) → 取消注释 [HIGH_PERF] 部分
+# 使用方法：
+# 1. 确保已安装 Docker Desktop
+# 2. 运行: docker compose -f docker-compose.cn.yml up -d
 
 services:
-  # ==================== MySQL 数据库 ====================
+  # ==================== MySQL 数据库（国内镜像）====================
   mysql:
-    image: mysql:8.0
+    image: registry.cn-hangzhou.aliyuncs.com/library/mysql:8.0
     container_name: claude-mysql
     restart: unless-stopped
     environment:
@@ -71,7 +58,7 @@ services:
         reservations:
           memory: 128M
 
-  # ==================== 后端服务（Bun Runtime） ====================
+  # ==================== 后端服务（本地构建）====================
   backend:
     build:
       context: .
@@ -136,7 +123,7 @@ services:
         reservations:
           memory: 256M
 
-  # ==================== 前端服务（Nginx） ====================
+  # ==================== 前端服务（本地构建）====================
   frontend:
     build:
       context: .
@@ -144,7 +131,7 @@ services:
     container_name: claude-frontend
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_PORT:-8080}:80"
     volumes:
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
