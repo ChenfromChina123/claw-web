@@ -56,6 +56,14 @@ temp/
 # Docker 文件（避免递归）
 Dockerfile
 docker-compose.yml
+docker-compose.cn.yml
 .docker/
 deploy.sh
 deploy.ps1
+daemon.json
+.env.docker.example
+
+# 前端特定忽略
+web/node_modules/
+web/dist/
+web/.vite/
