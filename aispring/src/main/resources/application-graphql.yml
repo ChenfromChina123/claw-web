@@ -1,0 +1,41 @@
+# ===========================
+# Spring for GraphQL 配置
+# ===========================
+
+spring:
+  graphql:
+    # GraphQL 端点路径
+    path: /graphql
+    
+    # GraphiQL 界面配置（开发环境可用）
+    graphiql:
+      enabled: true
+      path: /graphiql
+    
+    # Schema 配置
+    schema:
+      # Schema 文件位置
+      locations: classpath:graphql/**/*.graphqls
+      # 打印 Schema（开发调试）
+      printer:
+        enabled: true
+    
+    # CORS 配置
+    cors:
+      allowed-origins: 
+        - http://localhost:3000
+        - http://localhost:5173
+      allowed-methods: 
+        - GET
+        - POST
+      allowed-headers: 
+        - "*"
+      allow-credentials: true
+    
+    # WebSocket 支持（用于订阅）
+    websocket:
+      path: /graphql
+      
+    # 启用请求日志
+    servlet:
+      mapping: /graphql

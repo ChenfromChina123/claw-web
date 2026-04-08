@@ -1,0 +1,230 @@
+spring:
+  mvc:
+    async:
+      request-timeout: 300000 # 5 minutes
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
+  application:
+    name: ai-smart-tutor
+
+  # Jackson JSON 序列化配置（将下划线转为驼峰）
+  jackson:
+    property-naming-strategy: LOWER_CAMEL_CASE  # 使用驼峰命名（默认）
+
+  # 触发DevTools重启
+  # 禁用 GraphQL
+  graphql:
+    graphiql:
+      enabled: false
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.graphql.GraphQlAutoConfiguration
+      - org.springframework.boot.autoconfigure.graphql.servlet.GraphQlWebMvcAutoConfiguration
+
+  # 数据库配置（极致优化：最小化连接池以大幅降低内存占用）
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:ipv6_education}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&cachePrepStmts=true&prepStmtCacheSize=100&prepStmtCacheSqlLimit=1024
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:ENC(ChwOBS62kHNKHEfErml6nw==)}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 1
+      maximum-pool-size: 5
+      idle-timeout: 600000
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+
+  # Flyway 配置
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    validate-on-migrate: false
+    locations: classpath:db/migration
+
+  # JPA配置（优化：减少内存占用，提高性能）
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        "[format_sql]": false
+        "[jdbc.batch_size]": 20
+        "[order_inserts]": true
+        "[order_updates]": true
+        "[jdbc.batch_versioned_data]": true
+        "[generate_statistics]": false
+        "[cache.use_second_level_cache]": false
+        "[cache.use_query_cache]": false
+    open-in-view: false
+
+  # Redis 配置 - 用于 Session 状态存储（极致优化：最小化连接池）
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:1}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 5
+          max-idle: 2
+          min-idle: 1
+          max-wait: 3000ms
+        shutdown-timeout: 200ms
+
+# 文件上传配置（优化：不限制上传时间，基于大小限制，提高临时文件阈值以减少磁盘 IO）
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 1000MB
+      max-request-size: 1000MB
+      file-size-threshold: 10MB
+      # 使用流式处理，避免将整个文件加载到内存
+
+  # 邮件配置
+  mail:
+    host: smtp.qq.com
+    port: 587
+    username: ${SENDER_EMAIL:3301767269@qq.com}
+    password: ${SENDER_PASSWORD:ENC(LZy5qJumY+qHyFxAmZ3NLwqIl6mXaN/CBQ8KrjhAEIg=)}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            trust: smtp.qq.com
+
+  # 热部署配置 (生产环境默认禁用)
+  devtools:
+    restart:
+      enabled: true
+      poll-interval: 2000ms
+      quiet-period: 1000ms
+      log-condition-evaluation-delta: false
+      exclude: META-INF/maven/**,META-INF/resources/**,static/**,public/**,templates/**,**/*Test.class,**/*Tests.class
+      additional-exclude: logs/**
+    livereload:
+      enabled: false
+    add-properties: true
+
+  # Spring AI 配置 - DeepSeek (阿里百炼 API)
+  ai:
+    openai:
+      api-key: ${DEEPSEEK_API_KEY:sk-98982c82b8944262ae2ccf065e4e102e}
+      base-url: ${DEEPSEEK_API_URL:${DEEPSEEK_URL:https://dashscope.aliyuncs.com/compatible-mode}}
+      chat:
+        options:
+          model: deepseek-v3.2
+          temperature: 0.7
+          max-tokens: ${MAX_TOKEN:8192}
+
+# 服务器配置（极致优化：大幅减少线程数和连接数以降低内存）
+server:
+  port: 5000
+  servlet:
+    context-path: /
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+  tomcat:
+    threads:
+      max: 50
+      min-spare: 5
+    max-connections: 200
+    accept-count: 50
+    connection-timeout: 300000 # 增加到 5 分钟，防止大文件传输中断
+    max-http-form-post-size: -1
+
+# Jasypt 加密配置
+jasypt:
+  encryptor:
+    password: ${JASYPT_PASSWORD:aistudy_secret}
+    algorithm: PBEWithMD5AndDES
+    iv-generator-classname: org.jasypt.iv.NoIvGenerator
+
+# JWT配置
+jwt:
+  secret: ${JWT_SECRET_KEY:default_development_key_change_in_production}
+  expiration: 7200000  # 2小时，单位毫秒
+
+# AI 模型配置
+ai:
+  deepseek:
+    api-key: ${DEEPSEEK_API_KEY:sk-98982c82b8944262ae2ccf065e4e102e}
+    api-url: ${DEEPSEEK_URL:https://dashscope.aliyuncs.com/compatible-mode}
+  max-tokens: ${MAX_TOKEN:8192}
+
+# 日志配置（优化：减少SQL日志输出以降低内存和IO开销）
+logging:
+  level:
+    root: INFO
+    "[com.aispring]": INFO
+    "[org.springframework.web]": WARN
+    "[org.hibernate.SQL]": WARN
+    "[org.hibernate.type.descriptor.sql.BasicBinder]": WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/application.log
+    max-size: 10MB
+    max-history: 15
+
+# CORS配置
+cors:
+  allowed-origins: http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:4173,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:5173,http://127.0.0.1:4173,http://aistudy.icu,https://aistudy.icu,http://www.aistudy.icu,https://www.aistudy.icu
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  allowed-headers: "*"
+  allow-credentials: true
+  max-age: 3600
+
+# 应用信息
+app:
+  name: AI 智能学习导师
+  version: 1.0.0
+  description: 基于 Spring Boot 的 AI 智能学习助手
+  auth:
+    verification-code-expire-minutes: 5
+  # 用户数据存储：开发默认当前目录；生产环境由 application-prod 指定项目外专用目录
+  storage:
+    root-dir: ${APP_STORAGE_ROOT:./}
+    cloud-disk-dir: ${CLOUD_DISK_DIR:cloud_disk}
+    avatars-dir: ${AVATARS_DIR:avatars}
+  cloud-disk:
+    path: ./cloud_disk
+  file:
+    # 启动时自动清理孤立的文件记录（数据库中存在但物理文件不存在）
+    # 设置为 false 可禁用自动清理
+    auto-cleanup-on-startup: true
+  # 单词词典缓存配置
+  word-dict:
+    # 启动时预加载高频单词到缓存
+    preload-cache-on-startup: true
+    # 高频单词列表（可在 WordDictServiceImpl 中自定义）
+    high-frequency-words-count: 100
+
+# Piston 代码执行引擎配置
+piston:
+  api-url: ${PISTON_API_URL:http://localhost:2000}
+  execute-timeout: 10000       # 执行超时 10 秒
+  max-code-length: 65536       # 代码最大长度 64KB
+  max-stdin-length: 8192       # stdin 最大长度 8KB
+  rate-limit:
+    max-requests: 30           # 每用户每小时最大执行次数
+    window-hours: 1            # 限流窗口（小时）
+
+# 搜索服务 API Key 配置
+# 如果未配置，则不需要 API Key 即可访问搜索接口
+# 生产环境建议使用环境变量：SEARCH_API_KEY
+search:
+  api:
+    key: ${SEARCH_API_KEY:}  # 默认为空，不启用验证

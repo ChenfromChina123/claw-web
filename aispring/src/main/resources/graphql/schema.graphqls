@@ -1,0 +1,236 @@
+# ===========================
+# GraphQL Schema 定义
+# 支持声明式按需加载和 Fragments
+# ===========================
+
+# 扩展标量类型
+scalar DateTime
+scalar Long
+
+# ===========================
+# 查询入口
+# ===========================
+type Query {
+    """
+    获取需求文档列表（支持分页）
+    """
+    requirementDocs(
+        page: Int = 0
+        size: Int = 10
+    ): RequirementDocConnection!
+    
+    """
+    根据 ID 获取单个需求文档
+    """
+    requirementDoc(id: Long!): RequirementDoc
+    
+    """
+    获取用户信息
+    """
+    user(id: Long!): User
+    
+    """
+    获取当前登录用户的文档列表
+    """
+    myRequirementDocs: [RequirementDoc!]!
+}
+
+# ===========================
+# 变更操作
+# ===========================
+type Mutation {
+    """
+    创建需求文档
+    """
+    createRequirementDoc(input: CreateRequirementDocInput!): RequirementDoc!
+    
+    """
+    更新需求文档
+    """
+    updateRequirementDoc(id: Long!, input: UpdateRequirementDocInput!): RequirementDoc!
+    
+    """
+    删除需求文档
+    """
+    deleteRequirementDoc(id: Long!): Boolean!
+}
+
+# ===========================
+# 需求文档类型（支持片段加载）
+# ===========================
+type RequirementDoc {
+    """
+    基础字段 - 始终加载
+    """
+    id: Long!
+    title: String!
+    version: Int!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+    
+    """
+    内容字段 - 按需加载（适用于列表页不需要内容的场景）
+    """
+    content: String
+    
+    """
+    关联用户 - 通过 DataLoader 批量加载，解决 N+1 问题
+    """
+    user: User
+    
+    """
+    文档统计信息 - 独立片段，按需加载
+    """
+    statistics: RequirementDocStatistics
+    
+    """
+    历史版本列表 - 独立片段，按需加载
+    """
+    historyVersions: [RequirementDocHistory!]
+    
+    """
+    Token 使用审计 - 独立片段，按需加载
+    """
+    tokenUsage: TokenUsageInfo
+}
+
+# ===========================
+# 用户类型
+# ===========================
+type User {
+    id: Long!
+    username: String!
+    email: String
+    avatar: String
+    
+    """
+    用户的所有需求文档
+    """
+    requirementDocs: [RequirementDoc!]!
+}
+
+# ===========================
+# 文档统计信息（独立片段）
+# ===========================
+type RequirementDocStatistics {
+    """
+    文档字数统计
+    """
+    wordCount: Int!
+    
+    """
+    修改次数
+    """
+    editCount: Int!
+    
+    """
+    最后编辑时间
+    """
+    lastEditedAt: DateTime!
+    
+    """
+    是否已发布
+    """
+    published: Boolean!
+}
+
+# ===========================
+# 历史版本（独立片段）
+# ===========================
+type RequirementDocHistory {
+    id: Long!
+    docId: Long!
+    version: Int!
+    content: String!
+    createdAt: DateTime!
+    
+    """
+    创建该版本的用户
+    """
+    createdBy: User
+}
+
+# ===========================
+# Token 使用信息（独立片段）
+# ===========================
+type TokenUsageInfo {
+    """
+    总消耗 Token 数
+    """
+    totalTokens: Int!
+    
+    """
+    输入 Token 数
+    """
+    inputTokens: Int!
+    
+    """
+    输出 Token 数
+    """
+    outputTokens: Int!
+    
+    """
+    平均响应时间（毫秒）
+    """
+    avgResponseTime: Int!
+    
+    """
+    使用的 AI 提供商
+    """
+    provider: String
+}
+
+# ===========================
+# 分页连接
+# ===========================
+type RequirementDocConnection {
+    """
+    文档列表
+    """
+    content: [RequirementDoc!]!
+    
+    """
+    分页信息
+    """
+    pageInfo: PageInfo!
+}
+
+type PageInfo {
+    """
+    当前页码
+    """
+    page: Int!
+    
+    """
+    每页大小
+    """
+    size: Int!
+    
+    """
+    总记录数
+    """
+    totalElements: Long!
+    
+    """
+    总页数
+    """
+    totalPages: Int!
+    
+    """
+    是否有下一页
+    """
+    hasNext: Boolean!
+}
+
+# ===========================
+# 输入类型
+# ===========================
+input CreateRequirementDocInput {
+    title: String!
+    content: String
+}
+
+input UpdateRequirementDocInput {
+    title: String
+    content: String
+}

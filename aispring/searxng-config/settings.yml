@@ -1,0 +1,38 @@
+use_default_settings: true
+
+search:
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "your-secret-key-here-please-change-in-production"
+  limiter: false
+  image_proxy: true
+  method: "POST"
+  default_http_headers:
+    X-Content-Type-Options: nosniff
+    X-Download-Options: noopen
+    X-Robots-Tag: noindex, nofollow
+    X-XSS-Protection: 1; mode=block
+
+engines:
+  - name: bing
+    engine: bing
+    shortcut: b
+    disabled: false
+    
+  - name: google
+    engine: google
+    shortcut: g
+    disabled: false
+    
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: d
+    disabled: false
+    
+  - name: brave
+    engine: brave
+    shortcut: br
+    disabled: false

@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./searxng-config:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+      - SEARXNG_SECRET_KEY=your-secret-key-here-please-change-in-production
+    networks:
+      - searxng-network
+    restart: unless-stopped
+
+networks:
+  searxng-network:
+    driver: bridge

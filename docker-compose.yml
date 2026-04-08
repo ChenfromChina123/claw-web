@@ -1,0 +1,217 @@
+# ============================================================
+# AI Study Project - 完整 Docker Compose 配置
+# 包含：后端服务 + 前端服务 + 基础设施（MySQL, Redis）
+# 支持多用户隔离部署
+# ============================================================
+
+version: '3.8'
+
+# ==================== 基础设施层 ====================
+services:
+
+  # ==================== MySQL 数据库 ====================
+  mysql:
+    image: mysql:8.0
+    container_name: aispring-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password_change_me}
+      MYSQL_DATABASE: ${DB_NAME:-aispring}
+      MYSQL_USER: ${DB_USER:-aispring}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-aispring_password_change_me}
+      TZ: Asia/Shanghai
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./docker/mysql/conf.d:/etc/mysql/conf.d:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_connections=200
+      - --innodb_buffer_pool_size=256M
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== Redis 缓存 ====================
+  redis:
+    image: redis:7-alpine
+    container_name: aispring-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== 应用层 ====================
+
+  # Spring Boot 后端 (AI 智能学习导师)
+  aispring-backend:
+    build:
+      context: ./aispring
+      dockerfile: Dockerfile
+    container_name: aispring-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-5000}:5000"
+    environment:
+      # 数据库配置
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-aispring}
+      DB_USERNAME: ${DB_USER:-aispring}
+      DB_PASSWORD: ${DB_PASSWORD:-aispring_password_change_me}
+
+      # Redis 配置
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      # JWT 密钥
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your_super_secret_key_min_32_chars}
+
+      # DeepSeek API
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      DEEPSEEK_URL: ${DEEPSEEK_URL:-https://dashscope.aliyuncs.com/compatible-mode}
+
+      # Jasypt 加密密码
+      JASYPT_PASSWORD: ${JASYPT_PASSWORD:-aistudy_secret}
+
+      # 邮件配置
+      SENDER_EMAIL: ${SENDER_EMAIL}
+      SENDER_PASSWORD: ${SENDER_PASSWORD}
+
+      # 存储路径
+      APP_STORAGE_ROOT: /app/data
+
+      # JVM 参数
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseContainerSupport"
+
+      # Spring Profile
+      SPRING_PROFILES_ACTIVE: prod
+    volumes:
+      - aispring_data:/app/data
+      - aispring_logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+  # Claude Code Web 前后端服务
+  claude-code-web:
+    build:
+      context: ./claude-code-haha
+      dockerfile: Dockerfile
+    container_name: claude-code-web
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      # Node 环境
+      NODE_ENV: production
+
+      # 数据库配置（连接到 MySQL）
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-aispring}
+      DB_PASSWORD: ${DB_PASSWORD:-aispring_password_change_me}
+      DB_NAME: ${DB_NAME:-claude_code_haha}
+
+      # JWT 配置
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_key}
+
+      # Anthropic API 配置
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL}
+
+      # 工作区目录
+      WORKSPACE_BASE_DIR: /app/data/workspaces
+    volumes:
+      - claude_code_data:/app/data
+      - claude_code_workspaces:/app/data/workspaces
+      - claude_code_sessions:/app/sessions
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+  # ==================== 反向代理层 ====================
+
+  # Nginx 反向代理 + 负载均衡
+  nginx:
+    image: nginx:alpine
+    container_name: aispring-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - aispring-backend
+      - claude-code-web
+    networks:
+      - backend-network
+
+# ==================== 网络配置 ====================
+networks:
+  backend-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ==================== 持久化卷 ====================
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  aispring_data:
+    driver: local
+  aispring_logs:
+    driver: local
+  claude_code_data:
+    driver: local
+  claude_code_workspaces:
+    driver: local
+  claude_code_sessions:
+    driver: local
+  nginx_logs:
+    driver: local

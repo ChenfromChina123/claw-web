@@ -1,0 +1,2 @@
+ALTER TABLE chat_records MODIFY COLUMN user_id BIGINT NULL;
+ALTER TABLE chat_sessions MODIFY COLUMN user_id BIGINT NULL;

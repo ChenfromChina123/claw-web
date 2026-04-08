@@ -1,0 +1,19 @@
+spring:
+  # 开发环境配置
+  devtools:
+    restart:
+      enabled: true
+      poll-interval: 2000ms
+      quiet-period: 1000ms
+    livereload:
+      enabled: true
+  
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format-sql: true
+
+logging:
+  level:
+    "[com.aispring]": DEBUG

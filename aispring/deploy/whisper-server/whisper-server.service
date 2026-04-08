@@ -1,0 +1,36 @@
+[Unit]
+Description=Whisper.cpp Speech Recognition Server
+Documentation=https://github.com/ggerganov/whisper.cpp
+After=network.target
+
+[Service]
+Type=simple
+User=whisper
+Group=whisper
+WorkingDirectory=/opt/whisper-server
+
+# 主命令 - 根据实际路径修改
+ExecStart=/opt/whisper-server/whisper-server \
+    -m /opt/whisper-server/models/ggml-base.en.bin \
+    --port 8090 \
+    --host 0.0.0.0 \
+    -t 4
+
+# 重启策略
+Restart=always
+RestartSec=10
+
+# 日志
+StandardOutput=append:/var/log/whisper-server/whisper-server.log
+StandardError=append:/var/log/whisper-server/whisper-server-error.log
+
+# 资源限制
+LimitNOFILE=65535
+LimitNPROC=4096
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

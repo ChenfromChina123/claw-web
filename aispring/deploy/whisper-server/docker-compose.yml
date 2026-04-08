@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  whisper-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: whisper-server:latest
+    container_name: whisper-server
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      - WHISPER_PORT=8090
+      - WHISPER_MODEL=base.en
+      - WHISPER_THREADS=4
+    volumes:
+      # 挂载模型目录 (可选，用于使用不同模型)
+      - ./models:/app/models:ro
+      # 挂载日志目录
+      - whisper-logs:/var/log/whisper
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  whisper-logs:
+    driver: local
+
+# 网络配置
+networks:
+  default:
+    name: whisper-network
+    driver: bridge

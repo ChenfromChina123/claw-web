@@ -1,0 +1,65 @@
+spring:
+  # 生产环境数据库配置
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:aispring}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:aispring}
+    password: ${DB_PASSWORD:ENC(+yqdk06jmsk4+aN2ztM3IaEhuSp2j6JRPbM7QRQW7Uc=)}
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 10
+      idle-timeout: 600000
+      connection-timeout: 30000
+      max-lifetime: 1800000
+
+  # 生产环境 JPA 配置
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      ddl-auto: none # 生产环境禁用自动更新/校验，由 Flyway 管理表结构
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect  # 显式指定，避免 Unable to determine Dialect without JDBC metadata
+        format_sql: false
+
+  # 邮件配置 (如果生产环境有不同配置可在此覆盖)
+  mail:
+    properties:
+      mail:
+        debug: false
+
+  # 生产环境禁用热部署
+  devtools:
+    restart:
+      enabled: false
+    livereload:
+      enabled: false
+
+# Whisper 语音识别服务配置
+whisper:
+  server:
+    url: ${WHISPER_SERVER_URL:https://audio-to-text.aistudy.icu/inference}
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.aispring: INFO
+  file:
+    name: logs/aispring-prod.log
+    max-history: 30
+    max-size: 10MB
+
+# 生产环境 CORS 配置
+cors:
+  allowed-origins: http://aistudy.icu,https://aistudy.icu,http://www.aistudy.icu,https://www.aistudy.icu
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  allowed-headers: "*"
+  allow-credentials: true
+  max-age: 3600
+
+# 生产环境：用户个人资料与文件存放到项目外专用目录，不放在当前项目目录下
+# 可通过环境变量 APP_STORAGE_ROOT 覆盖（Windows 建议设为如 D:\aispring-data 或 C:\ProgramData\aispring）
+app:
+  storage:
+    root-dir: ${APP_STORAGE_ROOT:/data/aispring}
