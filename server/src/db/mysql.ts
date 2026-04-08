@@ -87,8 +87,9 @@ export async function initDatabase(): Promise<void> {
     await tempPool.query(`USE \`${config.database}\``)
     console.log(`Using database ${config.database}`)
 
-    // 使用 process.cwd() 获取 server/ 目录
-    const projectRoot = process.cwd()
+    // 使用 __dirname 获取当前文件所在目录，然后向上查找
+    const currentDir = __dirname // server/src/db/
+    const projectRoot = resolve(currentDir, '..', '..') // server/
     const schemaPath = join(projectRoot, 'src', 'db', 'schema.sql')
     const schema = readFileSync(schemaPath, 'utf-8')
 

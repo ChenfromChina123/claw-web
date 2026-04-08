@@ -31,11 +31,24 @@ import IdeSessionsPanel from './IdeSessionsPanel.vue'
 import ChatMessageList from '@/components/ChatMessageList.vue'
 import ChatInput from '@/components/ChatInput.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
+import IdeTerminalTabs from '@/components/terminal/IdeTerminalTabs.vue'
+import type { ComponentPublicInstance } from 'vue'
 
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import { useAgentStore } from '@/stores/agent'
 import { useAgentWorkdir } from '@/composables/useAgentWorkdir'
+import { useEffectiveWorkspacePath } from '@/composables/useEffectiveWorkspacePath'
+import {
+  provideIdeAppendToChat,
+  type IdeAppendToChatOptions,
+} from '@/composables/useIdeChatAppend'
+import {
+  loadIdeWorkbenchLayout,
+  saveIdeWorkbenchLayout,
+  readSplitPanePercents,
+  type IdeWorkbenchLayoutState,
+} from '@/composables/useIdeWorkbenchLayout'
 
 const router = useRouter()
 const message = useMessage()
@@ -46,6 +59,45 @@ const agentStore = useAgentStore()
 // ========== 初始化状态 ==========
 const isInitializing = ref(true)
 const initError = ref<string | null>(null)
+/** 与 Chat 共用单例 WS：须先完成登录连接再挂载终端，避免 PTY 抢先匿名建连 */
+const terminalWebSocketReady = ref(false)
+
+/** 分栏尺寸（localStorage 持久化） */
+const ideLayout = ref<IdeWorkbenchLayoutState>(loadIdeWorkbenchLayout())
+const rootSplitRef = ref<InstanceType<typeof Splitpanes> | null>(null)
+const editorTermSplitRef = ref<InstanceType<typeof Splitpanes> | null>(null)
+
+function persistRootSplitSizes(): void {
+  const el = rootSplitRef.value?.$el as HTMLElement | undefined
+  const sizes = readSplitPanePercents(el, false)
+  if (sizes.length === 3) {
+    ideLayout.value = {
+      ...ideLayout.value,
+      rootSizes: sizes as [number, number, number],
+    }
+    saveIdeWorkbenchLayout(ideLayout.value)
+  }
+}
+
+function persistEditorTermSplitSizes(): void {
+  const el = editorTermSplitRef.value?.$el as HTMLElement | undefined
+  const sizes = readSplitPanePercents(el, true)
+  if (sizes.length === 2) {
+    ideLayout.value = {
+      ...ideLayout.value,
+      editorTerminalSizes: sizes as [number, number],
+    }
+    saveIdeWorkbenchLayout(ideLayout.value)
+  }
+}
+
+function onRootSplitResized(): void {
+  void nextTick(() => persistRootSplitSizes())
+}
+
+function onEditorTermSplitResized(): void {
+  void nextTick(() => persistEditorTermSplitSizes())
+}
 
 // ========== UI 状态 ==========
 const showCommandPalette = ref(false)
@@ -59,24 +111,47 @@ const sessionIdRef = computed(() => chatStore.currentSessionId || '')
 // ========== 工作目录上下文（单一 provide） ==========
 const workdir = useAgentWorkdir(sessionIdRef)
 
+/** 有效工作区路径（与 Agent Bash cwd 一致），传给终端组件 */
+const { workspacePath: effectiveWorkspacePath } = useEffectiveWorkspacePath(sessionIdRef)
+
+/** 底部多标签终端（供「在终端查看」聚焦） */
+const terminalTabsRef = ref<
+  (ComponentPublicInstance & { focusActiveTerminal?: () => void }) | null
+>(null)
+
+function handleFocusTerminalFromChat(): void {
+  const el = document.getElementById('ide-bottom-terminal')
+  el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  nextTick(() => {
+    terminalTabsRef.value?.focusActiveTerminal?.()
+  })
+}
+
+/** 编辑器「引用选中到对话」→ 插入右侧 ChatInput */
+function handleAppendToChatFromEditor(text: string, options?: IdeAppendToChatOptions): void {
+  const trimmed = text.trim()
+  const hasRef = !!options?.codeRef
+  if (!hasRef && !trimmed) return
+  if (hasRef && !trimmed && !options!.codeRef!.snippet.trim()) return
+  if (!chatStore.currentSessionId) {
+    message.warning('请先选择或创建会话')
+    return
+  }
+  if (!inputRef.value) {
+    message.warning('对话输入框未就绪，请稍后再试')
+    return
+  }
+  inputRef.value.appendToChatInput(hasRef ? trimmed || options!.codeRef!.snippet : trimmed, options)
+}
+
+provideIdeAppendToChat(handleAppendToChatFromEditor)
+
 /** 中间栏标题：与 VS Code 一致，显示当前文件名大写 */
 const editorTabTitle = computed(() => {
   const p = workdir.currentFilePath.value
   if (!p) return 'EDITOR'
   const name = p.split(/[/\\]/).pop() || p
   return name.toUpperCase()
-})
-
-/** 顶栏面包屑：// PROJECT … / file */
-const titleBarPath = computed(() => {
-  const project =
-    chatStore.currentSession?.title?.trim() || 'My-Code-Project'
-  const p = workdir.currentFilePath.value
-  const fileName = p ? (p.split(/[/\\]/).pop() || p) : ''
-  if (fileName) {
-    return `// PROJECT ${project} / ${fileName}`
-  }
-  return `// PROJECT ${project}`
 })
 
 // ========== 初始化 ==========
@@ -97,7 +172,8 @@ onMounted(async () => {
     if (!chatStore.isConnected) {
       await chatStore.connect(authStore.token || undefined)
     }
-    
+    terminalWebSocketReady.value = true
+
     // 设置 Agent Store 的 WebSocket 监听
     agentStore.setupWebSocketListeners()
     
@@ -218,6 +294,13 @@ function handleToolInterrupt(agentId: string): void {
   })
 }
 
+// ========== 停止生成 ==========
+async function handleStopGeneration(): Promise<void> {
+  console.log('[IdeWorkbench] 用户点击停止生成')
+  await chatStore.interruptGeneration()
+  message.info('生成已停止')
+}
+
 // ========== 重新连接 ==========
 async function handleRetry(): Promise<void> {
   if (!authStore.token || !authStore.isLoggedIn) {
@@ -227,9 +310,11 @@ async function handleRetry(): Promise<void> {
 
   isInitializing.value = true
   initError.value = null
+  terminalWebSocketReady.value = false
 
   try {
     await chatStore.connect(authStore.token || undefined)
+    terminalWebSocketReady.value = true
     await chatStore.listSessions()
 
     const sessions = chatStore.sessions || []
@@ -266,13 +351,6 @@ async function handleRetry(): Promise<void> {
     <!-- 左侧活动栏：全局新建、Explorer / 会话、沉浸式聊天、设置 -->
     <div class="activity-bar">
       <div class="activity-icons">
-        <div
-          class="activity-new-btn"
-          title="新建会话"
-          @click="handleActivityBarNewSession"
-        >
-          <NIcon size="20"><Add /></NIcon>
-        </div>
         <div
           class="activity-icon"
           :class="{ active: leftSidebarView === 'explorer' }"
@@ -311,13 +389,13 @@ async function handleRetry(): Promise<void> {
 
     <!-- 主体：顶栏 + 三列（Explorer | Editor | AI Agent） -->
     <div class="ide-main ide-vscode-dark">
-      <div class="ide-title-bar" :title="titleBarPath">
-        {{ titleBarPath }}
-      </div>
-
       <!-- 勿用 splitpanes default-theme：其分割条为 #fff、面板为 #f2f2f2，会产生刺眼白条 -->
-      <Splitpanes class="ide-splitpanes ide-split-root">
-        <Pane :size="20" min-size="14" class="explorer-pane">
+      <Splitpanes
+        ref="rootSplitRef"
+        class="ide-splitpanes ide-split-root"
+        @resized="onRootSplitResized"
+      >
+        <Pane :size="ideLayout.rootSizes[0]" min-size="14" class="explorer-pane">
           <div class="pane-header">
             <span>{{ leftSidebarView === 'explorer' ? 'EXPLORER' : 'SESSIONS' }}</span>
           </div>
@@ -327,18 +405,45 @@ async function handleRetry(): Promise<void> {
           </div>
         </Pane>
 
-        <Pane :size="52" min-size="30" class="editor-pane">
-          <div class="pane-header">
-            <span>{{ editorTabTitle }}</span>
-          </div>
-          <div class="pane-content">
-            <AgentWorkdirEditorPanel />
-          </div>
+        <Pane :size="ideLayout.rootSizes[1]" min-size="30" class="editor-pane">
+          <Splitpanes
+            ref="editorTermSplitRef"
+            horizontal
+            class="ide-editor-terminal-split"
+            @resized="onEditorTermSplitResized"
+          >
+            <Pane :size="ideLayout.editorTerminalSizes[0]" min-size="35" class="editor-pane-stack">
+              <div class="pane-header">
+                <span>{{ editorTabTitle }}</span>
+              </div>
+              <div class="pane-content editor-pane-editor-body">
+                <AgentWorkdirEditorPanel />
+              </div>
+            </Pane>
+            <Pane :size="ideLayout.editorTerminalSizes[1]" min-size="14" max-size="55" class="editor-terminal-pane">
+              <div id="ide-bottom-terminal" class="ide-terminal-anchor">
+                <IdeTerminalTabs
+                  v-if="terminalWebSocketReady"
+                  ref="terminalTabsRef"
+                  :default-cwd="effectiveWorkspacePath || undefined"
+                />
+              </div>
+            </Pane>
+          </Splitpanes>
         </Pane>
 
-        <Pane :size="28" min-size="20" class="right-column-pane chat-pane-full">
-          <div class="pane-header">
+        <Pane :size="ideLayout.rootSizes[2]" min-size="20" class="right-column-pane chat-pane-full">
+          <div class="pane-header chat-pane-header">
             <span>AI AGENT</span>
+            <button
+              type="button"
+              class="chat-new-session-btn"
+              title="新建会话"
+              aria-label="新建会话"
+              @click="handleActivityBarNewSession"
+            >
+              <NIcon :size="18"><Add /></NIcon>
+            </button>
           </div>
           <div class="pane-content chat-content">
             <div v-if="isInitializing" class="initialization-container">
@@ -364,6 +469,7 @@ async function handleRetry(): Promise<void> {
                 ide-density
                 class="message-list"
                 @interrupt="handleToolInterrupt"
+                @focus-terminal="handleFocusTerminalFromChat"
               />
               <div class="chat-input-outer">
                 <div class="ide-chat-input-shell">
@@ -373,7 +479,9 @@ async function handleRetry(): Promise<void> {
                     placeholder="Ask AI assistant..."
                     :disabled="!chatStore.currentSessionId"
                     :session-id="chatStore.currentSessionId || undefined"
+                    :is-generating="chatStore.isLoading"
                     @send="handleSendMessage"
+                    @stop="handleStopGeneration"
                   />
                 </div>
               </div>
@@ -424,28 +532,6 @@ async function handleRetry(): Promise<void> {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-/* 全局新建：与 VS Code 命令调色板式入口一致，使用蓝色强调而非大块黄色 */
-.activity-new-btn {
-  width: 48px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: rgba(64, 158, 255, 0.95);
-  transition: background 0.15s ease, color 0.15s ease;
-  border-radius: 6px;
-  margin: 0 4px 8px;
-  border: 1px solid rgba(64, 158, 255, 0.35);
-  background: rgba(64, 158, 255, 0.08);
-}
-
-.activity-new-btn:hover {
-  color: #fff;
-  background: rgba(64, 158, 255, 0.28);
-  border-color: rgba(64, 158, 255, 0.55);
 }
 
 .activity-bottom {
@@ -502,22 +588,6 @@ async function handleRetry(): Promise<void> {
   border-left: none;
 }
 
-.ide-title-bar {
-  flex-shrink: 0;
-  height: 28px;
-  padding: 0 14px;
-  display: flex;
-  align-items: center;
-  font-family: var(--font-family-mono, 'Consolas', monospace);
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  background: #252526;
-  border-bottom: 1px solid #1a1a1a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .ide-split-root {
   flex: 1;
   min-height: 0;
@@ -537,6 +607,42 @@ async function handleRetry(): Promise<void> {
   letter-spacing: 0.6px;
 }
 
+.chat-pane-header {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chat-new-session-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(64, 158, 255, 0.45);
+  background: rgba(64, 158, 255, 0.1);
+  color: rgba(64, 158, 255, 0.95);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.chat-new-session-btn:hover {
+  color: #fff;
+  background: rgba(64, 158, 255, 0.32);
+  border-color: rgba(64, 158, 255, 0.65);
+  box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.2);
+}
+
+.chat-new-session-btn:active {
+  transform: scale(0.96);
+}
+
 .pane-content {
   flex: 1;
   overflow: hidden;
@@ -554,7 +660,44 @@ async function handleRetry(): Promise<void> {
 .editor-pane {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   background: #141414;
+}
+
+.ide-editor-terminal-split {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.editor-pane :deep(> .splitpanes) {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.editor-pane-stack {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.editor-pane-editor-body {
+  min-height: 0;
+}
+
+.editor-terminal-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ide-terminal-anchor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .right-column-pane {
@@ -608,12 +751,13 @@ async function handleRetry(): Promise<void> {
 }
 
 .ide-chat-input-shell :deep(.n-input) {
-  --n-color: transparent !important;
-  --n-color-focus: transparent !important;
-  --n-border: none !important;
-  --n-border-hover: none !important;
-  --n-border-focus: none !important;
-  --n-box-shadow-focus: none !important;
+  --n-color: rgba(30, 30, 30, 0.6) !important;
+  --n-color-focus: rgba(30, 30, 30, 0.75) !important;
+  --n-border: 1px solid #4a4a4a !important;
+  --n-border-hover: 1px solid #5c5c5c !important;
+  --n-border-focus: 1px solid #007acc !important;
+  --n-box-shadow-focus: 0 0 0 1px rgba(0, 122, 204, 0.35) !important;
+  border-radius: 6px !important;
 }
 
 .ide-chat-input-shell :deep(.n-input__textarea-el),
@@ -623,7 +767,8 @@ async function handleRetry(): Promise<void> {
 }
 
 .ide-chat-input-shell :deep(.n-input__placeholder) {
-  color: rgba(255, 255, 255, 0.35) !important;
+  color: rgba(255, 255, 255, 0.38) !important;
+  text-align: left !important;
 }
 
 /* ========== 初始化状态 ========== */

@@ -71,6 +71,19 @@ export class MessageRepository {
   }
 
   /**
+   * 按主键删除指定会话内的多条消息（用于时间线回滚）
+   */
+  async deleteByIdsForSession(sessionId: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return
+    const pool = getPool()
+    const placeholders = ids.map(() => '?').join(',')
+    await pool.query(
+      `DELETE FROM messages WHERE session_id = ? AND id IN (${placeholders})`,
+      [sessionId, ...ids],
+    )
+  }
+
+  /**
    * 更新消息内容
    */
   async updateContent(id: string, content: string | any[]): Promise<void> {

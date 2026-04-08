@@ -192,3 +192,15 @@ CREATE TABLE IF NOT EXISTS agent_isolation_contexts (
   INDEX idx_agent_isolation_status (status),
   INDEX idx_agent_isolation_mode (mode)
 );
+
+-- Session Open Files 会话打开文件表 (用于持久化记录用户上次打开的文件，方便二次加载)
+CREATE TABLE IF NOT EXISTS session_open_files (
+  id VARCHAR(36) PRIMARY KEY,
+  session_id VARCHAR(36) NOT NULL,
+  open_file_paths JSON NOT NULL COMMENT '打开的文件路径列表（按打开顺序）',
+  active_file_path VARCHAR(500) DEFAULT NULL COMMENT '当前激活的文件路径',
+  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  UNIQUE KEY uk_session_id (session_id),
+  INDEX idx_session_open_files_session_id (session_id)
+);

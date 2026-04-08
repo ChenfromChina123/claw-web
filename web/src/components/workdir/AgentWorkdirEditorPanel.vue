@@ -11,19 +11,123 @@ import {
   NText,
   NEmpty,
   NIcon,
+  NSpace,
+  useMessage,
 } from 'naive-ui'
 import {
   Save,
   Close,
 } from '@vicons/ionicons5'
-import { ref, watch, nextTick, onBeforeUnmount, computed } from 'vue'
+import {
+  ref,
+  reactive,
+  watch,
+  watchEffect,
+  nextTick,
+  onMounted,
+  onBeforeUnmount,
+  computed,
+} from 'vue'
+import * as monaco from 'monaco-editor'
 import { useWorkdirContext } from '@/composables/useAgentWorkdir'
+import { useIdeAppendToChat } from '@/composables/useIdeChatAppend'
 import PreviewPanel from './PreviewPanel.vue'
+import MarkdownPreviewPane from './MarkdownPreviewPane.vue'
 
 const ctx = useWorkdirContext()
+const message = useMessage()
+const appendToChat = useIdeAppendToChat()
 
+const editorPanelRef = ref<HTMLElement | null>(null)
 const editorContainer = ref<HTMLElement | null>(null)
 let containerObserver: MutationObserver | null = null
+
+const selectionBar = reactive({
+  visible: false,
+  top: 0,
+  left: 0,
+})
+let selectionBarDisposables: monaco.IDisposable[] = []
+
+function positionSelectionFloatingBar(): void {
+  const ed = ctx.editorInstance
+  if (!ed || showPreview.value || !showMonaco.value) {
+    selectionBar.visible = false
+    return
+  }
+  const sel = ed.getSelection()
+  if (!sel || sel.isEmpty()) {
+    selectionBar.visible = false
+    return
+  }
+  const end = sel.getEndPosition()
+  const coords = ed.getScrolledVisiblePosition(end)
+  const dom = ed.getDomNode()
+  if (!coords || !dom) {
+    selectionBar.visible = false
+    return
+  }
+  const editorRect = dom.getBoundingClientRect()
+  const barH = 34
+  const gap = 6
+  selectionBar.top = Math.max(8, editorRect.top + coords.top - barH - gap)
+  selectionBar.left = Math.min(
+    Math.max(8, editorRect.left + coords.left),
+    window.innerWidth - 160,
+  )
+  selectionBar.visible = true
+}
+
+type MdViewMode = 'edit' | 'preview' | 'split'
+
+const mdViewMode = ref<MdViewMode>('edit')
+const mdSource = ref('')
+
+const activeOpenFile = computed(() => {
+  const id = ctx.activeFileId.value
+  if (!id) return null
+  return ctx.openFiles.value.find(f => f.id === id) ?? null
+})
+
+const isActiveMarkdown = computed(() => {
+  const n = activeOpenFile.value?.name?.toLowerCase() ?? ''
+  return n.endsWith('.md')
+})
+
+watch(isActiveMarkdown, (v) => {
+  if (!v) mdViewMode.value = 'edit'
+})
+
+watchEffect((onCleanup) => {
+  void ctx.editorInitialized.value
+  void ctx.activeFileId.value
+  void ctx.openFiles.value
+
+  if (!isActiveMarkdown.value) {
+    mdSource.value = ''
+    return
+  }
+  if (!ctx.editorInitialized.value) return
+
+  const ed = ctx.editorInstance
+  if (!ed) return
+
+  const sync = (): void => {
+    const m = ed.getModel()
+    mdSource.value = m ? m.getValue() : ''
+  }
+  sync()
+  const d1 = ed.onDidChangeModelContent(() => sync())
+  const d2 = ed.onDidChangeModel(() => sync())
+  onCleanup(() => {
+    d1.dispose()
+    d2.dispose()
+  })
+})
+
+watch([mdViewMode, isActiveMarkdown], () => {
+  nextTick(() => ctx.editorInstance?.layout?.())
+})
 
 const breadcrumbText = computed(() => {
   const p = ctx.currentFilePath.value
@@ -41,6 +145,33 @@ const showMonaco = computed(() =>
 // 是否显示预览面板（二进制文件）
 const showPreview = computed(() =>
   ctx.openFiles.value.length > 0 && ctx.activeIsReadOnly.value
+)
+
+watch(
+  () =>
+    [
+      ctx.editorInitialized.value,
+      ctx.editorInstance,
+      showPreview.value,
+      showMonaco.value,
+    ] as const,
+  () => {
+    selectionBarDisposables.forEach(d => d.dispose())
+    selectionBarDisposables = []
+    const ed = ctx.editorInstance
+    if (!ed || showPreview.value) {
+      selectionBar.visible = false
+      return
+    }
+    const run = (): void => {
+      requestAnimationFrame(() => positionSelectionFloatingBar())
+    }
+    selectionBarDisposables.push(ed.onDidChangeCursorSelection(run))
+    selectionBarDisposables.push(ed.onDidScrollChange(run))
+    selectionBarDisposables.push(ed.onDidLayoutChange(run))
+    run()
+  },
+  { flush: 'post' },
 )
 
 watch(editorContainer, (container) => {
@@ -70,7 +201,92 @@ watch(
   }
 )
 
+function sendSelectionToChat(): void {
+  if (!appendToChat) {
+    message.warning('当前页面不支持引用到对话')
+    return
+  }
+  if (showPreview.value) {
+    message.warning('二进制文件无法从编辑器引用，请下载后使用')
+    return
+  }
+
+  const ed = ctx.editorInstance
+  const model = ed?.getModel()
+  if (ed && model) {
+    const range = ed.getSelection()
+    if (range) {
+    const text = model.getValueInRange(range).trim()
+    if (text) {
+      const lang = model.getLanguageId()
+      const fileName =
+        activeOpenFile.value?.name ??
+        ctx.currentFilePath.value.split(/[/\\]/).pop() ??
+        ''
+      const filePath = ctx.currentFilePath.value || fileName
+      appendToChat(text, {
+        language: lang && lang !== 'plaintext' ? lang : undefined,
+        codeRef: {
+          filePath,
+          fileName: fileName || filePath,
+          startLine: range.startLineNumber,
+          endLine: range.endLineNumber,
+          language: lang && lang !== 'plaintext' ? lang : undefined,
+          snippet: text,
+        },
+      })
+      message.success('已添加到对话输入框（芯片展示路径与行号）')
+      ed.setSelection({
+        startLineNumber: range.endLineNumber,
+        startColumn: range.endColumn,
+        endLineNumber: range.endLineNumber,
+        endColumn: range.endColumn,
+      })
+      selectionBar.visible = false
+      return
+    }
+    }
+  }
+
+  if (
+    isActiveMarkdown.value &&
+    (mdViewMode.value === 'preview' || mdViewMode.value === 'split')
+  ) {
+    const sel = window.getSelection()?.toString() ?? ''
+    if (sel.trim()) {
+      const name = activeOpenFile.value?.name
+      appendToChat(sel.trim(), {
+        sourceLabel: name ? `Markdown 预览 · ${name}` : 'Markdown 预览',
+      })
+      message.success('已插入到对话输入框，可补充说明后发送')
+      window.getSelection()?.removeAllRanges()
+      selectionBar.visible = false
+      return
+    }
+  }
+
+  message.warning('请先选中要发送的代码或文本')
+}
+
+function onKeyAppendChat(e: KeyboardEvent): void {
+  if (!(e.ctrlKey || e.metaKey) || !e.shiftKey) return
+  if (e.key.toLowerCase() !== 'l') return
+  const root = editorPanelRef.value
+  if (!root) return
+  const ae = document.activeElement
+  if (!ae || !root.contains(ae)) return
+  e.preventDefault()
+  sendSelectionToChat()
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onKeyAppendChat, true)
+})
+
 onBeforeUnmount(() => {
+  selectionBarDisposables.forEach(d => d.dispose())
+  selectionBarDisposables = []
+  document.removeEventListener('keydown', onKeyAppendChat, true)
   if (containerObserver) {
     containerObserver.disconnect()
     containerObserver = null
@@ -80,13 +296,26 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="editor-panel">
-    <template v-if="ctx.openFiles.value.length > 0">
+  <div ref="editorPanelRef" class="editor-panel">
+    <Teleport to="body">
+      <div
+        v-show="selectionBar.visible && appendToChat && !showPreview"
+        class="ide-editor-sel-bar"
+        :style="{ top: selectionBar.top + 'px', left: selectionBar.left + 'px' }"
+        @mousedown.prevent
+      >
+        <button type="button" class="ide-editor-sel-bar-btn" @click="sendSelectionToChat">
+          添加到对话
+        </button>
+      </div>
+    </Teleport>
+
+    <template v-if="(ctx.openFiles.value?.length ?? 0) > 0">
       <div class="editor-tabs-row">
         <div class="file-tabs-scroll">
           <div class="file-tabs">
             <div
-              v-for="file in ctx.openFiles.value"
+              v-for="file in ctx.openFiles.value ?? []"
               :key="file.id"
               class="tab-item"
               :class="{
@@ -133,12 +362,54 @@ onBeforeUnmount(() => {
         {{ breadcrumbText }}
       </div>
 
-      <!-- Monaco editor (文本文件) -->
+      <div v-if="isActiveMarkdown" class="md-toolbar">
+        <NText depth="3" class="md-toolbar-label">Markdown</NText>
+        <NSpace :size="6" class="md-toolbar-btns">
+          <NButton
+            size="tiny"
+            :type="mdViewMode === 'edit' ? 'primary' : 'default'"
+            @click="mdViewMode = 'edit'"
+          >
+            编辑
+          </NButton>
+          <NButton
+            size="tiny"
+            :type="mdViewMode === 'preview' ? 'primary' : 'default'"
+            @click="mdViewMode = 'preview'"
+          >
+            预览
+          </NButton>
+          <NButton
+            size="tiny"
+            :type="mdViewMode === 'split' ? 'primary' : 'default'"
+            @click="mdViewMode = 'split'"
+          >
+            分栏
+          </NButton>
+        </NSpace>
+      </div>
+
+      <!-- 文本：Monaco ± Markdown 预览（v-show 避免切到二进制标签时卸载 Monaco） -->
       <div
-        v-show="showMonaco"
-        ref="editorContainer"
-        class="monaco-editor-container"
-      />
+        v-show="!showPreview"
+        class="editor-main"
+        :class="{
+          'md-split': isActiveMarkdown && mdViewMode === 'split',
+        }"
+      >
+        <div
+          v-show="showMonaco && !(isActiveMarkdown && mdViewMode === 'preview')"
+          ref="editorContainer"
+          class="monaco-editor-container"
+          :class="{ 'md-pane': isActiveMarkdown && mdViewMode === 'split' }"
+        />
+        <MarkdownPreviewPane
+          v-if="isActiveMarkdown && mdViewMode !== 'edit'"
+          class="markdown-preview-container"
+          :class="{ 'md-pane': mdViewMode === 'split' }"
+          :source="mdSource"
+        />
+      </div>
 
       <!-- Preview panel (二进制文件) -->
       <PreviewPanel v-if="showPreview" />
@@ -322,11 +593,60 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 
+.editor-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.editor-main.md-split {
+  flex-direction: row;
+}
+
+.md-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  background: #252526;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.md-toolbar-label {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.md-toolbar-btns {
+  flex: 1;
+}
+
 .monaco-editor-container {
   flex: 1;
   width: 100%;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
+}
+
+.monaco-editor-container.md-pane {
+  flex: 1;
+  border-right: 1px solid #2a2a2a;
+}
+
+.markdown-preview-container {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.markdown-preview-container.md-pane {
+  flex: 1;
 }
 
 .no-file-selected {
@@ -344,5 +664,37 @@ onBeforeUnmount(() => {
 
 .empty-hint {
   font-size: 13px;
+}
+
+.ide-editor-sel-bar {
+  position: fixed;
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #2d2d30;
+  border: 1px solid #3f3f46;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  color: #e4e4e7;
+  pointer-events: auto;
+}
+
+.ide-editor-sel-bar-btn {
+  margin: 0;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: #0e639c;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ide-editor-sel-bar-btn:hover {
+  background: #1177bb;
 }
 </style>

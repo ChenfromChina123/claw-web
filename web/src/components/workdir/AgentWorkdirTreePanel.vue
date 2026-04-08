@@ -2,7 +2,7 @@
 /**
  * AgentWorkdirTreePanel - 文件树面板组件
  *
- * 支持：刷新、多文件选择上传、拖拽上传到 uploads/
+ * 支持：刷新、多文件选择上传、拖拽上传到 uploads/、新建文件/文件夹、下载（文件 / 文件夹 ZIP）、右键菜单
  */
 
 import {
@@ -12,12 +12,23 @@ import {
   NButton,
   NIcon,
   NTooltip,
+  NModal,
+  NInput,
+  NDropdown,
+  type TreeOption,
 } from 'naive-ui'
 import {
   Refresh,
   CloudUploadOutline,
+  CreateOutline,
+  FolderOpenOutline,
+  DownloadOutline,
 } from '@vicons/ionicons5'
-import { ref } from 'vue'
+import {
+  ChatbubblesOutline,
+  ListOutline,
+} from '@vicons/ionicons5'
+import { ref, computed } from 'vue'
 import { useWorkdirContext } from '@/composables/useAgentWorkdir'
 
 const ctx = useWorkdirContext()
@@ -27,6 +38,25 @@ const dragActive = ref(false)
 let dragDepth = 0
 
 const DEFAULT_UPLOAD_DIR = 'uploads'
+
+/** 新建 */
+const showCreateModal = ref(false)
+const createKind = ref<'file' | 'directory'>('file')
+const createNameDraft = ref('')
+
+/** 右键菜单 */
+const ctxMenuShow = ref(false)
+const ctxMenuX = ref(0)
+const ctxMenuY = ref(0)
+const ctxMenuTarget = ref<{ path: string; isDirectory: boolean } | null>(null)
+
+const ctxMenuOptions = computed(() => {
+  if (!ctxMenuTarget.value) return []
+  const dir = ctxMenuTarget.value.isDirectory
+  return [{ label: dir ? '下载文件夹 (ZIP)' : '下载文件', key: 'download' }]
+})
+
+const createParentHint = computed(() => ctx.getNewItemParentPath() || '/')
 
 function triggerFilePicker(): void {
   fileInputRef.value?.click()
@@ -73,6 +103,54 @@ function onDrop(e: DragEvent): void {
     void ctx.uploadWorkdirFiles(files, DEFAULT_UPLOAD_DIR)
   }
 }
+
+function openCreateModal(kind: 'file' | 'directory'): void {
+  createKind.value = kind
+  createNameDraft.value = ''
+  showCreateModal.value = true
+}
+
+async function handleCreateConfirm(): Promise<boolean> {
+  const ok = await ctx.createWorkdirEntry(createNameDraft.value, createKind.value)
+  if (ok) {
+    createNameDraft.value = ''
+  }
+  return ok
+}
+
+function workdirTreeNodeProps({ option }: { option: TreeOption }) {
+  return {
+    onContextmenu(e: MouseEvent) {
+      e.preventDefault()
+      ctxMenuTarget.value = {
+        path: String(option.key),
+        isDirectory: option.isLeaf === false,
+      }
+      ctxMenuX.value = e.clientX
+      ctxMenuY.value = e.clientY
+      ctxMenuShow.value = true
+    },
+  }
+}
+
+function onCtxMenuSelect(key: string | number): void {
+  const t = ctxMenuTarget.value
+  ctxMenuShow.value = false
+  if (!t || key !== 'download') return
+  if (t.isDirectory) {
+    void ctx.downloadFolderZip(t.path)
+  } else {
+    const base = t.path.split('/').pop() || 'download'
+    void ctx.downloadFile(t.path, base)
+  }
+}
+
+function onCtxMenuShowUpdate(show: boolean): void {
+  ctxMenuShow.value = show
+  if (!show) {
+    ctxMenuTarget.value = null
+  }
+}
 </script>
 
 <template>
@@ -88,6 +166,20 @@ function onDrop(e: DragEvent): void {
       <span>松开鼠标上传到 {{ DEFAULT_UPLOAD_DIR }}/</span>
     </div>
 
+    <NDropdown
+      trigger="manual"
+      placement="bottom-start"
+      :show="ctxMenuShow"
+      :x="ctxMenuX"
+      :y="ctxMenuY"
+      :options="ctxMenuOptions"
+      to="body"
+      @select="onCtxMenuSelect"
+      @update:show="onCtxMenuShowUpdate"
+    >
+      <div class="ctx-menu-anchor" aria-hidden="true" />
+    </NDropdown>
+
     <!-- 面板头部 -->
     <div class="panel-header">
       <span class="panel-title">{{ ctx.panelTitle.value }}</span>
@@ -99,6 +191,51 @@ function onDrop(e: DragEvent): void {
           multiple
           @change="onFileInputChange"
         >
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <NButton
+              text
+              size="small"
+              :disabled="ctx.uploading.value"
+              @click="openCreateModal('file')"
+            >
+              <template #icon>
+                <NIcon><CreateOutline /></NIcon>
+              </template>
+            </NButton>
+          </template>
+          新建文件（位于当前选中目录或文件的父目录）
+        </NTooltip>
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <NButton
+              text
+              size="small"
+              :disabled="ctx.uploading.value"
+              @click="openCreateModal('directory')"
+            >
+              <template #icon>
+                <NIcon><FolderOpenOutline /></NIcon>
+              </template>
+            </NButton>
+          </template>
+          新建文件夹
+        </NTooltip>
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <NButton
+              text
+              size="small"
+              :disabled="ctx.uploading.value || !ctx.selectedKey.value"
+              @click="ctx.downloadSelected"
+            >
+              <template #icon>
+                <NIcon><DownloadOutline /></NIcon>
+              </template>
+            </NButton>
+          </template>
+          下载选中项（文件直接下载，文件夹打包为 ZIP）
+        </NTooltip>
         <NTooltip placement="bottom">
           <template #trigger>
             <NButton
@@ -118,7 +255,7 @@ function onDrop(e: DragEvent): void {
           text
           size="small"
           :disabled="ctx.uploading.value"
-          @click="ctx.refreshTree"
+          @click="() => { void ctx.refreshTree() }"
         >
           <template #icon>
             <NIcon><Refresh /></NIcon>
@@ -127,21 +264,45 @@ function onDrop(e: DragEvent): void {
       </div>
     </div>
 
+    <NModal
+      v-model:show="showCreateModal"
+      preset="dialog"
+      :title="createKind === 'file' ? '新建文件' : '新建文件夹'"
+      positive-text="创建"
+      negative-text="取消"
+      :show-icon="false"
+      @positive-click="handleCreateConfirm"
+    >
+      <div class="create-dialog">
+        <p class="create-hint">
+          将创建于：<code>{{ createParentHint }}</code>
+        </p>
+        <NInput
+          v-model:value="createNameDraft"
+          :placeholder="createKind === 'file' ? '例如 notes.md' : '例如 my-folder'"
+          maxlength="200"
+          show-count
+          @keydown.enter.prevent="void handleCreateConfirm()"
+        />
+      </div>
+    </NModal>
+
     <!-- 文件树 -->
     <NSpin :show="ctx.loading.value || ctx.uploading.value" class="tree-container">
       <NTree
         v-if="ctx.treeData.value && ctx.treeData.value.length > 0"
+        class="file-tree"
         :data="ctx.treeData.value"
         :expanded-keys="ctx.expandedKeys.value"
         :selected-keys="ctx.selectedKey.value ? [ctx.selectedKey.value] : []"
         :on-load="ctx.handleLoad"
+        :node-props="workdirTreeNodeProps"
         :virtual-scroll="true"
         :height="400"
         selectable
         block-line
         @update:expanded-keys="(keys: string[]) => ctx.expandedKeys.value = keys"
         @update:selected-keys="ctx.handleSelect"
-        class="file-tree"
       />
 
       <NEmpty
@@ -191,6 +352,16 @@ function onDrop(e: DragEvent): void {
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.3px;
+}
+
+.ctx-menu-anchor {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  opacity: 0;
 }
 
 .panel-header {
@@ -252,5 +423,24 @@ function onDrop(e: DragEvent): void {
 
 .empty-state {
   padding: 40px 20px;
+}
+
+.create-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.create-hint {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.create-hint code {
+  font-size: 12px;
+  color: rgba(129, 140, 248, 0.95);
+  word-break: break-all;
 }
 </style>

@@ -9,6 +9,7 @@ import CommandPalette from '@/components/CommandPalette.vue'
 import GlassPanel from '@/components/common/GlassPanel.vue'
 import AgentStatusPanel from '@/components/AgentStatusPanel.vue'
 import AgentActivitySidebar from '@/components/AgentActivitySidebar.vue'
+import IdeSessionsPanel from '@/views/IdeSessionsPanel.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import { useAgentStore } from '@/stores/agent'
@@ -26,6 +27,11 @@ const inputRef = ref<InstanceType<typeof ChatInput> | null>(null)
 const isInitializing = ref(true)
 const initError = ref<string | null>(null)
 const sidebarCollapsed = ref(false)
+
+/**
+ * 顶部视图：会话管理 vs 聊天
+ */
+const topView = ref<'chat' | 'sessions'>('chat')
 
 /**
  * Agent 协调状态（从真实数据转换）
@@ -321,14 +327,22 @@ async function handleRetry(): Promise<void> {
  */
 function handleSendMessage(content: string, modelId?: string): void {
   if (!content.trim()) return
-  
+
   // 检查是否为命令
   if (content.startsWith('/')) {
     message.info('命令功能开发中...')
     return
   }
-  
+
   chatStore.sendMessage(content, modelId)
+}
+
+/**
+ * 停止当前正在进行的生成
+ */
+async function handleStopGeneration(): Promise<void> {
+  console.log('[Chat] handleStopGeneration triggered')
+  await chatStore.interruptGeneration()
 }
 
 /**
@@ -422,6 +436,11 @@ function handleToolInterrupt(agentId: string) {
   handleInterruptAgent(agentId)
 }
 
+/** 沉浸式聊天无底部终端：提示前往 IDE 工作台 */
+function handleFocusTerminalHint() {
+  message.info('底部终端在 IDE 工作台中可用，请从左侧活动栏进入工作台。', { duration: 4500 })
+}
+
 /**
  * 刷新 Agent 状态
  */
@@ -454,14 +473,40 @@ function handleAddTeamMember() {
       :native-scrollbar="false"
       content-style="display: flex; flex-direction: column; height: 100%;"
     >
-      <!-- Agent 活动侧边栏切换按钮 -->
-      <div class="agent-activity-toggle" @click="showAgentActivitySidebar = !showAgentActivitySidebar" :class="{ active: showAgentActivitySidebar }">
-        <span class="toggle-icon">🤖</span>
-        <span class="toggle-label">活动</span>
-        <div v-if="agentStore.pendingPermissionList.length > 0" class="pending-indicator">
-          {{ agentStore.pendingPermissionList.length }}
+      <!-- 顶部视图切换 + Agent 活动侧边栏切换 -->
+      <div class="top-bar">
+        <!-- 视图切换标签 -->
+        <div class="view-tabs">
+          <button
+            type="button"
+            class="view-tab"
+            :class="{ active: topView === 'chat' }"
+            @click="topView = 'chat'"
+          >
+            <NIcon :size="16"><ChatbubblesOutline /></NIcon>
+            聊天
+          </button>
+          <button
+            type="button"
+            class="view-tab"
+            :class="{ active: topView === 'sessions' }"
+            @click="topView = 'sessions'"
+          >
+            <NIcon :size="16"><ListOutline /></NIcon>
+            会话管理
+          </button>
+        </div>
+
+        <!-- Agent 活动侧边栏切换按钮 -->
+        <div class="agent-activity-toggle" @click="showAgentActivitySidebar = !showAgentActivitySidebar" :class="{ active: showAgentActivitySidebar }">
+          <span class="toggle-icon">🤖</span>
+          <span class="toggle-label">活动</span>
+          <div v-if="agentStore.pendingPermissionList.length > 0" class="pending-indicator">
+            {{ agentStore.pendingPermissionList.length }}
+          </div>
         </div>
       </div>
+
       <!-- 背景装饰 -->
       <div class="chat-bg-decoration">
         <div class="bg-grid-pattern"></div>
@@ -487,48 +532,60 @@ function handleAddTeamMember() {
 
       <!-- 主内容容器 -->
       <div v-else class="chat-main" :class="{ 'with-agent-panel': showAgentPanel }">
-        <!-- 聊天区域 -->
-        <div class="chat-area">
-          <!-- 消息列表 -->
-          <ChatMessageList
-            :messages="chatStore.messages"
-            :tool-calls="chatStore.toolCalls"
-            :is-loading="chatStore.isLoading"
-            :current-agent-id="getCurrentAgentId()"
-            class="message-list-container"
-            @interrupt="handleToolInterrupt"
-          />
-
-          <!-- 输入区包装器 -->
-          <div class="input-wrapper">
-            <GlassPanel variant="normal" bordered class="input-container">
-              <ChatInput
-                ref="inputRef"
-                :disabled="!chatStore.currentSessionId"
-                :sidebar-collapsed="sidebarCollapsed"
-                :session-id="chatStore.currentSessionId || undefined"
-                @send="handleSendMessage"
-                @focus="showCommandPalette = false"
-              />
-            </GlassPanel>
-          </div>
+        <!-- 会话管理视图 -->
+        <div v-if="topView === 'sessions'" class="sessions-view">
+          <IdeSessionsPanel />
         </div>
 
-        <!-- Agent 状态面板 -->
-        <Transition name="agent-panel">
-          <div v-if="showAgentPanel" class="agent-panel">
-            <AgentStatusPanel 
-              :agents="availableAgents"
-              :execution-status="currentAgentStatus"
-              :tool-calls="currentToolCalls"
-              :team-members="currentTeamMembers"
-              @select="(agent) => console.log('Agent selected:', agent)"
-              @abort="handleAbortAgent"
-              @refresh="handleRefreshAgentStatus"
-              @add-member="handleAddTeamMember"
+        <!-- 聊天视图 -->
+        <template v-else>
+          <!-- 聊天区域 -->
+          <div class="chat-area">
+            <!-- 消息列表 -->
+            <ChatMessageList
+              :messages="chatStore.messages"
+              :tool-calls="chatStore.toolCalls"
+              :is-loading="chatStore.isLoading"
+              :current-agent-id="getCurrentAgentId()"
+              show-timeline-nav
+              class="message-list-container"
+              @interrupt="handleToolInterrupt"
+              @focus-terminal="handleFocusTerminalHint"
             />
+
+            <!-- 输入区包装器 -->
+            <div class="input-wrapper">
+              <GlassPanel variant="normal" bordered class="input-container">
+                <ChatInput
+                  ref="inputRef"
+                  :disabled="!chatStore.currentSessionId"
+                  :sidebar-collapsed="sidebarCollapsed"
+                  :session-id="chatStore.currentSessionId || undefined"
+                  :is-generating="chatStore.isLoading"
+                  @send="handleSendMessage"
+                  @stop="handleStopGeneration"
+                  @focus="showCommandPalette = false"
+                />
+              </GlassPanel>
+            </div>
           </div>
-        </Transition>
+
+          <!-- Agent 状态面板 -->
+          <Transition name="agent-panel">
+            <div v-if="showAgentPanel" class="agent-panel">
+              <AgentStatusPanel 
+                :agents="availableAgents"
+                :execution-status="currentAgentStatus"
+                :tool-calls="currentToolCalls"
+                :team-members="currentTeamMembers"
+                @select="(agent) => console.log('Agent selected:', agent)"
+                @abort="handleAbortAgent"
+                @refresh="handleRefreshAgentStatus"
+                @add-member="handleAddTeamMember"
+              />
+            </div>
+          </Transition>
+        </template>
       </div>
     </NLayoutContent>
     
@@ -641,11 +698,58 @@ function handleAddTeamMember() {
   text-align: center;
 }
 
-/* ---- Agent 活动侧边栏切换按钮 ---- */
+/* ---- 顶部工具栏（切换按钮） ---- */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+/* 视图切换标签 */
+.view-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.view-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+  background: transparent;
+  transition: all var(--transition-fast, 150ms) ease;
+}
+
+.view-tab:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.view-tab.active {
+  color: #fff;
+  background: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* ---- Agent 活动侧边栏切换按钮（已存在，样式已定义） ---- */
 .agent-activity-toggle {
-  position: absolute;
-  top: 16px;
-  right: 60px;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -693,6 +797,20 @@ function handleAddTeamMember() {
   align-items: center;
   justify-content: center;
   animation: pulse 2s ease infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* ---- 会话管理视图 ---- */
+.sessions-view {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ---- 主内容容器 ---- */
@@ -783,6 +901,19 @@ function handleAddTeamMember() {
   }
 
   .bg-glow {
+    display: none;
+  }
+
+  .top-bar {
+    padding: 8px 12px;
+  }
+
+  .view-tab {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  .toggle-label {
     display: none;
   }
 }

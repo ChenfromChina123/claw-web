@@ -74,4 +74,29 @@ export const sessionApi = {
     })
     return response.data as Blob
   },
+
+  /**
+   * 获取会话已打开的文件
+   */
+  async getOpenFiles(sessionId: string): Promise<{ openFilePaths: string[]; activeFilePath: string | null }> {
+    const { data } = await apiClient.get<{ openFilePaths: string[]; activeFilePath: string | null }>(`/sessions/${sessionId}/open-files`)
+    return data
+  },
+
+  /**
+   * 保存会话已打开的文件
+   */
+  async saveOpenFiles(sessionId: string, openFilePaths: string[], activeFilePath: string | null): Promise<void> {
+    await apiClient.put(`/sessions/${sessionId}/open-files`, {
+      openFilePaths,
+      activeFilePath,
+    })
+  },
+
+  /**
+   * 删除会话已打开的文件记录
+   */
+  async deleteOpenFiles(sessionId: string): Promise<void> {
+    await apiClient.delete(`/sessions/${sessionId}/open-files`)
+  },
 }

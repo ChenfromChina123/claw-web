@@ -82,6 +82,14 @@ export class ToolCallRepository {
     await pool.query('DELETE FROM tool_calls WHERE session_id = ?', [sessionId])
   }
 
+  /** 删除挂在已移除助手消息上的工具调用记录 */
+  async deleteByMessageIds(messageIds: string[]): Promise<void> {
+    if (messageIds.length === 0) return
+    const pool = getPool()
+    const placeholders = messageIds.map(() => '?').join(',')
+    await pool.query(`DELETE FROM tool_calls WHERE message_id IN (${placeholders})`, messageIds)
+  }
+
   private mapToToolCall(row: any): ToolCall {
     return {
       id: row.id,

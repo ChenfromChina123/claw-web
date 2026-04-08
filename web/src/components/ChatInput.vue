@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import type { IdeAppendToChatOptions, IdeCodeRefPayload } from '@/composables/useIdeChatAppend'
+import { buildIdeLayeredUserMessage } from '@/utils/ideUserMessageMarkers'
 import { NInput, NButton, NIcon, NSpin, NTag, NSelect, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
 import { CloudUploadOutline } from '@vicons/ionicons5'
+import { StopCircleOutline } from '@vicons/ionicons5'
 import { modelApi, type Model } from '@/api/modelApi'
 import { useChatStore } from '@/stores/chat'
 
@@ -14,11 +17,15 @@ const props = defineProps<{
   placeholder?: string
   /** default：全屏聊天大输入区；ide：侧栏紧凑 + 模型选择 */
   variant?: 'default' | 'ide'
+  /** 当前是否正在生成中（控制发送→停止按钮切换） */
+  isGenerating?: boolean
 }>()
 
 const emit = defineEmits<{
   send: [content: string, modelId?: string]
   focus: []
+  /** 用户点击停止按钮，中断正在进行的生成 */
+  stop: []
 }>()
 
 const chatStore = useChatStore()
@@ -71,6 +78,70 @@ onMounted(() => {
 const inputValue = ref('')
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
 const message = useMessage()
+
+interface IdeCodeAttachment extends IdeCodeRefPayload {
+  id: string
+}
+
+const codeAttachments = ref<IdeCodeAttachment[]>([])
+
+function chipLang(fileName: string): string {
+  const ext = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : ''
+  const map: Record<string, string> = {
+    ts: 'TS',
+    tsx: 'TSX',
+    js: 'JS',
+    jsx: 'JSX',
+    vue: 'VUE',
+    md: 'MD',
+    json: 'JSON',
+    css: 'CSS',
+    scss: 'SCSS',
+    html: 'HTML',
+    py: 'PY',
+  }
+  if (ext && map[ext]) return map[ext]
+  if (ext) return ext.slice(0, 4).toUpperCase()
+  return 'TXT'
+}
+
+function guessLangFromName(name: string): string {
+  const ext = name.includes('.') ? name.split('.').pop()?.toLowerCase() || '' : ''
+  if (ext === 'vue') return 'vue'
+  if (ext === 'ts' || ext === 'tsx') return 'typescript'
+  if (ext === 'js' || ext === 'jsx' || ext === 'mjs' || ext === 'cjs') return 'javascript'
+  if (ext === 'md') return 'markdown'
+  if (ext === 'json') return 'json'
+  if (ext === 'css') return 'css'
+  if (ext === 'html') return 'html'
+  if (ext === 'py') return 'python'
+  return ext || 'text'
+}
+
+function buildDisplayFromRefs(userText: string, refs: IdeCodeAttachment[]): string {
+  const parts: string[] = []
+  if (userText) parts.push(userText)
+  const chips = refs.map(r => `@${r.fileName} (${r.startLine}-${r.endLine})`)
+  if (chips.length) parts.push(chips.join(' '))
+  return parts.join('\n')
+}
+
+function buildAgentBodyFromRefs(userText: string, refs: IdeCodeAttachment[]): string {
+  const blocks: string[] = []
+  if (userText) blocks.push(userText)
+  for (const r of refs) {
+    const lang =
+      r.language && r.language !== 'plaintext' ? r.language : guessLangFromName(r.fileName)
+    blocks.push(
+      `### 工作区代码引用\n- 路径: \`${r.filePath}\`\n- 行号: ${r.startLine}–${r.endLine}\n\n\`\`\`${lang}\n${r.snippet}\n\`\`\``,
+    )
+  }
+  return blocks.join('\n\n')
+}
+
+function removeCodeAttachment(id: string): void {
+  codeAttachments.value = codeAttachments.value.filter(a => a.id !== id)
+}
 const uploadedFiles = ref<UploadFileInfo[]>([])
 const uploading = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -84,9 +155,20 @@ const currentSessionId = computed(() => props.sessionId || '')
  * 处理发送消息
  */
 function handleSend() {
-  if (!inputValue.value.trim() || props.disabled) return
+  const text = inputValue.value.trim()
+  const hasIdeRefs = props.variant === 'ide' && codeAttachments.value.length > 0
+  if ((!text && !hasIdeRefs) || props.disabled) return
+
   if (props.variant === 'ide') {
-    emit('send', inputValue.value, selectedModelId.value || undefined)
+    const payload =
+      hasIdeRefs
+        ? buildIdeLayeredUserMessage(
+            buildDisplayFromRefs(text, codeAttachments.value),
+            buildAgentBodyFromRefs(text, codeAttachments.value),
+          )
+        : text
+    emit('send', payload, selectedModelId.value || undefined)
+    codeAttachments.value = []
   } else {
     emit('send', inputValue.value)
   }
@@ -220,9 +302,67 @@ function formatFileSize(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
-// 暴露聚焦方法
+/**
+ * 将选中文本插入输入框（供 IDE「引用到对话」），不自动发送
+ */
+function appendToChatInput(text: string, options?: IdeAppendToChatOptions): void {
+  if (props.variant === 'ide' && options?.codeRef) {
+    const cr = options.codeRef
+    const snippet = text.trim() || cr.snippet.trim()
+    if (!snippet) return
+    const id = `${cr.filePath}:${cr.startLine}-${cr.endLine}`
+    const next: IdeCodeAttachment = { id, ...cr, snippet }
+    const i = codeAttachments.value.findIndex(a => a.id === id)
+    if (i >= 0) codeAttachments.value.splice(i, 1, next)
+    else codeAttachments.value.push(next)
+    void nextTick(() => {
+      inputRef.value?.focus()
+      const el = (inputRef.value as { $el?: HTMLElement } | null)?.$el
+      const textarea = el?.querySelector?.('textarea') as HTMLTextAreaElement | undefined
+      if (textarea) {
+        textarea.selectionStart = textarea.selectionEnd = textarea.value.length
+        textarea.scrollTop = textarea.scrollHeight
+      }
+    })
+    return
+  }
+
+  const trimmed = text.trim()
+  if (!trimmed) return
+
+  const label = options?.sourceLabel
+  const language = options?.language
+  let block = ''
+  if (label) {
+    block += `【${label}】\n`
+  }
+  if (language) {
+    block += `\`\`\`${language}\n${trimmed}\n\`\`\``
+  } else {
+    block += trimmed
+  }
+
+  const cur = inputValue.value
+  if (cur && cur.trim()) {
+    inputValue.value = cur.replace(/\s+$/, '') + '\n\n' + block
+  } else {
+    inputValue.value = block
+  }
+
+  void nextTick(() => {
+    inputRef.value?.focus()
+    const el = (inputRef.value as { $el?: HTMLElement } | null)?.$el
+    const textarea = el?.querySelector?.('textarea') as HTMLTextAreaElement | undefined
+    if (textarea) {
+      textarea.selectionStart = textarea.selectionEnd = textarea.value.length
+      textarea.scrollTop = textarea.scrollHeight
+    }
+  })
+}
+
 defineExpose({
-  focus: () => inputRef.value?.focus()
+  focus: () => inputRef.value?.focus(),
+  appendToChatInput,
 })
 </script>
 
@@ -241,8 +381,8 @@ defineExpose({
     </div>
 
     <div class="chat-input-body">
-    <!-- 左侧：文件上传区域 -->
-    <div class="upload-section">
+    <!-- 左侧：文件上传区域（IDE 侧栏不展示上传） -->
+    <div v-if="variant !== 'ide'" class="upload-section">
       <!-- 隐藏的文件输入框 -->
       <input
         ref="fileInputRef"
@@ -297,28 +437,62 @@ defineExpose({
 
     <!-- 中间：输入框 -->
     <div class="input-wrapper">
+      <div v-if="variant === 'ide' && codeAttachments.length > 0" class="ide-code-refs">
+        <div
+          v-for="a in codeAttachments"
+          :key="a.id"
+          class="ide-code-chip"
+          :title="a.filePath"
+        >
+          <span class="ide-code-chip-lang">{{ chipLang(a.fileName) }}</span>
+          <span class="ide-code-chip-text">{{ a.fileName }} ({{ a.startLine }}-{{ a.endLine }})</span>
+          <button
+            type="button"
+            class="ide-code-chip-x"
+            aria-label="移除引用"
+            @click="removeCodeAttachment(a.id)"
+          >
+            ×
+          </button>
+        </div>
+      </div>
       <NInput
         ref="inputRef"
         v-model:value="inputValue"
         type="textarea"
         :placeholder="props.placeholder || '输入消息... (Shift+Enter 换行)'"
-        :autosize="variant === 'ide' ? { minRows: 2, maxRows: 6 } : { minRows: 3, maxRows: 8 }"
+        :rows="variant === 'ide' ? 3 : undefined"
+        :autosize="variant === 'ide' ? false : { minRows: 3, maxRows: 8 }"
         :disabled="disabled"
         @keydown="handleKeyDown"
         @focus="handleFocus"
       />
     </div>
 
-    <!-- 右侧：发送按钮 -->
+    <!-- 右侧：发送 / 停止按钮 -->
     <div class="input-actions">
-      <NButton
-        type="primary"
-        :disabled="!inputValue.trim() || disabled || uploading"
-        class="send-button"
-        @click="handleSend"
-      >
-        发送
-      </NButton>
+      <template v-if="isGenerating">
+        <NButton
+          type="warning"
+          class="stop-button"
+          @click="emit('stop')"
+        >
+          <template #icon>
+            <NIcon><StopCircleOutline /></NIcon>
+          </template>
+          停止
+        </NButton>
+      </template>
+      <template v-else>
+        <NButton
+          type="primary"
+          :disabled="(!inputValue.trim() && !(variant === 'ide' && codeAttachments.length > 0)) || disabled || (variant !== 'ide' && uploading)"
+          class="send-button"
+          @click="handleSend"
+        >
+          发送
+        </NButton>
+      </template>
     </div>
     </div>
   </div>
@@ -354,6 +528,14 @@ defineExpose({
 
 .chat-input--ide .chat-input-body {
   width: 100%;
+  align-items: stretch;
+}
+
+.chat-input--ide .input-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* ====== 左侧上传区域样式 ====== */
@@ -480,39 +662,100 @@ defineExpose({
   padding-bottom: 2px;
 }
 
-/* 发送按钮样式 */
+/* 发送按钮样式 - 绿色主题风格 */
 .send-button {
   height: 56px !important;
   min-height: 56px !important;
   padding: 0 32px !important;
   font-size: 15px !important;
   font-weight: 600 !important;
-  border-radius: 12px !important;
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
   color: #ffffff !important;
   border: none !important;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.send-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.send-button:hover:not(:disabled)::before {
+  left: 100%;
 }
 
 .send-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%) !important;
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%) !important;
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
 }
 
 .send-button:active:not(:disabled) {
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
   transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
 }
 
 .send-button:disabled {
-  background: linear-gradient(135deg, #a5a6f6 0%, #818cf8 100%) !important;
-  color: rgba(255, 255, 255, 0.6) !important;
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
   cursor: not-allowed;
   box-shadow: none;
+}
+
+/* 停止按钮 */
+.stop-button {
+  height: 56px !important;
+  min-height: 56px !important;
+  padding: 0 24px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
+  color: #fff !important;
+  border: none !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+}
+
+.stop-button:hover {
+  background: linear-gradient(135deg, #fb923c 0%, #f97316 100%) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(249, 115, 22, 0.4);
+}
+
+.stop-button:active {
+  transform: translateY(0);
+}
+
+.chat-input--ide .stop-button {
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 14px !important;
+  font-size: 13px !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+.chat-input--ide .stop-button:hover {
+  transform: none;
 }
 
 /* ========== IDE 侧栏变体 ========== */
@@ -520,12 +763,14 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 8px;
+  justify-content: flex-start;
 }
 
 .ide-model-select {
-  flex: 1;
+  flex: 0 1 auto;
+  width: auto;
   min-width: 0;
-  max-width: 100%;
+  max-width: 200px;
 }
 
 .chat-input--ide .ide-input-toolbar :deep(.n-base-selection) {
@@ -562,14 +807,106 @@ defineExpose({
   flex: 1;
 }
 
-.chat-input--ide .input-wrapper :deep(.n-input) {
+.chat-input--ide .input-wrapper :deep(.n-input.n-input--textarea) {
   border-radius: 8px;
   background: #1a1a1a;
+  /*
+   * Naive 将 textarea 水平内边距放在 wrapper（--n-padding-left/right），
+   * placeholder 与 textarea-el 的 padding-left 为 0。若只给 textarea-el 加左右 padding，
+   * 会出现光标与占位符水平错位。
+   */
+  --n-padding-left: 12px;
+  --n-padding-right: 12px;
 }
 
 .chat-input--ide .input-wrapper :deep(.n-input__textarea-el) {
-  padding: 8px 10px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
   font-size: 13px !important;
+  line-height: 1.55 !important;
+  text-align: left !important;
+  vertical-align: top !important;
+  caret-color: #58a6ff;
+  min-height: 72px !important;
+  box-sizing: border-box !important;
+  resize: none !important;
+}
+
+.ide-code-refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+  max-height: 132px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
+.ide-code-refs::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ide-code-refs::-webkit-scrollbar-thumb {
+  background: #4a4d5c;
+  border-radius: 3px;
+}
+
+.ide-code-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px 4px 6px;
+  border-radius: 6px;
+  background: #2a2d3a;
+  border: 1px solid #3f4252;
+  font-size: 12px;
+  color: #e2e8f0;
+}
+
+.ide-code-chip-lang {
+  flex-shrink: 0;
+  min-width: 28px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #42b883;
+  font-family: var(--font-family-mono, 'Consolas', monospace);
+}
+
+.ide-code-chip-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-family-mono, 'Consolas', monospace);
+}
+
+.ide-code-chip-x {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ide-code-chip-x:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
 }
 
 .chat-input--ide .input-actions {

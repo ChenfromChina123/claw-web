@@ -5,18 +5,20 @@
  * 支持：
  * - 图片预览（Chessboard background for alpha channel images）
  * - PDF 预览（PDF.js）
+ * - Office（doc/docx 等）：不可内嵌预览提示 + 下载
  * - 其他二进制文件：显示元数据 + 下载按钮
  */
 
-import { computed, ref, watch } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { NButton, NText, NSpin, NIcon } from 'naive-ui'
 import { CloudDownloadOutline, DocumentOutline } from '@vicons/ionicons5'
-import { useWorkdirContext } from '@/composables/useAgentWorkdir'
+import { useWorkdirContext, UNPREVIEWABLE_OFFICE_EXTS } from '@/composables/useAgentWorkdir'
 
 const ctx = useWorkdirContext()
 
 // ========== PDF.js lazy loading ==========
-const pdfDoc = ref<any>(null)
+// PDF.js 使用 # 私有字段；必须用 shallowRef，避免 ref 的深度 Proxy 导致 getPage/render 报错
+const pdfDoc = shallowRef<any>(null)
 const pdfPageCount = ref(0)
 const pdfCurrentPage = ref(1)
 const pdfCanvasRef = ref<HTMLCanvasElement | null>(null)
@@ -140,7 +142,17 @@ const isImage = computed(() => {
 
 const isPdf = computed(() => activeEntry.value?.ext?.toLowerCase() === '.pdf')
 
+const isUnpreviewableOffice = computed(() => {
+  const ext = activeEntry.value?.ext?.toLowerCase()
+  return !!ext && UNPREVIEWABLE_OFFICE_EXTS.has(ext)
+})
+
 const displayMimeType = computed(() => activeEntry.value?.mimeType ?? 'application/octet-stream')
+
+/** 仅「当前文件内容还在拉取、尚无 blob」时遮罩；避免与 refreshTree 等共用 loading 导致已预览仍转圈 */
+const showPreviewLoading = computed(
+  () => ctx.loading.value && !ctx.activeBlobUrl.value
+)
 
 async function handleDownload(): Promise<void> {
   const entry = activeEntry.value
@@ -151,10 +163,13 @@ async function handleDownload(): Promise<void> {
 
 <template>
   <div class="preview-panel">
-    <NSpin :show="ctx.loading.value" description="加载中..." />
+    <!-- NSpin 无 default 插槽时 naive-ui 会始终渲染 description，show=false 也挡不住，故用 v-if -->
+    <div v-if="showPreviewLoading" class="preview-loading-mask">
+      <NSpin :show="true" size="large" description="加载中..." />
+    </div>
 
     <!-- Image preview -->
-    <template v-if="isImage && ctx.activeBlobUrl.value && !ctx.loading.value">
+    <template v-if="isImage && ctx.activeBlobUrl.value">
       <div class="preview-toolbar">
         <NText depth="3" style="font-size: 12px; flex: 1;">
           📷 图片预览 · {{ activeEntry?.name }}
@@ -190,7 +205,7 @@ async function handleDownload(): Promise<void> {
     </template>
 
     <!-- PDF preview -->
-    <template v-else-if="isPdf && !ctx.loading.value">
+    <template v-else-if="isPdf && ctx.activeBlobUrl.value">
       <div class="preview-toolbar">
         <NText depth="3" style="font-size: 12px; flex: 1;">
           📄 PDF · {{ activeEntry?.name }}
@@ -210,6 +225,36 @@ async function handleDownload(): Promise<void> {
         <div v-if="pdfError" class="pdf-error">
           <NText type="error">{{ pdfError }}</NText>
         </div>
+      </div>
+    </template>
+
+    <!-- Word / Excel / PowerPoint：不提供内嵌预览 -->
+    <template v-else-if="isUnpreviewableOffice && !ctx.loading.value">
+      <div class="preview-toolbar">
+        <NText depth="3" style="font-size: 12px; flex: 1;">
+          📎 {{ activeEntry?.name }}
+        </NText>
+        <NButton size="tiny" text @click="handleDownload" title="下载">
+          <template #icon><NIcon><CloudDownloadOutline /></NIcon></template>
+        </NButton>
+      </div>
+      <div class="binary-placeholder office-no-preview">
+        <NIcon :size="64" style="color: rgba(255,255,255,0.15);">
+          <DocumentOutline />
+        </NIcon>
+        <NText style="font-size: 15px; color: rgba(255,255,255,0.75); margin-top: 16px; text-align: center; max-width: 360px;">
+          此格式不支持在编辑器内预览
+        </NText>
+        <NText depth="3" style="font-size: 12px; margin-top: 8px; text-align: center; max-width: 400px; line-height: 1.5;">
+          .doc / .docx / .xls / .xlsx / .ppt / .pptx 请下载后使用 WPS、Microsoft Office 等本地应用打开。
+        </NText>
+        <NText depth="3" style="font-size: 11px; margin-top: 6px;">
+          类型: {{ displayMimeType }}
+        </NText>
+        <NButton type="primary" style="margin-top: 22px;" @click="handleDownload">
+          <template #icon><NIcon><CloudDownloadOutline /></NIcon></template>
+          下载文件
+        </NButton>
       </div>
     </template>
 
@@ -236,12 +281,23 @@ async function handleDownload(): Promise<void> {
 
 <style scoped>
 .preview-panel {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: #1a1a1a;
   min-height: 0;
+}
+
+.preview-loading-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(26, 26, 26, 0.72);
 }
 
 /* Toolbar */
@@ -314,5 +370,9 @@ async function handleDownload(): Promise<void> {
   align-items: center;
   justify-content: center;
   gap: 4px;
+}
+
+.office-no-preview {
+  padding: 24px 16px;
 }
 </style>

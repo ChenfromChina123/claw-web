@@ -40,6 +40,8 @@ class EnhancedWebSocketClient {
   private connectResolve: (() => void) | null = null
   private connectReject: ((reason?: unknown) => void) | null = null
   private connectTimeout: ReturnType<typeof setTimeout> | null = null
+  /** 避免并发 connect() 创建多个 WebSocket（例如 ChatStore 与 PTY 同时触发） */
+  private connectInFlight: Promise<void> | null = null
 
   public status = ref<ConnectionStatus>('disconnected')
   public isConnected = ref(false)
@@ -65,12 +67,14 @@ class EnhancedWebSocketClient {
    * 建立 WebSocket 连接
    */
   connect(token?: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        resolve()
-        return
-      }
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      return Promise.resolve()
+    }
+    if (this.connectInFlight) {
+      return this.connectInFlight
+    }
 
+    this.connectInFlight = new Promise((resolve, reject) => {
       this.manualClose = false
       this.status.value = 'connecting'
       this.connectionError.value = null
@@ -113,6 +117,7 @@ class EnhancedWebSocketClient {
         this.ws.onerror = (error) => {
           console.error('[WS] Error:', error)
           this.connectionError.value = '连接错误'
+          this.connectInFlight = null
           reject(error)
         }
 
@@ -121,6 +126,7 @@ class EnhancedWebSocketClient {
           this.status.value = 'disconnected'
           this.isConnected.value = false
           this.stopHeartbeat()
+          this.connectInFlight = null
 
           if (!this.manualClose) {
             this.attemptReconnect()
@@ -128,9 +134,21 @@ class EnhancedWebSocketClient {
         }
       } catch (error) {
         this.status.value = 'disconnected'
+        this.connectInFlight = null
         reject(error)
       }
     })
+
+    this.connectInFlight.then(
+      () => {
+        this.connectInFlight = null
+      },
+      () => {
+        this.connectInFlight = null
+      }
+    )
+
+    return this.connectInFlight
   }
 
   /**
@@ -179,7 +197,7 @@ class EnhancedWebSocketClient {
     timeout: number = 30000
   ): Promise<T> {
     return new Promise((resolve, reject) => {
-      const id = this.generateId()
+      const id = String(this.generateId())
 
       const timeoutId = setTimeout(() => {
         this.pendingRPCs.delete(id)
@@ -417,6 +435,22 @@ class EnhancedWebSocketClient {
           break
         }
 
+        case 'session_rolled_back': {
+          const m = message as {
+            session?: Session
+            messages?: Message[]
+            toolCalls?: ToolCall[]
+            anchorMessageId?: string
+          }
+          this.emitEvent('session_rolled_back', {
+            session: m.session,
+            messages: m.messages,
+            toolCalls: m.toolCalls,
+            anchorMessageId: m.anchorMessageId,
+          })
+          break
+        }
+
         case 'session_deleted': {
           const m = message as { sessionId?: string }
           this.emitEvent('session_deleted', { sessionId: m.sessionId })
@@ -481,16 +515,29 @@ class EnhancedWebSocketClient {
    * 处理 RPC 响应
    */
   private handleRPCResponse(response: RPCResponse): void {
-    const pending = this.pendingRPCs.get(response.id)
+    const rid =
+      response.id !== undefined && response.id !== null ? String(response.id) : ''
+    const pending = rid ? this.pendingRPCs.get(rid) : undefined
     if (pending) {
       clearTimeout(pending.timeoutId)
-      this.pendingRPCs.delete(response.id)
+      this.pendingRPCs.delete(rid)
 
       if (response.success) {
-        pending.resolve(response)
+        // 服务端 rpc_response 形如 { success, result }，业务数据在 result 内
+        const r = response as RPCResponse
+        pending.resolve(
+          Object.prototype.hasOwnProperty.call(r, 'result') ? r.result : r
+        )
       } else {
         pending.reject(new Error(response.error?.message || 'RPC 调用失败'))
       }
+    } else {
+      console.warn(
+        '[WS] rpc_response 无匹配的待处理请求 id=',
+        rid,
+        'keys=',
+        [...this.pendingRPCs.keys()].slice(0, 8)
+      )
     }
   }
 
@@ -1057,6 +1104,17 @@ class EnhancedWebSocketClient {
     })
   }
 
+  /**
+   * 从指定用户消息起截断会话（含该条及之后），需配合服务端 session_rolled_back
+   */
+  rollbackSession(sessionId: string, anchorMessageId: string): void {
+    this.send({
+      type: 'rollback_session' as WebSocketMessageType,
+      sessionId,
+      anchorMessageId,
+    })
+  }
+
   getTools(): void {
     this.send({ type: 'get_tools' as WebSocketMessageType })
   }
@@ -1067,6 +1125,20 @@ class EnhancedWebSocketClient {
 
   executeCommand(command: string): void {
     this.send({ type: 'execute_command' as WebSocketMessageType, command })
+  }
+
+  /**
+   * 中断当前正在进行的 Agent 生成
+   */
+  interruptGeneration(sessionIdOverride?: string | null): void {
+    const sessionId =
+      sessionIdOverride ||
+      this.currentSession.value?.id ||
+      undefined
+    this.send({
+      type: 'interrupt_generation' as WebSocketMessageType,
+      sessionId,
+    })
   }
 }
 

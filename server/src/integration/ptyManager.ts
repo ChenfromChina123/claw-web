@@ -1,0 +1,580 @@
+/**
+ * Claude Code HAHA - PTY Session Manager
+ * 
+ * 管理后端真实的 shell 会话（PTY），支持：
+ * - 创建/销毁 PTY 会话
+ * - 双向数据流（输入/输出）
+ * - 终端尺寸调整
+ * - 会话复用
+ */
+
+import { spawn, ChildProcess, execSync } from 'child_process'
+import { v4 as uuidv4 } from 'uuid'
+import type { WebSocketConnection } from './wsBridge'
+
+// ==================== Types ====================
+
+export interface PTYSession {
+  id: string
+  connectionId: string
+  userId: string | null   // 所属用户，Agent 终端工具需要
+  process: ChildProcess | null
+  cwd: string
+  shell: string
+  createdAt: number
+  lastActiveAt: number
+  cols: number
+  rows: number
+  isAlive: boolean
+}
+
+export interface PTYCreateOptions {
+  connectionId: string
+  userId?: string          // 所属用户
+  shell?: 'powershell' | 'cmd' | 'bash' | 'auto'
+  cwd?: string
+  cols?: number
+  rows?: number
+  env?: Record<string, string>
+}
+
+export interface PTYOutput {
+  sessionId: string
+  data: string
+  type: 'stdout' | 'stderr' | 'exit'
+  exitCode?: number
+}
+
+type PTYEventCallback = (output: PTYOutput) => void
+
+// ==================== PTY Session Manager ====================
+
+export class PTYSessionManager {
+  private sessions: Map<string, PTYSession> = new Map()
+  private connectionSessions: Map<string, Set<string>> = new Map()
+  private eventCallbacks: Map<string, PTYEventCallback> = new Map()
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null
+  private idleTimeout = 30 * 60 * 1000 // 30 分钟空闲超时
+
+  constructor() {
+    // 启动定期清理
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupIdleSessions()
+    }, 5 * 60 * 1000) // 每 5 分钟检查一次
+  }
+
+  /**
+   * 获取系统默认 shell
+   */
+  private getDefaultShell(): string {
+    const platform = process.platform
+    if (platform === 'win32') {
+      // Windows 上优先使用 PowerShell
+      const psPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+      try {
+        const exists = execSync(`if exist "${psPath}" echo yes`, { encoding: 'utf8' }).trim()
+        if (exists === 'yes') return psPath
+      } catch {}
+      return 'powershell.exe'
+    }
+    // Linux/macOS 使用 bash 或 zsh
+    const shells = ['/bin/bash', '/bin/zsh', '/bin/sh']
+    for (const shell of shells) {
+      try {
+        require('fs').existsSync(shell) && (shell as string)
+        return shell
+      } catch {}
+    }
+    return '/bin/bash'
+  }
+
+  /**
+   * 确定要使用的 shell
+   */
+  private resolveShell(shellOption?: string): string {
+    if (!shellOption || shellOption === 'auto') {
+      return this.getDefaultShell()
+    }
+    
+    const platform = process.platform
+    if (platform === 'win32') {
+      switch (shellOption) {
+        case 'powershell':
+          return 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+        case 'cmd':
+          return 'cmd.exe'
+        case 'bash':
+          // WSL 或 Git Bash
+          const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe'
+          try {
+            const exists = execSync(`if exist "${gitBash}" echo yes`, { encoding: 'utf8' }).trim()
+            if (exists === 'yes') return gitBash
+          } catch {}
+          // 尝试 WSL bash
+          try {
+            execSync('wsl which bash', { encoding: 'utf8' })
+            return 'bash'
+          } catch {}
+          return 'powershell.exe'
+        default:
+          return 'powershell.exe'
+      }
+    }
+    return shellOption === 'bash' ? '/bin/bash' : shellOption
+  }
+
+  /**
+   * 创建新的 PTY 会话
+   */
+  createSession(options: PTYCreateOptions): PTYSession {
+    const sessionId = uuidv4()
+    const shell = this.resolveShell(options.shell)
+    const cwd = options.cwd || process.cwd()
+    const cols = options.cols || 120
+    const rows = options.rows || 30
+
+    console.log(`[PTY] Creating session ${sessionId} with shell: ${shell}`)
+
+    // 创建 spawn 选项
+    const spawnOptions: {
+      shell: boolean | string
+      cwd: string
+      env: Record<string, string>
+      cols?: number
+      rows?: number
+      windowsHide?: boolean
+    } = {
+      shell: true,
+      cwd,
+      env: {
+        ...process.env,
+        ...options.env,
+        TERM: 'xterm-256color',
+      },
+    }
+
+    // Windows PTY 配置
+    if (process.platform === 'win32') {
+      spawnOptions.shell = shell
+      spawnOptions.windowsHide = true
+    }
+
+    // 启动进程（勿命名为 process，否则会遮蔽 Node 全局 process 并触发 TDZ）
+    let childProcess: ChildProcess
+    if (process.platform === 'win32') {
+      // Windows: 使用 /c 参数运行命令
+      const isPowerShell = shell.toLowerCase().includes('powershell')
+      if (isPowerShell) {
+        childProcess = spawn('powershell.exe', [
+          '-NoLogo',
+          '-NoExit',
+          '-Command',
+          `Set-Location '${cwd.replace(/'/g, "''")}'; Clear-Host`
+        ], {
+          shell: false,
+          cwd,
+          env: spawnOptions.env,
+          windowsHide: true,
+        })
+      } else {
+        childProcess = spawn('cmd.exe', ['/c', `cd /d "${cwd}" && cls`], {
+          shell: false,
+          cwd,
+          env: spawnOptions.env,
+          windowsHide: true,
+        })
+      }
+    } else {
+      // Unix: 使用 pty
+      const args = shell.includes('bash') ? ['--login'] : []
+      childProcess = spawn(shell, args, {
+        cwd,
+        env: spawnOptions.env,
+      })
+    }
+
+    // 创建会话对象
+    const session: PTYSession = {
+      id: sessionId,
+      connectionId: options.connectionId,
+      userId: options.userId ?? null,
+      process: childProcess,
+      cwd,
+      shell,
+      createdAt: Date.now(),
+      lastActiveAt: Date.now(),
+      cols,
+      rows,
+      isAlive: true,
+    }
+
+    // 设置输出处理
+    if (childProcess.stdout) {
+      childProcess.stdout.on('data', (data: Buffer) => {
+        this.handleOutput(sessionId, 'stdout', data.toString())
+      })
+    }
+
+    if (childProcess.stderr) {
+      childProcess.stderr.on('data', (data: Buffer) => {
+        this.handleOutput(sessionId, 'stderr', data.toString())
+      })
+    }
+
+    if (childProcess.stdout || childProcess.stderr) {
+      childProcess.on('close', (code: number | null) => {
+        console.log(`[PTY] Session ${sessionId} exited with code: ${code}`)
+        this.handleOutput(sessionId, 'exit', '', code ?? undefined)
+      })
+    }
+
+    childProcess.on('error', (err: Error) => {
+      console.error(`[PTY] Session ${sessionId} error:`, err)
+      this.handleOutput(sessionId, 'stderr', `Error: ${err.message}\r\n`)
+    })
+
+    // 保存会话
+    this.sessions.set(sessionId, session)
+
+    // 更新连接与会话的映射
+    if (!this.connectionSessions.has(options.connectionId)) {
+      this.connectionSessions.set(options.connectionId, new Set())
+    }
+    this.connectionSessions.get(options.connectionId)!.add(sessionId)
+
+    console.log(`[PTY] Session ${sessionId} created successfully`)
+    return session
+  }
+
+  /**
+   * 处理 PTY 输出
+   */
+  private handleOutput(sessionId: string, type: 'stdout' | 'stderr' | 'exit', data: string, exitCode?: number): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+
+    session.lastActiveAt = Date.now()
+
+    if (type === 'exit') {
+      session.isAlive = false
+    }
+
+    const output: PTYOutput = {
+      sessionId,
+      data,
+      type,
+      exitCode,
+    }
+
+    // 通知所有监听器
+    const callback = this.eventCallbacks.get(sessionId)
+    if (callback) {
+      callback(output)
+    }
+  }
+
+  /**
+   * 发送输入到 PTY
+   */
+  write(sessionId: string, data: string): boolean {
+    const session = this.sessions.get(sessionId)
+    if (!session || !session.isAlive) {
+      console.warn(`[PTY] Cannot write to session ${sessionId}: session not found or not alive`)
+      return false
+    }
+
+    session.lastActiveAt = Date.now()
+
+    try {
+      if (session.process?.stdin) {
+        // 确保 stdin 是可写的
+        if (!session.process.stdin.writableEnded) {
+          session.process.stdin.write(data)
+          return true
+        }
+      }
+      
+      // 如果 stdin 不可用，尝试通过执行命令模拟
+      // 这是一个后备方案
+      console.log(`[PTY] stdin not directly writable for session ${sessionId}, using exec fallback`)
+      return false
+    } catch (error) {
+      console.error(`[PTY] Write error for session ${sessionId}:`, error)
+      return false
+    }
+  }
+
+  /**
+   * 调整终端尺寸
+   */
+  resize(sessionId: string, cols: number, rows: number): boolean {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      console.warn(`[PTY] Cannot resize session ${sessionId}: session not found`)
+      return false
+    }
+
+    session.cols = cols
+    session.rows = rows
+    session.lastActiveAt = Date.now()
+
+    console.log(`[PTY] Resized session ${sessionId} to ${cols}x${rows}`)
+    return true
+  }
+
+  /**
+   * 获取会话
+   */
+  getSession(sessionId: string): PTYSession | undefined {
+    return this.sessions.get(sessionId)
+  }
+
+  /**
+   * 获取连接的所有会话
+   */
+  getConnectionSessions(connectionId: string): PTYSession[] {
+    const sessionIds = this.connectionSessions.get(connectionId)
+    if (!sessionIds) return []
+    
+    return Array.from(sessionIds)
+      .map(id => this.sessions.get(id))
+      .filter((s): s is PTYSession => s !== undefined)
+  }
+
+  /**
+   * 获取用户的所有会话（跨连接，用于 Agent 终端工具）
+   */
+  getSessionsForUser(userId: string): PTYSession[] {
+    const result: PTYSession[] = []
+    for (const session of this.sessions.values()) {
+      if (session.userId === userId) {
+        result.push(session)
+      }
+    }
+    return result
+  }
+
+  /**
+   * 校验会话是否属于指定用户（归属校验）
+   */
+  sessionBelongsToUser(sessionId: string, userId: string): boolean {
+    const session = this.sessions.get(sessionId)
+    return session?.userId === userId
+  }
+
+  /**
+   * 销毁会话
+   */
+  destroySession(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      console.warn(`[PTY] Cannot destroy session ${sessionId}: session not found`)
+      return false
+    }
+
+    console.log(`[PTY] Destroying session ${sessionId}`)
+
+    // 移除事件回调
+    this.eventCallbacks.delete(sessionId)
+
+    // 终止进程
+    if (session.process) {
+      try {
+        // 尝试优雅关闭
+        if (session.process.stdin) {
+          session.process.stdin.write('exit\r\n')
+        }
+        
+        // 等待一小段时间后强制终止
+        setTimeout(() => {
+          if (session.process && !session.process.killed) {
+            try {
+              process.platform === 'win32'
+                ? execSync(`taskkill /pid ${session.process.pid} /T /F`, { windowsHide: true })
+                : session.process.kill('SIGTERM')
+            } catch {}
+          }
+        }, 500)
+      } catch (error) {
+        console.error(`[PTY] Error destroying session ${sessionId}:`, error)
+      }
+      session.process = null
+    }
+
+    // 从映射中移除
+    const connectionSessions = this.connectionSessions.get(session.connectionId)
+    if (connectionSessions) {
+      connectionSessions.delete(sessionId)
+      if (connectionSessions.size === 0) {
+        this.connectionSessions.delete(session.connectionId)
+      }
+    }
+
+    // 移除会话
+    this.sessions.delete(sessionId)
+    session.isAlive = false
+
+    console.log(`[PTY] Session ${sessionId} destroyed`)
+    return true
+  }
+
+  /**
+   * 销毁连接的所有会话
+   */
+  destroyConnectionSessions(connectionId: string): number {
+    const sessions = this.getConnectionSessions(connectionId)
+    let count = 0
+    for (const session of sessions) {
+      if (this.destroySession(session.id)) {
+        count++
+      }
+    }
+    console.log(`[PTY] Destroyed ${count} sessions for connection ${connectionId}`)
+    return count
+  }
+
+  /**
+   * 注册输出回调
+   */
+  onOutput(sessionId: string, callback: PTYEventCallback): void {
+    this.eventCallbacks.set(sessionId, callback)
+  }
+
+  /**
+   * 取消注册输出回调
+   */
+  offOutput(sessionId: string): void {
+    this.eventCallbacks.delete(sessionId)
+  }
+
+  /**
+   * 执行单条命令（不保持会话）
+   */
+  async executeCommand(
+    command: string,
+    options: { cwd?: string; shell?: string; timeout?: number } = {}
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    return new Promise((resolve) => {
+      const shell = this.resolveShell(options.shell)
+      const cwd = options.cwd || process.cwd()
+      const timeout = options.timeout || 30000
+
+      let stdout = ''
+      let stderr = ''
+      let killed = false
+
+      const proc = spawn(shell, process.platform === 'win32' 
+        ? ['/c', command] 
+        : ['-c', command], {
+        cwd,
+        env: { ...process.env, TERM: 'xterm-256color' },
+        timeout,
+      })
+
+      if (proc.stdout) {
+        proc.stdout.on('data', (data: Buffer) => {
+          stdout += data.toString()
+        })
+      }
+
+      if (proc.stderr) {
+        proc.stderr.on('data', (data: Buffer) => {
+          stderr += data.toString()
+        })
+      }
+
+      const timer = setTimeout(() => {
+        killed = true
+        try {
+          process.platform === 'win32'
+            ? execSync(`taskkill /pid ${proc.pid} /T /F`, { windowsHide: true })
+            : proc.kill('SIGKILL')
+        } catch {}
+      }, timeout)
+
+      proc.on('close', (code: number | null) => {
+        clearTimeout(timer)
+        resolve({
+          stdout,
+          stderr,
+          exitCode: code ?? (killed ? -1 : 0),
+        })
+      })
+
+      proc.on('error', (err) => {
+        clearTimeout(timer)
+        resolve({
+          stdout,
+          stderr: err.message,
+          exitCode: -1,
+        })
+      })
+    })
+  }
+
+  /**
+   * 清理空闲会话
+   */
+  private cleanupIdleSessions(): void {
+    const now = Date.now()
+    let cleaned = 0
+
+    for (const [sessionId, session] of this.sessions) {
+      if (session.isAlive && now - session.lastActiveAt > this.idleTimeout) {
+        console.log(`[PTY] Cleaning up idle session ${sessionId}`)
+        this.destroySession(sessionId)
+        cleaned++
+      }
+    }
+
+    if (cleaned > 0) {
+      console.log(`[PTY] Cleaned up ${cleaned} idle sessions`)
+    }
+  }
+
+  /**
+   * 获取统计信息
+   */
+  getStats(): {
+    totalSessions: number
+    aliveSessions: number
+    connections: number
+  } {
+    let aliveSessions = 0
+    for (const session of this.sessions.values()) {
+      if (session.isAlive) aliveSessions++
+    }
+
+    return {
+      totalSessions: this.sessions.size,
+      aliveSessions,
+      connections: this.connectionSessions.size,
+    }
+  }
+
+  /**
+   * 关闭并清理所有会话
+   */
+  shutdown(): void {
+    console.log('[PTY] Shutting down PTY manager...')
+
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval)
+      this.cleanupInterval = null
+    }
+
+    for (const sessionId of this.sessions.keys()) {
+      this.destroySession(sessionId)
+    }
+
+    this.sessions.clear()
+    this.connectionSessions.clear()
+    this.eventCallbacks.clear()
+
+    console.log('[PTY] PTY manager shutdown complete')
+  }
+}
+
+// ==================== Singleton Instance ====================
+
+export const ptyManager = new PTYSessionManager()

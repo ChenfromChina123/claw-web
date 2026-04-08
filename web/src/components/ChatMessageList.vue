@@ -3,7 +3,21 @@
  * 增强版消息列表组件 - 集成流程和知识可视化，支持 Agent 中断功能
  */
 import { ref, watch, nextTick, computed, onMounted } from 'vue'
-import { NScrollbar, NSpin, NTag, NSwitch, NTooltip, NModal, NCode, NButton, NIcon, useMessage } from 'naive-ui'
+import {
+  NScrollbar,
+  NSpin,
+  NTag,
+  NSwitch,
+  NTooltip,
+  NModal,
+  NCode,
+  NButton,
+  NIcon,
+  NPopover,
+  NPopconfirm,
+  NInput,
+  useMessage,
+} from 'naive-ui'
 import type { Message, ToolCall } from '@/types'
 import type { KnowledgeCard } from '@/types/flowKnowledge'
 import type { AgentTaskStep } from '@/types/agent'
@@ -15,8 +29,16 @@ import ToolUseEnhanced from './ToolUseEnhanced.vue'
 import TaskPipeline from './TaskPipeline.vue'
 import FileWriteToolInline from './FileWriteToolInline.vue'
 import FileOutputCard from './FileOutputCard.vue'
-import { StopCircleOutline } from '@vicons/ionicons5'
+import { StopCircleOutline, ChevronDownOutline, ListOutline, ArrowUndoOutline, CreateOutline, CheckmarkOutline, CloseOutline } from '@vicons/ionicons5'
 import { interruptAgent } from '@/api/agentApi'
+import { extractIdeUserDisplay } from '@/utils/ideUserMessageMarkers'
+import { isUserTimelineAnchor, userMessageTimelinePreview } from '@/utils/chatTimeline'
+import { useChatStore } from '@/stores/chat'
+
+/** 用户消息编辑功能 */
+const editingMessageId = ref<string | null>(null)
+const editingContent = ref('')
+const isSavingEdit = ref(false)
 
 const props = defineProps<{
   messages: Message[]
@@ -27,6 +49,8 @@ const props = defineProps<{
   currentAgentId?: string
   /** IDE 窄栏：工具卡片与加载条使用更紧凑、偏 VS Code 的深色样式 */
   ideDensity?: boolean
+  /** 是否显示时间线导航与回到底部按钮；默认与 ideDensity 一致 */
+  showTimelineNav?: boolean
 }>()
 
 /**
@@ -34,13 +58,156 @@ const props = defineProps<{
  */
 const emit = defineEmits<{
   interrupt: [agentId: string]
+  /** 用户从 Bash/PowerShell 工具旁跳转到 IDE 底部终端 */
+  'focus-terminal': []
 }>()
 
 const scrollbarRef = ref<InstanceType<typeof NScrollbar> | null>(null)
 const settingsStore = useSettingsStore()
+const chatStore = useChatStore()
 const message = useMessage()
 /** 中断按钮加载状态 */
 const isInterrupting = ref(false)
+
+const effectiveTimelineNav = computed(() =>
+  props.showTimelineNav !== undefined ? props.showTimelineNav : !!props.ideDensity,
+)
+
+const timelinePopoverShow = ref(false)
+const nearBottom = ref(true)
+const rollingBackId = ref<string | null>(null)
+
+const userTimelineEntries = computed(() => {
+  const out: { id: string; preview: string; timeLabel: string }[] = []
+  for (const m of props.messages) {
+    if (!isUserTimelineAnchor(m)) continue
+    const raw = (m as { createdAt?: string | Date }).createdAt
+    const d = raw ? new Date(raw) : null
+    const timeLabel =
+      d && !Number.isNaN(d.getTime())
+        ? d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : ''
+    const contentUnknown = (m as { content?: unknown }).content
+    let preview = userMessageTimelinePreview(contentUnknown)
+    if (preview.length > 120) preview = `${preview.slice(0, 118)}…`
+    out.push({ id: m.id, preview: preview || '（空提问）', timeLabel })
+  }
+  return out
+})
+
+function handleListScroll(e: Event) {
+  const t = e.target as HTMLElement
+  if (!t || typeof t.scrollTop !== 'number') return
+  const gap = t.scrollHeight - t.scrollTop - t.clientHeight
+  nearBottom.value = gap < 96
+}
+
+function scrollToBottomNow(behavior: 'auto' | 'smooth' = 'smooth') {
+  lastScrollTime = 0
+  scrollbarRef.value?.scrollTo({ top: 1_000_000, behavior })
+  nextTick(() => {
+    nearBottom.value = true
+  })
+}
+
+function scrollToUserMessage(messageId: string) {
+  void nextTick(() => {
+    const inst = scrollbarRef.value as unknown as { $el?: HTMLElement } | null
+    const root = inst?.$el
+    const container = root?.querySelector?.('.n-scrollbar-container') as HTMLElement | null
+    const target = document.getElementById(`chat-msg-${messageId}`)
+    if (!container || !target) return
+    const cRect = container.getBoundingClientRect()
+    const tRect = target.getBoundingClientRect()
+    const padding = 12
+    const nextTop = container.scrollTop + (tRect.top - cRect.top) - padding
+    scrollbarRef.value?.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' })
+  })
+}
+
+async function handleRollback(entryId: string) {
+  if (props.isLoading) {
+    message.warning('请等待当前回复结束后再回滚')
+    return
+  }
+  rollingBackId.value = entryId
+  try {
+    await chatStore.rollbackToUserMessage(entryId)
+    message.success('已按时间线回滚')
+    timelinePopoverShow.value = false
+    await nextTick()
+    scrollToBottomNow('auto')
+  } catch (err: unknown) {
+    message.error(err instanceof Error ? err.message : '回滚失败')
+  } finally {
+    rollingBackId.value = null
+  }
+}
+
+/**
+ * 开始编辑用户消息
+ */
+function startEditingMessage(messageId: string, content: string) {
+  if (props.isLoading) {
+    message.warning('请等待当前回复结束后再编辑消息')
+    return
+  }
+  editingMessageId.value = messageId
+  editingContent.value = content
+  timelinePopoverShow.value = false
+}
+
+/**
+ * 取消编辑
+ */
+function cancelEditing() {
+  editingMessageId.value = null
+  editingContent.value = ''
+}
+
+/**
+ * 保存编辑并重新发送
+ */
+async function saveEditedMessage(messageId: string) {
+  if (!editingContent.value.trim()) {
+    message.warning('消息内容不能为空')
+    return
+  }
+
+  if (props.isLoading) {
+    message.warning('请等待当前回复结束后再编辑消息')
+    return
+  }
+
+  isSavingEdit.value = true
+  try {
+    // 调用回滚并重新发送
+    await chatStore.rollbackToUserMessage(messageId)
+    await nextTick()
+    // 发送编辑后的消息
+    chatStore.sendMessage(editingContent.value.trim())
+    editingMessageId.value = null
+    editingContent.value = ''
+    message.success('消息已更新，对话将重新开始')
+    await nextTick()
+    scrollToBottomNow('auto')
+  } catch (err: unknown) {
+    message.error(err instanceof Error ? err.message : '编辑失败')
+  } finally {
+    isSavingEdit.value = false
+  }
+}
+
+/**
+ * 检查消息是否正在被编辑
+ */
+function isEditing(messageId: string): boolean {
+  return editingMessageId.value === messageId
+}
+
+/** 流式光标节流：仅当内容超过 16ms 增量时才触发滚动（避免每字符都 layout） */
+let lastScrollTime = 0
+const SCROLL_THROTTLE_MS = 48
 
 /** Agent 输出的文件列表（用于展示 FileOutputCard） */
 const agentOutputFiles = ref<Array<{
@@ -73,17 +240,23 @@ const showKnowledgeCards = computed(() => settingsStore.preferences.showKnowledg
 const useEnhancedToolDisplay = computed(() => settingsStore.preferences.useEnhancedToolDisplay)
 
 /**
- * 滚动到底部
+ * 滚动到底部（节流：避免每次内容变化都触发 layout）
  */
 function scrollToBottom() {
+  const now = Date.now()
+  if (now - lastScrollTime < SCROLL_THROTTLE_MS) return
+  lastScrollTime = now
   scrollbarRef.value?.scrollTo({ top: 1000000, behavior: 'smooth' })
 }
 
-// 监听消息变化，自动滚动到底部
-watch(() => props.messages.length, async () => {
-  await nextTick()
-  scrollToBottom()
-})
+// 监听消息内容长度变化（捕获流式增量），节流滚动到底部
+watch(
+  () => props.messages.length + (props.messages[props.messages.length - 1]?.content ?? '').length,
+  async () => {
+    await nextTick()
+    scrollToBottom()
+  },
+)
 
 watch(() => props.isLoading, async (loading) => {
   if (loading) {
@@ -279,6 +452,17 @@ function getStatusType(status: string): string {
  * @param toolCall - 工具调用对象
  * @returns 摘要文本
  */
+/** Bash / PowerShell / Shell：可在旁显示「在终端查看」 */
+function isShellToolName(name: string): boolean {
+  const n = name.toLowerCase()
+  return n === 'bash' || n === 'powershell' || n === 'shell'
+}
+
+function handleFocusTerminalClick(e: Event): void {
+  e.stopPropagation()
+  emit('focus-terminal')
+}
+
 function getShortSummary(toolCall: ToolCall): string {
   switch (toolCall.toolName) {
     case 'FileRead': {
@@ -406,6 +590,11 @@ function getMessageText(content: any): string {
   return String(content)
 }
 
+/** 用户气泡：IDE 双轨消息只展示简短层，避免大段代码占满对话 */
+function formatUserMessageForBubble(content: unknown): string {
+  return extractIdeUserDisplay(getMessageText(content))
+}
+
 /**
  * 判断消息是否应该显示
  * - 过滤掉 tool_result 类型的用户消息（内部消息，不显示给用户）
@@ -422,8 +611,7 @@ function shouldShowMessage(message: any): boolean {
         return false  // 隐藏工具结果消息
       }
     }
-    // 显示有内容的用户消息
-    return getMessageText(content).length > 0
+    return formatUserMessageForBubble(content).length > 0
   }
 
   // 助手消息：只要有内容或有关联的工具调用就显示
@@ -435,6 +623,8 @@ function shouldShowMessage(message: any): boolean {
 
   return true
 }
+
+const visibleMessages = computed(() => props.messages.filter(shouldShowMessage))
 
 /**
  * 处理中断 Agent 执行（参考 claude-code-haha/src 的 useCancelRequest.ts）
@@ -481,7 +671,7 @@ async function handleInterruptExecution() {
   >
     <!-- 主消息列表 -->
     <div class="message-list">
-      <NScrollbar ref="scrollbarRef" class="scrollbar">
+      <NScrollbar ref="scrollbarRef" class="scrollbar" @scroll="handleListScroll">
         <div class="messages-container">
           <!-- 欢迎消息 -->
           <div v-if="messages.length === 0 && !isLoading" class="welcome">
@@ -509,13 +699,76 @@ async function handleInterruptExecution() {
           </div>
           
           <!-- 消息列表 -->
-          <div v-for="(message, index) in messages.filter(shouldShowMessage)" :key="message.id || index" class="message-wrapper">
+          <div
+            v-for="(message, index) in visibleMessages"
+            :id="'chat-msg-' + (message.id || String(index))"
+            :key="message.id || index"
+            class="message-wrapper"
+          >
             <!-- 用户消息 - 右边 -->
             <div v-if="message.role === 'user'" class="message user-message">
               <div class="message-content">
                 <div class="message-avatar user-avatar">👤</div>
-                <div class="message-bubble user-bubble">
-                  <div class="message-text">{{ getMessageText((message as any).content) }}</div>
+                <div class="message-bubble-column">
+                  <!-- 气泡主体 -->
+                  <div class="message-bubble user-bubble">
+                    <!-- 编辑模式 -->
+                    <div v-if="isEditing(message.id)" class="edit-mode">
+                      <NInput
+                        v-model:value="editingContent"
+                        type="textarea"
+                        :rows="3"
+                        placeholder="编辑消息内容..."
+                        class="edit-input"
+                        @keydown.ctrl.enter.prevent="saveEditedMessage(message.id)"
+                        @keydown.meta.enter.prevent="saveEditedMessage(message.id)"
+                      />
+                    </div>
+                    <!-- 显示模式 -->
+                    <template v-else>
+                      <div class="message-text">{{ formatUserMessageForBubble((message as any).content) }}</div>
+                    </template>
+                  </div>
+
+                  <!-- 气泡下方操作栏：编辑模式 -->
+                  <div v-if="isEditing(message.id)" class="bubble-edit-actions">
+                    <span class="edit-hint">Ctrl+Enter 发送 · Esc 取消</span>
+                    <div class="action-group">
+                      <button
+                        type="button"
+                        class="action-btn action-btn--cancel"
+                        title="取消编辑"
+                        @click="cancelEditing"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        class="action-btn action-btn--save"
+                        title="保存并重新发送"
+                        :disabled="isSavingEdit"
+                        @click="saveEditedMessage(message.id)"
+                      >
+                        {{ isSavingEdit ? '发送中...' : '发送' }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- 气泡下方操作栏：显示模式 - 编辑按钮 -->
+                  <div v-else class="bubble-actions">
+                    <button
+                      type="button"
+                      class="action-btn action-btn--edit"
+                      title="编辑消息"
+                      @click="startEditingMessage(message.id, formatUserMessageForBubble((message as any).content))"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="14" height="14">
+                        <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M18.5 2.50001C18.8978 2.10219 19.4374 1.87869 20 1.87869C20.5626 1.87869 21.1022 2.10219 21.5 2.50001C21.8978 2.89784 22.1213 3.4374 22.1213 4.00001C22.1213 4.56262 21.8978 5.10219 21.5 5.50001L12 15L8 16L9 12L18.5 2.50001Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                      编辑
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -553,6 +806,20 @@ async function handleInterruptExecution() {
                             <NTag size="small" :type="getStatusType(toolCall.status) as any">
                               {{ toolCall.status === 'pending' ? '等待中' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
                             </NTag>
+                            <NTooltip v-if="isShellToolName(toolCall.toolName)" trigger="hover">
+                              <template #trigger>
+                                <button
+                                  type="button"
+                                  class="inline-tool-terminal-link"
+                                  aria-label="在终端查看"
+                                  @click="handleFocusTerminalClick"
+                                >
+                                  <span class="inline-tool-terminal-icon" aria-hidden="true">⎘</span>
+                                  终端
+                                </button>
+                              </template>
+                              跳转到底部终端面板并聚焦（与 Agent Shell 输出同一区域）
+                            </NTooltip>
                             <span class="inline-expand-icon">{{ activeStep === toolCall.id ? '▼' : '▶' }}</span>
                           </div>
                           
@@ -592,7 +859,23 @@ async function handleInterruptExecution() {
                       >
                         <div class="inline-tool-call-header">
                           <span class="tool-name">{{ toolCall.toolName }}</span>
-                          <span class="tool-status">{{ toolCall.status === 'pending' ? '执行中...' : toolCall.status }}</span>
+                          <NTooltip v-if="isShellToolName(toolCall.toolName)" trigger="hover">
+                            <template #trigger>
+                              <button
+                                type="button"
+                                class="inline-tool-terminal-link inline-tool-terminal-link--legacy"
+                                aria-label="在终端查看"
+                                @click="handleFocusTerminalClick"
+                              >
+                                <span class="inline-tool-terminal-icon" aria-hidden="true">⎘</span>
+                                终端
+                              </button>
+                            </template>
+                            跳转到底部终端面板并聚焦
+                          </NTooltip>
+                          <span class="tool-status inline-tool-call-header__status">{{
+                            toolCall.status === 'pending' ? '执行中...' : toolCall.status
+                          }}</span>
                         </div>
                         <details class="inline-tool-details">
                           <summary>查看详情</summary>
@@ -644,11 +927,114 @@ async function handleInterruptExecution() {
 
             <div v-for="tool in activeToolCalls" :key="tool.id" class="tool-call active">
               <span class="tool-name">{{ tool.toolName }}</span>
+              <NTooltip v-if="isShellToolName(tool.toolName)" trigger="hover">
+                <template #trigger>
+                  <button
+                    type="button"
+                    class="inline-tool-terminal-link inline-tool-terminal-link--active-row"
+                    aria-label="在终端查看"
+                    @click="handleFocusTerminalClick"
+                  >
+                    <span class="inline-tool-terminal-icon" aria-hidden="true">⎘</span>
+                    终端
+                  </button>
+                </template>
+                跳转到底部终端面板并聚焦
+              </NTooltip>
               <NSpin size="small" />
             </div>
           </div>
         </div>
       </NScrollbar>
+    </div>
+
+    <!-- 返回底部悬浮按钮 - 聊天框中间底部 -->
+    <Transition name="chat-nav-fade">
+      <div
+        v-show="!nearBottom && messages.length > 0"
+        class="chat-nav-bottom"
+      >
+        <button
+          type="button"
+          class="scroll-to-bottom-btn"
+          title="回到底部"
+          aria-label="回到底部"
+          @click="scrollToBottomNow('smooth')"
+        >
+          <NIcon :size="24"><ChevronDownOutline /></NIcon>
+        </button>
+      </div>
+    </Transition>
+
+    <!-- 时间线导航（聊天框右上角悬浮） -->
+    <div
+      v-if="effectiveTimelineNav && (messages.length > 0 || isLoading)"
+      class="chat-nav-floating"
+      :class="{ 'chat-nav-floating--ide': ideDensity }"
+    >
+      <NPopover
+        v-model:show="timelinePopoverShow"
+        trigger="click"
+        :show-arrow="false"
+        placement="left-end"
+        raw
+        class="chat-timeline-popover-wrap"
+      >
+        <template #trigger>
+          <button
+            type="button"
+            class="chat-nav-btn chat-nav-btn--secondary"
+            title="按提问跳转 / 编辑消息"
+            aria-label="对话时间线"
+          >
+            <NIcon :size="ideDensity ? 18 : 20"><ListOutline /></NIcon>
+          </button>
+        </template>
+        <div class="chat-timeline-panel" :class="{ 'chat-timeline-panel--ide': ideDensity }">
+          <div class="chat-timeline-panel-head">用户提问时间线</div>
+          <div v-if="userTimelineEntries.length === 0" class="chat-timeline-empty">暂无可见提问</div>
+          <div v-else class="chat-timeline-list">
+            <div
+              v-for="entry in userTimelineEntries"
+              :key="entry.id"
+              class="chat-timeline-row"
+            >
+              <div class="chat-timeline-meta">
+                <span v-if="entry.timeLabel" class="chat-timeline-time">{{ entry.timeLabel }}</span>
+              </div>
+              <div class="chat-timeline-preview" :title="entry.preview">{{ entry.preview }}</div>
+              <div class="chat-timeline-actions">
+                <button
+                  type="button"
+                  class="chat-timeline-link"
+                  @click="scrollToUserMessage(entry.id); timelinePopoverShow = false"
+                >
+                  定位
+                </button>
+                <NPopconfirm
+                  placement="left"
+                  positive-text="回滚"
+                  negative-text="取消"
+                  :disabled="isLoading"
+                  @positive-click="handleRollback(entry.id)"
+                >
+                  <template #trigger>
+                    <button
+                      type="button"
+                      class="chat-timeline-link chat-timeline-link--danger"
+                      :disabled="!!isLoading || rollingBackId === entry.id"
+                    >
+                      <NIcon v-if="rollingBackId !== entry.id" :size="14"><ArrowUndoOutline /></NIcon>
+                      {{ rollingBackId === entry.id ? '…' : '回滚' }}
+                    </button>
+                  </template>
+                  将删除此提问及其之后的所有消息与工具记录，且不可撤销。确定回滚？
+                </NPopconfirm>
+              </div>
+            </div>
+          </div>
+        </div>
+      </NPopover>
     </div>
 
     <!-- 文件预览弹窗 -->
@@ -688,6 +1074,297 @@ async function handleInterruptExecution() {
   flex-direction: column;
   width: 100%;
   min-height: 0;
+  position: relative;
+}
+
+/* —— 时间线 + 回到底部浮动按钮 —— */
+
+/* 导航按钮容器 - 聊天框右上角悬浮 */
+.chat-nav-floating {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+/* 返回底部按钮 - 悬浮在聊天框中间底部 */
+.chat-nav-bottom {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  pointer-events: none;
+}
+
+.chat-nav-floating > * {
+  pointer-events: auto;
+}
+
+.chat-nav-bottom > * {
+  pointer-events: auto;
+}
+
+.chat-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.chat-nav-btn--secondary {
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: rgba(22, 22, 30, 0.85);
+  color: #22c55e;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+.chat-nav-btn--secondary:hover {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #4ade80;
+  transform: scale(1.05);
+}
+
+.chat-nav-btn--primary {
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  background: rgba(22, 22, 30, 0.85);
+  color: #22c55e;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+.chat-nav-btn--primary:hover {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #4ade80;
+  transform: scale(1.05);
+}
+
+/* IDE 风格的导航按钮 */
+.chat-nav-floating--ide .chat-nav-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #3f3f3f;
+  background: #2a2a2a;
+  color: #c0c0c0;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+
+.chat-nav-floating--ide .chat-nav-btn:hover {
+  background: #333333;
+  border-color: #505050;
+  color: #e8e8e8;
+}
+
+.chat-nav-floating--ide .chat-nav-btn--primary {
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.chat-nav-floating--ide .chat-nav-btn--primary:hover {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.7);
+}
+
+/* 返回底部按钮样式 - 悬浮圆形按钮 */
+.scroll-to-bottom-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid rgba(34, 197, 94, 0.4);
+  background: rgba(22, 22, 30, 0.9);
+  color: #22c55e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 20px rgba(34, 197, 94, 0.2);
+  backdrop-filter: blur(10px);
+  animation: floatIn 0.3s ease-out;
+}
+
+.scroll-to-bottom-btn:hover {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.6);
+  color: #4ade80;
+  transform: scale(1.1) translateY(-2px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5), 0 0 30px rgba(34, 197, 94, 0.3);
+}
+
+.scroll-to-bottom-btn:active {
+  transform: scale(1.05) translateY(0);
+}
+
+@keyframes floatIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.chat-nav-fade-enter-active,
+.chat-nav-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.chat-nav-fade-enter-from,
+.chat-nav-fade-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.chat-timeline-panel {
+  width: min(320px, calc(100vw - 48px));
+  max-height: min(420px, 55vh);
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: #ffffff;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.15);
+  overflow: hidden;
+}
+
+.chat-timeline-panel--ide {
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+}
+
+.chat-timeline-panel-head {
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.chat-timeline-panel--ide .chat-timeline-panel-head {
+  color: #858585;
+  border-bottom-color: #3c3c3c;
+}
+
+.chat-timeline-empty {
+  padding: 16px 12px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.chat-timeline-panel--ide .chat-timeline-empty {
+  color: #6e6e6e;
+}
+
+.chat-timeline-list {
+  overflow-y: auto;
+  padding: 6px 0;
+  max-height: min(360px, 50vh);
+}
+
+.chat-timeline-row {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.chat-timeline-panel--ide .chat-timeline-row {
+  border-bottom-color: #333;
+}
+
+.chat-timeline-meta {
+  margin-bottom: 4px;
+}
+
+.chat-timeline-time {
+  font-size: 10px;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+}
+
+.chat-timeline-panel--ide .chat-timeline-time {
+  color: #6e6e6e;
+}
+
+.chat-timeline-preview {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #334155;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.chat-timeline-panel--ide .chat-timeline-preview {
+  color: #cccccc;
+}
+
+.chat-timeline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.chat-timeline-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6366f1;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.chat-timeline-link:hover {
+  color: #4f46e5;
+}
+
+.chat-timeline-panel--ide .chat-timeline-link {
+  color: #3794ff;
+}
+
+.chat-timeline-panel--ide .chat-timeline-link:hover {
+  color: #6cbbff;
+}
+
+.chat-timeline-link--danger {
+  color: #e11d48;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-timeline-panel--ide .chat-timeline-link--danger {
+  color: #f97316;
+}
+
+.chat-timeline-link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* 消息列表 */
@@ -784,6 +1461,106 @@ async function handleInterruptExecution() {
   justify-content: flex-start;
 }
 
+/* 气泡列容器 - 包含气泡和下方操作栏 */
+.message-bubble-column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 85%;
+}
+
+/* 气泡下方的操作栏 - 显示模式 */
+.bubble-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast, 150ms) ease;
+}
+
+.user-message:hover .bubble-actions {
+  opacity: 1;
+}
+
+/* 气泡下方的编辑操作栏 */
+.bubble-edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* 操作按钮组 */
+.action-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 统一操作按钮样式 */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast, 150ms) ease;
+}
+
+/* 编辑按钮 */
+.action-btn--edit {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.action-btn--edit:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* 保存按钮 */
+.action-btn--save {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.action-btn--save:hover:not(:disabled) {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+}
+
+.action-btn--save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 取消按钮 */
+.action-btn--cancel {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.action-btn--cancel:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* 编辑提示文字 */
+.edit-hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
 .message-bubble {
   padding: 16px 20px;
   line-height: 1.7;
@@ -798,16 +1575,40 @@ async function handleInterruptExecution() {
 
 /* 用户消息气泡 - 右边 */
 .user-bubble {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--color-primary-dark) 100%);
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
   color: white;
   border-radius: 20px 20px 4px 20px;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.25);
 }
 
 .user-bubble:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 6px 16px rgba(34, 197, 94, 0.35);
+}
+
+/* 编辑模式下的气泡 */
+.user-bubble .edit-mode {
+  padding: 0;
+}
+
+.user-bubble .edit-input {
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: white;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.user-bubble .edit-input :deep(.n-input__textarea-el),
+.user-bubble .edit-input :deep(.n-input__input-el) {
+  color: white !important;
+  background: transparent !important;
+}
+
+.user-bubble .edit-input :deep(.n-input__placeholder) {
+  color: rgba(255, 255, 255, 0.5) !important;
 }
 
 /* 助手消息气泡 - 左边 */
@@ -838,8 +1639,8 @@ async function handleInterruptExecution() {
 }
 
 .user-avatar {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
 }
 
 .assistant-avatar {
@@ -1430,7 +2231,8 @@ async function handleInterruptExecution() {
 .inline-tool-call-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
   padding: 8px 12px;
   background: rgba(40, 40, 80, 0.2);
 }
@@ -1444,6 +2246,46 @@ async function handleInterruptExecution() {
 .inline-tool-call-header .tool-status {
   font-size: 11px;
   color: #6b7280;
+}
+
+.inline-tool-call-header__status {
+  margin-left: auto;
+}
+
+/* 「在终端查看」链接（Bash / PowerShell 旁） */
+.inline-tool-terminal-link {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  border-radius: 4px;
+  background: rgba(34, 197, 94, 0.1);
+  color: #86efac;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.inline-tool-terminal-link:hover {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.65);
+  color: #bbf7d0;
+}
+
+.inline-tool-terminal-icon {
+  font-size: 12px;
+  opacity: 0.95;
+}
+
+.inline-tool-terminal-link--active-row {
+  margin-right: 6px;
 }
 
 .inline-tool-details {
@@ -1646,5 +2488,10 @@ async function handleInterruptExecution() {
   background: #1e1e1e;
   border-radius: 4px;
   border: 1px solid #333;
+}
+
+.message-list-wrapper--ide .chat-nav-floating {
+  right: 6px;
+  bottom: 6px;
 }
 </style>

@@ -172,6 +172,21 @@ export const useChatStore = defineStore('chat', () => {
       messages.value = []
       toolCalls.value = []
     })
+
+    wsClient.on('session_rolled_back', (data: unknown) => {
+      if (!data) return
+      const msg = data as { session?: Session; messages?: Message[]; toolCalls?: ToolCall[] }
+      const session = msg?.session
+      if (!session || !session.id) return
+      if (session.id !== currentSessionId.value) {
+        console.warn('[ChatStore] session_rolled_back: ignoring other session', session.id)
+        return
+      }
+      messages.value = msg.messages || []
+      toolCalls.value = msg.toolCalls || []
+      isLoading.value = false
+      currentStreamingAssistantId.value = null
+    })
     
     /**
      * 处理消息开始事件 - 后端会发送完整的消息ID
@@ -505,7 +520,80 @@ export const useChatStore = defineStore('chat', () => {
   function clearSession() {
     wsClient.clearSession()
   }
-  
+
+  /**
+   * 从某条用户消息起回滚（删除该条及之后所有消息与关联工具调用）
+   */
+  async function rollbackToUserMessage(anchorMessageId: string): Promise<void> {
+    const sessionId = currentSessionId.value
+    if (!sessionId) {
+      throw new Error('请先选择会话')
+    }
+    if (!anchorMessageId) {
+      throw new Error('缺少消息锚点')
+    }
+
+    void interruptGeneration()
+
+    return new Promise((resolve, reject) => {
+      const timeoutMs = 20000
+      let done = false
+      let unsub: (() => void) | null = null
+
+      const timeoutId = setTimeout(() => {
+        if (done) return
+        done = true
+        unsub?.()
+        reject(new Error('回滚超时，请重试'))
+      }, timeoutMs)
+
+      unsub = wsClient.on('session_rolled_back', (data: unknown) => {
+        if (done) return
+        const msg = data as { session?: Session }
+        if (msg?.session?.id !== sessionId) return
+        done = true
+        clearTimeout(timeoutId)
+        unsub?.()
+        resolve()
+      })
+
+      wsClient.rollbackSession(sessionId, anchorMessageId)
+    })
+  }
+
+  /**
+   * 中断当前正在进行的生成
+   * 前端立即更新状态，后端异步处理中断指令
+   */
+  async function interruptGeneration(): Promise<void> {
+    // 立即将 isLoading 设为 false（WS 的 message_stop 可能延迟到达）
+    isLoading.value = false
+
+    // 标记所有正在执行或等待的工具调用为中断状态
+    const interrupted = toolCalls.value.filter(
+      t => t.status === 'executing' || t.status === 'pending',
+    )
+    if (interrupted.length > 0) {
+      toolCalls.value = toolCalls.value.map(t => {
+        if (t.status === 'executing' || t.status === 'pending') {
+          return {
+            ...t,
+            status: 'error' as const,
+            toolOutput: {
+              error: '用户主动停止生成',
+              errorType: 'USER_STOPPED',
+              timestamp: new Date().toISOString(),
+            },
+          }
+        }
+        return t
+      })
+    }
+
+    // 必须带会话 ID：wsClient.currentSession 常与 Pinia 不同步
+    wsClient.interruptGeneration(currentSessionId.value)
+  }
+
   return {
     sessions,
     currentSessionId,
@@ -522,6 +610,8 @@ export const useChatStore = defineStore('chat', () => {
     sendMessage,
     deleteSession,
     renameSession,
-    clearSession
+    clearSession,
+    interruptGeneration,
+    rollbackToUserMessage,
   }
 })

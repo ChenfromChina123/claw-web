@@ -39,6 +39,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { EventSender, Tool, ToolCall } from './webStore'
 import { toolExecutor } from './enhancedToolExecutor'
 import { WebMCPBridge, type MCPServerConfig, type MCPTool } from '../integrations/mcpBridge'
+import { ptyManager } from './ptyManager'
 
 // 创建 MCP Bridge 实例
 const mcpBridge = new WebMCPBridge()
@@ -242,6 +243,29 @@ export class WebSocketManager {
     return connection
   }
 
+  /**
+   * Bun `websocket.message` 入口：将 rpc_call / ping 等交给统一处理（与 WebSocketConnection 订阅的 message 同源逻辑）
+   */
+  routeIncomingMessage(connectionId: string, rawMessage: string | Buffer): void {
+    const connection = this.connections.get(connectionId)
+    if (!connection) {
+      console.warn('[WS] routeIncomingMessage: unknown connection', connectionId)
+      return
+    }
+    this.handleMessage(connection, rawMessage)
+  }
+
+  /** 与 Bun 侧 wsData 同步，供 RPC（如 PTY）读取 userId / sessionId */
+  syncConnectionMeta(
+    connectionId: string,
+    patch: { userId?: string | null; sessionId?: string | null }
+  ): void {
+    const c = this.connections.get(connectionId)
+    if (!c) return
+    if ('userId' in patch) c.userId = patch.userId ?? null
+    if ('sessionId' in patch) c.sessionId = patch.sessionId ?? null
+  }
+
   removeConnection(connectionId: string): void {
     const connection = this.connections.get(connectionId)
     if (connection) {
@@ -318,6 +342,8 @@ export class WebSocketManager {
   }
 
   private handleClose(connection: WebSocketConnection): void {
+    // 清理该连接的所有 PTY 会话
+    ptyManager.destroyConnectionSessions(connection.id)
     this.removeConnection(connection.id)
     console.log(`Connection closed: ${connection.id}`)
   }
@@ -329,11 +355,21 @@ export class WebSocketManager {
   // ==================== RPC System ====================
 
   private handleRPCCall(connection: WebSocketConnection, message: WebSocketMessage): void {
+    const rawId = message.id
+    const requestId =
+      rawId !== undefined && rawId !== null && String(rawId).length > 0
+        ? String(rawId)
+        : uuidv4()
+
     const request: RPCRequest = {
-      id: message.id || uuidv4(),
+      id: requestId,
       method: message.method!,
       params: message.params,
       timeout: message.timeout as number | undefined,
+    }
+
+    if (request.method === 'pty.create') {
+      console.log(`[WS RPC] pty.create id=${requestId} conn=${connection.id}`)
     }
 
     const context: RPCContext = {

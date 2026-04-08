@@ -741,4 +741,18 @@ export class WebMCPBridge extends EventEmitter {
   }
 }
 
+// ==================== 单例模式 ====================
+
+let webMCPBridgeInstance: WebMCPBridge | null = null
+
+/**
+ * 获取 WebMCPBridge 单例实例
+ */
+export function getWebMCPBridgeInstance(): WebMCPBridge {
+  if (!webMCPBridgeInstance) {
+    webMCPBridgeInstance = new WebMCPBridge()
+  }
+  return webMCPBridgeInstance
+}
+
 export default WebMCPBridge

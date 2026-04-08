@@ -29,6 +29,26 @@ import * as path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { createWriteStream, existsSync } from 'fs'
 
+/**
+ * 工作区根目录：优先 WORKSPACE_BASE_DIR（绝对路径，迁移后不依赖启动 cwd）
+ */
+function resolveWorkspaceBaseDir(): string {
+  const fromEnv = process.env.WORKSPACE_BASE_DIR?.trim()
+  if (fromEnv) {
+    return path.resolve(fromEnv)
+  }
+  return path.resolve(process.cwd(), '..', 'workspaces')
+}
+
+function pathsEffectivelyEqual(a: string, b: string): boolean {
+  const na = path.normalize(path.resolve(a))
+  const nb = path.normalize(path.resolve(b))
+  if (process.platform === 'win32') {
+    return na.toLowerCase() === nb.toLowerCase()
+  }
+  return na === nb
+}
+
 // ==================== 类型定义 ====================
 
 /**
@@ -139,7 +159,7 @@ export interface FileItem {
 // ==================== 默认配置 ====================
 
 const DEFAULT_CONFIG: Required<WorkspaceConfig> = {
-  baseDir: path.join(process.cwd(), '..', 'workspaces'),
+  baseDir: resolveWorkspaceBaseDir(),
   maxStorageSize: 100,
   maxFileCount: 50,
   maxFileSize: 10,
@@ -167,6 +187,7 @@ export class WorkspaceManager {
 
   constructor(config?: WorkspaceConfig) {
     this.config = { ...DEFAULT_CONFIG, ...config }
+    console.log(`[WorkspaceManager] 工作区根目录: ${this.config.baseDir}`)
     this.ensureBaseDirectory()
   }
 
@@ -193,13 +214,83 @@ export class WorkspaceManager {
   }
 
   /**
+   * 迁移或配置变更后，若 .user-workspace.json 中的 path 与当前 baseDir 不一致则修正并写回
+   */
+  private async reconcileUserWorkspacePath(
+    userId: string,
+    metadata: UserWorkspaceMetadata
+  ): Promise<UserWorkspaceMetadata> {
+    const expectedPath = path.join(this.config.baseDir, 'users', userId)
+    if (pathsEffectivelyEqual(metadata.path, expectedPath)) {
+      return metadata
+    }
+
+    console.warn(
+      `[WorkspaceManager] 修正用户工作区路径（迁移/WORKSPACE_BASE_DIR）: ${metadata.path} -> ${expectedPath}`
+    )
+
+    const oldRoot = path.resolve(metadata.path)
+    const newRoot = path.resolve(expectedPath)
+
+    for (const skill of metadata.installedSkills) {
+      try {
+        const sp = path.resolve(skill.path)
+        if (sp === oldRoot || sp.startsWith(oldRoot + path.sep)) {
+          skill.path = path.join(newRoot, path.relative(oldRoot, sp))
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    metadata.path = expectedPath
+    metadata.lastModifiedAt = new Date().toISOString()
+    await this.saveUserMetadata(metadata)
+    return metadata
+  }
+
+  /**
+   * 会话工作区元数据中的 path 与当前 baseDir 不一致时修正（含 uploads 路径）
+   */
+  private async reconcileSessionMetadata(metadata: WorkspaceMetadata): Promise<WorkspaceMetadata> {
+    const expectedPath = path.join(this.config.baseDir, 'sessions', metadata.userId, metadata.sessionId)
+    if (pathsEffectivelyEqual(metadata.path, expectedPath)) {
+      return metadata
+    }
+
+    console.warn(
+      `[WorkspaceManager] 修正会话工作区路径: ${metadata.path} -> ${expectedPath}`
+    )
+
+    const oldRoot = path.resolve(metadata.path)
+    const newRoot = path.resolve(expectedPath)
+
+    for (const f of metadata.uploadedFiles) {
+      try {
+        const fp = path.resolve(f.path)
+        if (fp === oldRoot || fp.startsWith(oldRoot + path.sep)) {
+          f.path = path.join(newRoot, path.relative(oldRoot, fp))
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    metadata.path = expectedPath
+    metadata.lastModifiedAt = new Date().toISOString()
+    await this.saveMetadata(metadata)
+    return metadata
+  }
+
+  /**
    * 获取用户主工作目录
    * @param userId 用户ID
    * @returns 用户工作区元数据
    */
   async getUserWorkspace(userId: string): Promise<UserWorkspaceMetadata | null> {
     if (this.userWorkspaces.has(userId)) {
-      return this.userWorkspaces.get(userId)!
+      const cached = this.userWorkspaces.get(userId)!
+      return await this.reconcileUserWorkspacePath(userId, cached)
     }
 
     try {
@@ -209,8 +300,9 @@ export class WorkspaceManager {
       if (existsSync(metadataPath)) {
         const content = await fs.readFile(metadataPath, 'utf-8')
         const metadata = JSON.parse(content) as UserWorkspaceMetadata
-        this.userWorkspaces.set(userId, metadata)
-        return metadata
+        const fixed = await this.reconcileUserWorkspacePath(userId, metadata)
+        this.userWorkspaces.set(userId, fixed)
+        return fixed
       }
     } catch (error) {
       console.error('[WorkspaceManager] 加载用户工作区失败:', error)
@@ -326,15 +418,18 @@ export class WorkspaceManager {
   async getWorkspace(sessionId: string): Promise<WorkspaceMetadata | null> {
     for (const [, metadata] of this.sessionWorkspaces) {
       if (metadata.sessionId === sessionId) {
-        return metadata
+        const fixed = await this.reconcileSessionMetadata(metadata)
+        this.sessionWorkspaces.set(fixed.workspaceId, fixed)
+        return fixed
       }
     }
 
     try {
       const metadata = await this.loadMetadataBySession(sessionId)
       if (metadata) {
-        this.sessionWorkspaces.set(metadata.workspaceId, metadata)
-        return metadata
+        const fixed = await this.reconcileSessionMetadata(metadata)
+        this.sessionWorkspaces.set(fixed.workspaceId, fixed)
+        return fixed
       }
     } catch (error) {
       console.error('[WorkspaceManager] 加载会话工作区失败:', error)
@@ -446,6 +541,43 @@ export class WorkspaceManager {
     } catch (error) {
       console.error('[WorkspaceManager] 卸载 Skill 失败:', error)
       return false
+    }
+  }
+
+  /**
+   * 上传文件到用户主工作区 uploads/ 目录
+   */
+  async uploadFileToUserWorkspace(
+    userId: string,
+    fileBuffer: Buffer,
+    originalName: string,
+    mimeType: string = 'application/octet-stream'
+  ): Promise<UploadResult> {
+    const workspace = await this.getOrCreateUserWorkspace(userId)
+    const uploadsDir = path.join(workspace.path, 'uploads')
+    if (!existsSync(uploadsDir)) {
+      await fs.mkdir(uploadsDir, { recursive: true })
+    }
+
+    const fileId = uuidv4()
+    const ext = path.extname(originalName)
+    const safeFilename = `${fileId}${ext}`
+    const filePath = path.join(uploadsDir, safeFilename)
+
+    try {
+      await fs.writeFile(filePath, fileBuffer)
+      console.log(`[WorkspaceManager] 文件已上传到用户主目录: ${originalName} -> ${filePath}`)
+      return {
+        success: true,
+        fileId,
+        filename: safeFilename,
+        originalName,
+        path: filePath,
+        size: fileBuffer.length
+      }
+    } catch (error) {
+      console.error('[WorkspaceManager] 上传到用户主目录失败:', error)
+      return { success: false, error: error instanceof Error ? error.message : '文件上传失败' }
     }
   }
 
@@ -672,6 +804,22 @@ export class WorkspaceManager {
    * 生成会话工作区摘要
    */
   async getWorkspaceSummaryForContext(sessionId: string): Promise<string> {
+    // 从 sessionId 推导 userId（通过 session manager）
+    let userId: string | null = null
+    try {
+      const { SessionManager } = await import('../services/sessionManager')
+      const session = SessionManager.getInstance().getInMemorySession(sessionId)
+      userId = session?.session?.userId ?? null
+    } catch {}
+
+    let ptyCount = 0
+    if (userId) {
+      try {
+        const { ptyManager } = await import('../integration/ptyManager')
+        ptyCount = ptyManager.getSessionsForUser(userId).length
+      } catch {}
+    }
+
     const workspace = await this.getWorkspace(sessionId)
     if (!workspace) {
       return ''
@@ -681,6 +829,10 @@ export class WorkspaceManager {
       `\n## 📁 当前工作环境`,
       `- 已就绪的工作区已为您准备好`
     ]
+
+    if (ptyCount > 0) {
+      lines.push(`- 🖥️ 您当前在 IDE 中打开了 ${ptyCount} 个终端会话，可通过 UserTerminalList / UserTerminalWrite / UserTerminalKill 工具进行控制`)
+    }
 
     if (workspace.uploadedFiles.length > 0) {
       lines.push(`- 📎 您已上传 ${workspace.uploadedFiles.length} 个文件，可直接使用`)

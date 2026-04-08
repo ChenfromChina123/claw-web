@@ -5,6 +5,7 @@ import { MessageRepository } from '../db/repositories/messageRepository'
 import { ToolCallRepository } from '../db/repositories/toolCallRepository'
 import type { Session, Message, ConversationMessage, ToolCall } from '../models/types'
 import { generateSessionTitleWithLLM, isFirstMessage, generateSimpleTitle } from './sessionTitleGenerator'
+import { extractIdeUserDisplay } from '../utils/ideUserMessageMarkers'
 
 export interface InMemorySession {
   session: Session
@@ -337,9 +338,9 @@ export class SessionManager {
     try {
       console.log(`[SessionManager] generateAndUpdateSessionTitle called for session ${sessionId}`)
 
-      // 将内容转换为字符串
+      // 将内容转换为字符串（IDE 双轨消息仅取展示层生成标题）
       const contentString = typeof userContent === 'string'
-        ? userContent
+        ? extractIdeUserDisplay(userContent)
         : JSON.stringify(userContent)
 
       console.log(`[SessionManager] Content string: "${contentString.substring(0, 50)}..."`)
@@ -639,6 +640,61 @@ export class SessionManager {
       sessionData.toolCalls = []
       sessionData.dirty = true
     }
+  }
+
+  /**
+   * 从指定用户消息起截断会话（含该条及之后全部消息），并同步删除库内记录与关联 tool_calls。
+   * 用于 IDE/聊天时间线回滚。
+   */
+  async rollbackToUserMessage(
+    sessionId: string,
+    userId: string,
+    anchorMessageId: string,
+  ): Promise<InMemorySession> {
+    const sessionRow = await this.sessionRepo.findById(sessionId)
+    if (!sessionRow) {
+      throw new Error('Session not found')
+    }
+    if (sessionRow.userId !== userId) {
+      throw new Error('Forbidden: cannot rollback another user\'s session')
+    }
+
+    let sessionData = this.sessions.get(sessionId)
+    if (!sessionData || sessionData.needsHydration) {
+      const loaded = await this.loadSession(sessionId)
+      if (!loaded) {
+        throw new Error('Session not found')
+      }
+      sessionData = loaded
+    }
+
+    const msgs = sessionData.messages
+    const anchorIndex = msgs.findIndex((m) => m.id === anchorMessageId)
+    if (anchorIndex < 0) {
+      throw new Error('Message not found in session')
+    }
+    const anchor = msgs[anchorIndex]
+    if (anchor.role !== 'user') {
+      throw new Error('Rollback anchor must be a user message')
+    }
+    const content = anchor.content
+    if (Array.isArray(content) && content.some((b: any) => b && b.type === 'tool_result')) {
+      throw new Error('Cannot use tool-result message as rollback anchor')
+    }
+
+    const removed = msgs.slice(anchorIndex)
+    const removedIds = removed.map((m) => m.id)
+    const assistantRemovedIds = removed.filter((m) => m.role === 'assistant').map((m) => m.id)
+
+    await this.messageRepo.deleteByIdsForSession(sessionId, removedIds)
+    await this.toolCallRepo.deleteByMessageIds(assistantRemovedIds)
+
+    sessionData.messages = msgs.slice(0, anchorIndex)
+    const keptIds = new Set(sessionData.messages.map((m) => m.id))
+    sessionData.toolCalls = sessionData.toolCalls.filter((tc) => keptIds.has(tc.messageId))
+    sessionData.dirty = false
+
+    return sessionData
   }
 
   /**

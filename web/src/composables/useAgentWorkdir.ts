@@ -1,4 +1,4 @@
-import { ref, watch, h, computed, InjectionKey, provide, inject } from 'vue'
+import { ref, watch, h, computed, InjectionKey, provide, inject, type Ref } from 'vue'
 import {
   NIcon,
   useMessage,
@@ -13,6 +13,7 @@ import {
 } from '@vicons/ionicons5'
 import apiClient from '@/api/client'
 import * as monaco from 'monaco-editor'
+import { sessionApi } from '@/api/sessionApi'
 
 /**
  * 已打开文件（多标签）
@@ -70,6 +71,14 @@ export interface WorkdirContext {
   tabLanguageLabel: (entry: OpenFileEntry) => string
   /** 调用浏览器下载 API 下载工作区文件 */
   downloadFile: (filePath: string, fileName: string) => Promise<void>
+  /** 将文件夹打包为 zip 下载 */
+  downloadFolderZip: (folderPath: string) => Promise<void>
+  /** 按当前树选中项：文件直接下载，文件夹打包下载 */
+  downloadSelected: () => Promise<void>
+  /** 在「当前选中目录或选中文件的父目录」下新建文件/文件夹 */
+  createWorkdirEntry: (name: string, kind: 'file' | 'directory') => Promise<boolean>
+  /** 新建条目时作为父目录的路径（以 / 开头） */
+  getNewItemParentPath: () => string
 
   // 计算属性
   panelTitle: { value: string }
@@ -85,14 +94,73 @@ export const WORKDIR_INJECTION_KEY: InjectionKey<WorkdirContext> = Symbol('workd
  */
 const API_WORKDIR_BASE = '/agent/workdir'
 
+/** Word/Excel/PPT：不在浏览器内嵌预览，PreviewPanel 显示说明并提供下载 */
+export const UNPREVIEWABLE_OFFICE_EXTS = new Set([
+  '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+])
+
 /**
  * useAgentWorkdir Composable
  *
  * 抽取工作目录状态与逻辑，提供统一的 API。
  * 所有操作均针对用户统一工作目录，不再区分会话/主目录。
  */
-export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { provided?: boolean }) {
+
+// ========== 初始化 composable ==========
+export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?: boolean }) {
   const message = useMessage()
+
+  // ========== 持久化：已打开文件的记录（使用数据库，跨会话统一工作区）==========
+
+  /**
+   * 从数据库获取全局已打开文件记录（跨会话统一）
+   */
+  async function fetchPersistedOpenFiles(): Promise<{ openFilePaths: string[]; activeFilePath: string | null }> {
+    try {
+      const sid = sessionIdRef.value
+      if (!sid) {
+        return { openFilePaths: [], activeFilePath: null }
+      }
+      const result = await sessionApi.getOpenFiles(sid)
+      // API 响应格式：{ success: true, data: { openFilePaths, activeFilePath } }
+      // sessionApi.getOpenFiles 返回整个 ApiResponse，所以需要取 result.data
+      // result.data 结构: { openFilePaths: string[]; activeFilePath: string | null }
+      const record = (result as { data?: { openFilePaths?: string[]; activeFilePath?: string | null } }).data
+      return {
+        openFilePaths: record?.openFilePaths || [],
+        activeFilePath: record?.activeFilePath || null,
+      }
+    } catch (error) {
+      console.warn('[useAgentWorkdir] 获取已打开文件记录失败:', error)
+      return { openFilePaths: [], activeFilePath: null }
+    }
+  }
+
+  /**
+   * 保存全局已打开文件记录到数据库（跨会话统一）
+   */
+  async function persistOpenFilesToDb(openFilePaths: string[], activeFilePath: string | null): Promise<void> {
+    try {
+      const sid = sessionIdRef.value
+      if (!sid) return
+      await sessionApi.saveOpenFiles(sid, openFilePaths, activeFilePath)
+    } catch (error) {
+      console.warn('[useAgentWorkdir] 保存已打开文件记录失败:', error)
+    }
+  }
+
+  /**
+   * 清除全局已打开文件记录（从数据库）
+   */
+  async function clearPersistedOpenFilesFromDb(): Promise<void> {
+    try {
+      const sid = sessionIdRef.value
+      if (!sid) return
+      await sessionApi.deleteOpenFiles(sid)
+    } catch (error) {
+      console.warn('[useAgentWorkdir] 清除已打开文件记录失败:', error)
+    }
+  }
 
   // ========== 状态 ==========
 
@@ -107,13 +175,25 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
   const selectedKey = ref<string | null>(null)
   const uploading = ref(false)
 
-  /** 路径 → 子节点缓存（必须带 sessionId，避免切换会话后旧请求写错缓存 / 覆盖 UI） */
+  /** 路径 → 子节点缓存（统一工作区，sessionId 不再作为缓存 key 的一部分） */
   const loadedPaths = new Map<string, TreeOption[]>()
   const loadingPaths = new Set<string>()
+  /** 同一目录并发 loadDirectory（如 NTree watchEffect 与 hydrateExpanded 同时拉取）合并为一次请求，避免另一路拿到 [] 误判已加载 */
+  const dirLoadPromises = new Map<string, Promise<TreeOption[]>>()
   const loadingNodes = new Set<string>()
+  /** 记录加载失败的路径，避免重复请求失败的后端（防止频繁重试） */
+  const failedPaths = new Set<string>()
 
-  function pathCacheKey(sessionId: string, normalizedPath: string): string {
-    return `${sessionId}:${normalizedPath}`
+  function pathCacheKey(normalizedPath: string): string {
+    return normalizedPath
+  }
+
+  function normalizeListPath(nodeKey: string): string {
+    let p = nodeKey || '/'
+    if (!p.startsWith('/')) {
+      p = '/' + p
+    }
+    return p
   }
 
   const openFiles = ref<OpenFileEntry[]>([])
@@ -153,6 +233,15 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
   }
 
   function disposeAllOpenTabs(): void {
+    // 切换会话前，保存当前已打开文件的记录
+    if (sessionIdRef.value && openFiles.value.length > 0) {
+      const paths = openFiles.value.map(f => f.path)
+      const activePath = activeFileId.value
+        ? openFiles.value.find(f => f.id === activeFileId.value)?.path || null
+        : null
+      void persistOpenFilesToDb(paths, activePath)
+    }
+
     if (editorInstance) {
       editorInstance.setModel(null)
     }
@@ -217,7 +306,7 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
     const entry = openFiles.value.find(f => f.id === fileId)
     if (!entry) return
 
-    selectedKey.value = entry.path
+    await revealPathInTree(entry.path)
     currentFilePath.value = entry.path
     activeFileId.value = fileId
     fileContent.value = ''
@@ -231,6 +320,11 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
     // 二进制预览不依赖 Monaco；必须先处理，否则在编辑器未 init 时会被下方 return 挡掉（PDF/Office 一直「加载失败」）
     if (entry.mode === 'binary') {
       activeIsReadOnly.value = true
+      const extLower = (entry.ext || '').toLowerCase()
+      // Word/Excel/PPT 不在此内嵌预览，不拉取整文件，避免大文档 base64 解码卡顿与黑屏
+      if (UNPREVIEWABLE_OFFICE_EXTS.has(extLower)) {
+        return
+      }
       try {
         loading.value = true
         const { content, mimeType } = await fetchFileContentFromApi(entry.path)
@@ -248,9 +342,10 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
         } else {
           message.error('服务端未返回文件内容，请尝试「下载文件」或刷新后重试')
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[useAgentWorkdir] 加载二进制文件失败:', error)
-        message.error(error.response?.data?.error?.message || '加载文件失败')
+        const err = error as { response?: { data?: { error?: { message?: string } } } }
+        message.error(err.response?.data?.error?.message || '加载文件失败')
       } finally {
         loading.value = false
       }
@@ -271,9 +366,10 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
         model = monaco.editor.createModel(content ?? '', language ?? 'plaintext', uri)
         modelMap.set(fileId, model)
         savedVersionId.set(fileId, model.getAlternativeVersionId())
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[useAgentWorkdir] 加载文件失败:', error)
-        message.error(error.response?.data?.error?.message || '加载文件失败')
+        const err = error as { response?: { data?: { error?: { message?: string } } } }
+        message.error(err.response?.data?.error?.message || '加载文件失败')
         loading.value = false
         return
       } finally {
@@ -326,14 +422,74 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
       openFiles.value.push({ id, path, name, mode, mimeType, ext, readOnly: mode === 'binary' })
     }
     activeFileId.value = id
-    selectedKey.value = path
     currentFilePath.value = path
     await activateOpenFile(id)
+
+    // 持久化记录
+    persistOpenFiles()
+  }
+
+  /**
+   * 持久化当前已打开文件列表到数据库
+   */
+  function persistOpenFiles(): void {
+    const sid = sessionIdRef.value
+    if (!sid) return
+    const paths = openFiles.value.map(f => f.path)
+    const activePath = activeFileId.value
+      ? openFiles.value.find(f => f.id === activeFileId.value)?.path || null
+      : null
+    // 使用 async 但不阻塞主流程
+    void persistOpenFilesToDb(paths, activePath)
+  }
+
+  /**
+   * 从数据库持久化记录中恢复已打开的文件（跨会话统一）
+   * 按顺序打开文件，最后激活上次活跃的文件
+   */
+  async function restoreOpenFiles(): Promise<void> {
+    const sid = sessionIdRef.value
+    if (!sid) return
+
+    const record = await fetchPersistedOpenFiles()
+    if (!record || !record.openFilePaths || record.openFilePaths.length === 0) {
+      return
+    }
+
+    console.log('[useAgentWorkdir] 恢复已打开文件:', record.openFilePaths)
+
+    // 按顺序打开文件（不再检查 treeData，因为文件树是懒加载的）
+    for (const filePath of record.openFilePaths) {
+      // 检查文件是否在 treeData 中（可能已加载）
+      const exists = findNodeByKey(treeData.value, filePath)
+      if (exists) {
+        await openFileFromExplorer(filePath)
+      } else {
+        // 文件可能尚未加载到树中，但仍尝试打开它
+        // 这会通过 Monaco 的虚拟文件机制处理
+        console.log('[useAgentWorkdir] 文件未在树中找到，仍尝试打开:', filePath)
+        await openFileFromExplorer(filePath)
+      }
+    }
+
+    // 激活上次活跃的文件
+    if (record.activeFilePath) {
+      const activeId = record.activeFilePath
+      const entry = openFiles.value.find(f => f.id === activeId)
+      if (entry) {
+        await activateOpenFile(activeId)
+      } else if (openFiles.value.length > 0) {
+        // 如果上次活跃的文件不存在，激活第一个
+        await activateOpenFile(openFiles.value[0].id)
+      }
+    }
   }
 
   async function selectOpenFile(fileId: string): Promise<void> {
     if (activeFileId.value === fileId) return
     await activateOpenFile(fileId)
+    // 持久化
+    persistOpenFiles()
   }
 
   async function closeOpenFile(fileId: string): Promise<void> {
@@ -364,7 +520,11 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
     openFiles.value.splice(idx, 1)
 
     const wasActive = activeFileId.value === fileId
-    if (!wasActive) return
+    if (!wasActive) {
+      // 仅关闭了非活跃标签，也需要持久化
+      persistOpenFiles()
+      return
+    }
 
     if (openFiles.value.length === 0) {
       activeFileId.value = null
@@ -373,11 +533,15 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
       hasUnsavedChanges.value = false
       activeIsReadOnly.value = false
       disposeMonacoWidget()
+      // 清空记录
+      void clearPersistedOpenFilesFromDb()
       return
     }
 
     const next = openFiles.value[Math.min(idx, openFiles.value.length - 1)]
     await activateOpenFile(next.id)
+    // 持久化
+    persistOpenFiles()
   }
 
   /**
@@ -404,6 +568,108 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
     message.success(`已下载 ${fileName}`)
   }
 
+  async function downloadFolderZip(folderPath: string): Promise<void> {
+    const baseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
+    const url = `${baseUrl}${API_WORKDIR_BASE}/download-zip?sessionId=${encodeURIComponent(sessionIdRef.value)}&path=${encodeURIComponent(folderPath)}`
+    const token = localStorage.getItem('token')
+    const res = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    const ct = res.headers.get('content-type') || ''
+    if (!res.ok) {
+      if (ct.includes('application/json')) {
+        try {
+          const j = (await res.json()) as { error?: { message?: string } }
+          message.error(j.error?.message || '打包下载失败')
+        } catch {
+          message.error('打包下载失败')
+        }
+      } else {
+        message.error('打包下载失败')
+      }
+      return
+    }
+    const blob = await res.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    const baseName = folderPath.split('/').filter(Boolean).pop() || 'folder'
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = `${baseName}.zip`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 5000)
+    message.success(`已下载 ${baseName}.zip`)
+  }
+
+  function getNewItemParentPath(): string {
+    const key = selectedKey.value
+    if (!key) return '/'
+    const node = findNodeByKey(treeData.value, key)
+    if (node && node.isLeaf === false) {
+      return normalizeListPath(String(node.key))
+    }
+    const f = normalizeListPath(String(key))
+    const i = f.lastIndexOf('/')
+    if (i <= 0) return '/'
+    return f.slice(0, i) || '/'
+  }
+
+  async function downloadSelected(): Promise<void> {
+    const key = selectedKey.value
+    if (!key) {
+      message.warning('请先在树中选择文件或文件夹')
+      return
+    }
+    const node = findNodeByKey(treeData.value, key)
+    if (node?.isLeaf === false) {
+      await downloadFolderZip(String(key))
+      return
+    }
+    const fileName = String(key).split('/').pop() || 'download'
+    await downloadFile(String(key), fileName)
+  }
+
+  async function createWorkdirEntry(name: string, kind: 'file' | 'directory'): Promise<boolean> {
+    const trimmed = name.trim()
+    if (!trimmed) {
+      message.warning('请输入名称')
+      return false
+    }
+    if (trimmed.includes('/') || trimmed.includes('\\')) {
+      message.warning('名称中不要包含路径分隔符')
+      return false
+    }
+    if (!sessionIdRef.value) {
+      message.warning('请先选择或创建会话后再试')
+      return false
+    }
+
+    const parent = normalizeListPath(getNewItemParentPath())
+    const targetPath =
+      parent === '/'
+        ? `/${trimmed}`
+        : `${parent.replace(/\/+$/, '')}/${trimmed}`.replace(/\/+/g, '/')
+
+    try {
+      await apiClient.post(`${API_WORKDIR_BASE}/create`, {
+        sessionId: sessionIdRef.value,
+        targetPath,
+        kind,
+      })
+      message.success(kind === 'directory' ? '文件夹已创建' : '文件已创建')
+      const expandKey = parent === '/' ? null : parent
+      if (expandKey && !expandedKeys.value.includes(expandKey)) {
+        expandedKeys.value = [...expandedKeys.value, expandKey]
+      }
+      await refreshTree({ silent: true })
+      return true
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } } }
+      console.error('[useAgentWorkdir] 创建失败:', error)
+      message.error(err.response?.data?.error?.message || '创建失败')
+      return false
+    }
+  }
+
   // ========== 核心方法 ==========
 
   /**
@@ -411,74 +677,99 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
    */
   async function loadDirectory(nodeKey: string, showLoading = false): Promise<TreeOption[]> {
     const sid = sessionIdRef.value
-    console.log('[useAgentWorkdir] loadDirectory called:', { nodeKey, showLoading, sid })
 
     if (!sid) {
       return []
     }
 
-    let normalizedPath = nodeKey || '/'
-    if (!normalizedPath.startsWith('/')) {
-      normalizedPath = '/' + normalizedPath
-    }
+    const normalizedPath = normalizeListPath(nodeKey)
 
-    const cacheKey = pathCacheKey(sid, normalizedPath)
-
-    if (loadingPaths.has(cacheKey)) {
-      console.log('[useAgentWorkdir] Path is already loading, skipping:', cacheKey)
-      return []
-    }
+    const cacheKey = pathCacheKey(normalizedPath)
 
     if (loadedPaths.has(cacheKey)) {
-      console.log('[useAgentWorkdir] Path already loaded, returning cached:', cacheKey)
       return loadedPaths.get(cacheKey) || []
     }
 
-    try {
-      loadingPaths.add(cacheKey)
-
-      if (showLoading) loading.value = true
-
-      const response = await apiClient.get(`${API_WORKDIR_BASE}/list`, {
-        params: { sessionId: sid, path: normalizedPath }
-      }) as any
-
-      if (sessionIdRef.value !== sid) {
-        console.log('[useAgentWorkdir] 会话已切换，忽略目录列表响应:', { sid, now: sessionIdRef.value })
-        return []
-      }
-
-      console.log('[useAgentWorkdir] API response:', response.data)
-
-      const items = response.data.data.items || []
-
-      const nodes = items.map((item: any) => {
-        const node: TreeOption = {
-          key: item.path || `/${item.name}`,
-          label: item.name,
-          prefix: () => getFileIcon(item.isDirectory, item.type),
-          isLeaf: !item.isDirectory
-        }
-        console.log('[useAgentWorkdir] Created node:', {
-          key: node.key, label: node.label, isLeaf: node.isLeaf, isDirectory: item.isDirectory
-        })
-        return node
-      })
-
-      loadedPaths.set(cacheKey, nodes)
-      console.log('[useAgentWorkdir] Returning nodes:', nodes.length)
-      return nodes
-    } catch (error: any) {
-      if (sessionIdRef.value !== sid) {
-        return []
-      }
-      console.error('[useAgentWorkdir] 加载目录失败:', error)
-      message.error(error.response?.data?.error?.message || '加载目录失败')
+    // 防止频繁请求失败的路径（1 分钟内不重复请求）
+    if (failedPaths.has(cacheKey)) {
       return []
-    } finally {
-      loadingPaths.delete(cacheKey)
-      if (showLoading) loading.value = false
     }
+
+    const existing = dirLoadPromises.get(cacheKey)
+    if (existing) {
+      return existing
+    }
+
+    const promise = (async (): Promise<TreeOption[]> => {
+      try {
+        loadingPaths.add(cacheKey)
+
+        if (showLoading) loading.value = true
+
+        // 设置超时：10 秒内无响应则放弃
+        const timeoutMs = 10000
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+        const response = await Promise.race([
+          apiClient.get(`${API_WORKDIR_BASE}/list`, {
+            params: { sessionId: sid, path: normalizedPath }
+          }),
+          new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(() => {
+              reject(new Error(`加载目录超时: ${normalizedPath}`))
+            }, timeoutMs)
+          })
+        ]) as any
+
+        // 清理超时
+        if (timeoutId) clearTimeout(timeoutId)
+
+        if (sessionIdRef.value !== sid) {
+          return []
+        }
+
+        const items = response.data.data.items || []
+
+        const nodes = items.map((item: any) => {
+          const node: TreeOption = {
+            key: item.path || `/${item.name}`,
+            label: item.name,
+            prefix: () => getFileIcon(item.isDirectory, item.type),
+            isLeaf: !item.isDirectory
+          }
+          return node
+        })
+
+        loadedPaths.set(cacheKey, nodes)
+        failedPaths.delete(cacheKey)
+        return nodes
+      } catch (error: unknown) {
+        if (sessionIdRef.value !== sid) {
+          return []
+        }
+        console.error('[useAgentWorkdir] 加载目录失败:', error)
+
+        // 标记为失败路径，1 分钟内不重试
+        failedPaths.add(cacheKey)
+        setTimeout(() => failedPaths.delete(cacheKey), 60000)
+
+        const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string }
+        const errorMessage = err.response?.data?.error?.message || err.message || '加载目录失败'
+        if (errorMessage.includes('超时')) {
+          message.warning(`加载 ${normalizedPath} 超时，请检查网络或刷新重试`)
+        } else {
+          message.error(errorMessage)
+        }
+        return []
+      } finally {
+        loadingPaths.delete(cacheKey)
+        dirLoadPromises.delete(cacheKey)
+        if (showLoading) loading.value = false
+      }
+    })()
+
+    dirLoadPromises.set(cacheKey, promise)
+    return promise
   }
 
   /**
@@ -519,9 +810,10 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
       savedVersionId.set(entry.id, model.getAlternativeVersionId())
       hasUnsavedChanges.value = false
       message.success('✅ 文件已保存')
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[useAgentWorkdir] 保存文件失败:', error)
-      message.error(error.response?.data?.error?.message || '保存文件失败')
+      const err = error as { response?: { data?: { error?: { message?: string } } } }
+      message.error(err.response?.data?.error?.message || '保存文件失败')
     } finally {
       loading.value = false
     }
@@ -531,20 +823,31 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
    * 处理树节点展开（懒加载子目录）
    */
   async function handleLoad(node: TreeOption): Promise<TreeOption[]> {
-    console.log('[useAgentWorkdir] handleLoad called for node:', node.key)
     if (!node.key) return []
 
     const nodeKey = String(node.key)
 
     if (loadingNodes.has(nodeKey)) {
-      console.log('[useAgentWorkdir] Node is already loading, skipping:', nodeKey)
       return []
+    }
+
+    // 检查是否加载失败过
+    const sid = sessionIdRef.value
+    if (!sid) return []
+    const cacheKey = pathCacheKey(normalizeListPath(nodeKey))
+    if (failedPaths.has(cacheKey)) {
+      if (!Array.isArray(node.children)) {
+        node.children = []
+      }
+      return node.children
     }
 
     loadingNodes.add(nodeKey)
     try {
       const children = await loadDirectory(nodeKey)
-      console.log('[useAgentWorkdir] Loaded children:', children.length, 'items for path:', nodeKey)
+      // NTree 的 onLoad 返回值不会自动赋给节点；treemate 要求 isLeaf===false 时 children 为数组才算 shallowLoaded，
+      // 否则 watchEffect 会反复 triggerLoading，造成控制台死循环日志与 CPU 占满。
+      node.children = children
       return children
     } finally {
       loadingNodes.delete(nodeKey)
@@ -578,6 +881,49 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
       }
     }
     return null
+  }
+
+  /**
+   * 路径（文件或目录）在树中需展开的祖先目录 key，由浅到深；根下文件如 /README.md 返回 []
+   */
+  function ancestorDirectoryKeysForPath(normalizedPath: string): string[] {
+    const p = normalizedPath.replace(/\/+$/, '')
+    const lastSlash = p.lastIndexOf('/')
+    if (lastSlash <= 0) return []
+    const parent = p.slice(0, lastSlash) || '/'
+    if (parent === '/') return []
+    const parts = parent.split('/').filter(Boolean)
+    const keys: string[] = []
+    let acc = ''
+    for (const part of parts) {
+      acc += `/${part}`
+      keys.push(acc)
+    }
+    return keys
+  }
+
+  /**
+   * 在资源管理器中展开路径上的目录、懒加载子节点，并选中目标（恢复会话 / 切换标签时与编辑器同步）
+   */
+  async function revealPathInTree(targetPath: string): Promise<void> {
+    if (!sessionIdRef.value || treeData.value.length === 0) return
+    const norm = normalizeListPath(targetPath)
+    const dirKeys = ancestorDirectoryKeysForPath(norm)
+
+    const merged = new Set(expandedKeys.value)
+    for (const k of dirKeys) {
+      merged.add(k)
+    }
+    expandedKeys.value = [...merged]
+
+    for (const dirKey of dirKeys) {
+      const node = findNodeByKey(treeData.value, dirKey)
+      if (!node || node.isLeaf) continue
+      const children = await loadDirectory(dirKey)
+      node.children = children.length ? children : []
+    }
+
+    selectedKey.value = norm
   }
 
   /**
@@ -690,7 +1036,9 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
     const prevExpanded = [...expandedKeys.value]
     loadedPaths.clear()
     loadingPaths.clear()
+    dirLoadPromises.clear()
     loadingNodes.clear()
+    failedPaths.clear()
     const nodes = await loadDirectory('/', true)
     if (sessionIdRef.value !== sid) return
 
@@ -774,9 +1122,10 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
       }
 
       return { uploaded: up, failed: fail }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[useAgentWorkdir] 上传失败:', e)
-      message.error(e?.message || '上传失败')
+      const err = e as { message?: string }
+      message.error(err?.message || '上传失败')
       return { uploaded: 0, failed: list.length }
     } finally {
       uploading.value = false
@@ -784,21 +1133,44 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
   }
 
   // ========== 监听 sessionId 变化 ==========
-  // immediate：从 localStorage 恢复的会话 ID 在首屏不会「变化」，若无 immediate 则永远不会拉取根目录（刷新后树为空，只能靠上传触发的 refreshTree）
+  // 由于工作目录现在统一（不区分会话），切换会话时文件树内容不变，但需要：
+  // 1. 切换会话后自动刷新文件树（因为后端仍需要 sessionId 参数）
+  // 2. 不再清除/重置已打开的文件（统一工作区，跨会话共享）
+  watch<string>(sessionIdRef, async (newSid, oldSid) => {
+    if (!newSid) return
+    // sessionId 变化时，重新加载文件树（但保留已打开的文件状态）
+    console.log('[useAgentWorkdir] sessionId 变化:', oldSid, '->', newSid)
+    loadedPaths.clear()
+    loadingPaths.clear()
+    dirLoadPromises.clear()
+    loadingNodes.clear()
+    failedPaths.clear()
+    expandedKeys.value = []
+    selectedKey.value = null
+    treeData.value = []
+    const nodes = await loadDirectory('/', true)
+    if (sessionIdRef.value !== newSid) {
+      // sessionId 可能在等待期间再次变化，取消本次操作
+      return
+    }
+    treeData.value = nodes
+    currentFilePath.value = ''
+    fileContent.value = ''
+    hasUnsavedChanges.value = false
+    activeIsReadOnly.value = false
+    // 恢复上次打开的文件（跨会话统一）
+    await restoreOpenFiles()
+  })
 
   // 不再用 immediate watch 隐式触发加载，避免与 IdeWorkbench onMounted 里的 loadSession 竞态
   // 改为由调用方（IdeWorkbench）显式调用 initTree() 初始化根目录
   async function initTree(): Promise<void> {
     if (!sessionIdRef.value) return
 
+    // 注意：由于现在有 watch sessionIdRef，这里不再做完整重置
+    // 只清理编辑器状态，保留文件树相关状态（让 watch 来处理）
     disposeAllOpenTabs()
     disposeMonacoWidget()
-    loadedPaths.clear()
-    loadingPaths.clear()
-    loadingNodes.clear()
-    expandedKeys.value = []
-    selectedKey.value = null
-    treeData.value = []
 
     const nodes = await loadDirectory('/', true)
     if (sessionIdRef.value === undefined) return
@@ -808,6 +1180,9 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
     fileContent.value = ''
     hasUnsavedChanges.value = false
     activeIsReadOnly.value = false
+
+    // 文件树加载完成后，恢复上次已打开的文件
+    await restoreOpenFiles()
   }
 
   // ========== 提供上下文 ==========
@@ -844,6 +1219,10 @@ export function useAgentWorkdir(sessionIdRef: { value: string }, options?: { pro
     closeOpenFile,
     tabLanguageLabel,
     downloadFile,
+    downloadFolderZip,
+    downloadSelected,
+    createWorkdirEntry,
+    getNewItemParentPath,
     panelTitle
   }
 

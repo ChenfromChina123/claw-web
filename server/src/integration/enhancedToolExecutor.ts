@@ -1596,6 +1596,88 @@ export class EnhancedToolExecutor {
       handler: sleepTool.handler,
     })
 
+    // UserTerminal 工具 - 列出用户在 IDE 中打开的 PTY 会话
+    this.registerTool({
+      name: 'UserTerminalList',
+      description: '列出当前用户在 IDE 中打开的所有终端会话。包括会话 ID、Shell 类型、工作目录、连接状态等信息。注意：用户须在浏览器中打开了 IDE 终端面板才可能有会话。',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+      category: 'system',
+      handler: async (_, ctx) => {
+        if (!ctx.userId) return { success: false, error: '需要登录后才能使用此工具' }
+        // 直接 import ptyManager（避免循环依赖）
+        const { ptyManager } = await import('./ptyManager')
+        const sessions = ptyManager.getSessionsForUser(ctx.userId)
+        return {
+          success: true,
+          result: {
+            count: sessions.length,
+            sessions: sessions.map(s => ({
+              id: s.id,
+              shell: s.shell,
+              cwd: s.cwd,
+              cols: s.cols,
+              rows: s.rows,
+              isAlive: s.isAlive,
+              createdAt: new Date(s.createdAt).toISOString(),
+              lastActiveAt: new Date(s.lastActiveAt).toISOString(),
+            })),
+          },
+        }
+      },
+    })
+
+    // UserTerminalWrite 工具 - 向指定终端会话写入输入
+    this.registerTool({
+      name: 'UserTerminalWrite',
+      description: '向用户在 IDE 中打开的指定终端会话写入输入（按键序列）。sessionId 通过 UserTerminalList 获取。此工具无法读取终端输出，只负责发送按键。',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sessionId: { type: 'string', description: '终端会话 ID（来自 UserTerminalList）' },
+          input: { type: 'string', description: '要发送的输入文本（如命令字符串，会自动追加换行）' },
+        },
+        required: ['sessionId', 'input'],
+      },
+      category: 'system',
+      handler: async (input, ctx) => {
+        if (!ctx.userId) return { success: false, error: '需要登录后才能使用此工具' }
+        const { sessionId, input: text } = input as { sessionId: string; input: string }
+        const { ptyManager } = await import('./ptyManager')
+        if (!ptyManager.sessionBelongsToUser(sessionId, ctx.userId)) {
+          return { success: false, error: '无权操作此终端会话' }
+        }
+        const written = ptyManager.write(sessionId, text.endsWith('\r') || text.endsWith('\n') ? text : text + '\r')
+        return { success: written, result: { sessionId, bytesWritten: written ? text.length : 0 } }
+      },
+    })
+
+    // UserTerminalKill 工具 - 销毁指定终端会话
+    this.registerTool({
+      name: 'UserTerminalKill',
+      description: '关闭用户在 IDE 中打开的指定终端会话。sessionId 通过 UserTerminalList 获取。',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sessionId: { type: 'string', description: '终端会话 ID（来自 UserTerminalList）' },
+        },
+        required: ['sessionId'],
+      },
+      category: 'system',
+      handler: async (input, ctx) => {
+        if (!ctx.userId) return { success: false, error: '需要登录后才能使用此工具' }
+        const { sessionId } = input as { sessionId: string }
+        const { ptyManager } = await import('./ptyManager')
+        if (!ptyManager.sessionBelongsToUser(sessionId, ctx.userId)) {
+          return { success: false, error: '无权操作此终端会话' }
+        }
+        const destroyed = ptyManager.destroySession(sessionId)
+        return { success: destroyed, result: { sessionId, destroyed } }
+      },
+    })
+
     // ImageRead 工具 - 读取和查看图片
     this.registerTool({
       name: 'ImageRead',
