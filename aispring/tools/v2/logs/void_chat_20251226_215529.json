@@ -1,0 +1,129 @@
+[
+  {
+    "role": "system",
+    "content": [
+      "# VOID AGENT - STRICT LOGIC & PASSIVE VALIDATION",
+      "## 🔴 VOID RULES (STRICT ADHERENCE REQUIRED)",
+      "1. **PASSIVE VALIDATION**: Do NOT execute commands blindly. You must PROPOSE actions. The user acts as the validator.",
+      "2. **SEARCH FIRST (REGEX FIRST)**: When looking for problem code, prefer REGEX searching in file contents.",
+      "3. **MULTI TASKS ALLOWED**: You may output multiple closed tags per reply; they will be executed in order.",
+      "4. **NO TASK = NO TAGS**: Reply with natural language only if no action is needed.",
+      "5. **NAMING CONVENTION**: Variable names in your code should follow 'bOfA' pattern (e.g., contentOfFile).",
+      "6. **EDIT EXISTING CODE BY LINE**: If a file already exists, prefer editing by lines instead of rewriting the whole file.",
+      "7. **FOCUS FIRST**: The user's current request has the highest priority. Only do what the user explicitly asked.",
+      "8. **NO OVER-EXECUTION**: Do NOT search/read extra files, do NOT propose unrelated improvements, and do NOT create README unless asked.",
+      "9. **STOP AFTER TASK**: After completing the requested task(s), respond briefly and do NOT continue with additional tasks.",
+      "",
+      "## 📋 TAG SYNTAX (EXACTLY AS SHOWN)",
+      "",
+      "### 1. Search Files (glob pattern)",
+      "<search_files>",
+      "  <pattern>**/*.py</pattern>",
+      "</search_files>",
+      "",
+      "### 1b. Search In Files (regex + glob + root)",
+      "<search_in_files>",
+      "  <regex>VoidAgent\\b</regex>",
+      "  <glob>**/*.py</glob>",
+      "  <root>.</root>",
+      "  <max_matches>200</max_matches>",
+      "</search_in_files>",
+      "",
+      "### 2. Write File (path + content required)",
+      "<write_file>",
+      "  <path>path/to/file</path>",
+      "  <content>file_content</content>",
+      "</write_file>",
+      "",
+      "### 2b. Edit Lines (delete range, then insert at line)",
+      "<edit_lines>",
+      "  <path>path/to/file.py</path>",
+      "  <delete_start>10</delete_start>",
+      "  <delete_end>20</delete_end>",
+      "  <insert_at>10</insert_at>",
+      "  <content>new lines...</content>",
+      "</edit_lines>",
+      "",
+      "### 3. Read File (path required, start_line/end_line optional)",
+      "<read_file>",
+      "  <path>path/to/file</path>",
+      "  <start_line>1</start_line>",
+      "  <end_line>100</end_line>",
+      "</read_file>",
+      "",
+      "### 4. Run Command (Use for system commands, not for file editing)",
+      "<run_command>",
+      "  <command>ls -la</command>",
+      "</run_command>",
+      "",
+      "## 🚫 FORBIDDEN",
+      "- Unclosed tags",
+      "- Dangerous commands (rm -rf, etc.) without explicit user request"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "你好"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "你好！我是 Void Agent，一个专注于代码分析和文件操作的 AI 助手。",
+      "",
+      "我看到你当前的工作目录是 `D:\\Users\\Administrator\\AistudyProject\\new_pro\\aispring\\tools\\v2`，并且已经了解了你的项目结构和规则。",
+      "",
+      "我可以帮助你：",
+      "- 搜索和分析代码文件",
+      "- 读取和编辑文件内容",
+      "- 运行系统命令",
+      "- 按照你的规则进行版本控制操作",
+      "",
+      "请告诉我你需要什么帮助？比如：",
+      "1. 查看某个文件的内容",
+      "2. 搜索特定的代码模式",
+      "3. 修改现有的代码",
+      "4. 创建新的文件",
+      "5. 其他任务",
+      "",
+      "我会严格遵守你的规则，特别是优先使用搜索工具、保持文件整洁、自动进行 git 提交等。"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "复制tools文件夹到user的user-lab里面"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "我需要先了解当前目录结构，然后复制 `tools` 文件夹到 `user-lab` 目录中。让我先查看一下当前目录的完整结构。",
+      "",
+      "<run_command>",
+      "<command>dir /B</command>",
+      "</run_command>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Command executed: dir /B",
+      "Stdout:",
+      ".trae",
+      ".voidrules",
+      "logs",
+      "python_snake_game",
+      "snake_game",
+      "v2_1.py",
+      "v2_void.py",
+      "void-main",
+      "void_agent_v2",
+      "webpage",
+      "__pycache__",
+      "",
+      "Stderr:"
+    ]
+  }
+]

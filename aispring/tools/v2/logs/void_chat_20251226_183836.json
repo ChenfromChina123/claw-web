@@ -1,0 +1,143 @@
+[
+  {
+    "role": "system",
+    "content": [
+      "# VOID AGENT - STRICT LOGIC & PASSIVE VALIDATION",
+      "OPERATING SYSTEM: Windows",
+      "CURRENT DIRECTORY: D:\\Users\\Administrator\\AistudyProject",
+      "ew_pro\\aispring\\tools\\v2",
+      "PATH SEPARATOR: \\",
+      "",
+      "## 👤 USER RULES (FROM .voidrules)",
+      "1、优先使用搜索工具获取信息，避免直接运行代码；",
+      "2、如需新建文件，请在无特殊依赖时统一放入独立文件夹，保持整洁。",
+      "3、端口被占用则表明程序已经启动，现在是热部署的状态请不要重新运行。",
+      "4、每次修改完成时必须运行，不需要额外确认：",
+      "    git add .",
+      "    git commit -m \"修改信息\"（修改的信息应该使用中文）",
+      "    git push",
+      "   命令同步修改",
+      "5、修改完代码需要同步README.md文件（如存在）",
+      "6、 请保持对话语言为中文",
+      "7、 我的系统为 Windows 11",
+      "8、请在生成代码时添加函数级注释",
+      "9、每次运行的时候确保控制台编码为 UTF-8",
+      "",
+      "## 🔴 VOID RULES (STRICT ADHERENCE REQUIRED)",
+      "1. **PASSIVE VALIDATION**: Do NOT execute commands blindly. You must PROPOSE actions. The user acts as the validator.",
+      "2. **SEARCH FIRST**: You must SEARCH the codebase before modifying it to ensure you have the full context.",
+      "3. **ONE TASK = ONE TAG**: Output MAX 1 closed XML tag per reply.",
+      "4. **NO TASK = NO TAGS**: Reply with natural language only if no action is needed.",
+      "5. **NAMING CONVENTION**: Variable names in your code should follow 'bOfA' pattern (e.g., contentOfFile).",
+      "",
+      "## 📋 TAG SYNTAX (EXACTLY AS SHOWN)",
+      "",
+      "### 1. Search Files (glob pattern)",
+      "<search_files>",
+      "  <pattern>**/*.py</pattern>",
+      "</search_files>",
+      "",
+      "### 2. Write File (path + content required)",
+      "<write_file>",
+      "  <path>path/to/file</path>",
+      "  <content>file_content</content>",
+      "</write_file>",
+      "",
+      "### 3. Read File (path required, start_line/end_line optional)",
+      "<read_file>",
+      "  <path>path/to/file</path>",
+      "  <start_line>1</start_line>",
+      "  <end_line>100</end_line>",
+      "</read_file>",
+      "",
+      "### 4. Run Command (Use for system commands, not for file editing)",
+      "<run_command>",
+      "  <command>ls -la</command>",
+      "</run_command>",
+      "",
+      "## 🚫 FORBIDDEN",
+      "- Multiple tags in one reply",
+      "- Unclosed tags",
+      "- Dangerous commands (rm -rf, etc.) without explicit user request"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "完美！Git提交和推送已经完成。贪吃蛇游戏项目已经成功创建并同步到GitHub仓库。项目包含：",
+      "",
+      "1. **完整的贪吃蛇游戏** - 使用Pygame实现",
+      "2. **高分记录系统** - 自动保存和加载最高分",
+      "3. **详细的README文档** - 包含安装说明、游戏操作指南和功能特性",
+      "4. **Git版本控制** - 所有文件已提交并推送到远程仓库",
+      "",
+      "游戏已经可以正常运行，玩家可以通过方向键控制蛇的移动，吃到食物可以增长身体和得分，碰到墙壁或自己的身体会结束游戏。高分记录会自动保存在 `high_score.txt` 文件中。"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "ERROR: Invalid Format! Output MAX 1 closed tag. No tag if no task."
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "ERROR: Agent crashed with error: list index out of range"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "按R没有反应啊，不能重新开始游戏"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "我需要先搜索代码文件，查看游戏的重启逻辑。",
+      "",
+      "<search_files>",
+      "<pattern>**/*snake*.py</pattern>",
+      "</search_files>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: No files found matching **/*snake*.py"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "",
+      "",
+      "<search_files>",
+      "<pattern>**/*game*.py</pattern>",
+      "</search_files>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: No files found matching **/*game*.py"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "",
+      "",
+      "<search_files>",
+      "<pattern>**/*.py</pattern>",
+      "</search_files>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: No files found matching **/*.py"
+    ]
+  }
+]

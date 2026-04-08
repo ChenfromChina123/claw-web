@@ -1,0 +1,448 @@
+[
+  {
+    "role": "system",
+    "content": [
+      "# VOID AGENT - STRICT LOGIC & PASSIVE VALIDATION",
+      "## 🔴 VOID RULES (STRICT ADHERENCE REQUIRED)",
+      "1. **PASSIVE VALIDATION**: Do NOT execute commands blindly. You must PROPOSE actions. The user acts as the validator.",
+      "2. **SEARCH FIRST (REGEX FIRST)**: When looking for problem code, prefer REGEX searching in file contents.",
+      "3. **MULTI TASKS ALLOWED**: You may output multiple closed tags per reply; they will be executed in order.",
+      "4. **NO TASK = NO TAGS**: Reply with natural language only if no action is needed.",
+      "5. **NAMING CONVENTION**: Variable names in your code should follow 'bOfA' pattern (e.g., contentOfFile).",
+      "6. **EDIT EXISTING CODE BY LINE**: If a file already exists, prefer editing by lines instead of rewriting the whole file.",
+      "7. **FOCUS FIRST**: The user's current request has the highest priority. Only do what the user explicitly asked.",
+      "8. **NO OVER-EXECUTION**: Do NOT search/read extra files, do NOT propose unrelated improvements, and do NOT create README unless asked.",
+      "9. **STOP AFTER TASK**: After completing the requested task(s), respond briefly and do NOT continue with additional tasks.",
+      "10. **NO REPETITION**: Do NOT repeat or paraphrase the user's rules, project tree, or any provided context unless explicitly asked.",
+      "11. **NO BOILERPLATE**: Do NOT output greetings, capability lists, or generic prompts. Answer directly.",
+      "",
+      "## 📋 USER RULES (FROM .VOIDRULES)",
+      "```text",
+      "1、优先使用搜索工具获取信息，避免直接运行代码；",
+      "2、如需新建文件，请在无特殊依赖时统一放入独立文件夹，保持整洁。",
+      "3、端口被占用则表明程序已经启动，现在是热部署的状态请不要重新运行。",
+      "4、每次修改完成时必须运行，不需要额外确认：",
+      "    git add .",
+      "    git commit -m \"修改信息\"（修改的信息应该使用中文）",
+      "    git push",
+      "   命令同步修改",
+      "5、修改完代码需要同步README.md文件（如存在）",
+      "6、 请保持对话语言为中文",
+      "7、 我的系统为 Windows 11",
+      "8、请在生成代码时添加函数级注释",
+      "9、每次运行的时候确保控制台编码为 UTF-8",
+      "```",
+      "",
+      "## 📋 TAG SYNTAX (EXACTLY AS SHOWN)",
+      "",
+      "### 1. Search Files (glob pattern)",
+      "<search_files>",
+      "  <pattern>**/*.py</pattern>",
+      "</search_files>",
+      "",
+      "### 1b. Search In Files (regex + glob + root)",
+      "<search_in_files>",
+      "  <regex>VoidAgent\\b</regex>",
+      "  <glob>**/*.py</glob>",
+      "  <root>.</root>",
+      "  <max_matches>200</max_matches>",
+      "</search_in_files>",
+      "",
+      "### 2. Write File (path + content required)",
+      "<write_file>",
+      "  <path>path/to/file</path>",
+      "  <content>file_content</content>",
+      "</write_file>",
+      "",
+      "### 2b. Edit Lines (delete range, then insert at line)",
+      "<edit_lines>",
+      "  <path>path/to/file.py</path>",
+      "  <delete_start>10</delete_start>",
+      "  <delete_end>20</delete_end>",
+      "  <insert_at>10</insert_at>",
+      "  <content>new lines...</content>",
+      "</edit_lines>",
+      "",
+      "### 3. Read File (path required, start_line/end_line optional)",
+      "<read_file>",
+      "  <path>path/to/file</path>",
+      "  <start_line>1</start_line>",
+      "  <end_line>100</end_line>",
+      "</read_file>",
+      "",
+      "### 4. Run Command (Execute system commands)",
+      "<run_command>",
+      "  <command>python app.py</command>",
+      "  <is_long_running>false</is_long_running>",
+      "</run_command>",
+      "",
+      "- **Short-running**: Set `<is_long_running>false</is_long_running>` (default). Use for quick commands like `ls`, `git status`, `pip install`.",
+      "- **Long-running**: Set `<is_long_running>true</is_long_running>`. Use for web servers, watchers, or any process that stays active. You will receive a Terminal ID to track it.",
+      "",
+      "## 🚫 FORBIDDEN",
+      "- Unclosed tags",
+      "- Dangerous commands (rm -rf, etc.) without explicit user request"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "IMPORTANT: The following CONTEXT is input-only. Do NOT quote, repeat, or summarize it unless the user asks.",
+      "IMPORTANT: Answer only the user's question. No greetings. No capability lists.",
+      "",
+      "BEGIN_CONTEXT",
+      "OPERATING SYSTEM: Windows",
+      "PATH SEPARATOR: \\",
+      "CURRENT DIRECTORY: D:\\Users\\Administrator\\AistudyProject\\new_pro\\aispring\\tools\\v2",
+      "END_CONTEXT",
+      "",
+      "你好"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "你好！有什么我可以帮助你的吗？"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "IMPORTANT: The following CONTEXT is input-only. Do NOT quote, repeat, or summarize it unless the user asks.",
+      "IMPORTANT: Answer only the user's question. No greetings. No capability lists.",
+      "",
+      "BEGIN_CONTEXT",
+      "OPERATING SYSTEM: Windows",
+      "PATH SEPARATOR: \\",
+      "CURRENT DIRECTORY: D:\\Users\\Administrator\\AistudyProject\\new_pro\\aispring\\tools\\v2",
+      "END_CONTEXT",
+      "",
+      "你是什么模型？"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "我是DeepSeek最新版本模型。"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "IMPORTANT: The following CONTEXT is input-only. Do NOT quote, repeat, or summarize it unless the user asks.",
+      "IMPORTANT: Answer only the user's question. No greetings. No capability lists.",
+      "",
+      "BEGIN_CONTEXT",
+      "OPERATING SYSTEM: Windows",
+      "PATH SEPARATOR: \\",
+      "CURRENT DIRECTORY: D:\\Users\\Administrator\\AistudyProject\\new_pro\\aispring\\tools\\v2",
+      "END_CONTEXT",
+      "",
+      "启动贪吃蛇小游戏"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "我需要先查看当前目录结构，了解贪吃蛇游戏的文件位置。",
+      "",
+      "<search_files>",
+      "<pattern>**/*.py</pattern>",
+      "</search_files>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: No files found matching **/*.py"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "让我搜索更广泛的文件类型，包括可能的游戏文件：",
+      "",
+      "<search_files>",
+      "<pattern>**/*</pattern>",
+      "</search_files>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: No files found matching **/*"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "看起来当前目录可能是空的。让我检查当前目录的内容：",
+      "",
+      "<run_command>",
+      "<command>dir</command>",
+      "</run_command>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Command executed: dir",
+      "Stdout:",
+      " Volume in drive D has no label.",
+      " Volume Serial Number is 264D-6C4E",
+      "",
+      " Directory of D:\\Users\\Administrator\\AistudyProject\\new_pro\\aispring\\tools\\v2",
+      "",
+      "2025/12/27  14:06    <DIR>          .",
+      "2025/12/26  12:37    <DIR>          ..",
+      "2025/12/26  12:53    <DIR>          .trae",
+      "2025/12/26  13:16               685 .voidrules",
+      "2025/12/27  14:18    <DIR>          logs",
+      "2025/12/26  18:35    <DIR>          python_snake_game",
+      "2025/12/27  14:06             1,992 README.md",
+      "2025/12/26  13:33    <DIR>          snake_game",
+      "2025/12/20  15:37             5,893 test_doubao.py",
+      "2025/12/26  12:37            14,825 v2_1.py",
+      "2025/12/26  18:23               142 v2_void.py",
+      "2025/12/26  12:50    <DIR>          void-main",
+      "2025/12/27  14:11    <DIR>          void_agent_v2",
+      "2025/12/26  13:27    <DIR>          webpage",
+      "2025/12/26  19:09    <DIR>          __pycache__",
+      "               5 File(s)         23,537 bytes",
+      "              10 Dir(s)  134,729,744,384 bytes free",
+      "",
+      "Stderr:"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "我看到有 `python_snake_game` 和 `snake_game` 两个目录。让我检查哪个包含贪吃蛇游戏：",
+      "",
+      "<search_files>",
+      "<pattern>python_snake_game/**/*.py</pattern>",
+      "</search_files>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: No files found matching python_snake_game/**/*.py"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "",
+      "",
+      "<search_files>",
+      "<pattern>snake_game/**/*.py</pattern>",
+      "</search_files>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: No files found matching snake_game/**/*.py"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "让我直接查看这些目录的内容：",
+      "",
+      "<run_command>",
+      "<command>dir snake_game</command>",
+      "</run_command>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Command executed: dir snake_game",
+      "Stdout:",
+      " Volume in drive D has no label.",
+      " Volume Serial Number is 264D-6C4E",
+      "",
+      " Directory of D:\\Users\\Administrator\\AistudyProject\\new_pro\\aispring\\tools\\v2\\snake_game",
+      "",
+      "2025/12/26  13:33    <DIR>          .",
+      "2025/12/27  14:06    <DIR>          ..",
+      "2025/12/26  13:33            26,400 index.html",
+      "2025/12/26  13:33             3,261 README.md",
+      "               2 File(s)         29,661 bytes",
+      "               2 Dir(s)  134,729,703,424 bytes free",
+      "",
+      "Stderr:"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "",
+      "",
+      "<run_command>",
+      "<command>dir python_snake_game</command>",
+      "</run_command>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Command executed: dir python_snake_game",
+      "Stdout:",
+      " Volume in drive D has no label.",
+      " Volume Serial Number is 264D-6C4E",
+      "",
+      " Directory of D:\\Users\\Administrator\\AistudyProject\\new_pro\\aispring\\tools\\v2\\python_snake_game",
+      "",
+      "2025/12/26  18:35    <DIR>          .",
+      "2025/12/27  14:06    <DIR>          ..",
+      "2025/12/26  18:35                 2 high_score.txt",
+      "2025/12/26  18:33             4,246 README.md",
+      "2025/12/26  18:33               135 requirements.txt",
+      "2025/12/26  18:33             1,054 run_game.bat",
+      "2025/12/26  18:34             1,140 run_game.sh",
+      "2025/12/26  20:14            28,933 snake_game.py",
+      "               6 File(s)         35,510 bytes",
+      "               2 Dir(s)  134,729,691,136 bytes free",
+      "",
+      "Stderr:"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "找到了！`python_snake_game` 目录中有 `snake_game.py` 文件。让我先查看一下这个文件的内容，了解如何启动游戏：",
+      "",
+      "<read_file>",
+      "<path>python_snake_game\\snake_game.py</path>",
+      "<start_line>1</start_line>",
+      "<end_line>50</end_line>",
+      "</read_file>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Read D:\\Users\\Administrator\\AistudyProject\\new_pro\\aispring\\tools\\v2\\python_snake_game\\snake_game.py",
+      "Lines: 694 | Range: 1-50",
+      "Content:",
+      " 1: #!/usr/bin/env python3",
+      " 2: # -*- coding: utf-8 -*-",
+      " 3: \"\"\"",
+      " 4: 贪吃蛇游戏 - Python版本",
+      " 5: 使用Pygame库实现经典贪吃蛇游戏",
+      " 6: \"\"\"",
+      " 7: ",
+      " 8: import pygame",
+      " 9: import random",
+      "10: import sys",
+      "11: import os",
+      "12: from enum import Enum",
+      "13: ",
+      "14: # 初始化pygame",
+      "15: pygame.init()",
+      "16: ",
+      "17: # 游戏常量",
+      "18: class Direction(Enum):",
+      "19:     \"\"\"方向枚举\"\"\"",
+      "20:     UP = 1",
+      "21:     DOWN = 2",
+      "22:     LEFT = 3",
+      "23:     RIGHT = 4",
+      "24: ",
+      "25: class Difficulty(Enum):",
+      "26:     \"\"\"难度枚举\"\"\"",
+      "27:     EASY = 1",
+      "28:     NORMAL = 2",
+      "29:     HARD = 3",
+      "30: ",
+      "31: class GameState(Enum):",
+      "32:     \"\"\"游戏状态枚举\"\"\"",
+      "33:     MENU = 1",
+      "34:     PLAYING = 2",
+      "35:     PAUSED = 3",
+      "36:     GAME_OVER = 4",
+      "37: ",
+      "38: class SnakeGame:",
+      "39:     \"\"\"贪吃蛇游戏主类\"\"\"",
+      "40:     ",
+      "41:     def __init__(self):",
+      "42:         \"\"\"初始化游戏\"\"\"",
+      "43:         # 屏幕设置",
+      "44:         self.screen_width = 800",
+      "45:         self.screen_height = 600",
+      "46:         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))",
+      "47:         pygame.display.set_caption(\"贪吃蛇小游戏 - Python版\")",
+      "48:         ",
+      "49:         # 游戏区域设置",
+      "50:         self.game_area_x = 50"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "让我查看文件的最后部分，了解如何启动游戏：",
+      "",
+      "<read_file>",
+      "<path>python_snake_game\\snake_game.py</path>",
+      "<start_line>650</start_line>",
+      "<end_line>694</start_line>",
+      "</read_file>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Read D:\\Users\\Administrator\\AistudyProject\\new_pro\\aispring\\tools\\v2\\python_snake_game\\snake_game.py",
+      "Lines: 694 | Range: 650-694",
+      "Content:",
+      "650:                 pygame.draw.rect(self.screen, (255, 255, 0), rect, 3, border_radius=8)",
+      "651:                 ",
+      "652:                 # 绘制暂停覆盖层",
+      "653:                 overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)",
+      "654:                 overlay.fill((0, 0, 0, 128))",
+      "655:                 self.screen.blit(overlay, (0, 0))",
+      "656:                 ",
+      "657:                 # 绘制暂停文字",
+      "658:                 pause_text = self.font_large.render(\"游戏暂停\", True, (255, 152, 0))",
+      "659:                 self.screen.blit(pause_text, ",
+      "660:                                 (self.screen_width // 2 - pause_text.get_width() // 2, ",
+      "661:                                  self.screen_height // 2 - 50))",
+      "662:                 ",
+      "663:                 hint_text = self.font_medium.render(\"按空格键继续游戏\", True, self.colors['text'])",
+      "664:                 self.screen.blit(hint_text, ",
+      "665:                                 (self.screen_width // 2 - hint_text.get_width() // 2, ",
+      "666:                                  self.screen_height // 2 + 20))",
+      "667:             ",
+      "668:             elif self.game_state == GameState.GAME_OVER:",
+      "669:                 # 绘制游戏（结束状态）",
+      "670:                 self.draw_grid()",
+      "671:                 self.draw_snake()",
+      "672:                 self.draw_food()",
+      "673:                 self.draw_ui()",
+      "674:                 ",
+      "675:                 # 绘制游戏结束画面",
+      "676:                 self.draw_game_over()",
+      "677:             ",
+      "678:             # 更新显示",
+      "679:             pygame.display.flip()",
+      "680:             ",
+      "681:             # 控制帧率",
+      "682:             self.clock.tick(60)",
+      "683:         ",
+      "684:         # 退出游戏",
+      "685:         pygame.quit()",
+      "686:         sys.exit()",
+      "687: ",
+      "688: def main():",
+      "689:     \"\"\"主函数\"\"\"",
+      "690:     game = SnakeGame()",
+      "691:     game.run()",
+      "692: ",
+      "693: if __name__ == \"__main__\":",
+      "694:     main()"
+    ]
+  }
+]

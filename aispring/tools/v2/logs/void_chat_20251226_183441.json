@@ -1,0 +1,240 @@
+[
+  {
+    "role": "system",
+    "content": [
+      "# VOID AGENT - STRICT LOGIC & PASSIVE VALIDATION",
+      "OPERATING SYSTEM: Windows",
+      "CURRENT DIRECTORY: D:\\Users\\Administrator\\AistudyProject",
+      "ew_pro\\aispring\\tools\\v2",
+      "PATH SEPARATOR: \\",
+      "",
+      "## 👤 USER RULES (FROM .voidrules)",
+      "1、优先使用搜索工具获取信息，避免直接运行代码；",
+      "2、如需新建文件，请在无特殊依赖时统一放入独立文件夹，保持整洁。",
+      "3、端口被占用则表明程序已经启动，现在是热部署的状态请不要重新运行。",
+      "4、每次修改完成时必须运行，不需要额外确认：",
+      "    git add .",
+      "    git commit -m \"修改信息\"（修改的信息应该使用中文）",
+      "    git push",
+      "   命令同步修改",
+      "5、修改完代码需要同步README.md文件（如存在）",
+      "6、 请保持对话语言为中文",
+      "7、 我的系统为 Windows 11",
+      "8、请在生成代码时添加函数级注释",
+      "9、每次运行的时候确保控制台编码为 UTF-8",
+      "",
+      "## 🔴 VOID RULES (STRICT ADHERENCE REQUIRED)",
+      "1. **PASSIVE VALIDATION**: Do NOT execute commands blindly. You must PROPOSE actions. The user acts as the validator.",
+      "2. **SEARCH FIRST**: You must SEARCH the codebase before modifying it to ensure you have the full context.",
+      "3. **ONE TASK = ONE TAG**: Output MAX 1 closed XML tag per reply.",
+      "4. **NO TASK = NO TAGS**: Reply with natural language only if no action is needed.",
+      "5. **NAMING CONVENTION**: Variable names in your code should follow 'bOfA' pattern (e.g., contentOfFile).",
+      "",
+      "## 📋 TAG SYNTAX (EXACTLY AS SHOWN)",
+      "",
+      "### 1. Search Files (glob pattern)",
+      "<search_files>",
+      "  <pattern>**/*.py</pattern>",
+      "</search_files>",
+      "",
+      "### 2. Write File (path + content required)",
+      "<write_file>",
+      "  <path>path/to/file</path>",
+      "  <content>file_content</content>",
+      "</write_file>",
+      "",
+      "### 3. Read File (path required, start_line/end_line optional)",
+      "<read_file>",
+      "  <path>path/to/file</path>",
+      "  <start_line>1</start_line>",
+      "  <end_line>100</end_line>",
+      "</read_file>",
+      "",
+      "### 4. Run Command (Use for system commands, not for file editing)",
+      "<run_command>",
+      "  <command>ls -la</command>",
+      "</run_command>",
+      "",
+      "## 🚫 FORBIDDEN",
+      "- Multiple tags in one reply",
+      "- Unclosed tags",
+      "- Dangerous commands (rm -rf, etc.) without explicit user request"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "现在让我创建一个简单的启动脚本，用于Linux/macOS用户。",
+      "",
+      "<write_file>",
+      "<path>python_snake_game/run_game.sh</path>",
+      "<content>#!/bin/bash",
+      "",
+      "echo \"========================================\"",
+      "echo \"   Python贪吃蛇游戏启动器\"",
+      "echo \"========================================\"",
+      "echo \"\"",
+      "",
+      "# 检查Python是否安装",
+      "if ! command -v python3 &> /dev/null; then",
+      "    echo \"错误：未找到Python3！\"",
+      "    echo \"请先安装Python 3.6或更高版本。\"",
+      "    echo \"Ubuntu/Debian: sudo apt install python3 python3-pip\"",
+      "    echo \"macOS: brew install python\"",
+      "    echo \"其他系统请参考：https://www.python.org/downloads/\"",
+      "    exit 1",
+      "fi",
+      "",
+      "# 检查Pygame是否安装",
+      "if ! python3 -c \"import pygame\" &> /dev/null; then",
+      "    echo \"检测到未安装Pygame，正在安装...\"",
+      "    echo \"\"",
+      "    pip3 install pygame",
+      "    if [ $? -ne 0 ]; then",
+      "        echo \"安装Pygame失败！\"",
+      "        echo \"请手动运行：pip3 install pygame\"",
+      "        exit 1",
+      "    fi",
+      "    echo \"Pygame安装成功！\"",
+      "    echo \"\"",
+      "fi",
+      "",
+      "# 运行游戏",
+      "echo \"正在启动贪吃蛇游戏...\"",
+      "echo \"\"",
+      "python3 snake_game.py",
+      "",
+      "if [ $? -ne 0 ]; then",
+      "    echo \"\"",
+      "    echo \"游戏运行失败！\"",
+      "    echo \"请检查错误信息。\"",
+      "    exit 1",
+      "fi",
+      "",
+      "echo \"\"",
+      "echo \"游戏已退出。\"</content>",
+      "</write_file>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Saved to D:\\Users\\Administrator\\AistudyProject\\new_pro\\aispring\\tools\\v2\\python_snake_game\\run_game.sh | +45 | -0"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "现在让我运行git命令来同步修改。",
+      "",
+      "<run_command>",
+      "<command>git add .</command>",
+      "</run_command>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Command executed",
+      "Stdout:",
+      "",
+      "Stderr:",
+      "warning: in the working copy of 'aispring/tools/v2/v2_void.py', LF will be replaced by CRLF the next time Git touches it",
+      "warning: in the working copy of 'aispring/tools/v2/void_agent_v2/__init__.py', LF will be replaced by CRLF the next time Git touches it",
+      "warning: in the working copy of 'aispring/tools/v2/void_agent_v2/agent.py', LF will be replaced by CRLF the next time Git touches it",
+      "warning: in the working copy of 'aispring/tools/v2/void_agent_v2/cli.py', LF will be replaced by CRLF the next time Git touches it",
+      "warning: in the working copy of 'aispring/tools/v2/void_agent_v2/config.py', LF will be replaced by CRLF the next time Git touches it",
+      "warning: in the working copy of 'aispring/tools/v2/void_agent_v2/console.py', LF will be replaced by CRLF the next time Git touches it",
+      "warning: in the working copy of 'aispring/tools/v2/void_agent_v2/files.py', LF will be replaced by CRLF the next time Git touches it",
+      "warning: in the working copy of 'aispring/tools/v2/void_agent_v2/logs.py', LF will be replaced by CRLF the next time Git touches it",
+      "warning: in the working copy of 'aispring/tools/v2/void_agent_v2/tags.py', LF will be replaced by CRLF the next time Git touches it"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "",
+      "",
+      "<run_command>",
+      "<command>git commit -m \"添加Python贪吃蛇游戏的README文档、依赖文件和启动脚本\"</command>",
+      "</run_command>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Command executed",
+      "Stdout:",
+      "[main b23e2af] 添加Python贪吃蛇游戏的README文档、依赖文件和启动脚本",
+      " 31 files changed, 1527 insertions(+), 517 deletions(-)",
+      " create mode 100644 aispring/tools/v2/python_snake_game/README.md",
+      " create mode 100644 aispring/tools/v2/python_snake_game/requirements.txt",
+      " create mode 100644 aispring/tools/v2/python_snake_game/run_game.bat",
+      " create mode 100644 aispring/tools/v2/python_snake_game/run_game.sh",
+      " create mode 100644 aispring/tools/v2/python_snake_game/snake_game.py",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__init__.py",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/__init__.cpython-312.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/__init__.cpython-313.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/agent.cpython-312.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/agent.cpython-313.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/cli.cpython-312.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/cli.cpython-313.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/config.cpython-312.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/config.cpython-313.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/console.cpython-312.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/console.cpython-313.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/files.cpython-312.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/files.cpython-313.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/logs.cpython-312.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/logs.cpython-313.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/tags.cpython-312.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/__pycache__/tags.cpython-313.pyc",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/agent.py",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/cli.py",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/config.py",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/console.py",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/files.py",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/logs.py",
+      " create mode 100644 aispring/tools/v2/void_agent_v2/tags.py",
+      "",
+      "Stderr:"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "",
+      "",
+      "<run_command>",
+      "<command>git push</command>",
+      "</run_command>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Command executed",
+      "Stdout:",
+      "",
+      "Stderr:",
+      "To github.com:ChenfromChina123/new_pro.git",
+      "   aa220c8..b23e2af  main -> main"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "很好！我已经成功完成了Python贪吃蛇游戏的创建和配置。现在让我检查一下当前目录结构，确保所有文件都已正确创建。",
+      "",
+      "<search_files>",
+      "<pattern>python_snake_game/*</pattern>",
+      "</search_files>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: No files found matching python_snake_game/*"
+    ]
+  }
+]

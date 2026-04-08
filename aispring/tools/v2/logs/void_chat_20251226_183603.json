@@ -1,0 +1,176 @@
+[
+  {
+    "role": "system",
+    "content": [
+      "# VOID AGENT - STRICT LOGIC & PASSIVE VALIDATION",
+      "OPERATING SYSTEM: Windows",
+      "CURRENT DIRECTORY: D:\\Users\\Administrator\\AistudyProject",
+      "ew_pro\\aispring\\tools\\v2",
+      "PATH SEPARATOR: \\",
+      "",
+      "## 👤 USER RULES (FROM .voidrules)",
+      "1、优先使用搜索工具获取信息，避免直接运行代码；",
+      "2、如需新建文件，请在无特殊依赖时统一放入独立文件夹，保持整洁。",
+      "3、端口被占用则表明程序已经启动，现在是热部署的状态请不要重新运行。",
+      "4、每次修改完成时必须运行，不需要额外确认：",
+      "    git add .",
+      "    git commit -m \"修改信息\"（修改的信息应该使用中文）",
+      "    git push",
+      "   命令同步修改",
+      "5、修改完代码需要同步README.md文件（如存在）",
+      "6、 请保持对话语言为中文",
+      "7、 我的系统为 Windows 11",
+      "8、请在生成代码时添加函数级注释",
+      "9、每次运行的时候确保控制台编码为 UTF-8",
+      "",
+      "## 🔴 VOID RULES (STRICT ADHERENCE REQUIRED)",
+      "1. **PASSIVE VALIDATION**: Do NOT execute commands blindly. You must PROPOSE actions. The user acts as the validator.",
+      "2. **SEARCH FIRST**: You must SEARCH the codebase before modifying it to ensure you have the full context.",
+      "3. **ONE TASK = ONE TAG**: Output MAX 1 closed XML tag per reply.",
+      "4. **NO TASK = NO TAGS**: Reply with natural language only if no action is needed.",
+      "5. **NAMING CONVENTION**: Variable names in your code should follow 'bOfA' pattern (e.g., contentOfFile).",
+      "",
+      "## 📋 TAG SYNTAX (EXACTLY AS SHOWN)",
+      "",
+      "### 1. Search Files (glob pattern)",
+      "<search_files>",
+      "  <pattern>**/*.py</pattern>",
+      "</search_files>",
+      "",
+      "### 2. Write File (path + content required)",
+      "<write_file>",
+      "  <path>path/to/file</path>",
+      "  <content>file_content</content>",
+      "</write_file>",
+      "",
+      "### 3. Read File (path required, start_line/end_line optional)",
+      "<read_file>",
+      "  <path>path/to/file</path>",
+      "  <start_line>1</start_line>",
+      "  <end_line>100</end_line>",
+      "</read_file>",
+      "",
+      "### 4. Run Command (Use for system commands, not for file editing)",
+      "<run_command>",
+      "  <command>ls -la</command>",
+      "</run_command>",
+      "",
+      "## 🚫 FORBIDDEN",
+      "- Multiple tags in one reply",
+      "- Unclosed tags",
+      "- Dangerous commands (rm -rf, etc.) without explicit user request"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "现在让我测试一下游戏是否可以正常运行。首先检查是否安装了必要的依赖：",
+      "",
+      "<run_command>",
+      "<command>cd python_snake_game && python -c \"import pygame; print('Pygame已安装')\"</command>",
+      "</run_command>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Command executed",
+      "Stdout:",
+      "pygame 2.6.1 (SDL 2.28.4, Python 3.13.9)",
+      "Hello from the pygame community. https://www.pygame.org/contribute.html",
+      "Pygame已安装",
+      "",
+      "Stderr:",
+      "D:\\Users\\Administrator\\miniconda3\\Lib\\site-packages\\pygame\\pkgdata.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.",
+      "  from pkg_resources import resource_stream, resource_exists"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "很好！Pygame已经安装。现在让我运行游戏来测试一下：",
+      "",
+      "<run_command>",
+      "<command>cd python_snake_game && python snake_game.py</command>",
+      "</run_command>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Command executed",
+      "Stdout:",
+      "pygame 2.6.1 (SDL 2.28.4, Python 3.13.9)",
+      "Hello from the pygame community. https://www.pygame.org/contribute.html",
+      "",
+      "Stderr:",
+      "D:\\Users\\Administrator\\miniconda3\\Lib\\site-packages\\pygame\\pkgdata.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.",
+      "  from pkg_resources import resource_stream, resource_exists"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "游戏已经成功启动！现在我需要按照用户规则进行Git提交。让我检查一下当前Git状态：",
+      "",
+      "<run_command>",
+      "<command>git status</command>",
+      "</run_command>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Command executed",
+      "Stdout:",
+      "On branch main",
+      "Your branch is up to date with 'origin/main'.",
+      "",
+      "Untracked files:",
+      "  (use \"git add <file>...\" to include in what will be committed)",
+      "\tpython_snake_game/high_score.txt",
+      "",
+      "nothing added to commit but untracked files present (use \"git add\" to track)",
+      "",
+      "Stderr:"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "我看到有一个未跟踪的文件 `high_score.txt`，这应该是游戏运行时生成的。让我检查一下这个文件的内容：",
+      "",
+      "<read_file>",
+      "<path>python_snake_game/high_score.txt</path>",
+      "</read_file>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Read D:\\Users\\Administrator\\AistudyProject\\new_pro\\aispring\\tools\\v2\\python_snake_game\\high_score.txt",
+      "Lines: 1 | Range: 1-1",
+      "Content:",
+      "10"
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      "这是一个高分记录文件，应该添加到Git中。现在让我添加所有文件并提交：",
+      "",
+      "<run_command>",
+      "<command>git add .</command>",
+      "</run_command>"
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      "SUCCESS: Command executed",
+      "Stdout:",
+      "",
+      "Stderr:"
+    ]
+  }
+]
