@@ -19,6 +19,7 @@ RUN apk add --no-cache \
     mysql-client \
     curl \
     tzdata \
+    bash \
     && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone \
     && rm -rf /var/cache/apk/*
