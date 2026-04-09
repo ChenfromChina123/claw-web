@@ -233,8 +233,11 @@ async function initTerminal(): Promise<void> {
 
   // 发送数据到 PTY
   t.onData(async (data: string) => {
+    console.log('[TerminalTabPane] onData called, connectionStatus:', connectionStatus.value, 'data:', JSON.stringify(data))
     if (connectionStatus.value === 'connected') {
       await pty.write(data)
+    } else {
+      console.log('[TerminalTabPane] onData ignored - not connected')
     }
   })
 

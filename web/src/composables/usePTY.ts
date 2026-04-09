@@ -153,11 +153,14 @@ export function usePTY(options: PTYOptions = {}) {
       return false
     }
 
+    console.log('[PTY] write called with data:', JSON.stringify(data), 'sessionId:', sessionId.value)
+
     try {
       const result = await wsClient.callRPC<{ success: boolean; bytesWritten: number }>('pty.write', {
         sessionId: sessionId.value,
         data,
       })
+      console.log('[PTY] write result:', result)
       return result.success
     } catch (err) {
       console.error('[PTY] Write error:', err)
