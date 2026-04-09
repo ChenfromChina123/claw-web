@@ -213,22 +213,18 @@ async function initTerminal(): Promise<void> {
   term.value = t
   fitAddon.value = fit
 
-  // 初始化时，如果 defaultCwd 尚未加载（空字符串），先只建立 xterm
-  // 等 watch 触发后再真正连接 PTY，避免用 process.cwd() 作为启动目录
+  // 初始化时，尝试连接后端 PTY
+  // 即使 defaultCwd 为空，后端也会使用默认工作目录
   if (props.connectToBackend) {
-    if (!props.defaultCwd) {
-      t.writeln(`\x1b[33m[加载工作目录中...]\x1b[0m`)
+    t.writeln('\x1b[36mConnecting to backend shell...\x1b[0m')
+    await connectToPTY()
+    if (connectionStatus.value === 'connected') {
+      t.clear()
+      t.writeln(`\x1b[32mConnected to ${pty.session.value?.shell || 'shell'}\x1b[0m`)
+      t.writeln('')
     } else {
-      t.writeln('\x1b[36mConnecting to backend shell...\x1b[0m')
-      await connectToPTY()
-      if (connectionStatus.value === 'connected') {
-        t.clear()
-        t.writeln(`\x1b[32mConnected to ${pty.session.value?.shell || 'shell'}\x1b[0m`)
-        t.writeln('')
-      } else {
-        t.writeln(`\x1b[31mFailed to connect: ${errorMessage.value || 'Unknown error'}\x1b[0m`)
-        connectionStatus.value = 'disconnected'
-      }
+      t.writeln(`\x1b[31mFailed to connect: ${errorMessage.value || 'Unknown error'}\x1b[0m`)
+      connectionStatus.value = 'disconnected'
     }
   } else {
     t.writeln(`\x1b[2;37mLocal mode (no backend PTY)\x1b[0m`)
@@ -277,28 +273,29 @@ onBeforeUnmount(() => {
 watch(
   () => props.defaultCwd,
   async (cwd) => {
-    if (!cwd || !props.connectToBackend) return
-    // 已连接时重建
+    if (!cwd) return
+    // 如果已在连接中或已连接，等待即可
+    if (connectionStatus.value === 'connected' || connectionStatus.value === 'connecting') return
+
+    const t = term.value
+    if (!t) return
+
+    // 断开旧连接（如果存在）
     if (connectionStatus.value === 'connected') {
       await disconnectFromPTY()
       await nextTick()
-      await initTerminal()
-    } else if (connectionStatus.value === 'disconnected' || connectionStatus.value === 'error') {
-      if (connectionStatus.value === 'error') {
-        connectionStatus.value = 'disconnected'
-      }
-      const t = term.value
-      if (t) {
-        t.writeln('\x1b[36mConnecting to backend shell...\x1b[0m')
-      }
-      await connectToPTY()
-      if (connectionStatus.value === 'connected' && t) {
-        t.clear()
-        t.writeln(`\x1b[32mConnected to ${pty.session.value?.shell || 'shell'}\x1b[0m`)
-        t.writeln('')
-      } else if (t && connectionStatus.value === 'error') {
-        t.writeln(`\x1b[31m${errorMessage.value || '连接失败'}\x1b[0m`)
-      }
+    }
+
+    // 连接到后端 PTY
+    t.writeln('\x1b[36mConnecting to backend shell...\x1b[0m')
+    await connectToPTY()
+
+    if (connectionStatus.value === 'connected') {
+      t.clear()
+      t.writeln(`\x1b[32mConnected to ${pty.session.value?.shell || 'shell'}\x1b[0m`)
+      t.writeln('')
+    } else if (connectionStatus.value === 'error' && t) {
+      t.writeln(`\x1b[31m${errorMessage.value || '连接失败'}\x1b[0m`)
     }
   },
   { flush: 'post' }
