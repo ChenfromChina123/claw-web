@@ -117,6 +117,10 @@ services:
       - user_workspaces:/app/workspaces/users
       - session_workspaces:/app/workspaces/sessions
       - backend_logs:/app/logs
+    # PTY 支持需要特权模式和设备访问
+    privileged: true
+    stdin_open: true
+    tty: true
     depends_on:
       mysql:
         condition: service_healthy

@@ -70,6 +70,10 @@ ENV NODE_ENV=production \
 RUN mkdir -p /app/workspaces/users /app/workspaces/sessions && \
     chown -R bun:bun /app/workspaces
 
+# 为 bun 用户添加访问 PTY 设备的权限
+RUN usermod -a -G tty bun && \
+    usermod -a -G dialout bun
+
 # 暴露端口
 EXPOSE 3000
 
