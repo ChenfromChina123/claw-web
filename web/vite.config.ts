@@ -1,9 +1,15 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
+import monacoEditorPlugin from 'vite-plugin-monaco-editor'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    (monacoEditorPlugin as unknown as { default: { configure: (config: unknown) => { } } }).default.configure({
+      languageWorkers: ['editorWorkerService', 'typescript', 'json', 'css', 'html']
+    })
+  ],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src')

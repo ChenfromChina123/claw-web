@@ -16,41 +16,6 @@ import * as monaco from 'monaco-editor'
 import { sessionApi } from '@/api/sessionApi'
 
 /**
- * 配置 Monaco Editor Web Worker
- * 使用 data URL 方式避免跨域问题
- */
-function setupMonacoEnvironment(): void {
-  // 避免重复配置
-  if ((self as unknown as Record<string, unknown>).MonacoEnvironment) {
-    return
-  }
-
-  // 基础 worker 脚本 - 简单的消息回显
-  const baseWorkerScript = `
-    self.onmessage = function(e) {
-      self.postMessage(e.data);
-    };
-  `
-
-  ;(self as unknown as Record<string, unknown>).MonacoEnvironment = {
-    getWorker(_moduleId: string, label: string): Worker {
-      // 创建简单的 worker
-      const blob = new Blob([baseWorkerScript], { type: 'application/javascript' })
-      return new Worker(URL.createObjectURL(blob))
-    },
-    getWorkerUrl(_moduleId: string, _label: string): string {
-      // 返回 data URL，避免跨域问题
-      return 'data:application/javascript;base64,' + btoa(baseWorkerScript)
-    }
-  }
-}
-
-// 在浏览器环境中配置 Monaco
-if (typeof window !== 'undefined' && typeof window.document !== 'undefined') {
-  setupMonacoEnvironment()
-}
-
-/**
  * 已打开文件（多标签）
  */
 export interface OpenFileEntry {
