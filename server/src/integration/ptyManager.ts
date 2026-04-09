@@ -161,6 +161,14 @@ export class PTYSessionManager {
       }
     }
     envVars['TERM'] = 'xterm-256color'
+    // 覆盖可能被 Windows 宿主机污染的环境变量
+    envVars['HOME'] = '/home/bun'
+    envVars['USER'] = 'bun'
+    delete envVars['APPDATA']
+    delete envVars['LOCALAPPDATA']
+    delete envVars['ProgramFiles']
+    delete envVars['SystemRoot']
+    delete envVars['windir']
 
     // 优先使用 node-pty（支持真正的 PTY）
     if (ptyModule) {
