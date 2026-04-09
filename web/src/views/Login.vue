@@ -59,10 +59,9 @@ function handleBlur(): void {
  * 重定向到GitHub OAuth授权页面
  */
 function handleGithubLogin(): void {
-  // 获取后端API基础URL
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
-  // 重定向到GitHub OAuth授权端点
-  window.location.href = `${apiBaseUrl}/api/auth/github`
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || ''
+  // 未配置时用同源 /api（Vite 代理或 Nginx 反代）
+  window.location.href = base ? `${base}/api/auth/github` : '/api/auth/github'
 }
 
 /**

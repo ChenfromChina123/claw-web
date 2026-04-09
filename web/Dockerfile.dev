@@ -1,0 +1,25 @@
+# Claude Code HAHA - 前端开发环境 Dockerfile（热重载模式）
+#
+# 特性：
+# ✅ Vite 热模块替换（HMR），浏览器无刷新更新
+# ✅ --host 0.0.0.0 允许外部访问容器端口
+# ✅ 源码挂载，改文件保存即生效
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# 复制依赖文件
+COPY web/package.json web/package-lock.json ./
+
+# 安装依赖（解决 peer dependency 冲突）
+RUN npm install --force --registry=https://registry.npmmirror.com
+
+# 复制源代码
+COPY web/ .
+
+# 暴露端口
+EXPOSE 5173
+
+# Vite 开发模式启动
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]

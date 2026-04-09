@@ -12,6 +12,7 @@ import {
   LogoMarkdown
 } from '@vicons/ionicons5'
 import apiClient from '@/api/client'
+import { resolveBrowserApiBase } from '@/config/apiBase'
 import * as monaco from 'monaco-editor'
 import { sessionApi } from '@/api/sessionApi'
 
@@ -741,7 +742,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
    * Download a workspace file via the download API (opens in browser / triggers download)
    */
   async function downloadFile(filePath: string, fileName: string): Promise<void> {
-    const baseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
+    const baseUrl = resolveBrowserApiBase().replace(/\/$/, '')
     const url = `${baseUrl}${API_WORKDIR_BASE}/download?sessionId=${encodeURIComponent(sessionIdRef.value)}&path=${encodeURIComponent(filePath)}`
     const token = localStorage.getItem('token')
     const res = await fetch(url, {
@@ -762,7 +763,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
   }
 
   async function downloadFolderZip(folderPath: string): Promise<void> {
-    const baseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
+    const baseUrl = resolveBrowserApiBase().replace(/\/$/, '')
     const url = `${baseUrl}${API_WORKDIR_BASE}/download-zip?sessionId=${encodeURIComponent(sessionIdRef.value)}&path=${encodeURIComponent(folderPath)}`
     const token = localStorage.getItem('token')
     const res = await fetch(url, {
@@ -1266,7 +1267,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
       return { uploaded: 0, failed: list.length }
     }
 
-    const baseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
+    const baseUrl = resolveBrowserApiBase().replace(/\/$/, '')
     const url = `${baseUrl}${API_WORKDIR_BASE}/upload`
 
     uploading.value = true

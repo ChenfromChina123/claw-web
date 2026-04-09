@@ -12,13 +12,22 @@ import { spawn, ChildProcess, execSync } from 'child_process'
 import { v4 as uuidv4 } from 'uuid'
 import type { WebSocketConnection } from './wsBridge'
 
+// 尝试导入 node-pty，如果不可用则使用降级方案
+let ptyModule: typeof import('node-pty') | null = null
+try {
+  ptyModule = await import('node-pty')
+  console.log('[PTY] node-pty loaded successfully')
+} catch (err) {
+  console.warn('[PTY] node-pty not available, using fallback spawn mode')
+}
+
 // ==================== Types ====================
 
 export interface PTYSession {
   id: string
   connectionId: string
   userId: string | null   // 所属用户，Agent 终端工具需要
-  process: ChildProcess | null
+  process: ChildProcess | import('node-pty').IPty | null
   cwd: string
   shell: string
   createdAt: number
@@ -135,62 +144,57 @@ export class PTYSessionManager {
 
     console.log(`[PTY] Creating session ${sessionId} with shell: ${shell}`)
 
-    // 创建 spawn 选项
-    const spawnOptions: {
-      shell: boolean | string
-      cwd: string
-      env: Record<string, string>
-      cols?: number
-      rows?: number
-      windowsHide?: boolean
-    } = {
-      shell: true,
-      cwd,
-      env: {
-        ...process.env,
-        ...options.env,
-        TERM: 'xterm-256color',
-      },
-    }
+    let childProcess: ChildProcess | import('node-pty').IPty
 
-    // Windows PTY 配置
-    if (process.platform === 'win32') {
-      spawnOptions.shell = shell
-      spawnOptions.windowsHide = true
-    }
-
-    // 启动进程（勿命名为 process，否则会遮蔽 Node 全局 process 并触发 TDZ）
-    let childProcess: ChildProcess
-    if (process.platform === 'win32') {
-      // Windows: 使用 /c 参数运行命令
-      const isPowerShell = shell.toLowerCase().includes('powershell')
-      if (isPowerShell) {
-        childProcess = spawn('powershell.exe', [
-          '-NoLogo',
-          '-NoExit',
-          '-Command',
-          `Set-Location '${cwd.replace(/'/g, "''")}'; Clear-Host`
-        ], {
-          shell: false,
-          cwd,
-          env: spawnOptions.env,
-          windowsHide: true,
-        })
-      } else {
-        childProcess = spawn('cmd.exe', ['/c', `cd /d "${cwd}" && cls`], {
-          shell: false,
-          cwd,
-          env: spawnOptions.env,
-          windowsHide: true,
-        })
-      }
-    } else {
-      // Unix: 使用 pty
-      const args = shell.includes('bash') ? ['--login'] : []
-      childProcess = spawn(shell, args, {
+    // 优先使用 node-pty（支持真正的 PTY）
+    if (ptyModule && process.platform !== 'win32') {
+      // Unix/Linux/macOS: 使用 node-pty
+      childProcess = ptyModule.spawn(shell, [], {
+        name: 'xterm-256color',
+        cols,
+        rows,
         cwd,
-        env: spawnOptions.env,
+        env: {
+          ...process.env,
+          ...options.env,
+          TERM: 'xterm-256color',
+        } as { [key: string]: string },
       })
+
+      // 设置输出处理
+      childProcess.onData((data: string) => {
+        this.handleOutput(sessionId, 'stdout', data)
+      })
+
+      childProcess.onExit(({ exitCode }: { exitCode: number }) => {
+        console.log(`[PTY] Session ${sessionId} exited with code: ${exitCode}`)
+        this.handleOutput(sessionId, 'exit', '', exitCode)
+      })
+    } else if (ptyModule && process.platform === 'win32') {
+      // Windows: 使用 node-pty
+      childProcess = ptyModule.spawn(shell, [], {
+        name: 'xterm-256color',
+        cols,
+        rows,
+        cwd,
+        env: {
+          ...process.env,
+          ...options.env,
+          TERM: 'xterm-256color',
+        } as { [key: string]: string },
+      })
+
+      childProcess.onData((data: string) => {
+        this.handleOutput(sessionId, 'stdout', data)
+      })
+
+      childProcess.onExit(({ exitCode }: { exitCode: number }) => {
+        console.log(`[PTY] Session ${sessionId} exited with code: ${exitCode}`)
+        this.handleOutput(sessionId, 'exit', '', exitCode)
+      })
+    } else {
+      // 降级方案：使用普通 spawn
+      childProcess = this.createFallbackProcess(shell, cwd, options.env, sessionId)
     }
 
     // 创建会话对象
@@ -206,6 +210,74 @@ export class PTYSessionManager {
       cols,
       rows,
       isAlive: true,
+    }
+
+    // 保存会话
+    this.sessions.set(sessionId, session)
+
+    // 更新连接与会话的映射
+    if (!this.connectionSessions.has(options.connectionId)) {
+      this.connectionSessions.set(options.connectionId, new Set())
+    }
+    this.connectionSessions.get(options.connectionId)!.add(sessionId)
+
+    console.log(`[PTY] Session ${sessionId} created successfully`)
+    return session
+  }
+
+  /**
+   * 创建降级方案进程（普通 spawn）
+   */
+  private createFallbackProcess(
+    shell: string,
+    cwd: string,
+    env: Record<string, string> | undefined,
+    sessionId: string
+  ): ChildProcess {
+    let childProcess: ChildProcess
+
+    if (process.platform === 'win32') {
+      // Windows: 使用 /c 参数运行命令
+      const isPowerShell = shell.toLowerCase().includes('powershell')
+      if (isPowerShell) {
+        childProcess = spawn('powershell.exe', [
+          '-NoLogo',
+          '-NoExit',
+          '-Command',
+          `Set-Location '${cwd.replace(/'/g, "''")}'; Clear-Host`
+        ], {
+          shell: false,
+          cwd,
+          env: {
+            ...process.env,
+            ...env,
+            TERM: 'xterm-256color',
+          },
+          windowsHide: true,
+        })
+      } else {
+        childProcess = spawn('cmd.exe', ['/c', `cd /d "${cwd}" && cls`], {
+          shell: false,
+          cwd,
+          env: {
+            ...process.env,
+            ...env,
+            TERM: 'xterm-256color',
+          },
+          windowsHide: true,
+        })
+      }
+    } else {
+      // Unix: 使用 pty
+      const args = shell.includes('bash') ? ['--login'] : []
+      childProcess = spawn(shell, args, {
+        cwd,
+        env: {
+          ...process.env,
+          ...env,
+          TERM: 'xterm-256color',
+        },
+      })
     }
 
     // 设置输出处理
@@ -233,17 +305,7 @@ export class PTYSessionManager {
       this.handleOutput(sessionId, 'stderr', `Error: ${err.message}\r\n`)
     })
 
-    // 保存会话
-    this.sessions.set(sessionId, session)
-
-    // 更新连接与会话的映射
-    if (!this.connectionSessions.has(options.connectionId)) {
-      this.connectionSessions.set(options.connectionId, new Set())
-    }
-    this.connectionSessions.get(options.connectionId)!.add(sessionId)
-
-    console.log(`[PTY] Session ${sessionId} created successfully`)
-    return session
+    return childProcess
   }
 
   /**
@@ -286,17 +348,21 @@ export class PTYSessionManager {
     session.lastActiveAt = Date.now()
 
     try {
-      if (session.process?.stdin) {
-        // 确保 stdin 是可写的
-        if (!session.process.stdin.writableEnded) {
-          session.process.stdin.write(data)
+      // 检查是否是 node-pty 进程
+      if (ptyModule && 'write' in session.process!) {
+        // node-pty 模式
+        ;(session.process as import('node-pty').IPty).write(data)
+        return true
+      } else {
+        // 降级方案：普通 spawn
+        const childProcess = session.process as ChildProcess
+        if (childProcess?.stdin && !childProcess.stdin.writableEnded) {
+          childProcess.stdin.write(data)
           return true
         }
       }
       
-      // 如果 stdin 不可用，尝试通过执行命令模拟
-      // 这是一个后备方案
-      console.log(`[PTY] stdin not directly writable for session ${sessionId}, using exec fallback`)
+      console.warn(`[PTY] Cannot write to session ${sessionId}: stdin not available`)
       return false
     } catch (error) {
       console.error(`[PTY] Write error for session ${sessionId}:`, error)
@@ -317,6 +383,15 @@ export class PTYSessionManager {
     session.cols = cols
     session.rows = rows
     session.lastActiveAt = Date.now()
+
+    // 如果是 node-pty，调用 resize 方法
+    if (ptyModule && 'resize' in session.process!) {
+      try {
+        ;(session.process as import('node-pty').IPty).resize(cols, rows)
+      } catch (err) {
+        console.error(`[PTY] Error resizing session ${sessionId}:`, err)
+      }
+    }
 
     console.log(`[PTY] Resized session ${sessionId} to ${cols}x${rows}`)
     return true
@@ -380,21 +455,29 @@ export class PTYSessionManager {
     // 终止进程
     if (session.process) {
       try {
-        // 尝试优雅关闭
-        if (session.process.stdin) {
-          session.process.stdin.write('exit\r\n')
-        }
-        
-        // 等待一小段时间后强制终止
-        setTimeout(() => {
-          if (session.process && !session.process.killed) {
-            try {
-              process.platform === 'win32'
-                ? execSync(`taskkill /pid ${session.process.pid} /T /F`, { windowsHide: true })
-                : session.process.kill('SIGTERM')
-            } catch {}
+        // 检查是否是 node-pty 进程
+        if (ptyModule && 'kill' in session.process) {
+          // node-pty 模式
+          ;(session.process as import('node-pty').IPty).kill()
+        } else {
+          // 降级方案：普通 spawn
+          const childProcess = session.process as ChildProcess
+          // 尝试优雅关闭
+          if (childProcess.stdin) {
+            childProcess.stdin.write('exit\r\n')
           }
-        }, 500)
+          
+          // 等待一小段时间后强制终止
+          setTimeout(() => {
+            if (childProcess && !childProcess.killed) {
+              try {
+                process.platform === 'win32'
+                  ? execSync(`taskkill /pid ${childProcess.pid} /T /F`, { windowsHide: true })
+                  : childProcess.kill('SIGTERM')
+              } catch {}
+            }
+          }, 500)
+        }
       } catch (error) {
         console.error(`[PTY] Error destroying session ${sessionId}:`, error)
       }

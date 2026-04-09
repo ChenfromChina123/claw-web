@@ -1,5 +1,4 @@
-const API_BASE_URL = 'http://localhost:3000'
-
+/** 同源相对路径，由 Vite / Nginx 反代到后端（勿写 localhost 或 Docker 主机名） */
 interface ApiResponse<T> {
   success: boolean
   data?: T
@@ -39,7 +38,7 @@ interface ResetPasswordRequest {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const response = await fetch(path, {
       ...options,
       headers: {
         'Content-Type': 'application/json',

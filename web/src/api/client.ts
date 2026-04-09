@@ -5,8 +5,9 @@
 
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import type { ApiResponse } from '@/types'
+import { resolveBrowserApiBase } from '@/config/apiBase'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+const API_BASE_URL = resolveBrowserApiBase()
 
 class ApiClient {
   private instance: AxiosInstance

@@ -3,6 +3,11 @@ import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 import monacoEditorPlugin from 'vite-plugin-monaco-editor'
 
+/** 开发时 API/WS 代理目标：本机直连用 localhost；前端跑在 Docker 里时用 http://backend:3000 */
+const devProxyHttp =
+  process.env.VITE_DEV_PROXY_TARGET?.trim() || 'http://localhost:3000'
+const devProxyWs = devProxyHttp.replace(/^http/, 'ws')
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -17,13 +22,14 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: devProxyHttp,
         changeOrigin: true
       },
       '/ws': {
-        target: 'ws://localhost:3000',
+        target: devProxyWs,
         ws: true
       }
     }
