@@ -146,45 +146,38 @@ export class PTYSessionManager {
 
     let childProcess: ChildProcess | import('node-pty').IPty
 
+    // 准备环境变量
+    const envVars: { [key: string]: string } = {}
+    // 复制 process.env
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value !== undefined) {
+        envVars[key] = value
+      }
+    }
+    // 复制自定义 env
+    if (options.env) {
+      for (const [key, value] of Object.entries(options.env)) {
+        envVars[key] = value
+      }
+    }
+    envVars['TERM'] = 'xterm-256color'
+
     // 优先使用 node-pty（支持真正的 PTY）
-    if (ptyModule && process.platform !== 'win32') {
-      // Unix/Linux/macOS: 使用 node-pty
+    if (ptyModule) {
+      // 使用 node-pty
       childProcess = ptyModule.spawn(shell, [], {
         name: 'xterm-256color',
         cols,
         rows,
         cwd,
-        env: {
-          ...process.env,
-          ...options.env,
-          TERM: 'xterm-256color',
-        } as { [key: string]: string },
+        env: envVars,
       })
+
+      console.log(`[PTY] node-pty spawn success, pid: ${(childProcess as import('node-pty').IPty).pid}`)
 
       // 设置输出处理
       childProcess.onData((data: string) => {
-        this.handleOutput(sessionId, 'stdout', data)
-      })
-
-      childProcess.onExit(({ exitCode }: { exitCode: number }) => {
-        console.log(`[PTY] Session ${sessionId} exited with code: ${exitCode}`)
-        this.handleOutput(sessionId, 'exit', '', exitCode)
-      })
-    } else if (ptyModule && process.platform === 'win32') {
-      // Windows: 使用 node-pty
-      childProcess = ptyModule.spawn(shell, [], {
-        name: 'xterm-256color',
-        cols,
-        rows,
-        cwd,
-        env: {
-          ...process.env,
-          ...options.env,
-          TERM: 'xterm-256color',
-        } as { [key: string]: string },
-      })
-
-      childProcess.onData((data: string) => {
+        console.log(`[PTY] Data received: ${data.length} chars`)
         this.handleOutput(sessionId, 'stdout', data)
       })
 
