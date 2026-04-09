@@ -22,6 +22,7 @@ COPY web/ .
 
 # 构建生产版本（跳过类型检查，仅打包）
 ENV NODE_ENV=production
+ENV VITE_FEATURE_PTY_SHELL=true
 RUN npx vite build
 
 # ==================== 生产阶段（Nginx） ====================
