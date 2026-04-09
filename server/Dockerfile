@@ -31,11 +31,11 @@ COPY server/package.json server/bun.lock ./
 # 安装依赖
 RUN bun install --frozen-lockfile
 
-# 复制源代码（排除 .env 文件，防止覆盖 docker-compose 环境变量）
+# 复制源代码
 COPY server/ .
 RUN rm -f .env .env.local .env.*.local 2>/dev/null || true
-# 创建空 .env 防止 Bun 运行时报错
-RUN touch .env
+# 创建仅含注释的 .env（防止 Bun 报错，且不覆盖环境变量）
+RUN echo "# Docker environment variables are set via docker-compose" > .env
 
 # 设置环境变量（包含内存优化配置）
 ENV NODE_ENV=production \

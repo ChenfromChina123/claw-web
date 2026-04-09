@@ -40,7 +40,7 @@ export function buildEnvInfo(
       ? `Additional working directories:`
       : null,
     additionalWorkingDirectories && additionalWorkingDirectories.length > 0
-      ? additionalWorkDirectories
+      ? additionalWorkingDirectories
       : null,
     `Platform: ${platform}`,
     shellInfo,

@@ -13,31 +13,38 @@ interface DbConfig {
 }
 
 function loadDbConfig(): DbConfig {
-  // 从当前文件所在目录向上查找 .env 文件
-  // __dirname 指向 server/src/db/
-  let configPath = join(__dirname, '../../.env')
-  console.log('[loadDbConfig] Trying to load .env from:', configPath)
-  
-  // 如果找不到，尝试从项目根目录查找
-  try {
-    // 检查是否存在
-    readFileSync(configPath, 'utf-8')
-  } catch {
-    // 尝试从 process.cwd() 查找（server 目录）
-    configPath = join(process.cwd(), '.env')
-    console.log('[loadDbConfig] Trying alternative path:', configPath)
-  }
-  
-  const envContent = readFileSync(configPath, 'utf-8')
-
   const config: Record<string, string> = {}
-  for (const line of envContent.split('\n')) {
-    const trimmed = line.trim()
-    if (trimmed && !trimmed.startsWith('#')) {
-      const [key, ...valueParts] = trimmed.split('=')
-      if (key && valueParts.length > 0) {
-        config[key.trim()] = valueParts.join('=').trim()
+
+  // 优先从环境变量读取（Docker/生产环境推荐方式）
+  const envVars = ['DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD', 'DB_NAME']
+  for (const key of envVars) {
+    if (process.env[key]) {
+      config[key] = process.env[key]
+    }
+  }
+
+  // 如果环境变量不完整，尝试从 .env 文件补充
+  if (!config['DB_HOST'] || !config['DB_USER']) {
+    let configPath = join(__dirname, '../../.env')
+    try {
+      readFileSync(configPath, 'utf-8')
+    } catch {
+      configPath = join(process.cwd(), '.env')
+    }
+
+    try {
+      const envContent = readFileSync(configPath, 'utf-8')
+      for (const line of envContent.split('\n')) {
+        const trimmed = line.trim()
+        if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('//')) {
+          const [key, ...valueParts] = trimmed.split('=')
+          if (key && valueParts.length > 0 && !config[key.trim()]) {
+            config[key.trim()] = valueParts.join('=').trim()
+          }
+        }
       }
+    } catch {
+      console.log('[loadDbConfig] No .env file found, using environment variables only')
     }
   }
 
