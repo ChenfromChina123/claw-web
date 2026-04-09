@@ -7,29 +7,37 @@
 # ✅ 健康检查和优雅关闭
 # ✅ 生产级安全配置
 
-FROM oven/bun:1-alpine AS production
+FROM oven/bun:1 AS production
 
 # 元数据标签
 LABEL maintainer="Claude Code HAHA Team"
 LABEL description="Backend service with multi-tenant isolation and memory optimization"
 LABEL version="1.0.0"
 
-# 安装必要的系统依赖（最小化安装）
-RUN apk add --no-cache \
-    mysql-client \
+# 安装必要的系统依赖（包含 node-pty 编译所需的构建工具）
+# 使用国内镜像源加速 - 2025-04-09 更新：强制刷新缓存验证加速效果
+RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
+    && sed -i 's/security.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y \
+    default-mysql-client \
     curl \
     tzdata \
     bash \
-    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    python3 \
+    make \
+    g++ \
+    gcc \
+    && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone \
-    && rm -rf /var/cache/apk/*
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # 复制依赖文件
 COPY server/package.json server/bun.lock ./
 
-# 安装依赖
+# 安装依赖（使用国内镜像源加速）
+ENV BUN_CONFIG_REGISTRY=https://registry.npmmirror.com
 RUN bun install --frozen-lockfile
 
 # 复制源代码
