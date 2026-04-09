@@ -78,7 +78,7 @@ services:
     container_name: claude-backend
     restart: unless-stopped
     ports:
-      - "${PORT:-3000}:3000"
+      - "${PORT:-3001}:3000"
     environment:
       - NODE_ENV=production
       - NODE_OPTIONS=--max-old-space-size=384
