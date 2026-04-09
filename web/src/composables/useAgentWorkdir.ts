@@ -586,9 +586,13 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     const name = path.split(/[/\\]/).pop() || path
     const { mode, mimeType, ext } = detectFileMode(name)
 
-    if (!openFiles.value.some(f => f.id === id)) {
-      openFiles.value.push({ id, path, name, mode, mimeType, ext, readOnly: mode === 'binary' })
+    // 文件名相同时，只保留一个标签（按路径 id 查重）
+    if (openFiles.value.some(f => f.id === id)) {
+      activeFileId.value = id
+      currentFilePath.value = path
+      return true
     }
+    openFiles.value.push({ id, path, name, mode, mimeType, ext, readOnly: mode === 'binary' })
     activeFileId.value = id
     currentFilePath.value = path
     const success = await activateOpenFile(id, options)
