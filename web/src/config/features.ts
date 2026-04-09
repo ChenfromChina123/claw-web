@@ -48,7 +48,7 @@ function resolveIsDevMode(): boolean {
 export const featureConfig: FeatureConfig = {
   ptyShell: {
     enabled: resolvePtyEnabled(),
-    defaultShell: 'powershell',
+    defaultShell: 'bash',
     defaultCols: 120,
     defaultRows: 30,
   },
