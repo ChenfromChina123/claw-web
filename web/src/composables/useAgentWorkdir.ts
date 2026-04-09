@@ -418,9 +418,13 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
 
   /**
    * 激活已打开的文件（加载内容到编辑器）
+   * @param fileId 文件ID
+   * @param options 可选配置
+   * @param options.silent 是否静默模式（恢复文件列表时不显示警告）
    * @returns 是否成功加载，失败时返回 false（用于恢复标签页时跳过无效文件）
    */
-  async function activateOpenFile(fileId: string): Promise<boolean> {
+  async function activateOpenFile(fileId: string, options?: { silent?: boolean }): Promise<boolean> {
+    const silent = options?.silent ?? false
     let entry = openFiles.value.find(f => f.id === fileId)
     if (!entry) return false
 
@@ -472,13 +476,16 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
         const err = error as { response?: { status?: number; data?: { error?: { message?: string } } } }
         const status = err?.response?.status
         if (status === 404) {
-          message.warning(`文件不存在: ${entry.path}`)
+          // 静默模式下不显示警告（恢复文件列表时）
+          if (!silent) {
+            message.warning(`文件不存在: ${entry.path}`)
+          }
           const idx = openFiles.value.findIndex(f => f.id === fileId)
           if (idx !== -1) openFiles.value.splice(idx, 1)
           if (activeFileId.value === fileId) {
             activeFileId.value = openFiles.value[0]?.id || null
             if (activeFileId.value) {
-              await activateOpenFile(activeFileId.value)
+              await activateOpenFile(activeFileId.value, { silent })
             } else {
               currentFilePath.value = ''
             }
@@ -486,7 +493,9 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
           const remainingPaths = openFiles.value.map(f => f.path)
           await persistOpenFilesToDb(remainingPaths, activeFileId.value)
         } else {
-          message.error(err?.response?.data?.error?.message || '加载文件失败')
+          if (!silent) {
+            message.error(err?.response?.data?.error?.message || '加载文件失败')
+          }
         }
         return false
       } finally {
@@ -537,8 +546,10 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
         const status = err?.response?.status
 
         if (status === 404) {
-          // 文件不存在，从标签页移除并更新持久化记录
-          message.warning(`文件不存在: ${entry.path}`)
+          // 静默模式下不显示警告（恢复文件列表时）
+          if (!silent) {
+            message.warning(`文件不存在: ${entry.path}`)
+          }
 
           const idx = openFiles.value.findIndex(f => f.id === fileId)
           if (idx !== -1) openFiles.value.splice(idx, 1)
@@ -546,7 +557,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
           if (activeFileId.value === fileId) {
             activeFileId.value = openFiles.value[0]?.id || null
             if (activeFileId.value) {
-              await activateOpenFile(activeFileId.value)
+              await activateOpenFile(activeFileId.value, { silent })
             } else {
               editorInstance?.setModel(null)
               currentFilePath.value = ''
@@ -557,7 +568,9 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
           const remainingPaths = openFiles.value.map(f => f.path)
           await persistOpenFilesToDb(remainingPaths, activeFileId.value)
         } else {
-          message.error(err?.response?.data?.error?.message || '加载文件失败')
+          if (!silent) {
+            message.error(err?.response?.data?.error?.message || '加载文件失败')
+          }
         }
         loading.value = false
         return false
@@ -603,7 +616,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     return { mode: 'text', ext }
   }
 
-  async function openFileFromExplorer(path: string): Promise<boolean> {
+  async function openFileFromExplorer(path: string, options?: { silent?: boolean }): Promise<boolean> {
     const id = path
     const name = path.split(/[/\\]/).pop() || path
     const { mode, mimeType, ext } = detectFileMode(name)
@@ -613,7 +626,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     }
     activeFileId.value = id
     currentFilePath.value = path
-    const success = await activateOpenFile(id)
+    const success = await activateOpenFile(id, options)
 
     // 持久化记录
     persistOpenFiles()
@@ -661,7 +674,8 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
         if (!exists) {
           console.log('[useAgentWorkdir] 文件未在树中找到，跳过预验证，直接尝试打开:', filePath)
         }
-        const ok = await openFileFromExplorer(filePath)
+        // 静默模式：恢复文件列表时不显示文件不存在的警告
+        const ok = await openFileFromExplorer(filePath, { silent: true })
         if (ok) {
           const resolved = activeFileId.value || filePath
           validPaths.push(resolved)
