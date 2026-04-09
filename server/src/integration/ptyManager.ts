@@ -173,8 +173,8 @@ export class PTYSessionManager {
     // 优先使用 node-pty（支持真正的 PTY）
     if (ptyModule) {
       // 使用 node-pty
-      // bash 需要 -i 参数强制交互模式，否则立即退出
-      const shellArgs = shell.includes('bash') ? ['-i'] : []
+      // bash 需要 -i 强制交互模式，--norc/--noprofile 绕过启动文件避免退出
+      const shellArgs = shell.includes('bash') ? ['--norc', '--noprofile', '-i'] : []
       childProcess = ptyModule.spawn(shell, shellArgs, {
         name: 'xterm-256color',
         cols,
