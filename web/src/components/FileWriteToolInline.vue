@@ -35,10 +35,24 @@ const isExpanded = ref(props.expanded ?? false)
 const writeProgress = ref(0)
 let progressTimer: ReturnType<typeof setInterval> | null = null
 
-/** 从工具输入中提取文件路径 */
+/** 从工具输入/输出中提取文件路径（后端 FileWrite 使用 path，与 IDE 一致时用 virtualPath） */
 const filePath = computed(() => {
   const input = props.toolCall.toolInput as Record<string, unknown> | undefined
-  return (input?.file_path || input?.filePath || '未知文件') as string
+  const out = props.toolCall.toolOutput as Record<string, unknown> | null | undefined
+
+  const virtualPath = out?.virtualPath
+  if (typeof virtualPath === 'string' && virtualPath.length > 0) {
+    return virtualPath.startsWith('/') ? virtualPath : `/${virtualPath}`
+  }
+
+  const fromInput =
+    (input?.path as string) ||
+    (input?.file_path as string) ||
+    (input?.filePath as string) ||
+    ''
+  if (fromInput) return fromInput
+
+  return '未知文件'
 })
 
 /** 从工具输入中提取文件内容（预览用） */

@@ -462,22 +462,39 @@ export class EnhancedToolExecutor {
         }
       }
 
-      // 文件操作工具的路径检查
-      if (['FileRead', 'FileWrite', 'Glob', 'Grep', 'ImageRead', 'NotebookEdit'].includes(tool.name)) {
-        const filePath = input.filepath || input.path || input.notebook_path || ''
-        
-        if (filePath && typeof filePath === 'string') {
-          if (containsParentDirectoryReference(filePath)) {
-            throw new Error('🚫 安全限制：文件路径不能包含 ".."（父目录引用）。Agent 只能访问当前工作目录及其子目录。')
-          }
-          
-          const pathCheck = await import('../utils/pathSecurity').then(m => 
-            m.validatePathWithinRoot(filePath as string, this.context.projectRoot)
+      // 文件操作工具的路径检查（与 resolvePath 一致：前导 / 视为工作区根下的相对路径）
+      const fileToolPaths: string[] = []
+      if (tool.name === 'FileRename') {
+        if (typeof input.oldPath === 'string' && input.oldPath) fileToolPaths.push(input.oldPath)
+        if (typeof input.newPath === 'string' && input.newPath) fileToolPaths.push(input.newPath)
+      } else if (
+        [
+          'FileRead',
+          'FileWrite',
+          'FileEdit',
+          'FileDelete',
+          'Glob',
+          'Grep',
+          'ImageRead',
+          'NotebookEdit',
+        ].includes(tool.name)
+      ) {
+        const p = (input.filepath || input.path || input.notebook_path) as string
+        if (typeof p === 'string' && p) fileToolPaths.push(p)
+      }
+
+      for (const rawPath of fileToolPaths) {
+        if (containsParentDirectoryReference(rawPath)) {
+          throw new Error(
+            '🚫 安全限制：文件路径不能包含 ".."（父目录引用）。Agent 只能访问当前工作目录及其子目录。'
           )
-          
-          if (pathCheck && !pathCheck.allowed && pathCheck.severity === 'block') {
-            throw new Error(pathCheck.reason || '安全限制：文件路径超出工作目录范围')
-          }
+        }
+        const resolvedForCheck = this.resolvePath(rawPath)
+        const pathCheck = await import('../utils/pathSecurity').then((m) =>
+          m.validatePathWithinRoot(resolvedForCheck, this.context.projectRoot)
+        )
+        if (pathCheck && !pathCheck.allowed && pathCheck.severity === 'block') {
+          throw new Error(pathCheck.reason || '安全限制：文件路径超出工作目录范围')
         }
       }
 
@@ -783,10 +800,16 @@ export class EnhancedToolExecutor {
         }
 
         const stats = await stat(filePath)
+        const rel = relative(this.context.projectRoot, filePath)
+        const virtualPath =
+          '/' + rel.split(/[/\\]/).filter(Boolean).join('/')
+
         return {
           success: true,
           result: {
             path: filePath,
+            /** 与工作区文件树一致的虚拟路径，如 /skills/README.md */
+            virtualPath,
             bytesWritten: stats.size,
             mode: stats.mode.toString(8),
           },
@@ -1842,11 +1865,38 @@ export class EnhancedToolExecutor {
 
   // ==================== Helper Methods ====================
 
+  /**
+   * 将 Agent 传入的路径解析为磁盘绝对路径。
+   * 前导 `/` 在 IDE/Agent 约定中表示「工作区根下的相对路径」，不得当作系统根目录（否则与文件树、FileWrite 展示不一致）。
+   * Windows 绝对路径 `C:\...` 仍按绝对路径处理。
+   */
   private resolvePath(relativePath: string): string {
-    if (relativePath.startsWith('/') || /^[a-zA-Z]:/.test(relativePath)) {
-      return relativePath
+    const root = this.context.projectRoot
+    const trimmed = (relativePath || '').trim()
+    if (!trimmed) {
+      return root || resolve('.')
     }
-    return resolve(this.context.projectRoot, relativePath)
+    if (!root) {
+      return resolve(trimmed)
+    }
+
+    // Windows 绝对路径：C:\ 或 C:/
+    if (/^[a-zA-Z]:[\\/]/.test(trimmed)) {
+      return resolve(trimmed)
+    }
+
+    // UNC
+    if (trimmed.startsWith('\\\\')) {
+      return resolve(trimmed)
+    }
+
+    // 前导斜杠：工作区根相对（与 /api/agent/workdir 虚拟路径一致）
+    if (trimmed.startsWith('/')) {
+      const without = trimmed.replace(/^\/+/, '')
+      return without ? resolve(root, without) : root
+    }
+
+    return resolve(root, trimmed)
   }
 
   private async ensureDir(dirPath: string): Promise<void> {

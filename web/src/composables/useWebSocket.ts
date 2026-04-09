@@ -67,9 +67,12 @@ class EnhancedWebSocketClient {
    * 建立 WebSocket 连接
    */
   connect(token?: string): Promise<void> {
+    // 已连接则直接返回
     if (this.ws?.readyState === WebSocket.OPEN) {
       return Promise.resolve()
     }
+
+    // 防止并发 connect() 创建多个 WebSocket（例如 ChatStore 与 PTY 同时触发）
     if (this.connectInFlight) {
       return this.connectInFlight
     }

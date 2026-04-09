@@ -89,6 +89,8 @@ export type FileWriteOperationType = 'create' | 'update'
 export interface FileWriteToolOutput {
   /** 操作类型：新建或更新 */
   type: FileWriteOperationType
+  /** 与工作区 API 一致的虚拟路径，如 /skills/README.md */
+  virtualPath?: string
   /** 文件路径 */
   filePath: string
   /** 写入的内容 */

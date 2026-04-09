@@ -30,6 +30,36 @@ const BINARY_EXTS = [
 ]
 
 /**
+ * 根目录单文件误写时尝试的常见子路径（与 web useAgentWorkdir workdirContentFallbackPaths 对齐）
+ */
+function workdirContentFallbackVirtualPaths(requested: string): string[] {
+  const n = requested.replace(/\\/g, '/')
+  if (!n.startsWith('/')) return []
+  const rest = n.slice(1)
+  if (rest.includes('/')) return []
+  if (!rest.includes('.')) return []
+  return [`/skills/${rest}`, `/scripts/${rest}`, `/src/${rest}`, `/config/${rest}`, `/outputs/${rest}`, `/uploads/${rest}`]
+}
+
+/** Bun/Node/Windows 下缺失路径的错误形态不一致，不能只看 message 里是否含 ENOENT */
+function isMissingFsError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const o = err as { code?: string; message?: string }
+  const c = o.code
+  if (c === 'ENOENT' || c === 'ENOTDIR') return true
+  const m = String(o.message || '').toLowerCase()
+  return (
+    m.includes('enoent') ||
+    m.includes('no such file') ||
+    m.includes('not found') ||
+    m.includes('system cannot find the file') ||
+    m.includes('cannot find the path') ||
+    m.includes('找不到') ||
+    m.includes('系统找不到指定的文件')
+  )
+}
+
+/**
  * 辅助函数：确保工作区存在
  */
 async function ensureWorkspace(sessionId: string, userId: string) {
@@ -114,64 +144,85 @@ export async function handleAgentWorkdirRoutes(req: Request): Promise<Response |
         return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区创建失败，请重试', 500)
       }
 
-      const fullPath = `${workspace.path}${filePath.startsWith('/') ? filePath : '/' + filePath}`
-
-      if (!fullPath.startsWith(workspace.path)) {
-        return createErrorResponse('FORBIDDEN', '禁止访问工作区外的文件', 403)
-      }
+      const normalized = filePath.startsWith('/') ? filePath : '/' + filePath
+      const tryVirtualPaths = [...new Set([normalized, ...workdirContentFallbackVirtualPaths(normalized)])]
 
       const fs = await import('fs/promises')
-      const stat = await fs.stat(fullPath)
 
-      if (!stat.isFile()) {
-        return createErrorResponse('NOT_FILE', '目标不是文件', 400)
-      }
+      for (const virtualPath of tryVirtualPaths) {
+        const resolved = resolveWorkdirFullPath(workspace.path, virtualPath)
+        if (!resolved.ok) {
+          continue
+        }
+        const fullPath = resolved.fullPath
 
-      const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase().split('?')[0]
-      const isBinary = BINARY_EXTS.includes(ext)
-      const MAX_TEXT_SIZE = 10 * 1024 * 1024
-      const MAX_BINARY_SIZE = 50 * 1024 * 1024
-      const maxSize = isBinary ? MAX_BINARY_SIZE : MAX_TEXT_SIZE
+        let stat: Awaited<ReturnType<typeof fs.stat>>
+        try {
+          stat = await fs.stat(fullPath)
+        } catch (e) {
+          if (isMissingFsError(e)) {
+            continue
+          }
+          throw e
+        }
 
-      if (stat.size > maxSize) {
-        return createErrorResponse(
-          'FILE_TOO_LARGE',
-          `文件过大 (${(stat.size / 1024 / 1024).toFixed(2)}MB)，${isBinary ? '超过 50MB' : '超过 10MB'}限制`,
-          400
-        )
-      }
+        if (!stat.isFile()) {
+          return createErrorResponse('NOT_FILE', '目标不是文件', 400)
+        }
 
-      if (isBinary) {
-        const buffer = await fs.readFile(fullPath)
-        const base64 = buffer.toString('base64')
-        const mimeType = getMimeType(ext)
+        const ext = virtualPath.substring(virtualPath.lastIndexOf('.')).toLowerCase().split('?')[0]
+        const isBinary = BINARY_EXTS.includes(ext)
+        const MAX_TEXT_SIZE = 10 * 1024 * 1024
+        const MAX_BINARY_SIZE = 50 * 1024 * 1024
+        const maxSize = isBinary ? MAX_BINARY_SIZE : MAX_TEXT_SIZE
+
+        if (stat.size > maxSize) {
+          return createErrorResponse(
+            'FILE_TOO_LARGE',
+            `文件过大 (${(stat.size / 1024 / 1024).toFixed(2)}MB)，${isBinary ? '超过 50MB' : '超过 10MB'}限制`,
+            400
+          )
+        }
+
+        if (isBinary) {
+          const buffer = await fs.readFile(fullPath)
+          const base64 = buffer.toString('base64')
+          const mimeType = getMimeType(ext)
+
+          return createSuccessResponse({
+            mode: 'binary',
+            encoding: 'base64',
+            content: base64,
+            mimeType,
+            ext,
+            size: stat.size,
+            lastModified: stat.mtime.toISOString(),
+            path: virtualPath
+          })
+        }
+
+        const content = await fs.readFile(fullPath, 'utf-8')
+        const language = detectLanguage(ext)
 
         return createSuccessResponse({
-          mode: 'binary',
-          encoding: 'base64',
-          content: base64,
-          mimeType,
-          ext,
+          mode: 'text',
+          content,
+          language,
           size: stat.size,
           lastModified: stat.mtime.toISOString(),
-          path: filePath
+          path: virtualPath
         })
       }
 
-      const content = await fs.readFile(fullPath, 'utf-8')
-      const language = detectLanguage(ext)
-
-      return createSuccessResponse({
-        mode: 'text',
-        content,
-        language,
-        size: stat.size,
-        lastModified: stat.mtime.toISOString(),
-        path: filePath
+      console.warn('[WorkDir content] 全部候选路径均未找到文件', {
+        userId: auth.userId,
+        workspacePath: workspace.path,
+        tryVirtualPaths,
       })
+      return createErrorResponse('FILE_NOT_FOUND', '文件不存在', 404)
     } catch (error) {
       const message = error instanceof Error ? error.message : '获取文件内容失败'
-      if (message.includes('ENOENT') || message.includes('not found')) {
+      if (isMissingFsError(error) || message.includes('ENOENT') || message.toLowerCase().includes('not found')) {
         return createErrorResponse('FILE_NOT_FOUND', '文件不存在', 404)
       }
       return createErrorResponse('READ_FAILED', message, 500)
@@ -335,6 +386,86 @@ export async function handleAgentWorkdirRoutes(req: Request): Promise<Response |
         return createErrorResponse('FILE_NOT_FOUND', '文件不存在', 404)
       }
       return createErrorResponse('DOWNLOAD_FAILED', message, 500)
+    }
+  }
+
+  // POST /api/agent/workdir/upload - 上传文件到工作区
+  if (pathName === '/api/agent/workdir/upload' && method === 'POST') {
+    try {
+      const auth = await authMiddleware(req)
+      if (!auth.userId) {
+        return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+      }
+
+      const contentType = req.headers.get('content-type') || ''
+      if (!contentType.includes('multipart/form-data')) {
+        return createErrorResponse('INVALID_CONTENT_TYPE', '需要 multipart/form-data 格式', 400)
+      }
+
+      const formData = await req.formData()
+      const sessionId = formData.get('sessionId') as string | null
+      const directory = (formData.get('directory') as string | null) || 'uploads'
+      const files = formData.getAll('files') as File[]
+
+      if (!sessionId) {
+        return createErrorResponse('INVALID_PARAMS', '缺少必需参数: sessionId', 400)
+      }
+
+      if (files.length === 0) {
+        return createErrorResponse('NO_FILE', '未找到上传的文件', 400)
+      }
+
+      const workspace = await ensureWorkspace(sessionId, auth.userId)
+      if (!workspace) {
+        return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区创建失败，请重试', 500)
+      }
+
+      // 安全检查：防止目录遍历
+      const safeDir = directory.replace(/\.\./g, '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+      const uploadDir = path.join(workspace.path, safeDir)
+
+      if (!uploadDir.startsWith(workspace.path)) {
+        return createErrorResponse('FORBIDDEN', '禁止访问工作区外的目录', 403)
+      }
+
+      const fs = await import('fs/promises')
+      await fs.mkdir(uploadDir, { recursive: true })
+
+      const uploaded: { path: string; name: string; size: number }[] = []
+      const failed: { name: string; reason: string }[] = []
+
+      for (const file of files) {
+        try {
+          const filePath = path.join(uploadDir, file.name)
+          // 再次安全检查
+          if (!filePath.startsWith(workspace.path)) {
+            failed.push({ name: file.name, reason: '路径不安全' })
+            continue
+          }
+
+          const buffer = Buffer.from(await file.arrayBuffer())
+          await fs.writeFile(filePath, buffer)
+          uploaded.push({
+            path: `/${safeDir}/${file.name}`.replace(/\/+/g, '/'),
+            name: file.name,
+            size: buffer.length
+          })
+        } catch (fileError) {
+          const reason = fileError instanceof Error ? fileError.message : '写入失败'
+          failed.push({ name: file.name, reason })
+        }
+      }
+
+      return createSuccessResponse({
+        success: true,
+        uploaded,
+        failed,
+        total: files.length,
+        message: `成功上传 ${uploaded.length} 个文件${failed.length > 0 ? `，${failed.length} 个失败` : ''}`
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '上传失败'
+      return createErrorResponse('UPLOAD_FAILED', message, 500)
     }
   }
 

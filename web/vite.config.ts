@@ -21,5 +21,21 @@ export default defineConfig({
         ws: true
       }
     }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // 为 Monaco Editor worker 提供正确的 asset 文件名
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name && assetInfo.name.includes('monaco-editor')) {
+            return 'assets/[name]-[hash][extname]'
+          }
+          return 'assets/[name]-[hash][extname]'
+        }
+      }
+    }
+  },
+  optimizeDeps: {
+    include: ['monaco-editor']
   }
 })

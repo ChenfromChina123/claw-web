@@ -315,6 +315,7 @@ function printServerStatus(): void {
   console.log(`       GET    /api/agent/workdir/list      - 获取目录列表`)
   console.log(`       GET    /api/agent/workdir/content   - 获取文件内容`)
   console.log(`       POST   /api/agent/workdir/save      - 保存文件`)
+  console.log(`       POST   /api/agent/workdir/upload    - 上传文件`)
   console.log(`       POST   /api/agent/workdir/create    - 创建文件/目录`)
   console.log(`       GET    /api/agent/workdir/download  - 下载文件`)
   console.log(`\n[API]  Userdir Endpoints:`)

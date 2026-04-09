@@ -16,6 +16,41 @@ import * as monaco from 'monaco-editor'
 import { sessionApi } from '@/api/sessionApi'
 
 /**
+ * 配置 Monaco Editor Web Worker
+ * 使用 data URL 方式避免跨域问题
+ */
+function setupMonacoEnvironment(): void {
+  // 避免重复配置
+  if ((self as unknown as Record<string, unknown>).MonacoEnvironment) {
+    return
+  }
+
+  // 基础 worker 脚本 - 简单的消息回显
+  const baseWorkerScript = `
+    self.onmessage = function(e) {
+      self.postMessage(e.data);
+    };
+  `
+
+  ;(self as unknown as Record<string, unknown>).MonacoEnvironment = {
+    getWorker(_moduleId: string, label: string): Worker {
+      // 创建简单的 worker
+      const blob = new Blob([baseWorkerScript], { type: 'application/javascript' })
+      return new Worker(URL.createObjectURL(blob))
+    },
+    getWorkerUrl(_moduleId: string, _label: string): string {
+      // 返回 data URL，避免跨域问题
+      return 'data:application/javascript;base64,' + btoa(baseWorkerScript)
+    }
+  }
+}
+
+// 在浏览器环境中配置 Monaco
+if (typeof window !== 'undefined' && typeof window.document !== 'undefined') {
+  setupMonacoEnvironment()
+}
+
+/**
  * 已打开文件（多标签）
  */
 export interface OpenFileEntry {
@@ -184,6 +219,9 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
   /** 记录加载失败的路径，避免重复请求失败的后端（防止频繁重试） */
   const failedPaths = new Set<string>()
 
+  /** 标记 restoreOpenFiles 是否正在进行，防止 watch sessionIdRef 多次触发导致重复请求 */
+  let isRestoringOpenFiles = false
+
   function pathCacheKey(normalizedPath: string): string {
     return normalizedPath
   }
@@ -245,11 +283,22 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     if (editorInstance) {
       editorInstance.setModel(null)
     }
+    // 清理已追踪的模型
     for (const m of modelMap.values()) {
       m.dispose()
     }
     modelMap.clear()
     savedVersionId.clear()
+    // 清理所有 Monaco 内部已打开的 workdir 模型，防止 model already exists 错误
+    const toDispose: monaco.editor.ITextModel[] = []
+    for (const m of monaco.editor.getModels()) {
+      if (m.uri.scheme === 'workdir') {
+        toDispose.push(m)
+      }
+    }
+    for (const m of toDispose) {
+      m.dispose()
+    }
     for (const url of blobUrlRegistry.values()) {
       URL.revokeObjectURL(url)
     }
@@ -282,29 +331,98 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
   /** Blob URL registry — revoke on tab close to avoid memory leaks */
   const blobUrlRegistry = new Map<string, string>()
 
+  function isHttp404(err: unknown): boolean {
+    const e = err as { response?: { status?: number } }
+    return e?.response?.status === 404
+  }
+
+  /**
+   * 根目录误写路径的常见纠正（Agent 常把 skills/foo 记成 /foo）
+   * 仅当直接路径 404 时按顺序尝试
+   */
+  function workdirContentFallbackPaths(requested: string): string[] {
+    const n = requested.replace(/\\/g, '/')
+    if (!n.startsWith('/')) return []
+    const rest = n.slice(1)
+    if (rest.includes('/')) return []
+    if (!rest.includes('.')) return []
+    return [`/skills/${rest}`, `/scripts/${rest}`, `/src/${rest}`, `/config/${rest}`, `/outputs/${rest}`, `/uploads/${rest}`]
+  }
+
+  /**
+   * 拉取文件内容；若根路径 404 则尝试 skills/ 等候选路径，并返回实际路径供标签页纠正
+   */
   async function fetchFileContentFromApi(filePath: string): Promise<{
+    resolvedPath: string
     mode: 'text' | 'binary'
     content?: string
     language?: string
     mimeType?: string
     ext?: string
   }> {
-    const response = await apiClient.get(`${API_WORKDIR_BASE}/content`, {
-      params: { sessionId: sessionIdRef.value, path: filePath }
-    }) as any
-    const data = response.data.data
-    return {
-      mode: data.mode || 'text',
-      content: data.content,
-      language: data.language || 'plaintext',
-      mimeType: data.mimeType,
-      ext: data.ext,
+    const tryPaths = [filePath, ...workdirContentFallbackPaths(filePath)]
+    const unique = [...new Set(tryPaths)]
+    let lastErr: unknown
+    for (const p of unique) {
+      try {
+        const response = await apiClient.get(`${API_WORKDIR_BASE}/content`, {
+          params: { sessionId: sessionIdRef.value, path: p }
+        }) as { data?: { data?: Record<string, unknown>; success?: boolean } }
+        const data = response.data?.data as Record<string, unknown> | undefined
+        if (!data) {
+          lastErr = new Error('empty response')
+          continue
+        }
+        return {
+          resolvedPath: p,
+          mode: (data.mode as 'text' | 'binary') || 'text',
+          content: data.content as string | undefined,
+          language: (data.language as string) || 'plaintext',
+          mimeType: data.mimeType as string | undefined,
+          ext: data.ext as string | undefined,
+        }
+      } catch (err: unknown) {
+        lastErr = err
+        if (isHttp404(err) && unique.indexOf(p) < unique.length - 1) {
+          continue
+        }
+        throw err
+      }
     }
+    throw lastErr instanceof Error ? lastErr : new Error('加载文件失败')
   }
 
-  async function activateOpenFile(fileId: string): Promise<void> {
-    const entry = openFiles.value.find(f => f.id === fileId)
-    if (!entry) return
+  /** 将标签页从错误路径纠正为服务端实际路径（与 model id 一致） */
+  function remapOpenFileTab(oldPath: string, newPath: string): void {
+    if (oldPath === newPath) return
+    const idx = openFiles.value.findIndex(f => f.id === oldPath)
+    if (idx === -1) return
+    const entry = openFiles.value[idx]
+    const name = newPath.split(/[/\\]/).pop() || newPath
+    openFiles.value[idx] = {
+      ...entry,
+      id: newPath,
+      path: newPath,
+      name,
+    }
+    if (activeFileId.value === oldPath) activeFileId.value = newPath
+    if (currentFilePath.value === oldPath) currentFilePath.value = newPath
+    const oldModel = modelMap.get(oldPath)
+    if (oldModel) {
+      oldModel.dispose()
+      modelMap.delete(oldPath)
+      savedVersionId.delete(oldPath)
+    }
+    void persistOpenFiles()
+  }
+
+  /**
+   * 激活已打开的文件（加载内容到编辑器）
+   * @returns 是否成功加载，失败时返回 false（用于恢复标签页时跳过无效文件）
+   */
+  async function activateOpenFile(fileId: string): Promise<boolean> {
+    let entry = openFiles.value.find(f => f.id === fileId)
+    if (!entry) return false
 
     await revealPathInTree(entry.path)
     currentFilePath.value = entry.path
@@ -323,11 +441,17 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
       const extLower = (entry.ext || '').toLowerCase()
       // Word/Excel/PPT 不在此内嵌预览，不拉取整文件，避免大文档 base64 解码卡顿与黑屏
       if (UNPREVIEWABLE_OFFICE_EXTS.has(extLower)) {
-        return
+        return false
       }
       try {
         loading.value = true
-        const { content, mimeType } = await fetchFileContentFromApi(entry.path)
+        const fetched = await fetchFileContentFromApi(entry.path)
+        const { content, mimeType, resolvedPath } = fetched
+        if (resolvedPath !== entry.path) {
+          remapOpenFileTab(entry.path, resolvedPath)
+          entry = openFiles.value.find(f => f.id === resolvedPath) || entry
+        }
+        const blobKey = entry.path
         const resolvedMime =
           mimeType || entry.mimeType || 'application/octet-stream'
         if (content) {
@@ -338,40 +462,105 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
           for (let i = 0; i < len; i++) buf[i] = binaryData.charCodeAt(i)
           const blob = new Blob([buf], { type: resolvedMime })
           activeBlobUrl.value = URL.createObjectURL(blob)
-          blobUrlRegistry.set(fileId, activeBlobUrl.value)
+          blobUrlRegistry.set(blobKey, activeBlobUrl.value)
         } else {
           message.error('服务端未返回文件内容，请尝试「下载文件」或刷新后重试')
+          return false
         }
       } catch (error: unknown) {
         console.error('[useAgentWorkdir] 加载二进制文件失败:', error)
-        const err = error as { response?: { data?: { error?: { message?: string } } } }
-        message.error(err.response?.data?.error?.message || '加载文件失败')
+        const err = error as { response?: { status?: number; data?: { error?: { message?: string } } } }
+        const status = err?.response?.status
+        if (status === 404) {
+          message.warning(`文件不存在: ${entry.path}`)
+          const idx = openFiles.value.findIndex(f => f.id === fileId)
+          if (idx !== -1) openFiles.value.splice(idx, 1)
+          if (activeFileId.value === fileId) {
+            activeFileId.value = openFiles.value[0]?.id || null
+            if (activeFileId.value) {
+              await activateOpenFile(activeFileId.value)
+            } else {
+              currentFilePath.value = ''
+            }
+          }
+          const remainingPaths = openFiles.value.map(f => f.path)
+          await persistOpenFilesToDb(remainingPaths, activeFileId.value)
+        } else {
+          message.error(err?.response?.data?.error?.message || '加载文件失败')
+        }
+        return false
       } finally {
         loading.value = false
       }
-      return
+      return true
     }
 
-    if (!editorInstance) return
+    if (!editorInstance) return false
 
     // Text file → Monaco editor
     activeIsReadOnly.value = false
 
     let model = modelMap.get(fileId)
     if (!model) {
-      try {
-        loading.value = true
-        const { content, language } = await fetchFileContentFromApi(entry.path)
-        const uri = monaco.Uri.parse(`workdir:${encodeURIComponent(entry.path)}`)
-        model = monaco.editor.createModel(content ?? '', language ?? 'plaintext', uri)
+      // 再次检查 Monaco 内部模型（防止 URI 冲突）
+      const uri = monaco.Uri.parse(`workdir:${encodeURIComponent(entry.path)}`)
+      const existingModel = monaco.editor.getModel(uri)
+      if (existingModel) {
+        model = existingModel
         modelMap.set(fileId, model)
         savedVersionId.set(fileId, model.getAlternativeVersionId())
+      }
+    }
+    if (!model) {
+      try {
+        loading.value = true
+        const fetched = await fetchFileContentFromApi(entry.path)
+        let { content, language, resolvedPath } = fetched
+        if (resolvedPath !== entry.path) {
+          remapOpenFileTab(entry.path, resolvedPath)
+          entry = openFiles.value.find(f => f.id === resolvedPath) || entry
+        }
+        const effectiveId = entry.path
+        const uri2 = monaco.Uri.parse(`workdir:${encodeURIComponent(resolvedPath)}`)
+        // 双重检查（可能另一个窗口已创建）
+        let existing = monaco.editor.getModel(uri2)
+        if (existing) {
+          model = existing
+        } else {
+          model = monaco.editor.createModel(content ?? '', language ?? 'plaintext', uri2)
+        }
+        modelMap.set(effectiveId, model)
+        savedVersionId.set(effectiveId, model.getAlternativeVersionId())
       } catch (error: unknown) {
         console.error('[useAgentWorkdir] 加载文件失败:', error)
-        const err = error as { response?: { data?: { error?: { message?: string } } } }
-        message.error(err.response?.data?.error?.message || '加载文件失败')
+        const err = error as { response?: { status?: number; data?: { error?: { message?: string } } } }
+        const status = err?.response?.status
+
+        if (status === 404) {
+          // 文件不存在，从标签页移除并更新持久化记录
+          message.warning(`文件不存在: ${entry.path}`)
+
+          const idx = openFiles.value.findIndex(f => f.id === fileId)
+          if (idx !== -1) openFiles.value.splice(idx, 1)
+
+          if (activeFileId.value === fileId) {
+            activeFileId.value = openFiles.value[0]?.id || null
+            if (activeFileId.value) {
+              await activateOpenFile(activeFileId.value)
+            } else {
+              editorInstance?.setModel(null)
+              currentFilePath.value = ''
+            }
+          }
+
+          // 更新持久化记录
+          const remainingPaths = openFiles.value.map(f => f.path)
+          await persistOpenFilesToDb(remainingPaths, activeFileId.value)
+        } else {
+          message.error(err?.response?.data?.error?.message || '加载文件失败')
+        }
         loading.value = false
-        return
+        return false
       } finally {
         loading.value = false
       }
@@ -380,6 +569,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     editorInstance.setModel(model)
     fileLanguage.value = model.getLanguageId()
     syncActiveDirtyState()
+    return true
   }
 
   const BINARY_EXTS = new Set([
@@ -413,7 +603,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     return { mode: 'text', ext }
   }
 
-  async function openFileFromExplorer(path: string): Promise<void> {
+  async function openFileFromExplorer(path: string): Promise<boolean> {
     const id = path
     const name = path.split(/[/\\]/).pop() || path
     const { mode, mimeType, ext } = detectFileMode(name)
@@ -423,10 +613,11 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     }
     activeFileId.value = id
     currentFilePath.value = path
-    await activateOpenFile(id)
+    const success = await activateOpenFile(id)
 
     // 持久化记录
     persistOpenFiles()
+    return success
   }
 
   /**
@@ -446,42 +637,61 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
   /**
    * 从数据库持久化记录中恢复已打开的文件（跨会话统一）
    * 按顺序打开文件，最后激活上次活跃的文件
+   * 文件不存在时自动从记录中移除，避免刷屏重试
    */
   async function restoreOpenFiles(): Promise<void> {
     const sid = sessionIdRef.value
     if (!sid) return
+    if (isRestoringOpenFiles) return
+    isRestoringOpenFiles = true
 
-    const record = await fetchPersistedOpenFiles()
-    if (!record || !record.openFilePaths || record.openFilePaths.length === 0) {
-      return
-    }
-
-    console.log('[useAgentWorkdir] 恢复已打开文件:', record.openFilePaths)
-
-    // 按顺序打开文件（不再检查 treeData，因为文件树是懒加载的）
-    for (const filePath of record.openFilePaths) {
-      // 检查文件是否在 treeData 中（可能已加载）
-      const exists = findNodeByKey(treeData.value, filePath)
-      if (exists) {
-        await openFileFromExplorer(filePath)
-      } else {
-        // 文件可能尚未加载到树中，但仍尝试打开它
-        // 这会通过 Monaco 的虚拟文件机制处理
-        console.log('[useAgentWorkdir] 文件未在树中找到，仍尝试打开:', filePath)
-        await openFileFromExplorer(filePath)
+    try {
+      const record = await fetchPersistedOpenFiles()
+      if (!record || !record.openFilePaths || record.openFilePaths.length === 0) {
+        return
       }
-    }
 
-    // 激活上次活跃的文件
-    if (record.activeFilePath) {
-      const activeId = record.activeFilePath
-      const entry = openFiles.value.find(f => f.id === activeId)
-      if (entry) {
-        await activateOpenFile(activeId)
-      } else if (openFiles.value.length > 0) {
-        // 如果上次活跃的文件不存在，激活第一个
-        await activateOpenFile(openFiles.value[0].id)
+      console.log('[useAgentWorkdir] 恢复已打开文件:', record.openFilePaths)
+
+      const validPaths: string[] = []
+
+      // 按顺序打开文件，跳过不存在的文件（成功后写入实际路径，含 content fallback remap）
+      for (const filePath of record.openFilePaths) {
+        const exists = findNodeByKey(treeData.value, filePath)
+        if (!exists) {
+          console.log('[useAgentWorkdir] 文件未在树中找到，跳过预验证，直接尝试打开:', filePath)
+        }
+        const ok = await openFileFromExplorer(filePath)
+        if (ok) {
+          const resolved = activeFileId.value || filePath
+          validPaths.push(resolved)
+        }
       }
+
+      const pathsDiffer =
+        validPaths.length !== record.openFilePaths.length ||
+        validPaths.some((p, i) => p !== record.openFilePaths[i])
+
+      /** 持久化里的 active 可能是旧路径（如 /foo.py），打开后已 remap 为 /skills/foo.py */
+      const resolveRestoredActiveId = (saved: string | null): string | null => {
+        if (!saved) return openFiles.value[0]?.id ?? null
+        if (openFiles.value.some(f => f.id === saved)) return saved
+        const base = saved.split(/[/\\]/).pop() || ''
+        return openFiles.value.find(f => f.name === base)?.id ?? openFiles.value[0]?.id ?? null
+      }
+
+      const resolvedActive = resolveRestoredActiveId(record.activeFilePath)
+      if (resolvedActive) {
+        await activateOpenFile(resolvedActive)
+      }
+
+      const activeDiffer = resolvedActive !== record.activeFilePath
+      if (pathsDiffer || activeDiffer) {
+        console.log('[useAgentWorkdir] 同步已打开文件记录:', { validPaths, resolvedActive })
+        await persistOpenFilesToDb(validPaths, resolvedActive)
+      }
+    } finally {
+      isRestoringOpenFiles = false
     }
   }
 
@@ -1138,6 +1348,8 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
   // 2. 不再清除/重置已打开的文件（统一工作区，跨会话共享）
   watch<string>(sessionIdRef, async (newSid, oldSid) => {
     if (!newSid) return
+    // 防止 restoreOpenFiles 未完成时重复触发
+    if (isRestoringOpenFiles) return
     // sessionId 变化时，重新加载文件树（但保留已打开的文件状态）
     console.log('[useAgentWorkdir] sessionId 变化:', oldSid, '->', newSid)
     loadedPaths.clear()

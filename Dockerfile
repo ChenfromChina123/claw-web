@@ -19,8 +19,8 @@ WORKDIR /app/web
 # 复制前端依赖文件
 COPY web/package.json web/package-lock.json ./
 
-# 安装前端依赖（使用国内镜像源加速）
-RUN npm ci --registry=https://registry.npmmirror.com
+# 安装前端依赖（使用国内镜像源加速，--legacy-peer-deps解决依赖冲突）
+RUN npm install --registry=https://registry.npmmirror.com --legacy-peer-deps
 
 # 复制前端源代码
 COPY web/ .
@@ -40,11 +40,8 @@ COPY server/package.json server/bun.lock ./
 # 安装后端依赖
 RUN bun install --frozen-lockfile
 
-# 复制后端源代码
+# 复制后端源代码（使用 Bun 直接运行，无需编译）
 COPY server/ .
-
-# TypeScript 编译
-RUN bun run build
 
 # ==================== 生产运行阶段 ====================
 FROM oven/bun:1-alpine AS production
@@ -82,7 +79,7 @@ COPY --from=frontend-builder /app/web/dist ./web/dist
 
 # 从后端构建阶段复制产物
 COPY --from=backend-builder /app/server/node_modules ./server/node_modules
-COPY --from=backend-builder /app/server/dist ./server/dist
+COPY --from=backend-builder /app/server/src ./server/src
 COPY --from=backend-builder /app/server/package.json ./server/
 COPY --from=backend-builder /app/server/tsconfig.json ./server/
 
@@ -103,5 +100,5 @@ USER bun
 # 优雅关闭信号处理
 STOPSIGNAL SIGINT
 
-# 启动命令
-CMD ["bun", "run", "server/dist/index.js"]
+# 启动命令（Bun 直接运行 TypeScript）
+CMD ["bun", "run", "server/src/index.ts"]

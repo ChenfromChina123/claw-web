@@ -6,6 +6,11 @@
 # 需要配置镜像加速器。以下是几种方案：
 #
 # ⚠️ 重要：配置后需要重启 Docker Desktop 才能生效！
+#
+# **镜像加速 vs 代理直连**：二选一为主，不要混用冲突配置。
+# - 走 **registry-mirrors**（方案一/二）时，拉取会先到镜像站。
+# - 走 **HTTP 代理直连 Hub**（方案三）时，应去掉会劫持 Hub 的镜像站，
+#   且代理的「绕过」列表里不要排除 `registry-1.docker.io` / `*.docker.com`。
 
 ## 方案一：Docker Desktop 配置镜像加速（推荐）
 
@@ -73,16 +78,47 @@ Restart-Service docker
 
 ---
 
-## 方案三：使用代理服务器（如果你有 VPN/代理）
+## 方案三：HTTP/HTTPS 代理直连 Docker Hub（国际源）
 
-如果你有 HTTP/HTTPS 代理，可以在 Docker Desktop 中配置：
+适用于本机已有代理（例如 Clash / V2 等监听 `127.0.0.1:9674`），希望 **从官方 Docker Hub 拉取**，而不是校园网/第三方镜像站。
 
-1. 打开 Docker Desktop → Settings → Resources → Proxies
-2. 选择 "Manual proxy configuration"
-3. 填写你的代理地址：
-   - HTTP Proxy: `http://127.0.0.1:7890` （根据你的代理端口修改）
-   - HTTPS Proxy: `http://127.0.0.1:7890`
-4. Apply & Restart
+### 1. Docker Desktop → Proxies
+
+1. 打开 **Docker Desktop** → **Settings** → **Resources** → **Proxies**
+2. 开启 **Manual proxy configuration**
+3. 填写（端口按你的代理实际端口修改，常见为 `7890`、`7897`、`9674` 等）：
+   - **Web Server (HTTP)**：`http://127.0.0.1:9674`
+   - **Secure Web Server (HTTPS)**：`http://127.0.0.1:9674`
+
+### 2. 「绕过代理」列表（必须检查）
+
+若列表里包含 **`*.docker.com`**、**`registry-1.docker.io`** 等，对 Hub 的请求会 **绕过代理直连**，容易超时或被错误路由到不可用的镜像站（例如出现 `docker.nju.edu.cn` … **403 Forbidden**）。
+
+**推荐仅保留内网不走代理**，例如一行（无换行）：
+
+```text
+localhost,127.0.0.1,::1,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12
+```
+
+请从绕过列表中 **删除** 与 Docker Hub 相关的条目（如 `*.docker.com`、`registry-1.docker.io`）。
+
+### 3. Docker Engine：镜像加速与代理二选一
+
+若仍配置了 **`registry-mirrors`**（尤其含 `docker.nju.edu.cn` 等），拉取可能仍走镜像站而非代理。
+
+- 若确定 **只用代理访问 Hub**：在 **Settings → Docker Engine** 中去掉 `registry-mirrors`，或改为仅 `{}`。
+- 仓库内可参考空配置示例：`daemon.dockerhub-via-proxy.example.json`（内容为 `{}`，表示不配置镜像加速，由代理访问官方 registry）。
+
+修改后点击 **Apply & Restart**。
+
+### 4. 验证
+
+```bash
+docker pull hello-world
+docker info
+```
+
+在 `docker info` 中确认：使用代理时 **Registry Mirrors** 为空或未指向失效镜像；拉取成功即表示 Hub 经代理可达。
 
 ---
 
@@ -175,6 +211,12 @@ docker compose logs -f mysql
 3. 检查是否有防火墙阻止
 4. 尝试使用手机热点（排除局域网问题）
 
+### 问题 1b：已设代理仍出现 `docker.nju.edu.cn` 或镜像站 403
+
+**原因**：Docker Engine 里仍配置了 `registry-mirrors`，和/或 Proxies 里 **绕过列表** 排除了 Hub 域名导致未走代理。
+
+**处理**：按 **方案三** 清空 Hub 相关绕过项，并移除或修正 `registry-mirrors` 后重启 Docker Desktop。
+
 ### 问题 2：容器启动失败
 
 **查看错误日志：**
@@ -229,7 +271,7 @@ docker inspect claude-backend
 
 ## 🎯 下一步操作清单
 
-- [ ] 1. 配置 Docker 镜像加速器（方案一/二/三选一）
+- [ ] 1. 配置 Docker：镜像加速（方案一/二）或 代理直连 Hub（方案三），勿混用冲突项
 - [ ] 2. 重启 Docker Desktop
 - [ ] 3. 测试镜像拉取：`docker pull mysql:8.0`
 - [ ] 4. 启动服务：`docker compose up -d --build`
