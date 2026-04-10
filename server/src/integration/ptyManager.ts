@@ -294,21 +294,29 @@ export class PTYSessionManager {
    */
   resize(sessionId: string, cols: number, rows: number): boolean {
     const session = this.sessions.get(sessionId)
-    
+
     // 防御性检查：如果 session 不存在或进程已退出，直接跳过
     if (!session || !session.isAlive || !session.terminal) {
       console.warn(`[PTY] Skip resize for session ${sessionId}: session not alive`)
       return false
     }
 
-    session.cols = cols
-    session.rows = rows
+    // 参数有效性检查：确保 cols 和 rows 是正整数
+    const validCols = Math.max(1, Math.floor(Number(cols) || 80))
+    const validRows = Math.max(1, Math.floor(Number(rows) || 24))
+
+    if (validCols !== cols || validRows !== rows) {
+      console.warn(`[PTY] Invalid resize params for session ${sessionId}: ${cols}x${rows}, using ${validCols}x${validRows}`)
+    }
+
+    session.cols = validCols
+    session.rows = validRows
     session.lastActiveAt = Date.now()
 
     try {
       // Bun.Terminal 调整尺寸
-      session.terminal.resize(cols, rows)
-      console.log(`[PTY] Resized session ${sessionId} to ${cols}x${rows}`)
+      session.terminal.resize(validCols, validRows)
+      console.log(`[PTY] Resized session ${sessionId} to ${validCols}x${validRows}`)
       return true
     } catch (err) {
       console.error(`[PTY] Failed to resize session ${sessionId}:`, err)
