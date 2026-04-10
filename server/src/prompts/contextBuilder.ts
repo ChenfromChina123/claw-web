@@ -168,8 +168,9 @@ export const SYSTEM_PROMPT_DYNAMIC_BOUNDARY =
  * 6. 语调和风格（静态，可缓存）
  * 7. === 动态边界 ===
  * 8. 会话特定指导（动态）
- * 9. 环境信息（动态）
- * 10. MCP 指令（动态）
+ * 9. 规则注入（用户规则与项目规则）
+ * 10. 环境信息（动态）
+ * 11. MCP 指令（动态）
  *
  * @param options 构建选项
  */
@@ -182,6 +183,7 @@ export async function buildCompleteSystemPrompt(options: {
   outputStyleConfig?: { name: string; prompt: string } | null
   languagePreference?: string | null
   useGlobalCacheScope?: boolean
+  injectRules?: boolean
 }): Promise<string[]> {
   const {
     cwd = process.cwd(),
@@ -192,6 +194,7 @@ export async function buildCompleteSystemPrompt(options: {
     outputStyleConfig,
     languagePreference,
     useGlobalCacheScope = false,
+    injectRules = true,
   } = options
 
   const {
@@ -219,6 +222,16 @@ export async function buildCompleteSystemPrompt(options: {
   const sessionGuidance = getSessionSpecificGuidanceSection(enabledTools)
   if (sessionGuidance) {
     dynamicSections.push(sessionGuidance)
+  }
+
+  // 规则注入（用户规则与项目规则）
+  if (injectRules) {
+    const { ruleInjector } = await import('../services/ruleInjector')
+    const rulesInjection = await ruleInjector.buildRulesInjection(cwd)
+    if (rulesInjection) {
+      dynamicSections.push(rulesInjection)
+      console.log('[buildCompleteSystemPrompt] 已注入规则到系统提示')
+    }
   }
 
   // 语言偏好
