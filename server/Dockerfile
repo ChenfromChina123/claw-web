@@ -16,6 +16,7 @@ LABEL description="Backend service with multi-tenant isolation and memory optimi
 LABEL version="1.0.0"
 
 # 安装必要的系统依赖（包含 node-pty 编译所需的构建工具）
+# ✅ 安全优化：移除不必要的工具，减少攻击面
 RUN apt-get update && apt-get install -y \
     default-mysql-client \
     curl \
@@ -27,7 +28,8 @@ RUN apt-get update && apt-get install -y \
     gcc \
     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/cache/apt/archives/*
 
 WORKDIR /app
 
@@ -82,5 +84,15 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 STOPSIGNAL SIGINT
 
 USER bun
+
+# ✅ 安全配置说明：
+# 1. 以非 root 用户（bun）运行，降低容器内进程权限
+# 2. 配合 docker-compose.yml 中的安全选项使用：
+#    - cap_drop: ALL (丢弃所有能力)
+#    - cap_add: [CHOWN, SETUID, SETGID, MKNOD, AUDIT_WRITE] (仅添加必需能力)
+#    - read_only: true (只读根文件系统)
+#    - security_opt: [seccomp, no-new-privileges] (Seccomp 和禁止提权)
+#    - tmpfs: /tmp:noexec,nosuid (临时文件系统禁止执行)
+# 3. 生产环境应启用 Seccomp 配置文件限制系统调用
 
 CMD ["bun", "--bun", "run", "src/index.ts"]

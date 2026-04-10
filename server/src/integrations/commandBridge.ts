@@ -46,6 +46,13 @@ export type CommandCategory = 'general' | 'session' | 'config' | 'tools' | 'adva
 export class WebCommandBridge {
   private projectRoot: string
   private commands: Map<string, Command> = new Map()
+  private history: Array<{
+    command: string
+    timestamp: number
+    sessionId: string
+    result: CommandResult
+  }> = []
+  private maxHistorySize = 100
   
   constructor() {
     this.projectRoot = this.getProjectRoot()
@@ -227,6 +234,46 @@ export class WebCommandBridge {
   }
   
   /**
+   * 执行命令（增强版 - 带历史记录和性能监控）
+   */
+  async execute(
+    commandStr: string,
+    context: { sessionId: string; sendEvent?: EventSender }
+  ): Promise<CommandResult> {
+    const startTime = Date.now()
+    const result = await this.executeCommand(commandStr, context.sendEvent)
+    const duration = Date.now() - startTime
+    
+    // 记录到历史
+    this.history.push({
+      command: commandStr,
+      timestamp: startTime,
+      sessionId: context.sessionId,
+      result,
+    })
+    
+    // 限制历史记录大小
+    if (this.history.length > this.maxHistorySize) {
+      this.history.shift()
+    }
+    
+    // 性能监控
+    try {
+      const { getPerformanceMonitor } = require('../../monitoring/PerformanceMonitor')
+      const perfMonitor = getPerformanceMonitor()
+      perfMonitor.record('command.execute', duration, result.success, {
+        command: commandStr.split(' ')[0],
+        sessionId: context.sessionId,
+      })
+    } catch (error) {
+      // 性能监控可选，失败不影响命令执行
+      console.warn('[WebCommandBridge] 性能监控失败:', error)
+    }
+    
+    return result
+  }
+  
+  /**
    * 执行命令
    */
   async executeCommand(
@@ -301,6 +348,35 @@ export class WebCommandBridge {
   isCommand(input: string): boolean {
     const trimmed = input.trim()
     return trimmed.startsWith('/') || this.commands.has(trimmed.split(' ')[0].toLowerCase())
+  }
+  
+  /**
+   * 获取命令历史
+   */
+  getHistory(sessionId?: string, limit: number = 20): Array<{
+    command: string
+    timestamp: number
+    sessionId: string
+    result: CommandResult
+  }> {
+    let history = this.history
+    
+    if (sessionId) {
+      history = history.filter(h => h.sessionId === sessionId)
+    }
+    
+    return history.slice(-limit)
+  }
+  
+  /**
+   * 清除命令历史
+   */
+  clearHistory(sessionId?: string): void {
+    if (sessionId) {
+      this.history = this.history.filter(h => h.sessionId !== sessionId)
+    } else {
+      this.history = []
+    }
   }
   
   // ==================== 命令实现 ====================

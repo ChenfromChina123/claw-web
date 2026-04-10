@@ -635,7 +635,15 @@ class LLMService {
         case 'tool_result':
           return block
         case 'image':
-          return block
+          // Anthropic 使用 image 类型，格式稍有不同
+          return {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: block.source.media_type,
+              data: block.source.data,
+            },
+          }
         default:
           return { type: 'text', text: JSON.stringify(block) }
       }
@@ -662,7 +670,7 @@ class LLMService {
       if (typeof msg.content === 'string') {
         result.push({ role: msg.role, content: msg.content })
       } else {
-        // 复杂内容（包含工具调用等）
+        // 复杂内容（包含工具调用、图片等）
         const parts: any[] = []
         for (const block of msg.content) {
           if (block.type === 'text') {
@@ -679,6 +687,14 @@ class LLMService {
               type: 'tool_result',
               tool_use_id: block.tool_use_id,
               content: block.content,
+            })
+          } else if (block.type === 'image') {
+            // 处理图片内容块
+            parts.push({
+              type: 'image_url',
+              image_url: {
+                url: `data:${block.source.media_type};base64,${block.source.data}`,
+              },
             })
           }
         }

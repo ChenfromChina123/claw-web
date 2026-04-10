@@ -174,17 +174,6 @@ function getMimeType(filePath: string): string {
 
 /**
  * 处理和压缩图片
- * 
- * 使用 sharp 库进行智能图片处理：
- * 1. 获取原始图片尺寸
- * 2. 如果超过最大尺寸，按比例缩小
- * 3. 转换为 JPEG 格式以减小体积
- * 4. 应用质量压缩
- * 
- * @param imageBuffer 原始图片缓冲区
- * @param filePath 文件路径（用于推断格式）
- * @param options 处理选项
- * @returns 处理后的图片缓冲区和元信息
  */
 async function processImage(
   imageBuffer: Buffer,
@@ -199,7 +188,6 @@ async function processImage(
   const ext = extname(filePath).toLowerCase().slice(1)
   
   try {
-    // 获取图片元信息（不解码整个图片）
     const metadata = await sharp(imageBuffer).metadata()
     
     const originalWidth = metadata.width || 0
@@ -211,25 +199,20 @@ async function processImage(
     let displayHeight: number | undefined
     let wasProcessed = false
     
-    // 如果不是要求完整尺寸，则进行优化处理
     if (!options.fullSize) {
-      // 创建 sharp 实例进行转换
       let pipeline = sharp(imageBuffer)
       
-      // 检查是否需要调整尺寸
       const needsResize = 
         originalWidth > options.maxWidth || 
         originalHeight > options.maxHeight
       
       if (needsResize) {
-        // 按比例缩放，保持宽高比
         pipeline = pipeline.resize(options.maxWidth, options.maxHeight, {
-          fit: 'inside',      // 保持比例，完全在边界内
-          withoutEnlargement: true  // 不放大小图
+          fit: 'inside',
+          withoutEnlargement: true
         })
         wasProcessed = true
         
-        // 计算实际输出尺寸
         const ratio = Math.min(
           options.maxWidth / originalWidth,
           options.maxHeight / originalHeight
@@ -238,18 +221,16 @@ async function processImage(
         displayHeight = Math.round(originalHeight * ratio)
       }
       
-      // 转换为 JPEG 格式（除非原图就是 PNG 且较小）
       if (ext !== 'png' || imageBuffer.length > 500000) {
         pipeline = pipeline.jpeg({
           quality: options.quality,
-          mozjpeg: true  // 使用 mozjpeg 编码器获得更好的压缩率
+          mozjpeg: true
         })
         wasProcessed = true
       } else if (ext === 'png') {
-        // 小 PNG 图片保持原格式但进行优化
         pipeline = pipeline.png({
           compressionLevel: 9,
-          palette: true,  // 如果可能，使用调色板模式
+          palette: true,
           quality: options.quality
         })
         wasProcessed = true
@@ -276,7 +257,6 @@ async function processImage(
     }
     
   } catch (error) {
-    // 如果 sharp 处理失败，返回原始数据
     console.error('[ImageRead] 图片处理失败:', error)
     
     return {
@@ -295,25 +275,76 @@ async function processImage(
 }
 
 /**
+ * 使用大模型视觉 API 分析图片内容
+ */
+export async function analyzeImageWithLLM(
+  base64Image: string,
+  mimeType: string,
+  metadata: ImageMetadata
+): Promise<string> {
+  try {
+    console.log('[ImageRead] 开始使用大模型分析图片...')
+    
+    const messages = [
+      {
+        role: 'user' as const,
+        content: [
+          { 
+            type: 'image' as const, 
+            source: { 
+              type: 'base64' as const, 
+              media_type: mimeType, 
+              data: base64Image 
+            } 
+          },
+          { 
+            type: 'text' as const, 
+            text: '请详细描述这张图片的内容，包括：\n1. 图片中的主要物体和场景\n2. 颜色、光线等视觉特征\n3. 如果有文字，请提取出来\n4. 图片的类型（照片、截图、图表、设计图等）\n5. 任何其他重要的视觉信息\n\n请用中文回答。' 
+          },
+        ],
+      },
+    ]
+    
+    const response = await llmService.chat(messages, {
+      maxTokens: 2048,
+      temperature: 0.3,
+    })
+    
+    console.log('[ImageRead] 大模型分析完成')
+    
+    return response.content
+  } catch (error) {
+    console.error('[ImageRead] 大模型分析失败:', error)
+    return `[图片分析失败：${error instanceof Error ? error.message : String(error)}]\n\n图片基本信息：\n${createImageDescription(metadata)}`
+  }
+}
+
+/**
+ * 创建图片描述文本
+ */
+export function createImageDescription(metadata: ImageMetadata): string {
+  const lines = [
+    `📷 图片信息:`,
+    `- 格式：${metadata.format.toUpperCase()}`,
+    `- 尺寸：${metadata.originalWidth} × ${metadata.originalHeight} 像素`,
+    `- 文件大小：${(metadata.originalSize / 1024).toFixed(1)} KB`,
+  ]
+  
+  if (metadata.wasProcessed) {
+    lines.push(`- 已优化：${metadata.displayWidth} × ${metadata.displayHeight} 像素 (${(metadata.outputSize / 1024).toFixed(1)} KB)`)
+  }
+  
+  return lines.join('\n')
+}
+
+/**
  * 执行图片读取操作
- * 
- * 主要流程：
- * 1. 验证输入参数
- * 2. 检查文件是否存在且为图片格式
- * 3. 读取文件内容
- * 4. 处理和压缩图片
- * 5. 返回 Base64 编码的结果
- * 
- * @param input 工具输入参数
- * @param projectRoot 项目根目录
- * @returns 图片读取结果
  */
 export async function executeImageRead(
   input: ImageReadInput,
   projectRoot: string
 ): Promise<ImageReadResult> {
   try {
-    // 1. 验证输入
     const validation = validateImageReadInput(input)
     if (!validation.valid) {
       return {
@@ -324,23 +355,20 @@ export async function executeImageRead(
     
     const { path: imagePath, maxWidth, maxHeight, quality, fullSize } = input
     
-    // 2. 解析路径
     const resolvedPath = imagePath.startsWith('/') || /^[a-zA-Z]:/.test(imagePath)
       ? imagePath
       : resolve(projectRoot, imagePath)
     
-    // 3. 检查文件是否存在
     let fileStats
     try {
       fileStats = await stat(resolvedPath)
     } catch {
       return {
         success: false,
-        error: `文件不存在: ${resolvedPath}`
+        error: `文件不存在：${resolvedPath}`
       }
     }
     
-    // 4. 检查是否为目录
     if (fileStats.isDirectory()) {
       return {
         success: false,
@@ -348,24 +376,21 @@ export async function executeImageRead(
       }
     }
     
-    // 5. 检查是否为支持的图片格式
     if (!isSupportedImageFormat(resolvedPath)) {
       const ext = extname(resolvedPath)
       return {
         success: false,
-        error: `不支持的图片格式: ${ext}\n支持的格式: ${Array.from(SUPPORTED_IMAGE_EXTENSIONS).join(', ')}`
+        error: `不支持的图片格式：${ext}\n支持的格式：${Array.from(SUPPORTED_IMAGE_EXTENSIONS).join(', ')}`
       }
     }
     
-    // 6. 检查文件大小
     if (fileStats.size > IMAGE_CONFIG.maxFileSize) {
       return {
         success: false,
-        error: `文件过大: ${(fileStats.size / 1024 / 1024).toFixed(2)}MB\n最大支持: ${IMAGE_CONFIG.maxFileSize / 1024 / 1024}MB`
+        error: `文件过大：${(fileStats.size / 1024 / 1024).toFixed(2)}MB\n最大支持：${IMAGE_CONFIG.maxFileSize / 1024 / 1024}MB`
       }
     }
     
-    // 7. 读取文件
     const imageBuffer = await readFile(resolvedPath)
     
     if (imageBuffer.length === 0) {
@@ -375,7 +400,6 @@ export async function executeImageRead(
       }
     }
     
-    // 8. 处理图片
     const { buffer: processedBuffer, metadata } = await processImage(imageBuffer, resolvedPath, {
       maxWidth: maxWidth || IMAGE_CONFIG.maxWidth,
       maxHeight: maxHeight || IMAGE_CONFIG.maxHeight,
@@ -383,12 +407,9 @@ export async function executeImageRead(
       fullSize: fullSize || false
     })
     
-    // 9. 转换为 Base64
     const base64 = processedBuffer.toString('base64')
     
-    // 10. 检查 Base64 大小
     if (base64.length > IMAGE_CONFIG.maxBase64Size && !fullSize) {
-      // 如果还是太大，使用更激进的压缩
       console.warn('[ImageRead] 图片仍然过大，应用激进压缩')
       
       try {
@@ -416,18 +437,21 @@ export async function executeImageRead(
         }
       } catch (compressError) {
         console.error('[ImageRead] 激进压缩失败:', compressError)
-        // 继续使用之前的结果
       }
     }
     
-    // 11. 返回结果
+    // 使用大模型分析图片内容（不直接返回 base64 给 Agent）
+    const analysis = await analyzeImageWithLLM(base64, metadata.mimeType, metadata)
+    
     return {
       success: true,
       result: {
-        base64,
+        base64, // 仅内部使用，不返回给 Agent
         mimeType: metadata.mimeType,
         metadata,
-        path: resolvedPath
+        path: resolvedPath,
+        analysis, // 返回大模型分析结果
+        analyzed: true
       }
     }
     
@@ -435,25 +459,7 @@ export async function executeImageRead(
     console.error('[ImageRead] 执行错误:', error)
     return {
       success: false,
-      error: `图片读取失败: ${error instanceof Error ? error.message : String(error)}`
+      error: `图片读取失败：${error instanceof Error ? error.message : String(error)}`
     }
   }
-}
-
-/**
- * 创建图片描述文本（供 Agent 理解图片内容）
- */
-export function createImageDescription(metadata: ImageMetadata): string {
-  const lines = [
-    `📷 图片信息:`,
-    `- 格式: ${metadata.format.toUpperCase()}`,
-    `- 尺寸: ${metadata.originalWidth} × ${metadata.originalHeight} 像素`,
-    `- 文件大小: ${(metadata.originalSize / 1024).toFixed(1)} KB`,
-  ]
-  
-  if (metadata.wasProcessed) {
-    lines.push(`- 已优化: ${metadata.displayWidth} × ${metadata.displayHeight} 像素 (${(metadata.outputSize / 1024).toFixed(1)} KB)`)
-  }
-  
-  return lines.join('\n')
 }

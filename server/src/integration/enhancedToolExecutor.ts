@@ -1704,7 +1704,7 @@ export class EnhancedToolExecutor {
     // ImageRead 工具 - 读取和查看图片
     this.registerTool({
       name: 'ImageRead',
-      description: '读取图片文件并返回给 Agent 分析。支持 PNG、JPG、JPEG、GIF、WebP、SVG、BMP、TIFF 格式。自动压缩大图片以优化性能，返回 Base64 编码的图片数据和元信息（尺寸、格式、大小等）。',
+      description: '读取图片文件并使用大模型视觉 API 分析图片内容。支持 PNG、JPG、JPEG、GIF、WebP、SVG、BMP、TIFF 格式。自动调用大模型分析图片并返回详细的文字描述，而不是直接返回图片数据。',
       inputSchema: {
         type: 'object',
         properties: {

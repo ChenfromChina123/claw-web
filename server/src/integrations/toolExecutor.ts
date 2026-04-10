@@ -50,6 +50,20 @@ export type EventSender = (event: string, data: unknown) => void
  */
 export class WebToolExecutor {
   private projectRoot: string
+  private auditLog: Array<{
+    toolName: string
+    input: Record<string, unknown>
+    result: ToolResult
+    duration: number
+    sessionId: string
+    timestamp: number
+  }> = []
+  private maxAuditSize = 1000
+  
+  // 限流配置
+  private rateLimits: Map<string, { count: number; resetAt: number }> = new Map()
+  private defaultRateLimit = 100  // 每分钟 100 次
+  private rateLimitWindow = 60000 // 1 分钟
   
   constructor() {
     this.projectRoot = this.getProjectRoot()
@@ -246,6 +260,181 @@ export class WebToolExecutor {
         },
       },
     ]
+  }
+  
+  /**
+   * 执行工具（增强版 - 带限流、审计日志和性能监控）
+   */
+  async executeTool(
+    name: string, 
+    input: Record<string, unknown>, 
+    sendEvent?: EventSender,
+    sessionId: string = 'default'
+  ): Promise<ToolResult> {
+    const startTime = Date.now()
+    const toolId = uuidv4()
+    
+    // 检查限流
+    if (!this.checkRateLimit(name)) {
+      const error = `Rate limit exceeded for tool: ${name}`
+      sendEvent?.('tool_error', { id: toolId, name, error })
+      return { success: false, error }
+    }
+    
+    sendEvent?.('tool_start', { id: toolId, name, input })
+    
+    try {
+      let result: unknown
+      
+      switch (name) {
+        case 'Bash':
+          result = await this.executeBash(input, sendEvent)
+          break
+        case 'FileRead':
+          result = await this.readFile(input)
+          break
+        case 'FileWrite':
+          result = await this.writeFileTool(input)
+          break
+        case 'FileEdit':
+          result = await this.editFile(input)
+          break
+        case 'Glob':
+          result = await this.glob(input)
+          break
+        case 'Grep':
+          result = await this.grep(input)
+          break
+        case 'WebSearch':
+          result = await this.webSearch(input)
+          break
+        case 'WebFetch':
+          result = await this.webFetch(input)
+          break
+        case 'TodoWrite':
+          result = await this.todoWrite(input)
+          break
+        case 'AskUserQuestion':
+          result = { message: 'Question sent to user', questionId: toolId }
+          break
+        case 'TaskCreate':
+          result = await this.taskCreate(input)
+          break
+        case 'TaskList':
+          result = await this.taskList(input)
+          break
+        case 'Config':
+          result = await this.configTool(input)
+          break
+        default:
+          throw new Error(`Unknown tool: ${name}`)
+      }
+      
+      sendEvent?.('tool_end', { id: toolId, name, result })
+      
+      const toolResult: ToolResult = { success: true, result }
+      
+      // 记录审计日志
+      this.auditLog.push({
+        toolName: name,
+        input,
+        result: toolResult,
+        duration: Date.now() - startTime,
+        sessionId,
+        timestamp: startTime,
+      })
+      
+      // 限制审计日志大小
+      if (this.auditLog.length > this.maxAuditSize) {
+        this.auditLog.shift()
+      }
+      
+      // 性能监控
+      try {
+        const { getPerformanceMonitor } = require('../../monitoring/PerformanceMonitor')
+        const perfMonitor = getPerformanceMonitor()
+        perfMonitor.record('tool.execute', Date.now() - startTime, true, {
+          toolName: name,
+          sessionId,
+        })
+      } catch (error) {
+        // 性能监控可选，失败不影响工具执行
+        console.warn('[WebToolExecutor] 性能监控失败:', error)
+      }
+      
+      return toolResult
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      sendEvent?.('tool_error', { id: toolId, name, error: errorMessage })
+      
+      // 记录失败的审计日志
+      this.auditLog.push({
+        toolName: name,
+        input,
+        result: { success: false, error: errorMessage },
+        duration: Date.now() - startTime,
+        sessionId,
+        timestamp: startTime,
+      })
+      
+      // 性能监控（失败）
+      try {
+        const { getPerformanceMonitor } = require('../../monitoring/PerformanceMonitor')
+        const perfMonitor = getPerformanceMonitor()
+        perfMonitor.record('tool.execute', Date.now() - startTime, false, {
+          toolName: name,
+          sessionId,
+          error: errorMessage,
+        })
+      } catch (error) {
+        console.warn('[WebToolExecutor] 性能监控失败:', error)
+      }
+      
+      return { success: false, error: errorMessage }
+    }
+  }
+  
+  /**
+   * 检查限流
+   */
+  private checkRateLimit(toolName: string): boolean {
+    const now = Date.now()
+    const limit = this.rateLimits.get(toolName)
+    
+    if (!limit || now > limit.resetAt) {
+      this.rateLimits.set(toolName, {
+        count: 1,
+        resetAt: now + this.rateLimitWindow,
+      })
+      return true
+    }
+    
+    if (limit.count >= this.defaultRateLimit) {
+      return false
+    }
+    
+    limit.count++
+    return true
+  }
+  
+  /**
+   * 获取审计日志
+   */
+  getAuditLog(sessionId?: string, limit: number = 50): Array<{
+    toolName: string
+    input: Record<string, unknown>
+    result: ToolResult
+    duration: number
+    sessionId: string
+    timestamp: number
+  }> {
+    let log = this.auditLog
+    
+    if (sessionId) {
+      log = log.filter(a => a.sessionId === sessionId)
+    }
+    
+    return log.slice(-limit)
   }
   
   /**
