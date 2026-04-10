@@ -177,8 +177,9 @@ export class PTYSessionManager {
         cols,
         rows,
         data: (term, data) => {
-          // 输出数据回调
-          this.handleOutput(sessionId, 'stdout', data)
+          // 输出数据回调 - data 是 Uint8Array，需要解码为字符串
+          const text = new TextDecoder().decode(data)
+          this.handleOutput(sessionId, 'stdout', text)
         }
       })
 
