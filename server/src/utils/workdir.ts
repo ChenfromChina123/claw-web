@@ -55,11 +55,16 @@ export async function readDirectory(dirPath: string, rootPath: string): Promise<
         continue
       }
 
+      // 计算相对于根目录的路径
+      const relativePath = fullPath.startsWith(rootPath) 
+        ? fullPath.substring(rootPath.length)
+        : `/${entry.name}`
+      
       const ext = entry.name.includes('.') ? entry.name.substring(entry.name.lastIndexOf('.')) : ''
       
       items.push({
         name: entry.name,
-        path: `/${entry.name}`,
+        path: relativePath,
         isDirectory: entry.isDirectory(),
         size: stat.size,
         lastModified: stat.mtime.toISOString(),
