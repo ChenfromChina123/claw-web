@@ -184,8 +184,11 @@ export class PTYSessionManager {
       })
 
       // 使用 Bun.spawn 启动 shell
-      // 为 bash 添加 --norc 选项禁用配置文件加载（注意：bash 没有 --quiet 选项）
-      const shellArgs = shell.includes('bash') ? ['--norc'] : []
+      // 为 bash 添加启动选项禁用配置文件和警告信息：
+      // --norc: 不读取 .bashrc
+      // --noprofile: 不读取 /etc/profile, ~/.bash_profile 等
+      // +m: 禁用作业控制（避免 "no job control" 警告）
+      const shellArgs = shell.includes('bash') ? ['--norc', '--noprofile', '+m'] : []
       subprocess = Bun.spawn([shell, ...shellArgs], {
         cwd,
         env: envVars,
