@@ -474,6 +474,8 @@ export class SessionManager {
     }
     sessionData.dirty = true
 
+    this.scheduleSave(sessionId)
+
     return message
   }
 
