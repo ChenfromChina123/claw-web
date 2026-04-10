@@ -85,4 +85,4 @@ STOPSIGNAL SIGINT
 
 USER bun
 
-CMD ["bun", "run", "src/index.ts"]
+CMD ["bun", "--bun", "run", "src/index.ts"]
