@@ -86,15 +86,15 @@ export class PTYSessionManager {
       } catch {}
       return 'powershell.exe'
     }
-    // Linux/macOS 使用 bash 或 zsh
-    const shells = ['/bin/bash', '/bin/zsh', '/bin/sh']
+    // Linux/macOS 优先使用 /bin/sh（与 node-pty 兼容性最好）
+    const shells = ['/bin/sh', '/bin/bash', '/bin/zsh']
     for (const shell of shells) {
       try {
         require('fs').existsSync(shell) && (shell as string)
         return shell
       } catch {}
     }
-    return '/bin/bash'
+    return '/bin/sh'
   }
 
   /**
