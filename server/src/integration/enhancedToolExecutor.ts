@@ -29,7 +29,7 @@ import {
   createDockerManagerToolDefinition,
   createGitAdvancedToolDefinition,
 } from '../tools'
-import { executeImageRead, createImageDescription } from '../tools/imageReadTool'
+import { executeImageRead } from '../tools/imageReadTool'
 import {
   normalizeToolName,
   isValidToolName,
