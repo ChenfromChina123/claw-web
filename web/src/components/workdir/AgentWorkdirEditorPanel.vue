@@ -345,15 +345,15 @@ onBeforeUnmount(() => {
             ● 未保存
           </NText>
           <NButton
-            type="primary"
+            quaternary
+            circle
             size="small"
             :disabled="!ctx.hasUnsavedChanges.value"
             @click="ctx.saveCurrentFile"
           >
             <template #icon>
-              <NIcon><Save /></NIcon>
+              <NIcon :size="18"><Save /></NIcon>
             </template>
-            保存
           </NButton>
         </div>
       </div>
