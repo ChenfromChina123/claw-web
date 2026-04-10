@@ -7,7 +7,8 @@
 # ✅ 健康检查和优雅关闭
 # ✅ 生产级安全配置
 
-FROM oven/bun:1 AS production
+# 使用阿里云镜像源加速 Bun 镜像拉取
+FROM registry.cn-hangzhou.aliyuncs.com/oven/bun:1 AS production
 
 # 元数据标签
 LABEL maintainer="Claude Code HAHA Team"
