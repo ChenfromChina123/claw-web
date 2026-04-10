@@ -90,8 +90,9 @@ export class PTYSessionManager {
     const shells = ['/bin/sh', '/bin/bash', '/bin/zsh']
     for (const shell of shells) {
       try {
-        require('fs').existsSync(shell) && (shell as string)
-        return shell
+        if (require('fs').existsSync(shell)) {
+          return shell
+        }
       } catch {}
     }
     return '/bin/sh'
@@ -400,8 +401,10 @@ export class PTYSessionManager {
    */
   resize(sessionId: string, cols: number, rows: number): boolean {
     const session = this.sessions.get(sessionId)
-    if (!session) {
-      console.warn(`[PTY] Cannot resize session ${sessionId}: session not found`)
+    
+    // 防御性检查：如果 session 不存在或进程已退出，直接跳过
+    if (!session || !session.isAlive || !session.process) {
+      console.warn(`[PTY] Skip resize for session ${sessionId}: session not alive`)
       return false
     }
 
@@ -413,12 +416,15 @@ export class PTYSessionManager {
     if (ptyModule && 'resize' in session.process!) {
       try {
         ;(session.process as import('node-pty').IPty).resize(cols, rows)
+        console.log(`[PTY] Resized session ${sessionId} to ${cols}x${rows}`)
+        return true
       } catch (err) {
-        console.error(`[PTY] Error resizing session ${sessionId}:`, err)
+        // 捕获 EBADF 或其他底层错误，防止导致整个进程崩溃
+        console.error(`[PTY] Failed to resize session ${sessionId}:`, err)
+        return false
       }
     }
 
-    console.log(`[PTY] Resized session ${sessionId} to ${cols}x${rows}`)
     return true
   }
 
