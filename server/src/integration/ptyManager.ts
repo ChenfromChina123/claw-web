@@ -163,7 +163,7 @@ export class PTYSessionManager {
     }
     envVars['TERM'] = 'xterm-256color'
     // 覆盖可能被 Windows 宿主机污染的环境变量
-    envVars['HOME'] = '/home/bun'
+    envVars['HOME'] = '/tmp'
     envVars['USER'] = 'bun'
     delete envVars['APPDATA']
     delete envVars['LOCALAPPDATA']
@@ -174,8 +174,8 @@ export class PTYSessionManager {
     // 优先使用 node-pty（支持真正的 PTY）
     if (ptyModule) {
       // 使用 node-pty
-      // 简化参数：只保留 -i 强制交互模式，排查退出原因
-      const shellArgs = shell.includes('bash') ? ['-i'] : []
+      // 简化参数：去掉 -i，HOME 改到 /tmp，排查退出原因
+      const shellArgs = shell.includes('bash') ? [] : []
       
       console.log(`[PTY] DEBUG: shell=${shell}, args=${JSON.stringify(shellArgs)}, HOME=${envVars.HOME}, cwd=${cwd}`)
       
