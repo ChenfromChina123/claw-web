@@ -173,9 +173,9 @@ export class PTYSessionManager {
 
     // 优先使用 node-pty（支持真正的 PTY）
     if (ptyModule) {
-      // 使用 node-pty
-      // 简化参数：去掉 -i，HOME 改到 /tmp，排查退出原因
-      const shellArgs = shell.includes('bash') ? [] : []
+      // Linux 下 bash 必须加 -i 参数才能在 PTY 中保持运行
+      // 不带 -i 时 bash 检测到非交互模式会立即退出
+      const shellArgs = shell.includes('bash') ? ['-i'] : []
       
       console.log(`[PTY] DEBUG: shell=${shell}, args=${JSON.stringify(shellArgs)}, HOME=${envVars.HOME}, cwd=${cwd}`)
       
