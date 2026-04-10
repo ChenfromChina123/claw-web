@@ -2,19 +2,17 @@
  * Feature Flag 系统测试
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import { 
   isFeatureEnabled, 
   getFeatureConfig, 
-  getAllFeatureFlags,
-  loadFeatureFlagsFromEnv 
+  getAllFeatureFlags
 } from '../../utils/featureFlags'
 
 describe('FeatureFlags', () => {
   const originalEnv = process.env
   
   beforeEach(() => {
-    vi.resetModules()
     process.env = { ...originalEnv }
   })
   
