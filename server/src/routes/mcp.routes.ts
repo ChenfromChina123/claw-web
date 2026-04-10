@@ -3,6 +3,8 @@
  */
 
 import { createSuccessResponse, createErrorResponse, createCorsPreflightResponse } from '../utils/response'
+import { isFeatureEnabled } from '../utils/featureFlags'
+import { getMcpGateway } from '../services/mcp/McpGateway'
 
 // MCP Bridge 实例获取函数
 function getMCPBridgeInstance(): any {
@@ -10,6 +12,9 @@ function getMCPBridgeInstance(): any {
   const { getWebMCPBridgeInstance } = require('../integrations/mcpBridge')
   return getWebMCPBridgeInstance()
 }
+
+// MCP Gateway 实例
+const mcpGateway = getMcpGateway()
 
 /**
  * 处理 MCP 相关的 HTTP 请求
@@ -25,72 +30,133 @@ export async function handleMCPRoutes(req: Request): Promise<Response | null> {
   }
 
   const mcpBridge = getMCPBridgeInstance()
+  
+  // 使用 Feature Flag 控制新旧代码切换
+  const useNewGateway = isFeatureEnabled('mcp.new.gateway')
 
   // ==================== MCP 服务器管理 ====================
 
   // GET /api/mcp/servers - 获取 MCP 服务器列表
   if (path === '/api/mcp/servers' && method === 'GET') {
-    const servers = mcpBridge.getServers()
-    const serverRuntimes = (mcpBridge as any).serverRuntimes
-
-    return createSuccessResponse({
-      servers: servers.map((s: any) => {
-        const runtime = serverRuntimes?.get(s.id)
-        return {
-          id: s.id,
+    if (useNewGateway) {
+      // 新实现
+      const servers = mcpGateway.getServerStatus()
+      return createSuccessResponse({
+        servers: servers.map(s => ({
+          id: s.serverId,
           name: s.name,
-          command: s.command,
-          args: s.args,
-          enabled: s.enabled,
-          status: runtime?.status || 'disconnected',
-          tools: runtime?.tools?.length || 0,
-        }
-      }),
-      count: servers.length,
-    })
+          status: s.status,
+          tools: s.toolCount || 0,
+          error: s.error,
+        })),
+        count: servers.length,
+      })
+    } else {
+      // 旧实现
+      const servers = mcpBridge.getServers()
+      const serverRuntimes = (mcpBridge as any).serverRuntimes
+
+      return createSuccessResponse({
+        servers: servers.map((s: any) => {
+          const runtime = serverRuntimes?.get(s.id)
+          return {
+            id: s.id,
+            name: s.name,
+            command: s.command,
+            args: s.args,
+            enabled: s.enabled,
+            status: runtime?.status || 'disconnected',
+            tools: runtime?.tools?.length || 0,
+          }
+        }),
+        count: servers.length,
+      })
+    }
   }
 
   // POST /api/mcp/servers - 添加 MCP 服务器
   if (path === '/api/mcp/servers' && method === 'POST') {
-    try {
-      const body = await req.json() as {
-        name: string
-        command: string
-        args?: string[]
-        env?: Record<string, string>
-        transport?: 'stdio' | 'websocket' | 'sse' | 'streamable-http'
-        url?: string
+    if (useNewGateway) {
+      // 新实现
+      try {
+        const body = await req.json() as {
+          name: string
+          command: string
+          args?: string[]
+          env?: Record<string, string>
+          transport?: 'stdio' | 'websocket' | 'sse' | 'streamable-http'
+          url?: string
+        }
+
+        const { name, command, args, env, transport, url } = body
+
+        if (!name || !command) {
+          return createErrorResponse('INVALID_PARAMS', 'name and command are required', 400)
+        }
+
+        const result = await mcpGateway.addServer({
+          name,
+          command,
+          args: args || [],
+          env: env || {},
+          enabled: true,
+          transport: transport || 'stdio',
+          url,
+        })
+
+        return result.success
+          ? createSuccessResponse({
+              success: true,
+              serverId: result.serverId,
+              message: `MCP server '${name}' added successfully`,
+            })
+          : createErrorResponse('MCP_ADD_FAILED', result.error || 'Failed to add MCP server', 500)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to add MCP server'
+        return createErrorResponse('MCP_ADD_FAILED', message, 500)
       }
+    } else {
+      // 旧实现
+      try {
+        const body = await req.json() as {
+          name: string
+          command: string
+          args?: string[]
+          env?: Record<string, string>
+          transport?: 'stdio' | 'websocket' | 'sse' | 'streamable-http'
+          url?: string
+        }
 
-      const { name, command, args, env, transport, url } = body
+        const { name, command, args, env, transport, url } = body
 
-      if (!name || !command) {
-        return createErrorResponse('INVALID_PARAMS', 'name and command are required', 400)
+        if (!name || !command) {
+          return createErrorResponse('INVALID_PARAMS', 'name and command are required', 400)
+        }
+
+        const server = mcpBridge.addServer({
+          name,
+          command,
+          args: args || [],
+          env: env || {},
+          enabled: true,
+          transport: transport || 'stdio',
+          url,
+        })
+
+        return createSuccessResponse({
+          success: true,
+          server: {
+            id: server.id,
+            name: server.name,
+            command: server.command,
+            enabled: server.enabled,
+          },
+          message: `MCP server '${name}' added successfully`,
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to add MCP server'
+        return createErrorResponse('MCP_ADD_FAILED', message, 500)
       }
-
-      const server = mcpBridge.addServer({
-        name,
-        command,
-        args: args || [],
-        env: env || {},
-        enabled: true,
-        transport: transport || 'stdio',
-        url,
-      })
-
-      return createSuccessResponse({
-        success: true,
-        server: {
-          id: server.id,
-          name: server.name,
-          command: server.command,
-          enabled: server.enabled,
-        },
-        message: `MCP server '${name}' added successfully`,
-      })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to add MCP server'
-      return createErrorResponse('MCP_ADD_FAILED', message, 500)
     }
   }
 

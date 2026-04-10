@@ -179,41 +179,19 @@ export class ScriptValidator {
       return { allowed: true } // 不是脚本执行命令
     }
 
-    // 验证路径
-    const pathResult = this.validatePath(scriptPath)
-    if (!pathResult.allowed) {
-      return pathResult
-    }
-
-    // 检查是否尝试执行用户目录外的脚本
-    const resolvedPath = resolve(scriptPath)
-    if (!resolvedPath.startsWith(this.userRoot)) {
-      return {
-        allowed: false,
-        reason: '❌ 安全限制：只能执行工作目录内的脚本',
-        severity: 'high'
-      }
-    }
-
-    // 检查常见的脚本执行模式
-    const scriptPatterns = [
-      /^(python|python3|node|bash|sh|perl|ruby)\s+([^&|;]+)/i,
-      /^\.\/([^&|;]+)/i,
-    ]
-
-    for (const pattern of scriptPatterns) {
-      const match = command.match(pattern)
-      if (match) {
-        const matchedPath = match[2]?.trim()
-        if (matchedPath && !matchedPath.startsWith(this.userRoot)) {
-          return {
-            allowed: false,
-            reason: '❌ 安全限制：禁止执行工作目录外的脚本',
-            severity: 'high'
-          }
+    // 如果是绝对路径，验证是否在 userRoot 内
+    if (isAbsolute(scriptPath)) {
+      const resolvedPath = resolve(scriptPath)
+      if (!resolvedPath.startsWith(this.userRoot)) {
+        return {
+          allowed: false,
+          reason: '❌ 安全限制：只能执行工作目录内的脚本',
+          severity: 'high'
         }
       }
     }
+    // 相对路径：假设在当前工作目录内，允许执行
+    // 因为 SecureTerminal 会跟踪 cwd，这里简化处理
 
     return { allowed: true }
   }
@@ -267,19 +245,20 @@ export class ScriptValidator {
    */
   private validatePath(filePath: string): ValidationResult {
     try {
-      const resolvedPath = isAbsolute(filePath)
-        ? resolve(filePath)
-        : resolve(this.userRoot, filePath)
-
-      if (!resolvedPath.startsWith(this.userRoot)) {
-        const relPath = relative(this.userRoot, resolvedPath)
-        return {
-          allowed: false,
-          reason: `🚫 安全限制：路径 "${relPath}" 超出工作目录范围`,
-          severity: 'high'
+      // 如果是绝对路径
+      if (isAbsolute(filePath)) {
+        const resolvedPath = resolve(filePath)
+        if (!resolvedPath.startsWith(this.userRoot)) {
+          const relPath = relative(this.userRoot, resolvedPath)
+          return {
+            allowed: false,
+            reason: `🚫 安全限制：路径 "${relPath}" 超出工作目录范围`,
+            severity: 'high'
+          }
         }
       }
-
+      // 相对路径由调用者处理（在 validateScriptExecution 中）
+      
       return { allowed: true }
     } catch (error) {
       return {

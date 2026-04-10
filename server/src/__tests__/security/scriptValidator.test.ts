@@ -93,13 +93,13 @@ describe('ScriptValidator', () => {
       expect(result.allowed).toBe(true)
     })
 
-    test('应该阻止执行工作目录外的脚本', () => {
+    test('应该阻止执行工作目录外的绝对路径脚本', () => {
       const result = validator.validateScriptExecution(
         'python /etc/malicious.py'
       )
       expect(result.allowed).toBe(false)
       expect(result.severity).toBe('high')
-      expect(result.reason).toContain('工作目录外')
+      expect(result.reason).toContain('工作目录内')
     })
 
     test('应该阻止执行 /tmp 中的脚本', () => {

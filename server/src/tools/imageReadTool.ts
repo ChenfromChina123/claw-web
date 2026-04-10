@@ -2,10 +2,10 @@
  * 图片读取工具 - 允许 Agent 查看和分析图片
  * 
  * 功能：
- * - 读取图片文件并返回给 Agent
+ * - 读取图片文件并使用大模型视觉 API 分析图片内容
  * - 自动压缩大图片以适应 token 限制
  * - 支持多种图片格式（PNG, JPG, JPEG, GIF, WebP, SVG, BMP, TIFF）
- * - 返回图片元信息（尺寸、格式、大小等）
+ * - 返回图片分析结果和元信息（尺寸、格式、大小等）
  * - 智能调整图片质量以平衡清晰度和 token 消耗
  * 
  * 参考 claude-code-haha/src/tools/FileReadTool 的实现
@@ -14,6 +14,7 @@
 import { readFile, stat } from 'fs/promises'
 import { join, resolve, extname } from 'path'
 import sharp from 'sharp'
+import { llmService } from '../services/llmService'
 
 /**
  * 支持的图片格式
@@ -87,14 +88,18 @@ export interface ImageReadResult {
   success: boolean
   /** 结果数据 */
   result?: {
-    /** Base64 编码的图片数据 */
-    base64: string
+    /** Base64 编码的图片数据（仅内部使用，不返回给 Agent） */
+    base64?: string
     /** MIME 类型 */
     mimeType: string
     /** 图片元信息 */
     metadata: ImageMetadata
     /** 文件路径 */
     path: string
+    /** 大模型分析后的图片描述（返回给 Agent 的内容） */
+    analysis?: string
+    /** 是否使用了大模型分析 */
+    analyzed?: boolean
   }
   /** 错误信息 */
   error?: string
