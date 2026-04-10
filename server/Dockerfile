@@ -15,6 +15,10 @@ LABEL maintainer="Claude Code HAHA Team"
 LABEL description="Backend service with multi-tenant isolation and memory optimization"
 LABEL version="1.0.0"
 
+# ✅ 使用国内镜像源加速（阿里云镜像）
+RUN sed -i 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's|http://security.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources
+
 # 安装必要的系统依赖（包含 node-pty 编译所需的构建工具）
 # ✅ 安全优化：移除不必要的工具，减少攻击面
 RUN apt-get update && apt-get install -y \
