@@ -4,7 +4,7 @@ import { SessionRepository } from '../db/repositories/sessionRepository'
 import { MessageRepository } from '../db/repositories/messageRepository'
 import { ToolCallRepository } from '../db/repositories/toolCallRepository'
 import type { Session, Message, ConversationMessage, ToolCall } from '../models/types'
-import { generateSessionTitleWithLLM, isFirstMessage, generateSimpleTitle } from './sessionTitleGenerator'
+import { generateSessionTitleWithLLM } from './sessionTitleGenerator'
 import { extractIdeUserDisplay } from '../utils/ideUserMessageMarkers'
 
 export interface InMemorySession {
@@ -32,8 +32,8 @@ export class SessionManager {
   /** 会话标题更新回调 */
   private onSessionTitleUpdated: ((sessionId: string, title: string) => void) | null = null
 
-  /** 标题生成中的会话ID集合，防止重复触发 */
-  private titleGeneratingSessions: Set<string> = new Set()
+  /** 标题生成序列号 Map，用于并行标题生成时只保留最新请求 */
+  private titleGenSeq: Map<string, number> = new Map()
 
   /**
    * 设置会话标题更新回调
@@ -309,17 +309,11 @@ export class SessionManager {
     console.log(`[SessionManager] addMessage: role=${role}, session.title="${sessionData.session.title}", sessionId=${sessionId}`)
     if (role === 'user') {
       if (sessionData.session.title === '新对话') {
-        // 检查是否已在生成中，防止重复触发
-        if (!this.titleGeneratingSessions.has(sessionId)) {
-          console.log(`[SessionManager] Detected first user message, generating title for session ${sessionId}`)
-          this.titleGeneratingSessions.add(sessionId)
-          this.generateAndUpdateSessionTitle(sessionId, content).finally(() => {
-            // 无论成功失败，都要移除锁定
-            this.titleGeneratingSessions.delete(sessionId)
-          })
-        } else {
-          console.log(`[SessionManager] Title already generating for session ${sessionId}, skipping duplicate request`)
-        }
+        // 使用序列号机制，支持并行生成，只保留最新请求的结果
+        const currentSeq = (this.titleGenSeq.get(sessionId) || 0) + 1
+        this.titleGenSeq.set(sessionId, currentSeq)
+        console.log(`[SessionManager] Detected first user message, generating title for session ${sessionId} (seq=${currentSeq})`)
+        this.generateAndUpdateSessionTitle(sessionId, content, currentSeq)
       } else {
         console.log(`[SessionManager] Session title is already set to "${sessionData.session.title}", skipping title generation`)
       }
@@ -332,11 +326,12 @@ export class SessionManager {
    * 基于用户第一条消息生成会话标题并更新
    * @param sessionId 会话ID
    * @param userContent 用户消息内容
+   * @param genSeq 当前的生成序列号，用于并行场景下只保留最新请求的结果
    */
-  private async generateAndUpdateSessionTitle(sessionId: string, userContent: string | any[]): Promise<void> {
+  private async generateAndUpdateSessionTitle(sessionId: string, userContent: string | any[], genSeq: number): Promise<void> {
     const startTime = Date.now()
     try {
-      console.log(`[SessionManager] generateAndUpdateSessionTitle called for session ${sessionId}`)
+      console.log(`[SessionManager] generateAndUpdateSessionTitle called for session ${sessionId} (seq=${genSeq})`)
 
       // 将内容转换为字符串（IDE 双轨消息仅取展示层生成标题）
       const contentString = typeof userContent === 'string'
@@ -354,16 +349,29 @@ export class SessionManager {
         return
       }
 
+      // 检查序列号是否仍是最新的，只有最新请求才能更新标题
+      const currentSeq = this.titleGenSeq.get(sessionId)
+      if (currentSeq !== genSeq) {
+        console.log(`[SessionManager] Title generation seq mismatch (expected=${genSeq}, current=${currentSeq}), discarding result`)
+        return
+      }
+
       // 使用 LLM 生成标题
       console.log(`[SessionManager] Calling LLM to generate title...`)
       let title = await generateSessionTitleWithLLM(contentString)
       console.log(`[SessionManager] LLM generated title: "${title}"`)
 
-      // 如果 LLM 返回了默认标题，强制使用简单规则重新生成
-      if (title === '新对话') {
-        console.log(`[SessionManager] LLM returned default title, falling back to simple rule`)
-        title = generateSimpleTitle(contentString)
-        console.log(`[SessionManager] Simple rule generated title: "${title}"`)
+      // LLM 生成失败时，使用内容前30字符作为兜底标题
+      if (!title || title === '新对话') {
+        console.log(`[SessionManager] LLM failed to generate valid title, falling back to content preview`)
+        title = contentString.substring(0, 30)
+      }
+
+      // 再次检查序列号（LLM 调用后可能已有新的请求）
+      const finalSeq = this.titleGenSeq.get(sessionId)
+      if (finalSeq !== genSeq) {
+        console.log(`[SessionManager] Title generation seq mismatch after LLM call (expected=${genSeq}, current=${finalSeq}), discarding result`)
+        return
       }
 
       // 强制更新标题，只要是第一个消息！
