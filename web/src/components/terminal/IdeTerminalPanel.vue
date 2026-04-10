@@ -528,23 +528,36 @@ async function onNewSession(): Promise<void> {
     await disconnectFromPTY()
   }
 
+  // 清空终端显示和保存的日志
+  const t = term.value
+  if (t) {
+    t.clear()
+    accumulatedLog.value = ''  // 清空保存的日志
+  }
+
   // 重新初始化终端
   disposeTerminal()
   await nextTick()
 
   if (props.connectToBackend) {
-    // 先清空终端
+    // 后端模式：先显示新会话提示
     const t = term.value
     if (t) {
-      t.clear()
-      t.writeln('\x1b[36mStarting new session...\x1b[0m')
+      t.writeln('\x1b[36m[Starting new session...]\x1b[0m')
     }
 
-    // 等待终端初始化
-    await nextTick()
-    await initTerminal()
+    // 连接 PTY
+    const connected = await connectToPTY()
+    if (connected && term.value) {
+      term.value.writeln(`\x1b[32m[New session started]\x1b[0m`)
+      term.value.writeln('')  // 空行
+    }
   } else {
-    clearTerminal()
+    // 本地模式：显示提示符
+    const t = term.value
+    if (t) {
+      initLocalMode(t)
+    }
   }
 }
 

@@ -158,8 +158,8 @@ export class PTYSessionManager {
     envVars['TERM'] = 'xterm-256color'
     envVars['HOME'] = '/tmp'
     envVars['USER'] = 'bun'
-    // 设置 PS1 显示用户名和当前目录路径
-    envVars['PS1'] = '\\u@\\h:\\w\\$ '
+    // 设置简洁的命令行提示符（仅显示当前路径）
+    envVars['PS1'] = '\\w\\$ '
     delete envVars['APPDATA']
     delete envVars['LOCALAPPDATA']
     delete envVars['ProgramFiles']
@@ -184,8 +184,8 @@ export class PTYSessionManager {
       })
 
       // 使用 Bun.spawn 启动 shell
-      // 为 bash 添加 --norc --quiet 选项禁用配置文件和警告
-      const shellArgs = shell.includes('bash') ? ['--norc', '--quiet'] : []
+      // 为 bash 添加 --norc 选项禁用配置文件加载（注意：bash 没有 --quiet 选项）
+      const shellArgs = shell.includes('bash') ? ['--norc'] : []
       subprocess = Bun.spawn([shell, ...shellArgs], {
         cwd,
         env: envVars,
