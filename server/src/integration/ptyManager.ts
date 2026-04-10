@@ -185,13 +185,26 @@ export class PTYSessionManager {
 
       console.log(`[PTY] node-pty spawn success, pid: ${(childProcess as import('node-pty').IPty).pid}`)
 
+      // 打印完整启动输出（诊断 bash 立即退出问题）
+      let startupBuffer = ''
+      const timer = setTimeout(() => {
+        if (startupBuffer) {
+          console.log(`[PTY] Startup output for ${sessionId}: ${JSON.stringify(startupBuffer)}`)
+        }
+      }, 2000)
+
       // 设置输出处理
       childProcess.onData((data: string) => {
+        startupBuffer += data
         console.log(`[PTY] Data received: ${data.length} chars`)
         this.handleOutput(sessionId, 'stdout', data)
       })
 
       childProcess.onExit(({ exitCode }: { exitCode: number }) => {
+        clearTimeout(timer)
+        if (startupBuffer) {
+          console.log(`[PTY] Startup output for ${sessionId}: ${JSON.stringify(startupBuffer)}`)
+        }
         console.log(`[PTY] Session ${sessionId} exited with code: ${exitCode}`)
         this.handleOutput(sessionId, 'exit', '', exitCode)
       })
@@ -271,8 +284,14 @@ export class PTYSessionManager {
         })
       }
     } else {
-      // Unix: 使用 pty
-      const args = shell.includes('bash') ? ['--login'] : []
+      // Unix 降级：stdio 是 pipe，不是 TTY。bash --login 仍会判为非交互，stdin 无数据即 EOF → 立刻以 0 退出。
+      // 与 node-pty 分支对齐：-i 强制交互，避免「已连接 /bin/bash 后马上 Process exited」。
+      let args: string[] = []
+      if (shell.includes('bash')) {
+        args = ['--norc', '--noprofile', '-i']
+      } else if (shell.includes('zsh')) {
+        args = ['-i']
+      }
       childProcess = spawn(shell, args, {
         cwd,
         env: {
