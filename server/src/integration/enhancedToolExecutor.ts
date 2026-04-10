@@ -1744,7 +1744,7 @@ export class EnhancedToolExecutor {
         const imagePath = input.path as string
         
         sendEvent?.('tool_progress', { 
-          output: `📷 正在读取图片: ${imagePath}\n` 
+          output: `📷 正在读取并分析图片：${imagePath}\n` 
         })
         
         const result = await executeImageRead(
@@ -1772,31 +1772,23 @@ export class EnhancedToolExecutor {
           }
         }
         
-        const { base64, mimeType, metadata, path } = result.result
-        
-        // 创建图片描述文本
-        const description = createImageDescription(metadata)
+        const { analysis, metadata, path } = result.result
         
         sendEvent?.('tool_progress', { 
-          output: `${description}\n✅ 图片读取完成\n` 
+          output: `✅ 图片分析完成\n` 
         })
         
-        // 返回包含完整图片数据的结果
+        // 只返回分析结果，不返回 base64 数据（避免数据库存储问题）
         return {
           success: true,
           result: {
-            image: {
-              base64,
-              mimeType,
-              metadata
+            analysis: analysis || '无法分析图片内容',
+            metadata: {
+              format: metadata.format,
+              dimensions: `${metadata.originalWidth} × ${metadata.originalHeight}`,
+              fileSize: `${(metadata.originalSize / 1024).toFixed(1)} KB`,
             },
-            description,
             path,
-            size: {
-              original: metadata.originalSize,
-              processed: metadata.outputSize,
-              reduction: ((1 - metadata.outputSize / metadata.originalSize) * 100).toFixed(1) + '%'
-            }
           }
         }
       },
