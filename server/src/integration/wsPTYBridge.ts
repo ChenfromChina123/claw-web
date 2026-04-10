@@ -202,8 +202,19 @@ export class WebSocketPTYBridge {
       execute: async (params) => {
         errorIfDisabled()
         const { sessionId, cols, rows } = params
+
+        // 先检查会话是否存在且存活
+        const session = ptyManager.getSession(sessionId as string)
+        if (!session || !session.isAlive) {
+          return {
+            success: false,
+            sessionId,
+            error: 'Session already terminated',
+          }
+        }
+
         const success = ptyManager.resize(sessionId as string, cols as number, rows as number)
-        
+
         return {
           success,
           sessionId,

@@ -174,8 +174,8 @@ export class PTYSessionManager {
     // 优先使用 node-pty（支持真正的 PTY）
     if (ptyModule) {
       // 使用 node-pty
-      // bash: -i 交互模式, --norc/--noprofile 跳过启动文件, --noediting 禁用 readline(避免 node-pty 中退出)
-      const shellArgs = shell.includes('bash') ? ['--norc', '--noprofile', '--noediting', '-i'] : []
+      // 简化参数：只保留 -i 强制交互模式，排查退出原因
+      const shellArgs = shell.includes('bash') ? ['-i'] : []
       
       console.log(`[PTY] DEBUG: shell=${shell}, args=${JSON.stringify(shellArgs)}, HOME=${envVars.HOME}, cwd=${cwd}`)
       
@@ -289,10 +289,10 @@ export class PTYSessionManager {
       }
     } else {
       // Unix 降级：stdio 是 pipe，不是 TTY。bash --login 仍会判为非交互，stdin 无数据即 EOF → 立刻以 0 退出。
-      // 与 node-pty 分支对齐：--noediting 禁用 readline, -i 强制交互
+      // 与 node-pty 分支对齐：简化参数，只保留 -i
       let args: string[] = []
       if (shell.includes('bash')) {
-        args = ['--norc', '--noprofile', '--noediting', '-i']
+        args = ['-i']
       } else if (shell.includes('zsh')) {
         args = ['-i']
       }
