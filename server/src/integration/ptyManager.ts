@@ -222,7 +222,8 @@ export class PTYSessionManager {
             .replace(/^bash: cannot set terminal process group.*\r?\n?/gmi, '')
             .replace(/^bash: no job control in this shell\r?\n?/gmi, '')
           
-          if (filteredText.trim()) {
+          // 只要有内容就发送（包括空格），只有完全为空才不发送
+          if (filteredText.length > 0) {
             this.handleOutput(sessionId, 'stdout', filteredText)
           }
         }
