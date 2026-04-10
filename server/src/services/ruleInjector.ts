@@ -331,6 +331,8 @@ export class RuleInjector {
       '你必须严格遵守以下规则：',
       '',
       ...sections,
+      '',
+      '**重要说明**: 这些规则已永久注入到你的系统提示中。当系统自动压缩上下文时，这些规则会自动重新注入，确保你始终遵守所有约束。',
     ].join('\n\n')
 
     console.log(`[RuleInjector] 构建规则注入：${result.totalRules} 条规则`)
