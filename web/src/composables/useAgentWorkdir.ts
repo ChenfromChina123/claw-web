@@ -500,6 +500,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     activeIsReadOnly.value = false
 
     let model = modelMap.get(fileId)
+    console.log('[activateOpenFile] fileId:', fileId, 'modelMap 中是否存在 model:', !!model)
     if (!model) {
       // 再次检查 Monaco 内部模型（防止 URI 冲突）
       const uri = monaco.Uri.parse(`workdir:${encodeURIComponent(entry.path)}`)
@@ -994,7 +995,8 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
    * 加载文件内容到编辑器
    */
   async function loadFileContent(filePath: string) {
-    console.log('[useAgentWorkdir] loadFileContent called:', filePath)
+    console.log('[loadFileContent] 开始加载:', filePath)
+    console.log('[loadFileContent] 当前 openFiles:', openFiles.value.map(f => ({ id: f.id, path: f.path, name: f.name })))
     await openFileFromExplorer(filePath)
   }
 
