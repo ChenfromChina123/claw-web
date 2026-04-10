@@ -9,6 +9,9 @@
 # ==================== 构建阶段 ====================
 FROM node:20-alpine AS builder
 
+# ✅ 使用国内镜像源加速（阿里云镜像）
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories
+
 WORKDIR /app
 
 # 复制依赖文件
@@ -27,6 +30,9 @@ RUN npx vite build
 
 # ==================== 生产阶段（Nginx） ====================
 FROM nginx:1.25-alpine AS production
+
+# ✅ 使用国内镜像源加速（阿里云镜像）
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories
 
 # 安装必要的工具
 RUN apk add --no-cache curl
