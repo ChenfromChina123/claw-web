@@ -198,6 +198,11 @@ export class PTYSessionManager {
 
       console.log(`[PTY] Bun.spawn success, pid: ${subprocess.pid}`)
 
+      // 禁用 bash 作业控制警告
+      if (shell.includes('bash')) {
+        terminal.write('set +m\n')
+      }
+
       // 监听进程退出
       subprocess.exited.then((exitCode) => {
         console.log(`[PTY] Session ${sessionId} exited with code: ${exitCode}`)
