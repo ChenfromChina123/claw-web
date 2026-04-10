@@ -473,37 +473,10 @@ async function initBackendMode(t: Terminal): Promise<void> {
   }
 
   // 设置数据处理 - 发送到后端
+  // bash 会回显字符，我们只需要发送输入到后端即可
   t.onData(async (data: string) => {
-    if (connectionStatus.value !== 'connected') return
-    
-    // 发送到后端 PTY
-    await sendToPTY(data)
-    
-    // 本地回显（bash 应该会回显，但以防万一）
-    // 回车、换行、退格等特殊字符需要特殊处理
-    if (data === '\r') {
-      t.write('\r\n')
-      return
-    }
-    if (data === '\n' || data === '\x1b') {
-      // 换行或 ESC 字符，让后端处理
-      return
-    }
-    if (data === '\b' || data === '\x7f') {
-      // 退格：删除前一个字符
-      t.write('\b \b')
-      return
-    }
-    if (data === '\t') {
-      // Tab：发送 4 个空格
-      t.write('    ')
-      return
-    }
-    // 其他可打印字符：本地回显（bash 应该会回显，但作为备用）
-    // 注意：这可能导致双回显，但如果 bash 没有回显，这个就很重要
-    const charCode = data.charCodeAt(0)
-    if (charCode >= 32 && charCode <= 126) {
-      t.write(data)
+    if (connectionStatus.value === 'connected') {
+      await sendToPTY(data)
     }
   })
 }
