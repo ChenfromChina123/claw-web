@@ -175,6 +175,9 @@ export class PTYSessionManager {
       // 使用 node-pty
       // bash: -i 交互模式, --norc/--noprofile 跳过启动文件, --noediting 禁用 readline(避免 node-pty 中退出)
       const shellArgs = shell.includes('bash') ? ['--norc', '--noprofile', '--noediting', '-i'] : []
+      
+      console.log(`[PTY] DEBUG: shell=${shell}, args=${JSON.stringify(shellArgs)}, HOME=${envVars.HOME}, cwd=${cwd}`)
+      
       childProcess = ptyModule.spawn(shell, shellArgs, {
         name: 'xterm-256color',
         cols,
