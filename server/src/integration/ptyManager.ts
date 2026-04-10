@@ -160,9 +160,6 @@ export class PTYSessionManager {
     envVars['USER'] = 'bun'
     // 设置 PS1 显示用户名和当前目录路径
     envVars['PS1'] = '\\u@\\h:\\w\\$ '
-    // 禁用 bash 作业控制警告
-    envVars['BASH_ENV'] = '/dev/null'
-    envVars['ENV'] = '/dev/null'
     delete envVars['APPDATA']
     delete envVars['LOCALAPPDATA']
     delete envVars['ProgramFiles']
@@ -187,8 +184,8 @@ export class PTYSessionManager {
       })
 
       // 使用 Bun.spawn 启动 shell
-      // 为 bash 添加 --norc 选项禁用配置文件，避免作业控制警告
-      const shellArgs = shell.includes('bash') ? ['--norc'] : []
+      // 为 bash 添加 --norc --quiet 选项禁用配置文件和警告
+      const shellArgs = shell.includes('bash') ? ['--norc', '--quiet'] : []
       subprocess = Bun.spawn([shell, ...shellArgs], {
         cwd,
         env: envVars,
@@ -197,11 +194,6 @@ export class PTYSessionManager {
       })
 
       console.log(`[PTY] Bun.spawn success, pid: ${subprocess.pid}`)
-
-      // 禁用 bash 作业控制警告
-      if (shell.includes('bash')) {
-        terminal.write('set +m\n')
-      }
 
       // 监听进程退出
       subprocess.exited.then((exitCode) => {
