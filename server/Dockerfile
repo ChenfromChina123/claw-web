@@ -7,8 +7,8 @@
 # ✅ 健康检查和优雅关闭
 # ✅ 生产级安全配置
 
-# 使用 Docker Hub 国内镜像源加速 Bun 镜像拉取
-FROM docker.m.daocloud.io/oven/bun:1 AS production
+# 使用官方 Bun 镜像（建议配置 Docker 镜像加速器）
+FROM oven/bun:1 AS production
 
 # 元数据标签
 LABEL maintainer="Claude Code HAHA Team"
