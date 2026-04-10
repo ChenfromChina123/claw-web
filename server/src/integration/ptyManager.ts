@@ -160,6 +160,9 @@ export class PTYSessionManager {
     envVars['USER'] = 'bun'
     // 设置 PS1 显示用户名和当前目录路径
     envVars['PS1'] = '\\u@\\h:\\w\\$ '
+    // 禁用 bash 作业控制警告
+    envVars['BASH_ENV'] = '/dev/null'
+    envVars['ENV'] = '/dev/null'
     delete envVars['APPDATA']
     delete envVars['LOCALAPPDATA']
     delete envVars['ProgramFiles']
@@ -184,7 +187,9 @@ export class PTYSessionManager {
       })
 
       // 使用 Bun.spawn 启动 shell
-      subprocess = Bun.spawn([shell], {
+      // 为 bash 添加 --norc 选项禁用配置文件，避免作业控制警告
+      const shellArgs = shell.includes('bash') ? ['--norc'] : []
+      subprocess = Bun.spawn([shell, ...shellArgs], {
         cwd,
         env: envVars,
         terminal,
