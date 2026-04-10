@@ -1076,8 +1076,17 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
    * 处理树节点选中
    */
   function handleSelect(keys: Array<string | number>) {
-    const key = keys[0] as string
+    // 确保只选中一个节点，避免同名文件同时高亮
+    if (!keys || keys.length === 0) {
+      selectedKey.value = null
+      return
+    }
+
+    const key = String(keys[0])
     if (!key) return
+
+    // 避免重复触发（当 key 与当前选中项相同时）
+    if (selectedKey.value === key) return
 
     selectedKey.value = key
     const node = findNodeByKey(treeData.value, key)
