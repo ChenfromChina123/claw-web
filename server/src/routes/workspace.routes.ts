@@ -92,15 +92,28 @@ export async function handleWorkspaceRoutes(req: Request): Promise<Response | nu
       const uploadsDir = path.join(userWs.path, 'uploads')
       let files: any[] = []
       if (existsSync(uploadsDir)) {
-        const entries = await fs2.readdir(uploadsDir, { withFileTypes: true })
-        files = await Promise.all(
-          entries
-            .filter(e => e.isFile())
-            .map(async e => {
-              const fstat = await fs2.stat(path.join(uploadsDir, e.name))
-              return { name: e.name, size: fstat.size, lastModified: fstat.mtime.toISOString() }
-            })
-        )
+        const collectFiles = async (dir: string, baseDir: string): Promise<any[]> => {
+          const entries = await fs2.readdir(dir, { withFileTypes: true })
+          const result: any[] = []
+          for (const e of entries) {
+            const fullPath = path.join(dir, e.name)
+            const relativePath = path.relative(baseDir, fullPath)
+            if (e.isFile()) {
+              const fstat = await fs2.stat(fullPath)
+              result.push({
+                name: e.name,
+                path: relativePath,
+                size: fstat.size,
+                lastModified: fstat.mtime.toISOString()
+              })
+            } else if (e.isDirectory()) {
+              const subFiles = await collectFiles(fullPath, baseDir)
+              result.push(...subFiles)
+            }
+          }
+          return result
+        }
+        files = await collectFiles(uploadsDir, uploadsDir)
       }
 
       return createSuccessResponse({ files, count: files.length })
