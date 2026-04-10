@@ -6,6 +6,7 @@
  * - 双向数据流（输入/输出）
  * - 终端尺寸调整
  * - 会话复用
+ * - 用户隔离（路径沙箱、命令验证）
  * 
  * 使用 Bun 原生 Bun.spawn() API（v1.3.5+）替代 node-pty
  * 解决 Bun 与 node-pty 的兼容性问题
@@ -14,6 +15,7 @@
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { v4 as uuidv4 } from 'uuid'
 import type { WebSocketConnection } from './wsBridge'
+import { getSecureTerminalManager, type AuditEvent } from '../security'
 
 // ==================== Types ====================
 
@@ -40,6 +42,10 @@ export interface PTYCreateOptions {
   cols?: number
   rows?: number
   env?: Record<string, string>
+  // 安全隔离选项
+  enableIsolation?: boolean  // 是否启用终端隔离（默认 true）
+  userRoot?: string         // 用户工作目录根路径（隔离模式下必需）
+  strictMode?: boolean      // 是否启用严格模式（默认 true）
 }
 
 export interface PTYOutput {
@@ -57,8 +63,10 @@ export class PTYSessionManager {
   private sessions: Map<string, PTYSession> = new Map()
   private connectionSessions: Map<string, Set<string>> = new Map()
   private eventCallbacks: Map<string, PTYEventCallback> = new Map()
+  private secureTerminalManager = getSecureTerminalManager()
   private cleanupInterval: ReturnType<typeof setInterval> | null = null
   private idleTimeout = 30 * 60 * 1000 // 30 分钟空闲超时
+  private auditLog: AuditEvent[] = []  // 审计日志缓存
 
   constructor() {
     // 启动定期清理
@@ -131,15 +139,29 @@ export class PTYSessionManager {
   /**
    * 创建新的 PTY 会话
    * 使用 Bun.spawn() 的 terminal 选项创建真正的 PTY
+   * 支持用户隔离模式（路径沙箱、命令验证）
    */
   createSession(options: PTYCreateOptions): PTYSession {
     const sessionId = uuidv4()
     const shell = this.resolveShell(options.shell)
-    const cwd = options.cwd || process.cwd()
+    
+    // 确定工作目录
+    let cwd = options.cwd || process.cwd()
+    
+    // 如果启用隔离且提供了 userId 和 userRoot，使用用户工作目录
+    const enableIsolation = options.enableIsolation ?? true
+    const userId = options.userId
+    const userRoot = options.userRoot
+    
+    if (enableIsolation && userId && userRoot) {
+      cwd = userRoot
+      console.log(`[PTY] 启用终端隔离模式：userId=${userId}, userRoot=${userRoot}`)
+    }
+    
     const cols = options.cols || 120
     const rows = options.rows || 30
 
-    console.log(`[PTY] Creating session ${sessionId} with shell: ${shell}`)
+    console.log(`[PTY] Creating session ${sessionId} with shell: ${shell}, cwd: ${cwd}`)
 
     // 准备环境变量
     const envVars: { [key: string]: string } = {}
@@ -156,10 +178,25 @@ export class PTYSessionManager {
       }
     }
     envVars['TERM'] = 'xterm-256color'
-    envVars['HOME'] = '/tmp'
-    envVars['USER'] = 'bun'
-    // 设置简洁的命令行提示符（仅显示当前路径）
-    envVars['PS1'] = '\\w\\$ '
+    
+    // 如果启用隔离，使用安全的环境变量
+    if (enableIsolation && userId) {
+      envVars['HOME'] = userRoot || cwd
+      envVars['USER'] = userId
+      envVars['USERNAME'] = userId
+      // 设置安全的提示符
+      envVars['PS1'] = `${userId}\\$ `
+      // 禁用历史记录
+      envVars['HISTFILE'] = '/dev/null'
+      envVars['HISTSIZE'] = '0'
+      envVars['HISTFILESIZE'] = '0'
+    } else {
+      envVars['HOME'] = '/tmp'
+      envVars['USER'] = 'bun'
+      envVars['PS1'] = '\\w\\$ '
+    }
+    
+    // 删除敏感环境变量
     delete envVars['APPDATA']
     delete envVars['LOCALAPPDATA']
     delete envVars['ProgramFiles']
@@ -245,12 +282,26 @@ export class PTYSessionManager {
     }
     this.connectionSessions.get(options.connectionId)!.add(sessionId)
 
+    // 如果启用隔离，创建安全终端实例
+    if (enableIsolation && userId && userRoot) {
+      const secureTerminal = this.secureTerminalManager.createTerminal(sessionId, {
+        userId,
+        userRoot,
+        cols,
+        rows,
+        strictMode: options.strictMode ?? true,
+        enableAudit: true,
+        auditCallback: (event) => this.handleAuditEvent(event)
+      })
+      console.log(`[PTY] 安全终端已创建：sessionId=${sessionId}`)
+    }
+
     console.log(`[PTY] Session ${sessionId} created successfully`)
     return session
   }
 
   /**
-   * 处理 PTY 输出
+   * 处理 PTY 输出（带路径虚拟化）
    */
   private handleOutput(sessionId: string, type: 'stdout' | 'stderr' | 'exit', data: string, exitCode?: number): void {
     const session = this.sessions.get(sessionId)
@@ -262,9 +313,16 @@ export class PTYSessionManager {
       session.isAlive = false
     }
 
+    // 如果启用了安全终端，处理输出（替换真实路径为虚拟路径）
+    let processedData = data
+    const secureTerminal = this.secureTerminalManager.getTerminal(sessionId)
+    if (secureTerminal && type === 'stdout') {
+      processedData = secureTerminal.processOutput(data)
+    }
+
     const output: PTYOutput = {
       sessionId,
-      data,
+      data: processedData,
       type,
       exitCode,
     }
@@ -277,7 +335,25 @@ export class PTYSessionManager {
   }
 
   /**
-   * 发送输入到 PTY
+   * 处理审计事件
+   */
+  private handleAuditEvent(event: AuditEvent): void {
+    // 保存审计日志
+    this.auditLog.push(event)
+    
+    // 限制日志缓存大小
+    if (this.auditLog.length > 1000) {
+      this.auditLog = this.auditLog.slice(-500)
+    }
+    
+    // 记录到控制台（生产环境应该写入日志文件）
+    if (event.type === 'command_blocked' || event.type === 'path_violation') {
+      console.warn(`[AUDIT] ${event.type}: userId=${event.userId}, sessionId=${event.sessionId}, command=${event.command}`)
+    }
+  }
+
+  /**
+   * 发送输入到 PTY（带安全验证）
    */
   write(sessionId: string, data: string): boolean {
     const session = this.sessions.get(sessionId)
@@ -287,6 +363,26 @@ export class PTYSessionManager {
     }
 
     session.lastActiveAt = Date.now()
+
+    // 如果启用了安全终端，先验证输入
+    const secureTerminal = this.secureTerminalManager.getTerminal(sessionId)
+    if (secureTerminal) {
+      const interceptResult = secureTerminal.interceptInput(data)
+      
+      if (!interceptResult.allowed) {
+        // 命令被阻止，发送错误提示
+        if (interceptResult.sendErrorPrompt) {
+          const errorMsg = `\r\n${interceptResult.reason}\r\n${secureTerminal.getPrompt()}`
+          this.handleOutput(sessionId, 'stdout', errorMsg)
+        }
+        return false
+      }
+      
+      // 使用修改后的输入（如果有）
+      if (interceptResult.modifiedInput) {
+        data = interceptResult.modifiedInput
+      }
+    }
 
     try {
       if (session.terminal) {
@@ -392,6 +488,9 @@ export class PTYSessionManager {
 
     // 移除事件回调
     this.eventCallbacks.delete(sessionId)
+
+    // 销毁安全终端（如果存在）
+    this.secureTerminalManager.removeTerminal(sessionId)
 
     // 终止进程
     if (session.process) {
@@ -553,17 +652,41 @@ export class PTYSessionManager {
     totalSessions: number
     aliveSessions: number
     connections: number
+    secureTerminals: number
+    activeUsers: number
   } {
     let aliveSessions = 0
     for (const session of this.sessions.values()) {
       if (session.isAlive) aliveSessions++
     }
 
+    const secureStats = this.secureTerminalManager.getStats()
+
     return {
       totalSessions: this.sessions.size,
       aliveSessions,
       connections: this.connectionSessions.size,
+      secureTerminals: secureStats.totalTerminals,
+      activeUsers: secureStats.activeUsers,
     }
+  }
+
+  /**
+   * 获取审计日志
+   */
+  getAuditLog(options?: { sessionId?: string; userId?: string; limit?: number }): AuditEvent[] {
+    let filtered = this.auditLog
+
+    if (options?.sessionId) {
+      filtered = filtered.filter(event => event.sessionId === options.sessionId)
+    }
+
+    if (options?.userId) {
+      filtered = filtered.filter(event => event.userId === options.userId)
+    }
+
+    const limit = options?.limit ?? 100
+    return filtered.slice(-limit)
   }
 
   /**
@@ -581,9 +704,13 @@ export class PTYSessionManager {
       this.destroySession(sessionId)
     }
 
+    // 清理安全终端管理器
+    this.secureTerminalManager.cleanup()
+
     this.sessions.clear()
     this.connectionSessions.clear()
     this.eventCallbacks.clear()
+    this.auditLog = []
 
     console.log('[PTY] PTY manager shutdown complete')
   }

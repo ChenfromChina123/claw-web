@@ -335,6 +335,10 @@ async function initTerminal(): Promise<void> {
       brightWhite: '#e5e5e5',
     },
     allowProposedApi: true,
+    // 支持复制粘贴
+    rightClickSelectsWord: true,
+    // 禁用 xterm.js 的默认粘贴处理，让我们自己处理
+    convertEol: false,
   })
 
   const fit = new FitAddon()
@@ -350,6 +354,31 @@ async function initTerminal(): Promise<void> {
 
   term.value = t
   fitAddon.value = fit
+
+  // 添加粘贴事件处理
+  t.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+    // 支持 Ctrl+V 粘贴
+    if (event.ctrlKey && event.key === 'v') {
+      navigator.clipboard.readText().then(text => {
+        if (connectionStatus.value === 'connected') {
+          void sendToPTY(text)
+        } else {
+          // 本地模式：直接写入
+          t.write(text)
+        }
+      }).catch(() => {})
+      return false
+    }
+    // 支持 Ctrl+C 复制（选中的文本）
+    if (event.ctrlKey && event.key === 'c') {
+      const selection = t.getSelection()
+      if (selection) {
+        navigator.clipboard.writeText(selection).catch(() => {})
+      }
+      return false
+    }
+    return true
+  })
 
   // 根据模式选择初始化方式
   if (props.connectToBackend) {
@@ -426,9 +455,6 @@ function initLocalMode(t: Terminal): void {
  * 初始化后端 PTY 模式
  */
 async function initBackendMode(t: Terminal): Promise<void> {
-  // 显示连接提示
-  t.writeln('\x1b[36mConnecting to backend shell...\x1b[0m')
-
   const connected = await connectToPTY()
   if (!connected) {
     t.writeln(`\x1b[31mFailed to connect: ${errorMessage.value || 'Unknown error'}\x1b[0m`)
@@ -445,8 +471,6 @@ async function initBackendMode(t: Terminal): Promise<void> {
     t.write(normalizeForXterm(accumulatedLog.value))
     t.writeln('')
   }
-  t.writeln(`\x1b[32mConnected to ${pty.session.value?.shell || 'shell'}\x1b[0m`)
-  t.writeln('')
 
   // 设置数据处理 - 发送到后端
   t.onData(async (data: string) => {
