@@ -15,8 +15,11 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@claw/shared": ["../shared/src"],
+      "@claw/shared/*": ["../shared/src/*"]
     },
     "types": ["bun-types", "node"]
   },

@@ -132,14 +132,45 @@ export class McpGateway {
     toolCount?: number
     error?: string
   }> {
-    return this.connectionManager.getServerStatus()
+    // 从连接管理器获取所有服务器状态
+    const result: Array<{
+      serverId: string
+      name: string
+      status: MCPServerStatus
+      toolCount?: number
+      error?: string
+    }> = []
+    
+    // 遍历所有已配置的服务器
+    const servers = this.connectionManager.listServers()
+    for (const serverId of servers) {
+      const status = this.connectionManager.getServerStatus(serverId)
+      const config = this.connectionManager.getServerConfig(serverId)
+      const tools = this.connectionManager.getServerTools(serverId)
+      
+      if (config && status) {
+        result.push({
+          serverId,
+          name: config.name,
+          status,
+          toolCount: tools?.length,
+          error: undefined,
+        })
+      }
+    }
+    
+    return result
   }
   
   /**
    * 关闭网关
    */
   async shutdown(): Promise<void> {
-    await this.connectionManager.shutdown()
+    // 断开所有连接
+    const servers = this.connectionManager.listServers()
+    for (const serverId of servers) {
+      await this.connectionManager.removeServer(serverId)
+    }
   }
 }
 
