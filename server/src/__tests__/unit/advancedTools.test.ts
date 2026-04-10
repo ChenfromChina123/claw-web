@@ -16,7 +16,7 @@ import {
   createDatabaseQueryToolDefinition,
   createDockerManagerToolDefinition,
   createGitAdvancedToolDefinition,
-} from '../tools/advancedTools'
+} from '../../tools/advancedTools'
 
 // ==================== Mock Context ====================
 

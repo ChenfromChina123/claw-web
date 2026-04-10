@@ -292,6 +292,13 @@ export class MCPConnectionManager extends EventEmitter {
     console.log('[MCPConnectionManager] 所有服务器已断开')
   }
   
+  /**
+   * 列出所有服务器 ID
+   */
+  listServers(): string[] {
+    return Array.from(this.servers.keys())
+  }
+  
   // ==================== Stdio 传输实现 ====================
   
   /**

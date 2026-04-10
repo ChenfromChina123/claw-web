@@ -2,8 +2,8 @@
  * 规则注入器测试
  */
 
-import { ruleInjector } from '../services/ruleInjector'
-import { buildCompleteSystemPrompt } from '../prompts/contextBuilder'
+import { ruleInjector } from '../../services/ruleInjector'
+import { buildCompleteSystemPrompt } from '../../prompts/contextBuilder'
 
 /**
  * 测试规则加载功能

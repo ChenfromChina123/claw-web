@@ -265,8 +265,15 @@ describe('AgentRuntimeContext 测试', () => {
         throw new Error('Hook error')
       })
 
-      // 不应该抛出错误
-      await expect(context.cleanup()).resolves.not.toThrow()
+      // 不应该抛出错误（cleanup 内部会捕获错误）
+      try {
+        await context.cleanup()
+        // 如果执行到这里，说明没有抛出错误
+        expect(true).toBe(true)
+      } catch (error) {
+        // 如果抛出错误，测试失败
+        throw new Error('cleanup should not throw even if hook throws')
+      }
     })
   })
 
