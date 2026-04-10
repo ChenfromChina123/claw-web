@@ -24,3 +24,10 @@ export {
   type AuditEventType,
   type InputInterceptResult
 } from './secureTerminal'
+
+// ✅ 新增：脚本验证器
+export {
+  ScriptValidator,
+  createScriptValidator,
+  type ValidationResult
+} from './scriptValidator'

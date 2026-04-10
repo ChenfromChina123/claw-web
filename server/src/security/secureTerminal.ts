@@ -44,6 +44,11 @@ export type AuditEventType =
   | 'session_ended'
   | 'resize'
   | 'error'
+  // ✅ 新增：脚本安全相关事件
+  | 'script_blocked'          // 脚本执行被阻止
+  | 'remote_script_blocked'   // 远程脚本下载被阻止
+  | 'interpreter_abuse'       // 解释器滥用检测
+  | 'escape_attempt'          // 逃逸尝试检测
 
 /**
  * 审计事件
@@ -63,6 +68,8 @@ export interface AuditEvent {
   reason?: string
   /** 额外数据 */
   data?: Record<string, any>
+  /** ✅ 新增：安全级别 */
+  severity?: 'low' | 'medium' | 'high' | 'critical'
 }
 
 /**
@@ -154,10 +161,14 @@ export class SecureTerminal {
       const validationResult = this.sandbox.validateCommand(command)
 
       if (!validationResult.allowed) {
+        // ✅ 增强：根据拒绝原因记录不同的审计事件
+        const auditType = this.determineAuditType(command, validationResult)
+        
         // 记录审计事件
-        this.audit('command_blocked', {
+        this.audit(auditType, {
           command,
-          reason: validationResult.reason
+          reason: validationResult.reason,
+          severity: this.determineSeverity(auditType)
         })
 
         return {
@@ -175,6 +186,58 @@ export class SecureTerminal {
 
     return {
       allowed: true
+    }
+  }
+
+  /**
+   * ✅ 新增：根据验证结果确定审计事件类型
+   */
+  private determineAuditType(command: string, result: any): AuditEventType {
+    const reason = result.reason || ''
+    
+    // 检测远程脚本下载
+    if (reason.includes('远程脚本') || reason.includes('下载并执行')) {
+      return 'remote_script_blocked'
+    }
+    
+    // 检测脚本执行
+    if (reason.includes('脚本') || reason.includes('脚本文件')) {
+      return 'script_blocked'
+    }
+    
+    // 检测解释器滥用
+    if (reason.includes('解释器') || reason.includes('os.system') || reason.includes('child_process')) {
+      return 'interpreter_abuse'
+    }
+    
+    // 检测逃逸尝试
+    if (reason.includes('超出工作目录') || reason.includes('..')) {
+      return 'escape_attempt'
+    }
+    
+    // 默认
+    return 'command_blocked'
+  }
+
+  /**
+   * ✅ 新增：确定安全级别
+   */
+  private determineSeverity(auditType: AuditEventType): 'low' | 'medium' | 'high' | 'critical' {
+    switch (auditType) {
+      case 'remote_script_blocked':
+        return 'critical'  // 远程脚本下载是最危险的
+      case 'escape_attempt':
+        return 'high'      // 逃逸尝试很危险
+      case 'interpreter_abuse':
+        return 'high'      // 解释器滥用
+      case 'script_blocked':
+        return 'medium'    // 脚本执行被阻止
+      case 'command_blocked':
+        return 'medium'    // 普通命令被阻止
+      case 'path_violation':
+        return 'high'      // 路径违规
+      default:
+        return 'low'
     }
   }
 

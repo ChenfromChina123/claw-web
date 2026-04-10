@@ -1469,7 +1469,7 @@ async function handleInterruptExecution() {
 .message-bubble-column {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   max-width: 92%;
 }
 

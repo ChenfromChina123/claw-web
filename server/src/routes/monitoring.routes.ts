@@ -3,8 +3,11 @@
  */
 
 import { performanceMonitor } from '../integration/performanceMonitor'
+import { getPerformanceMonitor } from '../monitoring/PerformanceMonitor'
 import { wsManager } from '../integration/wsBridge'
 import { createSuccessResponse, createErrorResponse, createCorsPreflightResponse } from '../utils/response'
+
+const perfMonitor = getPerformanceMonitor()
 
 /**
  * 处理监控相关的 HTTP 请求
@@ -24,6 +27,28 @@ export async function handleMonitoringRoutes(req: Request): Promise<Response | n
   // GET /api/monitoring/metrics - 获取性能指标
   if (path === '/api/monitoring/metrics' && method === 'GET') {
     return createSuccessResponse(performanceMonitor.getMetrics())
+  }
+
+  // GET /api/monitoring/performance - 获取性能统计报告
+  if (path === '/api/monitoring/performance' && method === 'GET') {
+    const endpoint = url.searchParams.get('endpoint') || undefined
+    const report = perfMonitor.generateReport(endpoint)
+    return createSuccessResponse({ report })
+  }
+
+  // POST /api/monitoring/performance/clear - 清空监控数据
+  if (path === '/api/monitoring/performance/clear' && method === 'POST') {
+    const endpoint = url.searchParams.get('endpoint') || undefined
+    perfMonitor.clear(endpoint)
+    return createSuccessResponse({ message: 'Metrics cleared' })
+  }
+
+  // GET /api/monitoring/performance/alerts - 检查性能告警
+  if (path === '/api/monitoring/performance/alerts' && method === 'GET') {
+    const p95Ms = parseInt(url.searchParams.get('p95Ms') || '1000', 10)
+    const errorRatePercent = parseInt(url.searchParams.get('errorRatePercent') || '5', 10)
+    const alerts = perfMonitor.checkAlerts({ p95Ms, errorRatePercent })
+    return createSuccessResponse({ alerts, count: alerts.length })
   }
 
   // GET /api/monitoring/logs - 获取日志

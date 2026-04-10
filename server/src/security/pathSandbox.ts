@@ -9,6 +9,7 @@
 
 import { resolve, normalize, isAbsolute, relative, join, dirname, basename } from 'path'
 import { existsSync, statSync, readlinkSync } from 'fs'
+import { ScriptValidator, createScriptValidator } from './scriptValidator'
 
 /**
  * 路径验证结果
@@ -154,6 +155,7 @@ export class PathSandbox {
   private allowedCommands: Set<string>
   private blockedCommands: Set<string>
   private currentPath: string
+  private scriptValidator: ScriptValidator  // ✅ 新增：脚本验证器
 
   constructor(config: PathSandboxConfig) {
     this.userId = config.userId
@@ -172,6 +174,9 @@ export class PathSandbox {
       ...DANGEROUS_COMMANDS,
       ...(config.blockedCommands || [])
     ])
+
+    // ✅ 新增：初始化脚本验证器
+    this.scriptValidator = createScriptValidator(config.userId, config.userRoot)
   }
 
   /**
@@ -211,27 +216,15 @@ export class PathSandbox {
         }
       }
 
-      // 2. 规范化输入路径
-      const normalizedInput = normalize(targetPath)
-
-      // 3. 检查是否包含 .. 引用
-      if (normalizedInput.includes('..')) {
-        return {
-          allowed: false,
-          reason: '❌ 安全限制：路径包含 ".."（父目录引用），禁止访问工作目录外的区域。',
-          severity: 'block'
-        }
-      }
-
-      // 4. 解析绝对路径
+      // 2. 解析绝对路径或相对路径
       const resolvedPath = isAbsolute(targetPath)
         ? resolve(targetPath)
         : resolve(this.currentPath, targetPath)
 
-      // 5. 规范化路径
+      // 3. 规范化路径（这会处理 .. 引用）
       const normalizedPath = normalize(resolvedPath)
 
-      // 6. 检查是否在用户根目录内
+      // 4. 检查是否在用户根目录内
       if (!normalizedPath.startsWith(this.userRoot)) {
         const relPath = relative(this.userRoot, normalizedPath)
         return {
@@ -242,7 +235,7 @@ export class PathSandbox {
         }
       }
 
-      // 7. 检查符号链接（如果路径存在）
+      // 5. 检查符号链接（如果路径存在）
       if (existsSync(normalizedPath)) {
         try {
           const stats = statSync(normalizedPath)
@@ -316,7 +309,25 @@ export class PathSandbox {
       }
     }
 
-    // 5. 检查命令中的路径参数
+    // 5. ✅ 新增：检测解释器调用危险模式
+    const interpreterCheck = this.checkInterpreterCalls(trimmed)
+    if (!interpreterCheck.allowed) {
+      return interpreterCheck
+    }
+
+    // 6. ✅ 新增：检测远程脚本下载执行
+    const remoteScriptCheck = this.scriptValidator.detectRemoteScriptExecution(trimmed)
+    if (!remoteScriptCheck.allowed) {
+      return remoteScriptCheck
+    }
+
+    // 7. ✅ 新增：检测脚本执行命令（同步路径验证）
+    const scriptExecCheck = this.scriptValidator.validateScriptExecution(trimmed)
+    if (!scriptExecCheck.allowed) {
+      return scriptExecCheck
+    }
+
+    // 8. 检查命令中的路径参数
     const pathArgs = this.extractPathsFromCommand(trimmed)
     for (const pathArg of pathArgs) {
       // 跳过选项和标志
@@ -334,12 +345,84 @@ export class PathSandbox {
       }
     }
 
-    // 6. 特殊命令检查（如 cd）
+    // 9. 特殊命令检查（如 cd）
     if (baseCommand === 'cd') {
       return this.validateCdCommand(trimmed)
     }
 
     return { allowed: true }
+  }
+
+  /**
+   * ✅ 新增：异步验证脚本执行（包含内容分析）
+   * 
+   * 对于脚本执行命令，需要在执行前验证脚本内容
+   * 这个方法应该在 PTY 写入前调用
+   * 
+   * @param command - 要验证的命令
+   * @returns 验证结果（Promise）
+   */
+  async validateCommandAsync(command: string): Promise<CommandValidationResult> {
+    // 先进行同步验证
+    const syncResult = this.validateCommand(command)
+    if (!syncResult.allowed) {
+      return syncResult
+    }
+
+    // 检查是否是脚本执行命令
+    if (this.isScriptExecution(command)) {
+      const scriptPath = this.extractScriptPathFromCommand(command)
+      if (scriptPath) {
+        // 异步验证脚本内容
+        const contentResult = await this.scriptValidator.validateScriptContent(scriptPath)
+        if (!contentResult.allowed) {
+          return {
+            allowed: false,
+            reason: contentResult.reason,
+            severity: contentResult.severity
+          }
+        }
+      }
+    }
+
+    return { allowed: true }
+  }
+
+  /**
+   * 判断是否是脚本执行命令
+   */
+  private isScriptExecution(command: string): boolean {
+    const scriptPatterns = [
+      /^(python|python3|node|bash|sh|perl|ruby)\s+['"]?([^'"\s&|;]+\.)(py|js|sh|pl|rb|ts)/i,
+      /^\.\/([^'"\s&|;]+\.)(py|js|sh|pl|rb|ts)/i,
+    ]
+
+    for (const pattern of scriptPatterns) {
+      if (pattern.test(command)) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  /**
+   * 从命令中提取脚本路径
+   */
+  private extractScriptPathFromCommand(command: string): string | null {
+    const patterns = [
+      /^(python|python3|node|bash|sh|perl|ruby)\s+['"]?([^'"\s&|;]+)/i,
+      /^\.\/([^'"\s&|;]+)/i,
+    ]
+
+    for (const pattern of patterns) {
+      const match = command.match(pattern)
+      if (match && match[2]) {
+        return match[2].trim()
+      }
+    }
+
+    return null
   }
 
   /**
@@ -357,16 +440,11 @@ export class PathSandbox {
     // 移除引号
     const unquotedPath = targetPath.replace(/^['"]|['"]$/g, '')
 
-    // 检查是否包含 ..
-    if (unquotedPath.includes('..')) {
-      return {
-        allowed: false,
-        reason: '❌ 安全限制：cd 命令禁止使用 ".." 访问父目录。',
-        suggestion: '请使用绝对路径或相对路径（不使用 ..）切换到目标目录。'
-      }
-    }
-
-    // 解析目标路径
+    // ✅ 改进：不再简单阻止包含 .. 的路径
+    // 而是解析路径后检查最终结果是否在 userRoot 内
+    // 这样允许用户 cd .. 只要在安全范围内
+    
+    // 解析目标路径（resolvePath 会规范化路径并检查）
     const targetResult = this.resolvePath(unquotedPath)
     if (!targetResult.allowed) {
       return {
@@ -443,6 +521,51 @@ export class PathSandbox {
     paths.push(...args)
 
     return [...new Set(paths)]
+  }
+
+  /**
+   * ✅ 新增：检测解释器调用危险模式
+   * 
+   * 防止通过解释器执行系统命令绕过限制
+   * 例如：python -c "import os; os.system('rm -rf /')"
+   */
+  private checkInterpreterCalls(command: string): CommandValidationResult {
+    const dangerousPatterns = [
+      // Python 系统调用
+      /python[3]?\s+(-c|-m)\s+["'].*os\.system\s*\(/i,
+      /python[3]?\s+(-c|-m)\s+["'].*subprocess\./i,
+      /python[3]?\s+(-c|-m)\s+["'].*__import__\s*\(/i,
+      
+      // Node.js 执行
+      /node\s+(-e|-p)\s+["'].*exec\s*\(/i,
+      /node\s+(-e|-p)\s+["'].*spawn\s*\(/i,
+      /node\s+(-e|-p)\s+["'].*require\s*\(['"]child_process['"]\)/i,
+      
+      // Bash 嵌套执行
+      /bash\s+(-c|--command)\s+["'].*sudo/i,
+      /sh\s+-c\s+["'].*sudo/i,
+      
+      // Perl/Ruby 系统调用
+      /perl\s+(-e)\s+["'].*system\s*\(/i,
+      /ruby\s+(-e)\s+["'].*system\s*\(/i,
+      
+      // 通用危险模式
+      /eval\s*\(/i,
+      /exec\s*\(/i,
+      /system\s*\(/i,
+    ]
+
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(command)) {
+        return {
+          allowed: false,
+          reason: `❌ 安全限制：检测到通过解释器执行系统命令的尝试。`,
+          suggestion: '该操作可能存在安全风险，请使用其他替代方案。'
+        }
+      }
+    }
+
+    return { allowed: true }
   }
 
   /**

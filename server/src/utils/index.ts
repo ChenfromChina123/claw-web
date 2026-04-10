@@ -16,3 +16,6 @@ export * from './websocket'
 
 // 工作目录辅助函数
 export * from './workdir'
+
+// Feature Flag 系统
+export * from './featureFlags'
