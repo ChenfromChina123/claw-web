@@ -1091,8 +1091,16 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     selectedKey.value = key
     const node = findNodeByKey(treeData.value, key)
 
-    if (node && node.isLeaf !== false) {
+    console.log('[handleSelect] key:', key, 'node:', node ? { label: node.label, isLeaf: node.isLeaf } : null)
+
+    // 只有当节点是叶子节点（文件）时才加载内容
+    if (node && node.isLeaf === true) {
+      console.log('[handleSelect] 加载文件内容:', key)
       void loadFileContent(key)
+    } else if (node && node.isLeaf === false) {
+      console.log('[handleSelect] 目录节点，不加载内容:', key)
+    } else if (!node) {
+      console.warn('[handleSelect] 未找到节点:', key)
     }
   }
 

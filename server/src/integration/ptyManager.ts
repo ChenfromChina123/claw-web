@@ -179,7 +179,15 @@ export class PTYSessionManager {
         data: (term, data) => {
           // 输出数据回调 - data 是 Uint8Array，需要解码为字符串
           const text = new TextDecoder().decode(data)
-          this.handleOutput(sessionId, 'stdout', text)
+          
+          // 过滤掉 bash 的作业控制警告信息
+          const filteredText = text
+            .replace(/^bash: cannot set terminal process group.*\r?\n?/gmi, '')
+            .replace(/^bash: no job control in this shell\r?\n?/gmi, '')
+          
+          if (filteredText.trim()) {
+            this.handleOutput(sessionId, 'stdout', filteredText)
+          }
         }
       })
 
