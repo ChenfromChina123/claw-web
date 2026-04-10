@@ -16,10 +16,7 @@ LABEL description="Backend service with multi-tenant isolation and memory optimi
 LABEL version="1.0.0"
 
 # 安装必要的系统依赖（包含 node-pty 编译所需的构建工具）
-# 使用国内镜像源加速 - 2025-04-09 更新：强制刷新缓存验证加速效果
-RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
-    && sed -i 's/security.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
-    && apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y \
     default-mysql-client \
     curl \
     tzdata \
