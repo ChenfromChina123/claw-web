@@ -1434,7 +1434,7 @@ async function handleInterruptExecution() {
 }
 
 .message-wrapper {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .message {
@@ -2504,15 +2504,15 @@ async function handleInterruptExecution() {
 /* 工具调用包装器 - 与助手消息对齐 */
 .tool-calls-wrapper {
   margin-left: 52px;
-  margin-top: 4px;
-  margin-bottom: 8px;
+  margin-top: 2px;
+  margin-bottom: 4px;
 }
 
 /* 工具调用容器 */
 .tool-calls-container {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 /* 单个工具调用项 */
