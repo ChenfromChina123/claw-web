@@ -21,6 +21,7 @@ import { join, resolve, relative } from 'path'
 import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
 import { BackgroundTaskManager, TaskPriority } from '../services/backgroundTaskManager'
+import { getPerformanceMonitor } from '../monitoring/PerformanceMonitor'
 
 const execAsync = promisify(exec)
 
@@ -351,7 +352,6 @@ export class WebToolExecutor {
       
       // 性能监控
       try {
-        const { getPerformanceMonitor } = require('../../monitoring/PerformanceMonitor')
         const perfMonitor = getPerformanceMonitor()
         perfMonitor.record('tool.execute', Date.now() - startTime, true, {
           toolName: name,
@@ -379,7 +379,6 @@ export class WebToolExecutor {
       
       // 性能监控（失败）
       try {
-        const { getPerformanceMonitor } = require('../../monitoring/PerformanceMonitor')
         const perfMonitor = getPerformanceMonitor()
         perfMonitor.record('tool.execute', Date.now() - startTime, false, {
           toolName: name,

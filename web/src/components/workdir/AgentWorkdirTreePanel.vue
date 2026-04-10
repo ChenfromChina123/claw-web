@@ -151,6 +151,16 @@ function onCtxMenuShowUpdate(show: boolean): void {
     ctxMenuTarget.value = null
   }
 }
+
+// 监听全局点击事件，点击其他区域时关闭菜单
+function closeCtxMenuOnClickOutside(e: MouseEvent): void {
+  const target = e.target as HTMLElement
+  // 如果点击的不是菜单本身或触发菜单的元素，则关闭菜单
+  if (ctxMenuShow.value && !target.closest('.n-dropdown')) {
+    ctxMenuShow.value = false
+    ctxMenuTarget.value = null
+  }
+}
 </script>
 
 <template>
@@ -161,6 +171,7 @@ function onCtxMenuShowUpdate(show: boolean): void {
     @dragover="onDragOver"
     @dragleave="onDragLeave"
     @drop="onDrop"
+    @click="closeCtxMenuOnClickOutside"
   >
     <div v-if="dragActive" class="drag-overlay" aria-hidden="true">
       <span>松开鼠标上传到 {{ DEFAULT_UPLOAD_DIR }}/</span>

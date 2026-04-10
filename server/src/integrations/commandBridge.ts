@@ -16,6 +16,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { readdir, stat } from 'fs/promises'
 import { join } from 'path'
+import { getPerformanceMonitor } from '../monitoring/PerformanceMonitor'
 
 // 命令结果类型
 export interface CommandResult {
@@ -259,7 +260,6 @@ export class WebCommandBridge {
     
     // 性能监控
     try {
-      const { getPerformanceMonitor } = require('../../monitoring/PerformanceMonitor')
       const perfMonitor = getPerformanceMonitor()
       perfMonitor.record('command.execute', duration, result.success, {
         command: commandStr.split(' ')[0],
