@@ -70,6 +70,8 @@ export interface WorkdirContext {
   selectOpenFile: (fileId: string) => Promise<void>
   closeOpenFile: (fileId: string) => Promise<void>
   tabLanguageLabel: (entry: OpenFileEntry) => string
+  /** 获取标签页显示名称（智能处理同名文件冲突） */
+  getTabDisplayName: (entry: OpenFileEntry) => string
   /** 调用浏览器下载 API 下载工作区文件 */
   downloadFile: (filePath: string, fileName: string) => Promise<void>
   /** 将文件夹打包为 zip 下载 */
@@ -234,6 +236,28 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     if (ext && map[ext]) return map[ext]
     if (ext) return ext.slice(0, 4).toUpperCase()
     return 'TXT'
+  }
+
+  /**
+   * 获取标签页显示名称（智能处理同名文件）
+   * 当存在多个同名文件时，自动添加父目录前缀以区分
+   * @param entry 文件条目
+   * @returns 显示名称（可能包含路径前缀）
+   */
+  function getTabDisplayName(entry: OpenFileEntry): string {
+    const sameNameFiles = openFiles.value.filter(f => f.name === entry.name && f.id !== entry.id)
+
+    if (sameNameFiles.length === 0) {
+      return entry.name
+    }
+
+    const pathParts = entry.path.split(/[/\\]/).filter(part => part !== '')
+    if (pathParts.length <= 1) {
+      return entry.name
+    }
+
+    const parentDir = pathParts[pathParts.length - 2]
+    return `${parentDir}/${entry.name}`
   }
 
   function disposeAllOpenTabs(): void {
@@ -1414,6 +1438,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     selectOpenFile,
     closeOpenFile,
     tabLanguageLabel,
+    getTabDisplayName,
     downloadFile,
     downloadFolderZip,
     downloadSelected,

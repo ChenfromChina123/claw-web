@@ -327,7 +327,7 @@ onBeforeUnmount(() => {
               <span class="file-icon" :class="{ 'read-only-icon': file.mode === 'binary' }">
                 {{ ctx.tabLanguageLabel(file) }}
               </span>
-              <span class="file-name" :title="file.path">{{ file.name }}</span>
+              <span class="file-name" :title="file.path">{{ ctx.getTabDisplayName(file) }}</span>
               <button
                 type="button"
                 class="close-icon"
