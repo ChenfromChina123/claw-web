@@ -407,7 +407,7 @@ defineExpose({
           ref="inputRef"
           v-model:value="inputValue"
           type="textarea"
-          :placeholder="props.placeholder || '输入内容，我会自动变高...'"
+          :placeholder="props.placeholder || 'Ask AI assistant...'"
           :autosize="{ minRows: 1, maxRows: 8 }"
           :disabled="disabled"
           @keydown="handleKeyDown"
@@ -417,8 +417,9 @@ defineExpose({
 
       <!-- 底部：功能按钮栏 -->
       <div class="input-footer">
-        <div class="left-tools">
-          <!-- 左侧留空，保持对齐 -->
+        <div class="left-toolsMono">
+          <button class="icon-btn" title="引用上下文 (@)">@</button>
+          <button class="icon-btn" title="选择意图 (#)">#</button>
         </div>
 
         <div class="right-tools">
@@ -622,9 +623,29 @@ defineExpose({
   box-shadow: none !important;
 }
 
-/* 确保文字颜色在聚焦时不会变白得刺眼 */
+/* ========== 抹平 NInput 内嵌样式 (IDE 变体) ========== */
+.chat-input--ide :deep(.n-input),
+.chat-input--ide :deep(.n-input-wrapper) {
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  --n-border: none !important;
+  --n-border-hover: none !important;
+  --n-border-focus: none !important;
+}
+
 .chat-input--ide :deep(.n-input__textarea-el) {
-  color: #d1d1d1 !important; /* 灰白色，非纯白 */
+  color: #d1d1d1 !important; /* 灰白色文本 */
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  padding: 0 !important; /* 去掉 naive 默认 padding */
+  background: transparent !important;
+  caret-color: #007acc !important; /* 光标颜色与聚焦边框一致 */
+}
+
+/* 占位符颜色对齐 */
+.chat-input--ide :deep(.n-input__placeholder) {
+  color: #555 !important;
 }
 
 /* 移除 NInput 自带的 Padding，让内容受父容器控制 */
@@ -635,17 +656,25 @@ defineExpose({
   --n-padding-right: 0 !important;
 }
 
-/* 3. 精细化排版 */
+/* 3. Header：弱化文本 */
 .chat-input--ide .input-header {
   font-size: 12px;
-  color: #666; /* 调暗，不抢戏 */
-  margin-bottom: 4px;
+  color: #888; /* 灰色，不抢戏 */
+  margin-bottom: 6px;
+  user-select: none;
+  font-weight: 500;
 }
 
+/* AI Icon 已彻底去掉 */
+
+/* 4. Footer：精细化排版 */
 .chat-input--ide .input-footer {
-  margin-top: 12px;
-  opacity: 0.8; /* 默认半透明，输入时或 Hover 时变亮 */
-  transition: opacity 0.3s;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  opacity: 0.9; /* 默认稍微淡一点 */
+  transition: opacity 0.2s;
 }
 
 .chat-input--ide .input-container:focus-within .input-footer {
@@ -717,18 +746,6 @@ defineExpose({
   font-weight: 500;
   letter-spacing: 0.5px;
   user-select: none;
-}
-
-.ai-icon {
-  width: 18px;
-  height: 18px;
-  background: #222;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  color: #555;
 }
 
 .model-selector-wrapper {
@@ -813,16 +830,26 @@ defineExpose({
   color: #f1f5f9;
 }
 
-/* 左侧工具：等宽字体，拉开间距 */
-.left-tools {
+/* 5. 工具栏按钮：低调、灰色 */
+.left-toolsMono {
   display: flex;
-  gap: 20px; /* 拉开 @ 和 # 的间距 */
+  gap: 16px;
   font-family: var(--font-family-mono, 'Consolas', 'Monaco', monospace);
-  font-weight: 600;
 }
 
-.left-tools .icon-btn {
-  font-size: 16px;
+.left-toolsMono .icon-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: #888; /* 默认灰色 */
+  font-size: 14px;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.left-toolsMono .icon-btn:hover {
+  color: #d1d1d1; /* 悬停时稍微变亮 */
 }
 
 /* 右侧工具 */
@@ -833,24 +860,6 @@ defineExpose({
 }
 
 
-
-/* 模型选择下拉框样式 */
-.model-select-dropdown {
-  width: 140px;
-}
-
-.model-select-dropdown :deep(.n-base-selection) {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 12px !important;
-  --n-height: 28px !important;
-}
-
-.model-select-dropdown :deep(.n-base-selection__render) {
-  color: #888 !important;
-  font-size: 12px !important;
-  font-family: monospace;
-}
 
 /* 功能图标按钮样式 */
 .action-icon-btn, .send-btn-minimal {
@@ -864,17 +873,33 @@ defineExpose({
 }
 .action-icon-btn:hover { color: #aaa; }
 
-/* 发送按钮状态 */
+/* ========== 发送按钮样式 (IDE 变体) ========== */
+.right-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .send-btn-minimal {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  background: transparent;
+  border: none;
+  padding: 4px;
+  color: #666; /* 默认深灰色 */
+  cursor: pointer;
+  display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+
+.send-btn-minimal:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
 }
 
 .send-btn-minimal.can-send {
-  color: #42b883; /* 仅在有内容时点亮 */
+  color: #007acc; /* 仅在有内容时点亮为蓝色 */
 }
 .send-btn-minimal.is-generating {
   color: #ef4444; /* 停止状态显红色 */
