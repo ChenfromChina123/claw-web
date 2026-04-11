@@ -640,17 +640,17 @@ function handleUseTemplate(content: string) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: #161616;
-  border: 1px solid #2d2d2d;
-  border-radius: 14px;
+  background-color: #111111;
+  border: 1px solid #2a2a2a;
+  border-radius: 16px;
   padding: 16px 20px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .input-container:focus-within {
-  border-color: #3d3d3d;
-  box-shadow: 0 0 0 1px rgba(25, 195, 125, 0.1);
+  border-color: #3a3a3a;
+  box-shadow: 0 0 0 1px rgba(25, 195, 125, 0.15);
 }
 
 .input-header {
@@ -658,7 +658,7 @@ function handleUseTemplate(content: string) {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  color: #888;
+  color: #666;
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.5px;
@@ -668,13 +668,13 @@ function handleUseTemplate(content: string) {
 .ai-icon {
   width: 18px;
   height: 18px;
-  background: #2a2a2a;
+  background: #222;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  color: #666;
+  color: #555;
 }
 
 .model-selector-wrapper {
@@ -699,6 +699,7 @@ function handleUseTemplate(content: string) {
 
 /* 彻底重置 NInput 样式 */
 .input-main-wrapper :deep(.n-input) {
+  --n-font-size: 16px !important;
   --n-border: none !important;
   --n-border-hover: none !important;
   --n-border-focus: none !important;
@@ -709,11 +710,11 @@ function handleUseTemplate(content: string) {
   background: transparent !important;
 }
 
-.input-main-wrapper :deep(.n-input__input-el) {
-  padding: 8px 0 !important;
-  font-size: 15px;
-  line-height: 1.6;
-  color: #d1d1d1 !important;
+.input-main-wrapper :deep(.n-input__textarea-el) {
+  color: #e5e5e5 !important;
+  line-height: 1.6 !important;
+  caret-color: #19c37d !important;
+  padding: 10px 0 !important;
 }
 
 /* Placeholder 颜色更低调 */
@@ -721,34 +722,32 @@ function handleUseTemplate(content: string) {
   color: #444 !important;
 }
 
-/* 光标颜色匹配发送按钮 */
-.input-main-wrapper :deep(.n-input__textarea-el) {
-  caret-color: #19c37d;
-}
-
 .input-footer {
+  margin-top: 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 12px;
-  padding-top: 8px;
 }
 
-.left-tools,
+.left-tools {
+  display: flex;
+  align-items: center;
+  gap: 24px !important;
+}
+
 .right-tools {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
 }
 
-/* 图标按钮样式 - 更有极客感 */
+/* 图标按钮样式 - 更低调 */
 .icon-btn {
   font-family: 'Consolas', 'Monaco', monospace;
   font-weight: bold;
   font-size: 16px;
-  color: #666;
+  color: #555;
   cursor: pointer;
-  opacity: 0.6;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
@@ -756,43 +755,44 @@ function handleUseTemplate(content: string) {
 }
 
 .icon-btn:hover {
-  color: #fff;
-  opacity: 1;
+  color: #999;
 }
 
-/* 模型选择器样式 - 药丸形状 */
+/* 模型选择器样式 - 胶囊形状 */
 .model-picker :deep(.n-base-selection) {
   --n-height: 32px !important;
+  --n-border: 1px solid #333 !important;
+  --n-border-hover: 1px solid #444 !important;
+  --n-border-focus: 1px solid #444 !important;
+  --n-border-radius: 20px !important;
+  background-color: #222 !important;
+  color: #aaa !important;
   font-size: 13px !important;
-  color: #888 !important;
-  background-color: #2a2a2a !important;
-  border: 1px solid #333 !important;
-  border-radius: 20px !important;
   cursor: pointer !important;
 }
 
 .model-picker :deep(.n-base-selection:hover) {
-  background-color: #333 !important;
-  color: #aaa !important;
+  background-color: #2a2a2a !important;
+  color: #bbb !important;
 }
 
 .model-picker :deep(.n-base-selection .n-base-selection__render) {
   padding: 4px 12px !important;
 }
 
-/* 发送按钮样式 - 深绿色更耐看 */
+/* 发送按钮样式 - 绿色渐变 */
 .input-footer .send-button {
-  width: 32px !important;
-  height: 32px !important;
-  min-height: 32px !important;
+  width: 34px !important;
+  height: 34px !important;
+  min-height: 34px !important;
   padding: 0 !important;
   font-size: 13px !important;
   font-weight: bold !important;
-  border-radius: 8px !important;
-  background: #1a4d32 !important;
+  border-radius: 10px !important;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
   color: white !important;
   border: none !important;
-  box-shadow: none !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -800,8 +800,8 @@ function handleUseTemplate(content: string) {
 }
 
 .input-footer .send-button:hover:not(:disabled) {
-  background: #236b45 !important;
   transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3) !important;
 }
 
 .input-footer .send-button:active:not(:disabled) {
@@ -810,7 +810,7 @@ function handleUseTemplate(content: string) {
 
 .input-footer .send-button:disabled {
   opacity: 0.3 !important;
-  background: #1a4d32 !important;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
 }
 
 /* 默认变体的停止按钮样式 */
