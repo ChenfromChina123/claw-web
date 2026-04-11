@@ -4,10 +4,11 @@
  * 使用 Rive 动画显示动态头像
  */
 
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, markRaw } from 'vue'
 import { Rive, Layout, Fit, Alignment } from '@rive-app/canvas'
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+// 使用 markRaw 避免 Vue 响应式代理与 Rive 内部对象冲突
 const riveInstance = ref<any>(null)
 const isHovered = ref(false)
 
@@ -32,14 +33,15 @@ function initRive(): void {
     onLoad: () => {
       console.log('[AgentAvatar] Rive 加载成功')
       rive.resizeDrawingSurfaceToCanvas()
-      riveInstance.value = rive
+      // 使用 markRaw 避免 Vue 响应式代理与 Rive 内部对象冲突
+      riveInstance.value = markRaw(rive)
       rive.play()
 
       try {
         const inputs = rive.stateMachineInputs('State Machine 1')
-        if (inputs) {
+        if (inputs && Array.isArray(inputs)) {
           inputs.forEach((input: any) => {
-            if (input.type === 1) {
+            if (input && input.type === 1) {
               input.value = true
             }
           })
@@ -66,7 +68,11 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (riveInstance.value) {
-    riveInstance.value.cleanup()
+    try {
+      riveInstance.value.cleanup()
+    } catch (e) {
+      console.warn('[AgentAvatar] 清理 Rive 实例时出错:', e)
+    }
     riveInstance.value = null
   }
 })

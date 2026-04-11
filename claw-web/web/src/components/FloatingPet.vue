@@ -5,7 +5,7 @@
  * 只使用 Rive 动画渲染，支持全页面鼠标交互
  */
 
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, markRaw } from 'vue'
 import { Rive, Layout, Fit, Alignment } from '@rive-app/canvas'
 
 interface PetData {
@@ -88,14 +88,15 @@ function initRive(riveFile: string): void {
     stateMachines: 'State Machine 1',
     onLoad: () => {
       rive.resizeDrawingSurfaceToCanvas()
-      riveInstance.value = rive
+      // 使用 markRaw 避免 Vue 响应式代理与 Rive 内部对象冲突
+      riveInstance.value = markRaw(rive)
       rive.play()
 
       try {
         const inputs = rive.stateMachineInputs('State Machine 1')
-        if (inputs) {
+        if (inputs && Array.isArray(inputs)) {
           inputs.forEach((input: any) => {
-            if (input.type === 1) {
+            if (input && input.type === 1) {
               input.value = true
             }
           })
@@ -136,21 +137,39 @@ function getCurrentPet(): PetData {
   return PETS[currentPetKey.value] || PETS.draco
 }
 
+/**
+ * 更新鼠标位置
+ * 注意：使用 markRaw 避免 Vue 响应式代理与 Rive 内部对象冲突
+ */
 function updateMousePosition(e: MouseEvent): void {
   mouseX.value = e.clientX
   mouseY.value = e.clientY
 
   if (riveInstance.value) {
     try {
-      const inputs = riveInstance.value.stateMachineInputs('State Machine 1')
+      // 使用 try-catch 包裹，避免 Rive 内部错误导致整个应用崩溃
+      const rive = riveInstance.value
+      // 确保 Rive 实例有效且未清理
+      if (!rive || typeof rive.stateMachineInputs !== 'function') return
+
+      const inputs = rive.stateMachineInputs('State Machine 1')
+      if (!inputs || !Array.isArray(inputs)) return
+
       inputs.forEach((input: any) => {
-        if (input.type === 0) {
-          input.value = e.clientX
-        } else if (input.type === 2) {
-          input.value = e.clientY
+        if (!input) return
+        // 避免直接修改可能被代理的对象，使用原始值
+        try {
+          if (input.type === 0) {
+            input.value = e.clientX
+          } else if (input.type === 2) {
+            input.value = e.clientY
+          }
+        } catch (inputError) {
+          // 忽略单个输入的错误
         }
       })
     } catch (e) {
+      // 静默处理错误，避免控制台刷屏
     }
   }
 }
@@ -256,7 +275,11 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', stopDrag)
   document.removeEventListener('mousemove', updateMousePosition)
   if (riveInstance.value) {
-    riveInstance.value.cleanup()
+    try {
+      riveInstance.value.cleanup()
+    } catch (e) {
+      console.warn('[FloatingPet] 清理 Rive 实例时出错:', e)
+    }
     riveInstance.value = null
   }
 })
