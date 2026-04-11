@@ -411,6 +411,7 @@ function PromptInput({
   const [showFastModePicker, setShowFastModePicker] = useState(false);
   const [showThinkingToggle, setShowThinkingToggle] = useState(false);
   const [showAutoModeOptIn, setShowAutoModeOptIn] = useState(false);
+  const [showSessionSwitcher, setShowSessionSwitcher] = useState(false);
   const [previousModeBeforeAuto, setPreviousModeBeforeAuto] = useState<PermissionMode | null>(null);
   const autoModeOptInTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -1726,6 +1727,15 @@ function PromptInput({
   }, {
     context: 'Global',
     isActive: feature('HISTORY_PICKER') ? !isModalOverlayActive : false
+  });
+
+  // Handle Ctrl+L to open session switcher
+  useKeybinding('session:switch', () => {
+    setShowSessionSwitcher(true);
+    setHelpOpen(false);
+  }, {
+    context: 'Global',
+    isActive: !isModalOverlayActive && !showSessionSwitcher
   });
 
   // Handle Ctrl+C to abort speculation when idle (not loading)
