@@ -1,16 +1,69 @@
 <script setup lang="ts">
 /**
  * AgentAvatar - Agent 头像组件
- * 显示在聊天界面中的 Agent 头像
+ * 使用 Rive 动画显示动态头像
  */
 
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { Rive, Layout, Fit, Alignment } from '@rive-app/canvas'
 
+const canvasRef = ref<HTMLCanvasElement | null>(null)
+const riveInstance = ref<any>(null)
 const isHovered = ref(false)
+
+function initRive(): void {
+  if (!canvasRef.value) return
+
+  const rive = new Rive({
+    src: '/blobby.riv',
+    canvas: canvasRef.value,
+    autoplay: true,
+    useDevicePixelRatio: true,
+    layout: new Layout({
+      fit: Fit.Contain,
+      alignment: Alignment.Center,
+    }),
+    stateMachines: 'State Machine 1',
+    onLoad: () => {
+      rive.resizeDrawingSurfaceToCanvas()
+      riveInstance.value = rive
+      rive.play()
+
+      try {
+        const inputs = rive.stateMachineInputs('State Machine 1')
+        if (inputs) {
+          inputs.forEach((input: any) => {
+            if (input.type === 1) {
+              input.value = true
+            }
+          })
+        }
+      } catch (e) {
+        console.log('[AgentAvatar] 状态机输入配置:', e)
+      }
+    },
+    onError: (e: any) => {
+      console.error('[AgentAvatar] Rive 加载失败:', e)
+    },
+  })
+
+  riveInstance.value = rive
+}
 
 function toggleHover(): void {
   isHovered.value = !isHovered.value
 }
+
+onMounted(() => {
+  initRive()
+})
+
+onUnmounted(() => {
+  if (riveInstance.value) {
+    riveInstance.value.cleanup()
+    riveInstance.value = null
+  }
+})
 </script>
 
 <template>
@@ -20,9 +73,7 @@ function toggleHover(): void {
     @mouseleave="toggleHover"
   >
     <div class="avatar-ring">
-      <div class="avatar-icon">
-        🤖
-      </div>
+      <canvas ref="canvasRef" class="avatar-canvas"></canvas>
     </div>
     <Transition name="status-fade">
       <div v-if="isHovered" class="status-indicator"></div>
@@ -57,6 +108,7 @@ function toggleHover(): void {
   justify-content: center;
   box-shadow: 0 2px 8px rgba(0, 200, 83, 0.3);
   animation: pulse 2s ease-in-out infinite;
+  overflow: hidden;
 }
 
 @keyframes pulse {
@@ -68,9 +120,12 @@ function toggleHover(): void {
   }
 }
 
-.avatar-icon {
-  font-size: 24px;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+.avatar-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: transparent !important;
+  mix-blend-mode: screen;
 }
 
 .status-indicator {
