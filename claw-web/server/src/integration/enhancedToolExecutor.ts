@@ -28,6 +28,7 @@ import {
   createDatabaseQueryToolDefinition,
   createDockerManagerToolDefinition,
   createGitAdvancedToolDefinition,
+  createSkillToolDefinition,
 } from '../tools'
 import { executeImageRead } from '../tools/imageReadTool'
 import {
@@ -1861,7 +1862,6 @@ export class EnhancedToolExecutor {
     })
 
     // SkillTool - Skills执行工具
-    const { createSkillToolDefinition } = await import('../tools/skillTool')
     const skillTool = createSkillToolDefinition()
     this.registerTool({
       name: skillTool.name,
