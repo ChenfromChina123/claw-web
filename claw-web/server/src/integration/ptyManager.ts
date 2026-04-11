@@ -256,6 +256,16 @@ export class PTYSessionManager {
           windowsHide: false
         })
 
+        // PowerShell 启动后设置简化的提示符（只显示当前目录名）
+        childProcess.on('spawn', () => {
+          // 延迟一点发送，确保 shell 已准备好
+          setTimeout(() => {
+            // 设置简化的提示符：只显示当前目录名
+            const shortPrompt = `function prompt { 'PS $(Split-Path -Leaf $PWD)> ' }; Clear-Host`
+            childProcess.stdin?.write(shortPrompt + '\r\n')
+          }, 100)
+        })
+
         // 监听 stdout
         childProcess.stdout?.on('data', (data: Buffer) => {
           const text = data.toString('utf8')
