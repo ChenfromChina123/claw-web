@@ -518,47 +518,50 @@ function handleImageClick() {
           :disabled="disabled"
           @keydown="handleKeyDown"
           @focus="handleFocus"
-        />
-        <!-- 底部工具栏 - 悬浮在输入框内部右下角 -->
-        <div v-if="variant !== 'ide'" class="input-toolbar">
-          <!-- 提示词模板库按钮 -->
-          <button
-            type="button"
-            class="toolbar-btn toolbar-btn-text"
-            :disabled="!sessionId || disabled"
-            title="提示词模板"
-            @click="openPromptLibrary"
-          >
-            <NIcon :size="16">
-              <ReorderFourOutline />
-            </NIcon>
-            <span class="btn-text">模板</span>
-          </button>
+        >
+          <template #suffix>
+            <!-- 底部工具栏 - 悬浮在输入框内部右下角 -->
+            <div v-if="variant !== 'ide'" class="input-toolbar">
+              <!-- 提示词模板库按钮 -->
+              <button
+                type="button"
+                class="toolbar-btn toolbar-btn-text"
+                :disabled="!sessionId || disabled"
+                title="提示词模板"
+                @click="openPromptLibrary"
+              >
+                <NIcon :size="16">
+                  <ReorderFourOutline />
+                </NIcon>
+                <span class="btn-text">模板</span>
+              </button>
 
-          <!-- 发送/停止按钮 -->
-          <template v-if="isGenerating">
-            <button
-              type="button"
-              class="toolbar-btn toolbar-btn-send stop-btn"
-              @click="emit('stop')"
-            >
-              <NIcon :size="16">
-                <StopCircleOutline />
-              </NIcon>
-              <span class="btn-text">停止</span>
-            </button>
+              <!-- 发送/停止按钮 -->
+              <template v-if="isGenerating">
+                <button
+                  type="button"
+                  class="toolbar-btn toolbar-btn-send stop-btn"
+                  @click="emit('stop')"
+                >
+                  <NIcon :size="16">
+                    <StopCircleOutline />
+                  </NIcon>
+                  <span class="btn-text">停止</span>
+                </button>
+              </template>
+              <template v-else>
+                <button
+                  type="button"
+                  class="toolbar-btn toolbar-btn-send"
+                  :disabled="(!inputValue.trim() && !(variant === 'ide' && codeAttachments.length > 0)) || disabled || (variant !== 'ide' && uploading)"
+                  @click="handleSend"
+                >
+                  <span class="btn-text">发送</span>
+                </button>
+              </template>
+            </div>
           </template>
-          <template v-else>
-            <button
-              type="button"
-              class="toolbar-btn toolbar-btn-send"
-              :disabled="(!inputValue.trim() && !(variant === 'ide' && codeAttachments.length > 0)) || disabled || (variant !== 'ide' && uploading)"
-              @click="handleSend"
-            >
-              <span class="btn-text">发送</span>
-            </button>
-          </template>
-        </div>
+        </NInput>
       </div>
     </div>
     </div>
@@ -775,10 +778,20 @@ function handleImageClick() {
   width: 100%;
 }
 
-/* 调整 textarea 的内边距，为右下角的按钮留出空间 */
+/* NInput 的 suffix 插槽样式 */
+.input-area :deep(.n-input__suffix) {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+}
+
+/* 调整 textarea 的内边距，为右边的按钮留出空间 */
 .input-area :deep(.n-input__textarea-el) {
-  padding-bottom: 50px !important;
-  padding-right: 180px !important;
+  padding-right: 160px !important;
 }
 
 .input-wrapper :deep(.n-input) {
@@ -790,21 +803,6 @@ function handleImageClick() {
   padding: 14px 18px !important;
   font-size: 15px;
   line-height: 1.6;
-}
-
-/* 底部工具栏样式 - 悬浮在输入框内部 */
-.input-toolbar {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 0;
-  background: transparent;
-  pointer-events: auto;
-  z-index: 10;
 }
 
 .toolbar-btn {
