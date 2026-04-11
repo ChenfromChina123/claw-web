@@ -389,21 +389,10 @@ function handleUseTemplate(content: string) {
   <div class="chat-input" :class="`chat-input--${variant || 'default'}`">
     <!-- IDE 变体：输入框容器（所有组件都在输入框内部） -->
     <div v-if="variant === 'ide'" class="input-container">
-      <!-- 输入框 Header：AI角色标识 + 模型选择器 -->
+      <!-- 输入框 Header：AI角色标识 -->
       <div class="input-header">
         <div class="ai-icon">回</div>
         <span>@SOLO Coder</span>
-        <div class="model-selector-wrapper" style="margin-left: auto;">
-          <NSelect
-            v-model:value="selectedModelId"
-            :options="modelOptions"
-            :disabled="disabled || modelOptions.length === 0"
-            size="small"
-            placeholder="选择模型"
-            class="model-selector"
-            :consistent-menu-width="false"
-          />
-        </div>
       </div>
 
       <!-- 中间：输入框 + 代码引用 -->
@@ -433,9 +422,8 @@ function handleUseTemplate(content: string) {
           ref="inputRef"
           v-model:value="inputValue"
           type="textarea"
-          :placeholder="props.placeholder || '输入消息... (Shift+Enter 换行)'"
-          :rows="3"
-          :autosize="false"
+          :placeholder="props.placeholder || '输入内容，我会自动变高...'"
+          :autosize="{ minRows: 1, maxRows: 8 }"
           :disabled="disabled"
           @keydown="handleKeyDown"
           @focus="handleFocus"
@@ -445,59 +433,33 @@ function handleUseTemplate(content: string) {
       <!-- 底部：功能按钮栏 -->
       <div class="input-footer">
         <div class="left-tools">
-          <!-- 上传按钮 -->
-          <input
-            ref="fileInputRef"
-            type="file"
-            multiple
-            style="display: none"
-            @change="handleFileChange"
-          />
-          <div
-            class="upload-button"
-            :class="{ 'disabled': !sessionId || disabled }"
-            :title="sessionId ? '上传文件到工作区' : '请先选择会话'"
-            @click="triggerFileSelect"
-          >
-            <template v-if="uploading">
-              <NSpin size="16" stroke="#6366f1" />
-            </template>
-            <template v-else>
-              <NIcon :size="16" :color="'#3b9eff'">
-                <CloudUploadOutline />
-              </NIcon>
-            </template>
-            <span v-if="uploadedFiles.length > 0" class="upload-badge">
-              {{ uploadedFiles.length }}
-            </span>
-          </div>
-
-          <!-- 已上传文件预览 -->
-          <div v-if="uploadedFiles.length > 0" class="uploaded-files-list">
-            <div
-              v-for="file in uploadedFiles"
-              :key="file.id"
-              class="uploaded-file-item"
-            >
-              <NTag size="small" round closable type="info" @close="removeFile(file.id)">
-                <span class="file-name">{{ file.name }}</span>
-              </NTag>
-            </div>
-          </div>
-
-          <NButton
-            class="prompt-library-button"
-            :disabled="!sessionId || disabled"
-            @click="openPromptLibrary"
-          >
-            <template #icon>
-              <NIcon><ReorderFourOutline /></NIcon>
-            </template>
-            模板
-          </NButton>
+          <!-- @ 提及按钮 -->
+          <span class="icon-btn" title="提及">@</span>
+          <!-- # 知识库按钮 -->
+          <span class="icon-btn" title="知识库">#</span>
         </div>
 
         <div class="right-tools">
+          <!-- 模型选择器 -->
+          <div class="model-selector-wrapper">
+            <NSelect
+              v-model:value="selectedModelId"
+              :options="modelOptions"
+              :disabled="disabled || modelOptions.length === 0"
+              size="small"
+              placeholder="选择模型"
+              class="model-picker"
+              :consistent-menu-width="false"
+            />
+          </div>
+
+          <!-- ✨ 按钮 -->
+          <span class="icon-btn" style="font-size: 16px;" title="优化">✨</span>
+
+          <!-- 🎤 语音按钮 -->
+          <span class="icon-btn" style="font-size: 16px;" title="语音输入">🎤</span>
+
+          <!-- 发送/停止按钮 -->
           <template v-if="isGenerating">
             <NButton
               type="warning"
@@ -813,6 +775,41 @@ function handleUseTemplate(content: string) {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+/* 图标按钮通用样式 - 匹配 Input.html */
+.icon-btn {
+  color: #888;
+  cursor: pointer;
+  font-size: 18px;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+
+.icon-btn:hover {
+  color: #fff;
+}
+
+/* 模型选择器样式 - 匹配 Input.html */
+.model-picker :deep(.n-base-selection) {
+  --n-height: 28px !important;
+  font-size: 13px !important;
+  color: #888 !important;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer !important;
+}
+
+.model-picker :deep(.n-base-selection:hover) {
+  background: #2d2d2d !important;
+  color: #ccc !important;
+}
+
+.model-picker :deep(.n-base-selection .n-base-selection__render) {
+  padding: 4px 8px !important;
+  border-radius: 6px !important;
 }
 
 /* 默认变体的发送按钮样式 - 绿色小按钮 */
