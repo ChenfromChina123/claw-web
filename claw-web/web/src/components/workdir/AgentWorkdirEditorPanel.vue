@@ -34,6 +34,7 @@ import { useIdeAppendToChat } from '@/composables/useIdeChatAppend'
 import PreviewPanel from './PreviewPanel.vue'
 import MarkdownPreviewPane from './MarkdownPreviewPane.vue'
 import PromptTemplateLibrary from '@/components/PromptTemplateLibrary.vue'
+import { provideOpenPromptLibrary } from '@/composables/usePromptTemplateLibrary'
 
 const ctx = useWorkdirContext()
 const message = useMessage()
@@ -42,6 +43,115 @@ const appendToChat = useIdeAppendToChat()
 const editorPanelRef = ref<HTMLElement | null>(null)
 const editorContainer = ref<HTMLElement | null>(null)
 let containerObserver: MutationObserver | null = null
+
+/**
+ * 特殊标签页管理
+ */
+type SpecialTabType = 'prompt-library'
+interface SpecialTab {
+  id: string
+  type: SpecialTabType
+  title: string
+}
+
+const specialTabs = ref<SpecialTab[]>([])
+const activeSpecialTabId = ref<string | null>(null)
+
+/**
+ * 当前活跃的标签类型
+ */
+const activeTabType = computed(() => {
+  if (activeSpecialTabId.value) {
+    return 'special'
+  }
+  if (ctx.activeFileId.value) {
+    return 'file'
+  }
+  return null
+})
+
+/**
+ * 是否显示提示词模板库
+ */
+const showPromptLibraryTab = computed(() => {
+  return activeSpecialTabId.value?.startsWith('prompt-library') ?? false
+})
+
+/**
+ * 打开提示词模板库标签页
+ */
+function openPromptLibraryTab(): void {
+  const tabId = 'prompt-library'
+  // 检查是否已存在
+  if (!specialTabs.value.find(t => t.id === tabId)) {
+    specialTabs.value.push({
+      id: tabId,
+      type: 'prompt-library',
+      title: '提示词模板',
+    })
+  }
+  // 激活该标签
+  activeSpecialTabId.value = tabId
+  // 清除文件选择
+  ctx.activeFileId.value = null
+}
+
+/**
+ * 关闭特殊标签页
+ */
+function closeSpecialTab(tabId: string): void {
+  const idx = specialTabs.value.findIndex(t => t.id === tabId)
+  if (idx === -1) return
+
+  specialTabs.value.splice(idx, 1)
+
+  // 如果关闭的是当前活跃标签，切换到其他标签
+  if (activeSpecialTabId.value === tabId) {
+    if (specialTabs.value.length > 0) {
+      // 切换到下一个特殊标签
+      activeSpecialTabId.value = specialTabs.value[Math.min(idx, specialTabs.value.length - 1)].id
+    } else if (ctx.openFiles.value.length > 0) {
+      // 切换到文件标签
+      activeSpecialTabId.value = null
+      ctx.activeFileId.value = ctx.openFiles.value[0].id
+    } else {
+      // 没有标签了
+      activeSpecialTabId.value = null
+    }
+  }
+}
+
+/**
+ * 选择文件标签（同时清除特殊标签选择）
+ */
+function selectFileTab(fileId: string): void {
+  activeSpecialTabId.value = null
+  ctx.selectOpenFile(fileId)
+}
+
+/**
+ * 选择特殊标签（同时清除文件选择）
+ */
+function selectSpecialTab(tabId: string): void {
+  activeSpecialTabId.value = tabId
+  ctx.activeFileId.value = null
+}
+
+/**
+ * 关闭当前标签（文件或特殊标签）
+ */
+function closeCurrentTab(id: string, isSpecial: boolean): void {
+  if (isSpecial) {
+    closeSpecialTab(id)
+  } else {
+    ctx.closeOpenFile(id)
+  }
+}
+
+/**
+ * 提供打开模板库的方法给子组件使用
+ */
+provideOpenPromptLibrary(openPromptLibraryTab)
 
 const selectionBar = reactive({
   visible: false,
@@ -328,19 +438,20 @@ onBeforeUnmount(() => {
       </div>
     </Teleport>
 
-    <template v-if="(ctx.openFiles.value?.length ?? 0) > 0">
+    <template v-if="(ctx.openFiles.value?.length ?? 0) > 0 || specialTabs.length > 0">
       <div class="editor-tabs-row">
         <div class="file-tabs-scroll">
           <div class="file-tabs">
+            <!-- 文件标签 -->
             <div
               v-for="file in ctx.openFiles.value ?? []"
               :key="file.id"
               class="tab-item"
               :class="{
-                active: ctx.activeFileId.value === file.id,
+                active: ctx.activeFileId.value === file.id && !activeSpecialTabId,
                 'read-only': file.mode === 'binary'
               }"
-              @click="ctx.selectOpenFile(file.id)"
+              @click="selectFileTab(file.id)"
             >
               <span class="file-icon" :class="{ 'read-only-icon': file.mode === 'binary' }">
                 {{ ctx.tabLanguageLabel(file) }}
@@ -350,7 +461,27 @@ onBeforeUnmount(() => {
                 type="button"
                 class="close-icon"
                 aria-label="关闭"
-                @click.stop="ctx.closeOpenFile(file.id)"
+                @click.stop="closeCurrentTab(file.id, false)"
+              >
+                <NIcon :size="14"><Close /></NIcon>
+              </button>
+            </div>
+
+            <!-- 特殊标签（如提示词模板库） -->
+            <div
+              v-for="tab in specialTabs"
+              :key="tab.id"
+              class="tab-item special-tab"
+              :class="{ active: activeSpecialTabId === tab.id }"
+              @click="selectSpecialTab(tab.id)"
+            >
+              <span class="file-icon special-icon">📋</span>
+              <span class="file-name">{{ tab.title }}</span>
+              <button
+                type="button"
+                class="close-icon"
+                aria-label="关闭"
+                @click.stop="closeCurrentTab(tab.id, true)"
               >
                 <NIcon :size="14"><Close /></NIcon>
               </button>
@@ -431,15 +562,27 @@ onBeforeUnmount(() => {
 
       <!-- Preview panel (二进制文件) -->
       <PreviewPanel v-if="showPreview" />
+
+      <!-- 提示词模板库标签页 -->
+      <div v-if="showPromptLibraryTab" class="special-tab-content">
+        <PromptTemplateLibrary
+          @use-template="handleUseTemplate"
+          @close="closeSpecialTab('prompt-library')"
+        />
+      </div>
     </template>
 
     <div v-else class="no-file-selected">
-      <!-- 提示词模板库：嵌入到编辑器空白区域 -->
-      <div class="prompt-library-embedded">
-        <PromptTemplateLibrary
-          @use-template="handleUseTemplate"
-        />
-      </div>
+      <NEmpty description="选择一个文件以查看和编辑">
+        <template #icon>
+          <span class="empty-emoji">📝</span>
+        </template>
+        <template #extra>
+          <NText depth="3" class="empty-hint">
+            从左侧文件树中选择文件；可同时打开多个标签页
+          </NText>
+        </template>
+      </NEmpty>
     </div>
   </div>
 </template>
@@ -666,28 +809,50 @@ onBeforeUnmount(() => {
 .no-file-selected {
   flex: 1;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(30, 30, 30, 0.5);
+}
+
+.empty-emoji {
+  font-size: 64px;
+  opacity: 0.2;
+}
+
+.empty-hint {
+  font-size: 13px;
+}
+
+/* 特殊标签页样式 */
+.special-tab {
+  background: #2d2d2d;
+}
+
+.special-tab:hover {
+  background: #323232;
+}
+
+.special-tab.active {
+  background: #1e1e1e;
+}
+
+.special-icon {
+  font-size: 12px;
+  color: #9cdcfe;
+}
+
+/* 特殊标签页内容区域 */
+.special-tab-content {
+  flex: 1;
+  display: flex;
   flex-direction: column;
   overflow: hidden;
   background: #1e1e1e;
 }
 
-/* 嵌入式提示词模板库 */
-.prompt-library-embedded {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 8px;
-}
-
-.prompt-library-embedded :deep(.prompt-template-library) {
-  border-radius: 6px;
-  border: 1px solid #3c3c3c;
-}
-
-/* 隐藏模板库自身的关闭按钮（因为在编辑器中不需要） */
-.prompt-library-embedded :deep(.ptl-close-btn) {
-  display: none;
+.special-tab-content :deep(.prompt-template-library) {
+  border: none;
+  border-radius: 0;
 }
 
 .ide-editor-sel-bar {

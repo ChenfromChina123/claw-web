@@ -2,12 +2,14 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import type { IdeAppendToChatOptions, IdeCodeRefPayload } from '@/composables/useIdeChatAppend'
 import { buildIdeLayeredUserMessage } from '@/utils/ideUserMessageMarkers'
-import { NInput, NButton, NIcon, NSpin, NTag, NSelect, NModal, useMessage } from 'naive-ui'
+import { NInput, NButton, NIcon, NSpin, NTag, NSelect, NModal, NDropdown, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
 import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline } from '@vicons/ionicons5'
 import { modelApi, type Model } from '@/api/modelApi'
 import { useChatStore } from '@/stores/chat'
 import PromptTemplateLibrary from './PromptTemplateLibrary.vue'
+import { promptTemplateApi, type PromptTemplate } from '@/api/promptTemplateApi'
+import { useOpenPromptLibrary } from '@/composables/usePromptTemplateLibrary'
 
 const props = defineProps<{
   disabled?: boolean
@@ -75,12 +77,6 @@ watch(
   { immediate: true },
 )
 
-onMounted(() => {
-  if (props.variant === 'ide') {
-    void loadModels().then(() => syncModelFromSession())
-  }
-})
-
 const inputValue = ref('')
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
 const message = useMessage()
@@ -95,6 +91,119 @@ const codeAttachments = ref<IdeCodeAttachment[]>([])
  * 模板库显示状态
  */
 const showPromptLibrary = ref(false)
+
+/**
+ * 模板列表相关状态
+ */
+const templates = ref<PromptTemplate[]>([])
+const isLoadingTemplates = ref(false)
+const openPromptLibraryInEditor = useOpenPromptLibrary()
+
+/**
+ * 加载模板列表
+ */
+async function loadTemplates(): Promise<void> {
+  isLoadingTemplates.value = true
+  try {
+    const list = await promptTemplateApi.getTemplates()
+    templates.value = list
+  } catch (error) {
+    console.error('加载模板失败:', error)
+  } finally {
+    isLoadingTemplates.value = false
+  }
+}
+
+/**
+ * 模板下拉选项
+ */
+const templateDropdownOptions = computed(() => {
+  const options: Array<{
+    key: string
+    label: string
+    type?: 'group' | 'divider'
+    children?: Array<{ key: string; label: string }>
+  }> = []
+
+  // 收藏模板
+  const favorites = templates.value.filter(t => t.isFavorite)
+  if (favorites.length > 0) {
+    options.push({
+      key: 'favorites',
+      label: '我的收藏',
+      type: 'group',
+      children: favorites.slice(0, 5).map(t => ({
+        key: `template:${t.id}`,
+        label: t.title,
+      })),
+    })
+  }
+
+  // 常用模板（使用次数最多的）
+  const popular = templates.value
+    .filter(t => !t.isFavorite)
+    .sort((a, b) => b.useCount - a.useCount)
+    .slice(0, 5)
+
+  if (popular.length > 0) {
+    if (options.length > 0) {
+      options.push({ key: 'divider1', label: '', type: 'divider' })
+    }
+    options.push({
+      key: 'popular',
+      label: '常用模板',
+      type: 'group',
+      children: popular.map(t => ({
+        key: `template:${t.id}`,
+        label: t.title,
+      })),
+    })
+  }
+
+  // 分隔线 + 模板设置
+  if (options.length > 0) {
+    options.push({ key: 'divider2', label: '', type: 'divider' })
+  }
+  options.push({
+    key: 'open-library',
+    label: '📋 模板设置...',
+  })
+
+  return options
+})
+
+/**
+ * 处理模板选择
+ */
+function handleTemplateSelect(key: string): void {
+  if (key === 'open-library') {
+    // 在编辑器中打开模板库
+    if (openPromptLibraryInEditor) {
+      openPromptLibraryInEditor()
+    } else {
+      // 降级：在当前组件中打开
+      showPromptLibrary.value = true
+    }
+    return
+  }
+
+  // 使用模板
+  if (key.startsWith('template:')) {
+    const templateId = key.replace('template:', '')
+    const template = templates.value.find(t => t.id === templateId)
+    if (template) {
+      handleUseTemplate(template.content)
+    }
+  }
+}
+
+// 组件挂载时加载模板
+onMounted(() => {
+  void loadTemplates()
+  if (props.variant === 'ide') {
+    void loadModels().then(() => syncModelFromSession())
+  }
+})
 
 function chipLang(fileName: string): string {
   const ext = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : ''
@@ -461,16 +570,25 @@ defineExpose({
       <!-- 底部：功能按钮栏 -->
       <div class="input-footer">
         <div class="left-tools">
-          <NButton
-            class="prompt-library-button"
-            :disabled="disabled"
-            @click="openPromptLibrary"
+          <!-- 提示词模板下拉选择器 -->
+          <NDropdown
+            :options="templateDropdownOptions"
+            :disabled="disabled || isLoadingTemplates"
+            trigger="click"
+            placement="top-start"
+            @select="handleTemplateSelect"
           >
-            <template #icon>
-              <NIcon><ReorderFourOutline /></NIcon>
-            </template>
-            模板
-          </NButton>
+            <NButton
+              class="prompt-library-button"
+              :disabled="disabled || isLoadingTemplates"
+              :loading="isLoadingTemplates"
+            >
+              <template #icon>
+                <NIcon><ReorderFourOutline /></NIcon>
+              </template>
+              模板
+            </NButton>
+          </NDropdown>
         </div>
 
         <div class="right-tools">
