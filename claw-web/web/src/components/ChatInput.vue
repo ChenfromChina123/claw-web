@@ -507,59 +507,31 @@ function handleImageClick() {
           </button>
         </div>
       </div>
-      <div class="input-area">
-        <div class="input-box">
-          <NInput
-            ref="inputRef"
-            v-model:value="inputValue"
-            type="textarea"
-            :placeholder="props.placeholder || '输入消息... (Shift+Enter 换行)'"
-            :rows="variant === 'ide' ? 3 : undefined"
-            :autosize="variant === 'ide' ? false : { minRows: 3, maxRows: 8 }"
-            :disabled="disabled"
-            @keydown="handleKeyDown"
-            @focus="handleFocus"
-          />
-        </div>
-        <!-- 工具栏 - 定位在输入框内部右下角 -->
-        <div v-if="variant !== 'ide'" class="input-toolbar">
-          <!-- 提示词模板库按钮 -->
+      <div class="input-area" v-if="variant !== 'ide'">
+        <NInput
+          ref="inputRef"
+          v-model:value="inputValue"
+          type="textarea"
+          :placeholder="props.placeholder || '输入消息... (Shift+Enter 换行)'"
+          :rows="3"
+          :autosize="{ minRows: 3, maxRows: 8 }"
+          :disabled="disabled"
+          @keydown="handleKeyDown"
+          @focus="handleFocus"
+        />
+        <div class="input-actions-inline">
+          <button type="button" class="action-btn" :disabled="!sessionId || disabled" @click="openPromptLibrary">
+            <NIcon :size="16"><ReorderFourOutline /></NIcon>
+            <span>模板</span>
+          </button>
           <button
             type="button"
-            class="toolbar-btn toolbar-btn-text"
-            :disabled="!sessionId || disabled"
-            title="提示词模板"
-            @click="openPromptLibrary"
+            class="action-btn send-btn"
+            :disabled="!inputValue.trim() || disabled || uploading"
+            @click="handleSend"
           >
-            <NIcon :size="16">
-              <ReorderFourOutline />
-            </NIcon>
-            <span class="btn-text">模板</span>
+            <span>发送</span>
           </button>
-
-          <!-- 发送/停止按钮 -->
-          <template v-if="isGenerating">
-            <button
-              type="button"
-              class="toolbar-btn toolbar-btn-send stop-btn"
-              @click="emit('stop')"
-            >
-              <NIcon :size="16">
-                <StopCircleOutline />
-              </NIcon>
-              <span class="btn-text">停止</span>
-            </button>
-          </template>
-          <template v-else>
-            <button
-              type="button"
-              class="toolbar-btn toolbar-btn-send"
-              :disabled="(!inputValue.trim() && !(variant === 'ide' && codeAttachments.length > 0)) || disabled || (variant !== 'ide' && uploading)"
-              @click="handleSend"
-            >
-              <span class="btn-text">发送</span>
-            </button>
-          </template>
         </div>
       </div>
     </div>
@@ -771,133 +743,69 @@ function handleImageClick() {
   flex-direction: column;
 }
 
-/* 输入框容器需要相对定位，以便工具栏绝对定位 */
+/* 输入框容器 */
 .input-area {
   position: relative;
   width: 100%;
 }
 
-/* 输入框内部容器 */
-.input-box {
-  position: relative;
-  width: 100%;
-}
-
-/* 调整 textarea 的内边距，为右边的按钮留出空间 */
-.input-box :deep(.n-input__textarea-el) {
-  padding-right: 160px !important;
-  padding-bottom: 48px !important;
-}
-
-/* 工具栏样式 - 定位在输入框内部右下角 */
-.input-toolbar {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  z-index: 10;
-}
-
-.input-wrapper :deep(.n-input) {
+.input-area :deep(.n-input) {
   background: var(--bg-secondary);
   border-radius: 12px;
 }
 
-.input-wrapper :deep(.n-input__input-el) {
-  padding: 14px 18px !important;
+.input-area :deep(.n-input__textarea-el) {
+  padding: 14px 180px 14px 18px !important;
   font-size: 15px;
   line-height: 1.6;
 }
 
-.toolbar-btn {
+.input-actions-inline {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.action-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.5);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.toolbar-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.toolbar-btn:active:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.toolbar-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-/* 带文字的按钮 - 模板按钮 */
-.toolbar-btn-text {
-  width: auto;
-  padding: 0 14px;
-  height: 36px;
-  gap: 6px;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-}
-
-.toolbar-btn-text:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.95);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-/* 发送按钮 */
-.toolbar-btn-send {
-  width: auto;
-  padding: 0 20px;
-  height: 36px;
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 500;
-  border-radius: 10px;
-  border: none;
-}
-
-.toolbar-btn-send:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
-}
-
-.toolbar-btn-send:disabled {
-  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-  color: rgba(255, 255, 255, 0.5);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-/* 停止按钮 */
-.stop-btn {
-  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-}
-
-.stop-btn:hover {
-  background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
-  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
-}
-
-.btn-text {
+  gap: 4px;
+  padding: 6px 12px;
   font-size: 13px;
-  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.send-btn {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  border: none;
+  color: #fff;
+}
+
+.send-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+}
+
+.send-btn:disabled {
+  background: linear-gradient(135deg, #6b7280, #4b5563);
 }
 
 /* ====== 右侧操作区样式（已移入输入框内部，保留 IDE 模式样式） ====== */
