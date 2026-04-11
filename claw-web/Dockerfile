@@ -40,10 +40,10 @@ FROM oven/bun:1 AS backend-builder
 WORKDIR /app/server
 
 # 复制后端依赖文件
-COPY server/package.json server/bun.lock ./
+COPY server/package.json ./
 
 # 安装后端依赖
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # 复制后端源代码（使用 Bun 直接运行，无需编译）
 COPY server/ .

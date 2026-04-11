@@ -38,12 +38,12 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# 复制依赖文件
-COPY server/package.json server/bun.lock ./
+# 复制依赖文件（先复制，利用 Docker 缓存）
+COPY server/package.json ./
 
 # 安装依赖（使用国内镜像源加速）
 ENV BUN_CONFIG_REGISTRY=https://registry.npmmirror.com
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # 复制源代码
 COPY server/ .
