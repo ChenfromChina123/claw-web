@@ -6,7 +6,7 @@
  */
 
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useRive, useStateMachineInput } from '@rive-app/canvas'
+import Rive from '@rive-app/canvas'
 
 interface PetData {
   char: string
@@ -49,11 +49,25 @@ const petPosition = ref({ x: 150, y: 150 })
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const containerRef = ref<HTMLElement | null>(null)
 
-const { RiveComponent, rive } = useRive({
-  src: PETS[currentPetKey.value]?.riveFile || '',
-  autoplay: true,
-  useDevicePixelRatio: true,
-})
+const riveInstance = ref<any>(null)
+
+function initRive(riveFile: string): void {
+  if (!canvasRef.value || !riveFile) return
+  
+  if (riveInstance.value) {
+    riveInstance.value.cleanup()
+  }
+  
+  riveInstance.value = new Rive({
+    src: riveFile,
+    canvas: canvasRef.value,
+    autoplay: true,
+    useDevicePixelRatio: true,
+    onLoad: () => {
+      riveInstance.value.resizeDrawingSurfaceToCanvas()
+    },
+  })
+}
 
 function loadPetState(): PetState | null {
   try {
@@ -119,6 +133,12 @@ function switchPet(key: string): void {
   if (petData) {
     updateUI(petData.char, petData.moods.idle)
     isRiveMode.value = !!petData.riveFile
+    if (petData.riveFile && canvasRef.value) {
+      initRive(petData.riveFile)
+    } else if (!petData.riveFile && riveInstance.value) {
+      riveInstance.value.cleanup()
+      riveInstance.value = null
+    }
     savePetState({ petKey: key, position: petPosition.value })
   }
 }
@@ -163,6 +183,9 @@ onMounted(() => {
   if (petData) {
     isRiveMode.value = !!petData.riveFile
     updateUI(petData.char, petData.moods.idle)
+    if (petData.riveFile && canvasRef.value) {
+      initRive(petData.riveFile)
+    }
   }
   document.addEventListener('mousemove', onDrag)
   document.addEventListener('mouseup', stopDrag)
@@ -171,8 +194,8 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
-  if (rive.value) {
-    rive.value.cleanup()
+  if (riveInstance.value) {
+    riveInstance.value.cleanup()
   }
 })
 </script>
@@ -195,7 +218,7 @@ onUnmounted(() => {
 
     <!-- 宠物头像 -->
     <div class="pet-avatar" :class="{ 'pet-bounce': speechText }">
-      <template v-if="isRiveMode && rive">
+      <template v-if="isRiveMode && riveInstance">
         <canvas ref="canvasRef" class="rive-canvas"></canvas>
       </template>
       <template v-else>
