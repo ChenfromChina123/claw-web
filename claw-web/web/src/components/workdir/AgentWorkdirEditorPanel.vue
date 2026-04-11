@@ -33,6 +33,7 @@ import { useWorkdirContext } from '@/composables/useAgentWorkdir'
 import { useIdeAppendToChat } from '@/composables/useIdeChatAppend'
 import PreviewPanel from './PreviewPanel.vue'
 import MarkdownPreviewPane from './MarkdownPreviewPane.vue'
+import PromptTemplateLibrary from '@/components/PromptTemplateLibrary.vue'
 
 const ctx = useWorkdirContext()
 const message = useMessage()
@@ -279,6 +280,23 @@ function onKeyAppendChat(e: KeyboardEvent): void {
   sendSelectionToChat()
 }
 
+/**
+ * 处理使用模板事件
+ * 当没有打开文件时，将模板内容发送到对话输入框
+ */
+function handleUseTemplate(content: string): void {
+  if (!appendToChat) {
+    message.warning('当前页面不支持使用模板')
+    return
+  }
+
+  // 将模板内容发送到对话输入框
+  appendToChat(content, {
+    sourceLabel: '提示词模板',
+  })
+  message.success('模板内容已添加到对话输入框')
+}
+
 onMounted(() => {
   document.addEventListener('keydown', onKeyAppendChat, true)
 })
@@ -416,16 +434,12 @@ onBeforeUnmount(() => {
     </template>
 
     <div v-else class="no-file-selected">
-      <NEmpty description="选择一个文件以查看和编辑">
-        <template #icon>
-          <span class="empty-emoji">📝</span>
-        </template>
-        <template #extra>
-          <NText depth="3" class="empty-hint">
-            从左侧文件树中选择文件；可同时打开多个标签页
-          </NText>
-        </template>
-      </NEmpty>
+      <!-- 提示词模板库：嵌入到编辑器空白区域 -->
+      <div class="prompt-library-embedded">
+        <PromptTemplateLibrary
+          @use-template="handleUseTemplate"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -652,18 +666,28 @@ onBeforeUnmount(() => {
 .no-file-selected {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(30, 30, 30, 0.5);
+  flex-direction: column;
+  overflow: hidden;
+  background: #1e1e1e;
 }
 
-.empty-emoji {
-  font-size: 64px;
-  opacity: 0.2;
+/* 嵌入式提示词模板库 */
+.prompt-library-embedded {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 8px;
 }
 
-.empty-hint {
-  font-size: 13px;
+.prompt-library-embedded :deep(.prompt-template-library) {
+  border-radius: 6px;
+  border: 1px solid #3c3c3c;
+}
+
+/* 隐藏模板库自身的关闭按钮（因为在编辑器中不需要） */
+.prompt-library-embedded :deep(.ptl-close-btn) {
+  display: none;
 }
 
 .ide-editor-sel-bar {
