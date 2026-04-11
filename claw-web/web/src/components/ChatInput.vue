@@ -697,7 +697,7 @@ function handleUseTemplate(content: string) {
   flex: 1;
 }
 
-/* 彻底重置 NInput 样式 */
+/* 彻底重置 NInput 样式 - 消除所有"框"特征 */
 .input-main-wrapper :deep(.n-input) {
   --n-font-size: 16px !important;
   --n-border: none !important;
@@ -707,19 +707,32 @@ function handleUseTemplate(content: string) {
   --n-color: transparent !important;
   --n-color-focus: transparent !important;
   --n-color-disabled: transparent !important;
+  /* 关键：去掉 NInput 默认给 Wrapper 加的左右 Padding */
+  --n-padding-left: 0 !important;
+  --n-padding-right: 0 !important;
   background: transparent !important;
 }
 
+/* 调整真实 textarea 元素的样式 */
 .input-main-wrapper :deep(.n-input__textarea-el) {
+  padding: 8px 0 !important; /* 只保留上下间距，左右设为 0 */
+  background: transparent !important;
   color: #e5e5e5 !important;
+  font-size: 16px !important;
   line-height: 1.6 !important;
   caret-color: #19c37d !important;
-  padding: 10px 0 !important;
 }
 
-/* Placeholder 颜色更低调 */
+/* 让 Placeholder 也完全对齐 */
 .input-main-wrapper :deep(.n-input__placeholder) {
+  left: 0 !important;
   color: #444 !important;
+}
+
+/* 优化代码引用（Chip）的间距 */
+.ide-code-refs {
+  margin-top: 4px;
+  padding: 0;
 }
 
 .input-footer {
