@@ -2,12 +2,11 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import type { IdeAppendToChatOptions, IdeCodeRefPayload } from '@/composables/useIdeChatAppend'
 import { buildIdeLayeredUserMessage } from '@/utils/ideUserMessageMarkers'
-import { NInput, NButton, NIcon, NSpin, NTag, NSelect, NModal, NDropdown, useMessage } from 'naive-ui'
+import { NInput, NButton, NIcon, NSpin, NTag, NSelect, NDropdown, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
 import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline } from '@vicons/ionicons5'
 import { modelApi, type Model } from '@/api/modelApi'
 import { useChatStore } from '@/stores/chat'
-import PromptTemplateLibrary from './PromptTemplateLibrary.vue'
 import { promptTemplateApi, type PromptTemplate } from '@/api/promptTemplateApi'
 import { useOpenPromptLibrary } from '@/composables/usePromptTemplateLibrary'
 
@@ -86,11 +85,6 @@ interface IdeCodeAttachment extends IdeCodeRefPayload {
 }
 
 const codeAttachments = ref<IdeCodeAttachment[]>([])
-
-/**
- * 模板库显示状态
- */
-const showPromptLibrary = ref(false)
 
 /**
  * 模板列表相关状态
@@ -184,8 +178,7 @@ function handleTemplateSelect(key: string): void {
     if (openPromptLibraryInEditor) {
       openPromptLibraryInEditor()
     } else {
-      // 降级：在当前组件中打开
-      showPromptLibrary.value = true
+      message.warning('编辑器未就绪，请稍后再试')
     }
     return
   }
@@ -484,13 +477,6 @@ function appendToChatInput(text: string, options?: IdeAppendToChatOptions): void
 }
 
 /**
- * 打开提示词模板库
- */
-function openPromptLibrary() {
-  showPromptLibrary.value = true
-}
-
-/**
  * 处理使用模板事件，将模板内容插入输入框
  */
 function handleUseTemplate(content: string) {
@@ -500,7 +486,6 @@ function handleUseTemplate(content: string) {
   } else {
     inputValue.value = content
   }
-  showPromptLibrary.value = false
 
   void nextTick(() => {
     inputRef.value?.focus()
@@ -511,13 +496,6 @@ function handleUseTemplate(content: string) {
       textarea.scrollTop = textarea.scrollHeight
     }
   })
-}
-
-/**
- * 关闭模板库
- */
-function handleCloseTemplateLibrary() {
-  showPromptLibrary.value = false
 }
 
 defineExpose({
@@ -709,30 +687,6 @@ defineExpose({
       </div>
     </div>
 
-    <!-- 提示词模板库：嵌入式页面（类似编辑器标签页） -->
-    <div v-if="showPromptLibrary && variant === 'ide'" class="prompt-library-panel">
-      <PromptTemplateLibrary
-        :session-id="sessionId"
-        @use-template="handleUseTemplate"
-        @close="handleCloseTemplateLibrary"
-      />
-    </div>
-
-    <!-- 默认变体的提示词模板库弹窗 -->
-    <NModal
-      v-else-if="showPromptLibrary && variant !== 'ide'"
-      v-model:show="showPromptLibrary"
-      preset="card"
-      title="提示词模板库"
-      style="width: 700px; max-width: 95vw; max-height: 80vh;"
-      :mask-closable="true"
-    >
-      <PromptTemplateLibrary
-        :session-id="sessionId"
-        @use-template="handleUseTemplate"
-        @close="handleCloseTemplateLibrary"
-      />
-    </NModal>
   </div>
 </template>
 
@@ -1567,33 +1521,6 @@ defineExpose({
 
   .send-button {
     width: 100%;
-  }
-}
-
-/* ========== 提示词模板库：嵌入式面板样式（IDE 变体） ========== */
-.prompt-library-panel {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 420px; /* 固定高度，类似编辑器标签页 */
-  min-height: 300px;
-  max-height: 550px;
-  background-color: #1e1e1e;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  overflow: hidden;
-  margin-top: 4px;
-  animation: slideDown 0.2s ease-out;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 </style>

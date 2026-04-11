@@ -44,6 +44,9 @@ import {
   type IdeAppendToChatOptions,
 } from '@/composables/useIdeChatAppend'
 import {
+  provideOpenPromptLibrary,
+} from '@/composables/usePromptTemplateLibrary'
+import {
   loadIdeWorkbenchLayout,
   saveIdeWorkbenchLayout,
   readSplitPanePercents,
@@ -108,6 +111,7 @@ function onEditorTermSplitResized(): void {
 // ========== UI 状态 ==========
 const showCommandPalette = ref(false)
 const inputRef = ref<InstanceType<typeof ChatInput> | null>(null)
+const editorPanelRef = ref<InstanceType<typeof AgentWorkdirEditorPanel> | null>(null)
 /** 左侧边栏视图：资源管理器 vs 会话列表（释放右侧 AI 栏垂直空间） */
 const leftSidebarView = ref<'explorer' | 'sessions'>('explorer')
 
@@ -151,6 +155,24 @@ function handleAppendToChatFromEditor(text: string, options?: IdeAppendToChatOpt
 }
 
 provideIdeAppendToChat(handleAppendToChatFromEditor)
+
+/**
+ * 在编辑器中打开提示词模板库
+ * 通过 ref 调用 AgentWorkdirEditorPanel 的方法
+ */
+function handleOpenPromptLibrary(): void {
+  if (!editorPanelRef.value) {
+    message.warning('编辑器未就绪，请稍后再试')
+    return
+  }
+  // 调用编辑器面板的打开模板库方法
+  editorPanelRef.value.openPromptLibraryTab()
+}
+
+/**
+ * 提供打开模板库的方法给 ChatInput 使用
+ */
+provideOpenPromptLibrary(handleOpenPromptLibrary)
 
 /** 中间栏标题：与 VS Code 一致，显示当前文件名大写 */
 const editorTabTitle = computed(() => {
@@ -423,7 +445,7 @@ async function handleRetry(): Promise<void> {
                 <span>{{ editorTabTitle }}</span>
               </div>
               <div class="pane-content editor-pane-editor-body">
-                <AgentWorkdirEditorPanel />
+                <AgentWorkdirEditorPanel ref="editorPanelRef" />
               </div>
             </Pane>
             <Pane :size="safeSize(ideLayout.editorTerminalSizes[1], 32)" min-size="14" max-size="55" class="editor-terminal-pane">

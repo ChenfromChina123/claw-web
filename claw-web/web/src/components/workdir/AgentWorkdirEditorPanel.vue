@@ -421,6 +421,13 @@ onBeforeUnmount(() => {
   }
   ctx.destroyEditor()
 })
+
+/**
+ * 暴露方法给父组件使用
+ */
+defineExpose({
+  openPromptLibraryTab,
+})
 </script>
 
 <template>
