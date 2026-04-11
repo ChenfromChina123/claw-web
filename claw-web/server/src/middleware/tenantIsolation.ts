@@ -179,7 +179,7 @@ class TenantIsolationManager {
       role: payload.role || 'user',
       workspaceRoot: userWorkspace.path,
       sessionWorkspaceRoot: path.join(
-        workspaceManager.config.baseDir,
+        workspaceManager.getBaseDir(),
         'sessions',
         userId
       ),

@@ -185,6 +185,13 @@ export class WorkspaceManager {
   private sessionWorkspaces: Map<string, WorkspaceMetadata> = new Map()
   private userWorkspaces: Map<string, UserWorkspaceMetadata> = new Map()
 
+  /**
+   * 获取工作区基础目录
+   */
+  getBaseDir(): string {
+    return this.config.baseDir
+  }
+
   constructor(config?: WorkspaceConfig) {
     this.config = { ...DEFAULT_CONFIG, ...config }
     console.log(`[WorkspaceManager] 工作区根目录: ${this.config.baseDir}`)
@@ -192,7 +199,7 @@ export class WorkspaceManager {
   }
 
   /**
-   * 确保基础目录存在
+   * 确保基础目录和 .claude 目录存在
    */
   private async ensureBaseDirectory(): Promise<void> {
     try {
@@ -208,8 +215,32 @@ export class WorkspaceManager {
       if (!existsSync(sessionsDir)) {
         await fs.mkdir(sessionsDir, { recursive: true })
       }
+      // 创建 .claude 目录（用于存储 skills 和 commands）
+      await this.ensureClaudeDirectories(this.config.baseDir)
     } catch (error) {
       console.error('[WorkspaceManager] 创建基础目录失败:', error)
+    }
+  }
+
+  /**
+   * 确保 .claude 目录存在（包含 skills 和 commands 子目录）
+   */
+  private async ensureClaudeDirectories(baseDir: string): Promise<void> {
+    const claudeDir = path.join(baseDir, '.claude')
+    const skillsDir = path.join(claudeDir, 'skills')
+    const commandsDir = path.join(claudeDir, 'commands')
+    
+    if (!existsSync(claudeDir)) {
+      await fs.mkdir(claudeDir, { recursive: true })
+      console.log(`[WorkspaceManager] .claude 目录已创建: ${claudeDir}`)
+    }
+    if (!existsSync(skillsDir)) {
+      await fs.mkdir(skillsDir, { recursive: true })
+      console.log(`[WorkspaceManager] .claude/skills 目录已创建: ${skillsDir}`)
+    }
+    if (!existsSync(commandsDir)) {
+      await fs.mkdir(commandsDir, { recursive: true })
+      console.log(`[WorkspaceManager] .claude/commands 目录已创建: ${commandsDir}`)
     }
   }
 
@@ -342,6 +373,20 @@ export class WorkspaceManager {
       }
     }
 
+    // 创建 .claude 目录（用于存储 skills 和 commands）
+    const claudeDir = path.join(workspacePath, '.claude')
+    const skillsDir = path.join(claudeDir, 'skills')
+    const commandsDir = path.join(claudeDir, 'commands')
+    if (!existsSync(claudeDir)) {
+      await fs.mkdir(claudeDir, { recursive: true })
+    }
+    if (!existsSync(skillsDir)) {
+      await fs.mkdir(skillsDir, { recursive: true })
+    }
+    if (!existsSync(commandsDir)) {
+      await fs.mkdir(commandsDir, { recursive: true })
+    }
+
     const now = new Date().toISOString()
     const metadata: UserWorkspaceMetadata = {
       workspaceId: `uw_${userId}`,
@@ -382,6 +427,20 @@ export class WorkspaceManager {
       if (!existsSync(dirPath)) {
         await fs.mkdir(dirPath, { recursive: true })
       }
+    }
+
+    // 创建 .claude 目录（用于存储 skills 和 commands）
+    const claudeDir = path.join(workspacePath, '.claude')
+    const skillsDir = path.join(claudeDir, 'skills')
+    const commandsDir = path.join(claudeDir, 'commands')
+    if (!existsSync(claudeDir)) {
+      await fs.mkdir(claudeDir, { recursive: true })
+    }
+    if (!existsSync(skillsDir)) {
+      await fs.mkdir(skillsDir, { recursive: true })
+    }
+    if (!existsSync(commandsDir)) {
+      await fs.mkdir(commandsDir, { recursive: true })
     }
 
     const now = new Date().toISOString()
