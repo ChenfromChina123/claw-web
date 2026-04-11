@@ -53,6 +53,10 @@ const errorMessage = ref<string | null>(null)
 // 跟踪当前活跃的 Bash / PowerShell 工具 id
 const shellToolIds = new Set<string>()
 
+// Windows 平台输入缓存（解决换行问题）
+let inputBuffer = ''
+const isWindowsPlatform = navigator.platform.includes('Win')
+
 // ==================== Agent 输出镜像 ====================
 
 async function setupAgentMirror() {
@@ -235,7 +239,33 @@ async function initTerminal(): Promise<void> {
   t.onData(async (data: string) => {
     console.log('[TerminalTabPane] onData called, connectionStatus:', connectionStatus.value, 'data:', JSON.stringify(data))
     if (connectionStatus.value === 'connected') {
-      await pty.write(data)
+      // Windows 平台：缓存输入直到收到回车键，解决换行问题
+      if (isWindowsPlatform) {
+        // 收到回车键，发送缓存的输入
+        if (data === '\r') {
+          if (inputBuffer.length > 0) {
+            await pty.write(inputBuffer + '\r\n')
+            inputBuffer = ''
+          } else {
+            await pty.write('\r\n')
+          }
+        } else if (data === '\n') {
+          // 忽略单独的换行符
+        } else if (data === '\x7f') {
+          // 退格键
+          if (inputBuffer.length > 0) {
+            inputBuffer = inputBuffer.slice(0, -1)
+            // 发送退格序列
+            await pty.write('\b \b')
+          }
+        } else {
+          // 其他字符，添加到缓存并显示
+          inputBuffer += data
+        }
+      } else {
+        // 非 Windows 平台：直接发送
+        await pty.write(data)
+      }
     } else {
       console.log('[TerminalTabPane] onData ignored - not connected')
     }
