@@ -343,6 +343,17 @@ export async function initDatabase(): Promise<void> {
       }
     }
 
+    // 添加 sequence 字段到 messages 表（用于确保消息顺序）
+    await tempPool.query(`
+      ALTER TABLE messages 
+      ADD COLUMN sequence INT DEFAULT 0
+    `).catch(() => {})
+
+    // 创建 sequence 字段索引
+    await tempPool.query(`
+      CREATE INDEX idx_messages_sequence ON messages(session_id, sequence)
+    `).catch(() => {})
+
     console.log('Database schema initialized')
   } finally {
     await tempPool.end()
