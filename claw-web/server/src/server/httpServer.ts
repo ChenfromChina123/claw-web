@@ -28,6 +28,9 @@ import '../integrations/agentRunner'
 import '../integrations/sessionBridge'
 import '../integration/webStore'
 
+// 插件系统
+import { initializePluginSystem } from '../integrations/plugins'
+
 const sessionManager = SessionManager.getInstance()
 
 /**
@@ -160,6 +163,15 @@ export async function startServer(): Promise<void> {
 
   // Initialize WebSocket RPC methods
   initializeRPCMethods()
+
+  // Initialize Plugin System
+  try {
+    console.log('\n[Plugin] Initializing plugin system...')
+    await initializePluginSystem()
+    console.log('[Plugin] Plugin system initialized')
+  } catch (error) {
+    console.warn('[Plugin] Failed to initialize plugin system:', error)
+  }
 
   // Initialize PTY Bridge
   console.log('[PTY] Initializing PTY Bridge...')

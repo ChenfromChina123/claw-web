@@ -31,8 +31,11 @@ export { handleDiagnosticsRoutes, default as diagnosticsRoutes } from './diagnos
 // 工作区路由
 export { handleWorkspaceRoutes, default as workspaceRoutes } from './workspace.routes'
 
-// 导出与分享路由
-export { handleExportRoutes, default as exportRoutes } from './export.routes'
+// 提示词模板路由
+export { handlePromptTemplateRoutes, default as promptTemplateRoutes } from './promptTemplate.routes'
+
+// 技能导入路由
+export { handleSkillImportRoutes, default as skillImportRoutes } from './skills.routes'
 
 import type { Request, Response } from 'express'
 
@@ -40,33 +43,36 @@ import type { Request, Response } from 'express'
 const routeHandlers = [
   // 认证相关
   (req: Request) => import('./auth.routes').then(m => m.handleAuthRoutes(req)),
-  
+
   // Agent 相关（放在会话相关之前，避免路由冲突）
   (req: Request) => import('./agent.routes').then(m => m.handleAgentWorkdirRoutes(req)),
-  
+
   // 会话相关
   (req: Request) => import('./sessions.routes').then(m => m.handleSessionRoutes(req)),
-  
+
   // 工具相关
   (req: Request) => import('./tools.routes').then(m => m.handleToolsRoutes(req)),
-  
+
   // Agent 编排相关
   (req: Request) => import('./agents.routes').then(m => m.handleAgentRoutes(req)),
-  
+
   // MCP 相关
   (req: Request) => import('./mcp.routes').then(m => m.handleMCPRoutes(req)),
-  
+
   // 监控相关
   (req: Request) => import('./monitoring.routes').then(m => m.handleMonitoringRoutes(req)),
-  
+
   // 诊断相关
   (req: Request) => import('./diagnostics.routes').then(m => m.handleDiagnosticsRoutes(req)),
-  
+
   // 工作区相关
   (req: Request) => import('./workspace.routes').then(m => m.handleWorkspaceRoutes(req)),
-  
-  // 导出与分享相关
-  (req: Request) => import('./export.routes').then(m => m.handleExportRoutes(req)),
+
+  // 提示词模板相关
+  (req: Request) => import('./promptTemplate.routes').then(m => m.handlePromptTemplateRoutes(req)),
+
+  // 技能导入相关（放在最后，作为通用处理器）
+  (req: Request) => import('./skills.routes').then(m => m.handleSkillImportRoutes(req)),
 ]
 
 /**

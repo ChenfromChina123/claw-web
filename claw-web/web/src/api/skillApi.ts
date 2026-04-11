@@ -59,6 +59,26 @@ export interface SkillToggleResponse {
   message: string
 }
 
+export interface SkillImportResult {
+  success: boolean
+  skillName?: string
+  skillId?: string
+  filePath?: string
+  message: string
+}
+
+export interface SkillPreview {
+  name: string
+  description: string
+  category?: string
+  tags: string[]
+  version: string
+  author?: string
+  contentLength: number
+  isValid: boolean
+  errors: string[]
+}
+
 export const skillApi = {
   /**
    * 获取技能列表
@@ -132,6 +152,58 @@ export const skillApi = {
       disabledSkills: number
       byCategory: Record<string, number>
     }>>('/skills/stats')
+    return unwrapApiData(data)
+  },
+
+  /**
+   * 从 URL 导入技能
+   * @param url - 技能文件的 URL
+   * @param category - 可选的分类
+   */
+  async importSkillFromUrl(url: string, category?: string): Promise<SkillImportResult> {
+    const body: Record<string, string> = { url }
+    if (category) body.category = category
+
+    const { data } = await apiClient.post<ApiResponse<SkillImportResult>>(
+      '/skills/import/url',
+      body
+    )
+    return unwrapApiData(data)
+  },
+
+  /**
+   * 从文件导入技能
+   * @param file - 技能文件 (File 对象)
+   */
+  async importSkillFromFile(file: File): Promise<SkillImportResult> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const { data } = await apiClient.post<ApiResponse<SkillImportResult>>(
+      '/skills/import/file',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    )
+    return unwrapApiData(data)
+  },
+
+  /**
+   * 验证技能内容
+   * @param content - 技能内容或 URL
+   */
+  async validateSkill(content?: string, url?: string): Promise<SkillPreview> {
+    const body: Record<string, string> = {}
+    if (content) body.content = content
+    if (url) body.url = url
+
+    const { data } = await apiClient.post<ApiResponse<SkillPreview>>(
+      '/skills/validate',
+      body
+    )
     return unwrapApiData(data)
   },
 }

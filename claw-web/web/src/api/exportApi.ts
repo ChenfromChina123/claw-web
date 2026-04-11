@@ -2,7 +2,7 @@
  * 导出与分享 API
  */
 
-import { client } from './client'
+import apiClient from './client'
 
 export interface ShareInfo {
   shareId: string
@@ -32,7 +32,7 @@ export interface ExportOptions {
  * 导出为 Markdown
  */
 export async function exportAsMarkdown(options: ExportOptions): Promise<Blob> {
-  const response = await client.post('/api/export/markdown', options, {
+  const response = await apiClient.post('/api/export/markdown', options, {
     responseType: 'blob',
   })
   return response.data
@@ -42,7 +42,7 @@ export async function exportAsMarkdown(options: ExportOptions): Promise<Blob> {
  * 导出为 HTML
  */
 export async function exportAsHtml(options: ExportOptions): Promise<Blob> {
-  const response = await client.post('/api/export/html', options, {
+  const response = await apiClient.post('/api/export/html', options, {
     responseType: 'blob',
   })
   return response.data
@@ -52,7 +52,7 @@ export async function exportAsHtml(options: ExportOptions): Promise<Blob> {
  * 导出为 JSON
  */
 export async function exportAsJson(options: ExportOptions): Promise<Blob> {
-  const response = await client.post('/api/export/json', options, {
+  const response = await apiClient.post('/api/export/json', options, {
     responseType: 'blob',
   })
   return response.data
@@ -69,7 +69,7 @@ export async function createShare(
   title?: string,
   expiresInHours?: number
 ): Promise<ShareInfo> {
-  const response = await client.post('/api/share', {
+  const response = await apiClient.post('/api/share', {
     sessionId,
     title,
     expiresInHours,
@@ -88,7 +88,7 @@ export async function getSharedSession(shareCode: string): Promise<{
   createdAt: string
   expiresAt: string | null
 }> {
-  const response = await client.get(`/api/share/${shareCode}`)
+  const response = await apiClient.get(`/api/share/${shareCode}`)
   return response.data.data
 }
 
@@ -96,14 +96,14 @@ export async function getSharedSession(shareCode: string): Promise<{
  * 删除分享
  */
 export async function deleteShare(shareId: string): Promise<void> {
-  await client.delete(`/api/share/${shareId}`)
+  await apiClient.delete(`/api/share/${shareId}`)
 }
 
 /**
  * 获取用户的分享列表
  */
 export async function getUserShares(): Promise<SharedSession[]> {
-  const response = await client.get('/api/share/user/list')
+  const response = await apiClient.get('/api/share/user/list')
   return response.data.data.shares
 }
 

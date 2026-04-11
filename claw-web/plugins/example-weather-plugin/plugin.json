@@ -1,0 +1,13 @@
+{
+  "id": "example-weather-plugin",
+  "name": "天气查询插件",
+  "version": "1.0.0",
+  "description": "提供天气查询功能的示例插件",
+  "author": "Claw Web",
+  "type": "tool",
+  "main": "index.js",
+  "metadata": {
+    "category": "utility",
+    "tags": ["weather", "api", "example"]
+  }
+}

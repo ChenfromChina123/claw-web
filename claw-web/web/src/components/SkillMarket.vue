@@ -8,10 +8,12 @@ import { ref, computed, onMounted } from 'vue'
 import {
   NCard, NButton, NSpace, NTag, NInput, NGrid, NGridItem,
   NEmpty, NModal, NDescriptions, NDescriptionsItem, NPopover,
-  NScrollbar, useMessage, NSpin, NBadge
+  NScrollbar, useMessage, NSpin, NBadge, NTabs, NTabPane,
+  NForm, NFormItem, NUpload, NProgress, useDialog
 } from 'naive-ui'
+import type { UploadFileInfo } from 'naive-ui'
 import skillApi from '@/api/skillApi'
-import type { SkillDefinition, SkillCategory } from '@/api/skillApi'
+import type { SkillDefinition, SkillCategory, SkillPreview } from '@/api/skillApi'
 
 const message = useMessage()
 

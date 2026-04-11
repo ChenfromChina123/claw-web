@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { NLayout, NLayoutContent, NSpin, NButton, NEmpty, useMessage } from 'naive-ui'
+import { NLayout, NLayoutContent, NSpin, NButton, NEmpty, useMessage, NIcon } from 'naive-ui'
+import { ChatbubblesOutline, ListOutline, SearchOutline } from '@vicons/ionicons5'
 import ChatSidebar from '@/components/ChatSidebar.vue'
 import ChatMessageList from '@/components/ChatMessageList.vue'
 import ChatInput from '@/components/ChatInput.vue'
@@ -11,6 +12,7 @@ import AgentStatusPanel from '@/components/AgentStatusPanel.vue'
 import AgentActivitySidebar from '@/components/AgentActivitySidebar.vue'
 import IdeSessionsPanel from '@/views/IdeSessionsPanel.vue'
 import SessionSwitcher from '@/components/SessionSwitcher.vue'
+import MessageSearch from '@/components/MessageSearch.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import { useAgentStore } from '@/stores/agent'
@@ -28,6 +30,11 @@ const inputRef = ref<InstanceType<typeof ChatInput> | null>(null)
 const isInitializing = ref(true)
 const initError = ref<string | null>(null)
 const sidebarCollapsed = ref(false)
+
+/**
+ * 消息搜索弹窗
+ */
+const showMessageSearch = ref(false)
 
 /**
  * 顶部视图切换：会话管理 vs 聊天
@@ -53,6 +60,11 @@ const showAgentPanel = ref(false)
  * 是否显示 Agent 活动侧边栏（新）
  */
 const showAgentActivitySidebar = ref(false)
+
+/**
+ * 显示导出/分享弹窗
+ */
+const showExportShareModal = ref(false)
 
 /**
  * 从 agent store 获取真实数据
@@ -284,6 +296,11 @@ function handleKeyDown(e: KeyboardEvent): void {
     e.preventDefault()
     showSessionSwitcher.value = !showSessionSwitcher.value
   }
+  // Ctrl/Cmd + F 打开消息搜索
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    e.preventDefault()
+    showMessageSearch.value = true
+  }
 }
 
 /**
@@ -486,6 +503,27 @@ function handleSessionSwitcherSelect(sessionId: string) {
   console.log('[Chat] 切换到会话:', sessionId)
   message.success('已切换会话')
 }
+
+/**
+ * 消息搜索选择回调
+ */
+function handleMessageSearchSelect(messageId: string, sessionId: string) {
+  console.log('[Chat] 选择消息:', messageId, '会话:', sessionId)
+  
+  // 如果不在当前会话，先切换会话
+  if (sessionId !== chatStore.currentSessionId) {
+    chatStore.loadSession(sessionId).then(() => {
+      message.success('已定位到消息')
+      // TODO: 滚动到指定消息
+    }).catch((error) => {
+      console.error('加载会话失败:', error)
+      message.error('加载会话失败')
+    })
+  } else {
+    message.success('已定位到消息')
+    // TODO: 滚动到指定消息
+  }
+}
 </script>
 
 <template>
@@ -523,13 +561,43 @@ function handleSessionSwitcherSelect(sessionId: string) {
           </button>
         </div>
 
-        <!-- Agent 活动侧边栏切换按钮 -->
-        <div class="agent-activity-toggle" :class="{ active: showAgentActivitySidebar }" @click="showAgentActivitySidebar = !showAgentActivitySidebar">
-          <span class="toggle-icon">🤖</span>
-          <span class="toggle-label">活动</span>
-          <div v-if="agentStore.pendingPermissionList.length > 0" class="pending-indicator">
-            {{ agentStore.pendingPermissionList.length }}
+        <!-- 右侧工具按钮 -->
+        <div class="top-bar-actions">
+          <!-- 消息搜索按钮 -->
+          <NButton
+            quaternary
+            circle
+            class="action-button"
+            @click="showMessageSearch = true"
+          >
+            <template #icon>
+              <NIcon :size="18">
+                <SearchOutline />
+              </NIcon>
+            </template>
+          </NButton>
+
+          <!-- Agent 活动侧边栏切换按钮 -->
+          <div class="agent-activity-toggle" :class="{ active: showAgentActivitySidebar }" @click="showAgentActivitySidebar = !showAgentActivitySidebar">
+            <span class="toggle-icon">🤖</span>
+            <span class="toggle-label">活动</span>
+            <div v-if="agentStore.pendingPermissionList.length > 0" class="pending-indicator">
+              {{ agentStore.pendingPermissionList.length }}
+            </div>
           </div>
+
+          <!-- 导出/分享按钮 -->
+          <NButton
+            size="small"
+            quaternary
+            class="export-btn"
+            @click="showExportShareModal = true"
+          >
+            <template #icon>
+              <span class="export-icon">📤</span>
+            </template>
+            导出/分享
+          </NButton>
         </div>
       </div>
 
@@ -638,6 +706,18 @@ function handleSessionSwitcherSelect(sessionId: string) {
       @close="handleSessionSwitcherClose"
       @select="handleSessionSwitcherSelect"
     />
+    
+    <!-- 消息搜索 -->
+    <MessageSearch
+      :show="showMessageSearch"
+      @close="showMessageSearch = false"
+      @select-message="handleMessageSearchSelect"
+    />
+    
+    <!-- 导出/分享弹窗 -->
+    <ExportShareModal
+      v-model:show="showExportShareModal"
+    />
   </NLayout>
 </template>
 
@@ -742,6 +822,21 @@ function handleSessionSwitcherSelect(sessionId: string) {
   position: relative;
   z-index: 10;
   flex-shrink: 0;
+}
+
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-button {
+  transition: all var(--transition-fast, 150ms) ease;
+}
+
+.action-button:hover {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--color-primary);
 }
 
 /* 视图切换标签 */
@@ -925,6 +1020,32 @@ function handleSessionSwitcherSelect(sessionId: string) {
 .input-container:hover {
   border-color: var(--border-accent) !important;
   box-shadow: var(--shadow-md);
+}
+
+/* ---- 导出/分享按钮 ---- */
+.export-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  transition: all var(--transition-fast, 150ms) ease;
+}
+
+.export-btn:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.export-icon {
+  font-size: 14px;
 }
 
 /* ---- 响应式适配 ---- */

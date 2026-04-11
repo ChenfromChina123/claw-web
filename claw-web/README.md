@@ -13,6 +13,7 @@
 - 📱 **响应式设计** - 适配桌面和移动端
 - 🔐 **OAuth 登录** - 支持 GitHub OAuth 登录
 - 🐲 **悬浮电子宠物** - IDE工作台中的互动宠物，支持气泡对话和多种宠物切换
+- 🔌 **插件系统** - 支持第三方开发插件，扩展系统功能
 
 ## 快速开始
 
@@ -100,6 +101,13 @@ GITHUB_CALLBACK_URL=http://localhost:3000/api/auth/github/callback
 | `/api/health` | GET | 健康检查 |
 | `/api/models` | GET | 获取可用模型 |
 | `/api/tools` | GET | 获取可用工具 |
+| `/api/plugins` | GET | 获取插件列表 |
+| `/api/plugins/install` | POST | 安装插件 |
+| `/api/plugins/:id` | GET | 获取插件详情 |
+| `/api/plugins/:id/enable` | POST | 启用插件 |
+| `/api/plugins/:id/disable` | POST | 禁用插件 |
+| `/api/plugins/:id/config` | PUT | 更新插件配置 |
+| `/api/plugins/tools` | GET | 获取插件工具列表 |
 | `/api/sessions` | GET | 获取用户会话列表 |
 | `/api/sessions` | POST | 创建新会话 |
 | `/api/sessions/:id` | GET | 加载会话详情 |
@@ -193,6 +201,103 @@ npm run lint
 # 修复可自动修复的问题
 npm run lint -- --fix
 ```
+
+## 插件系统
+
+Claw Web 支持插件系统，允许第三方开发者扩展系统功能。
+
+### 插件目录结构
+
+```
+claw-web/
+├── plugins/                    # 插件目录
+│   └── [plugin-id]/
+│       ├── plugin.json          # 插件清单
+│       └── index.js             # 插件入口文件
+└── .config/
+    └── plugins/                 # 插件配置目录
+```
+
+### 插件清单 (plugin.json)
+
+```json
+{
+  "id": "my-plugin",
+  "name": "我的插件",
+  "version": "1.0.0",
+  "description": "插件描述",
+  "author": "开发者名称",
+  "type": "tool",  // tool | skill | theme | integration | enhancement
+  "main": "index.js"
+}
+```
+
+### 插件类型
+
+- **tool** - 提供新工具
+- **skill** - 提供技能/命令
+- **theme** - 提供UI主题
+- **integration** - 集成外部服务
+- **enhancement** - 增强现有功能
+
+### 插件接口
+
+```javascript
+// 获取工具列表
+export function getTools() {
+  return [
+    {
+      name: 'my_tool',
+      description: '工具描述',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          param: { type: 'string', description: '参数描述' }
+        },
+        required: ['param']
+      },
+      handler: async (params) => {
+        return { success: true, output: '结果' }
+      }
+    }
+  ]
+}
+
+// 获取技能列表
+export function getSkills() {
+  return [
+    {
+      type: 'prompt',
+      name: 'my-skill',
+      description: '技能描述',
+      source: 'plugin',
+      loadedFrom: 'plugin',
+      contentLength: 100,
+      progressMessage: 'running',
+      getPromptForCommand: async (args) => {
+        return [{ type: 'text', text: '# 技能内容' }]
+      }
+    }
+  ]
+}
+
+// 生命周期钩子
+export function onLoad(config) { /* 加载时调用 */ }
+export function onEnable() { /* 启用时调用 */ return true }
+export function onDisable() { /* 禁用时调用 */ }
+export function onUninstall() { /* 卸载时调用 */ }
+```
+
+### 示例插件
+
+项目自带两个示例插件：
+
+1. **天气查询插件** (`example-weather-plugin`)
+   - 提供 `weather_query` 和 `weather_forecast` 工具
+
+2. **代码审查助手插件** (`example-code-review-plugin`)
+   - 提供 `code-review` 技能
+   - 提供 `code_review` 和 `review_config` 工具
 
 ## 许可证
 

@@ -1,0 +1,16 @@
+{
+  "id": "example-code-review-plugin",
+  "name": "代码审查助手插件",
+  "version": "1.0.0",
+  "description": "提供自动化代码审查功能的示例插件",
+  "author": "Claw Web",
+  "type": "skill",
+  "main": "index.js",
+  "metadata": {
+    "category": "development",
+    "tags": ["code", "review", "quality"]
+  },
+  "hooks": {
+    "afterToolCall": "onAfterToolCall"
+  }
+}
