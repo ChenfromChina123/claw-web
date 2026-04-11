@@ -125,8 +125,11 @@ const templateDropdownOptions = computed(() => {
     children?: Array<{ key: string; label: string }>
   }> = []
 
+  // 确保 templates 是数组
+  const templateList = templates.value || []
+
   // 收藏模板
-  const favorites = templates.value.filter(t => t.isFavorite)
+  const favorites = templateList.filter(t => t.isFavorite)
   if (favorites.length > 0) {
     options.push({
       key: 'favorites',
@@ -140,7 +143,7 @@ const templateDropdownOptions = computed(() => {
   }
 
   // 常用模板（使用次数最多的）
-  const popular = templates.value
+  const popular = templateList
     .filter(t => !t.isFavorite)
     .sort((a, b) => b.useCount - a.useCount)
     .slice(0, 5)
