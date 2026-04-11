@@ -42,10 +42,11 @@ async function devAutoLogin(): Promise<boolean> {
 }
 
 async function bootstrap() {
-  if (import.meta.env.DEV) {
-    await devAutoLogin()
-  }
-  
+  // 禁用开发环境自动登录，改为手动登录
+  // if (import.meta.env.DEV) {
+  //   await devAutoLogin()
+  // }
+
   const app = createApp(App)
   
   app.use(createPinia())
