@@ -5,7 +5,7 @@
 	logallrefupdates = true
 	symlinks = false
 	ignorecase = true
-	hooksPath = D:\\Users\\Administrator\\AistudyProject\\HAHA\\claude-code-haha\\.git\\hooks
+	hooksPath = D:\\Users\\Administrator\\AistudyProject\\HAHA\\claw-web\\.git\\hooks
 [remote "origin"]
 	url = https://github.com/ChenfromChina123/claw-web.git
 	fetch = +refs/heads/*:refs/remotes/origin/*

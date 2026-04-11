@@ -30,7 +30,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./server/src/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
-      - ./server/src/db/fix_schema.sql:/docker-entrypoint-initdb.d/fix_schema.sql:ro
+      - ./server/src/db/z_fix_schema.sql:/docker-entrypoint-initdb.d/z_fix_schema.sql:ro
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci

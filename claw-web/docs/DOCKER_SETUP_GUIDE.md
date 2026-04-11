@@ -161,7 +161,7 @@ docker pull redis:7-alpine
 ### 2. 启动 Claude Code HAHA 服务：
 
 ```bash
-cd d:\Users\Administrator\AistudyProject\HAHA\claude-code-haha
+cd d:\Users\Administrator\AistudyProject\HAHA\claw-web
 
 # 使用标准配置启动
 docker compose up -d --build

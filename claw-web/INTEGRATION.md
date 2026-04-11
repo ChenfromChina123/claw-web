@@ -331,7 +331,7 @@ ws.send(JSON.stringify({
 ## 项目结构
 
 ```
-claude-code-haha/
+claw-web/
 ├── server/                    # Bun HTTP 服务器
 │   └── src/
 │       ├── index.ts          # 主入口

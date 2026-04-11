@@ -22,7 +22,7 @@ Claude Code HAHA 是一个集成了 AI 对话、工具执行、会话管理的 f
 ### 项目结构
 
 ```
-claude-code-haha/
+claw-web/
 ├── server/                 # 后端服务 (Bun.js)
 │   ├── src/
 │   │   ├── db/            # 数据库相关

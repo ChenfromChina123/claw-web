@@ -4,7 +4,7 @@
 >
 > **文档版本**: 1.0
 > **创建日期**: 2026-04-05
-> **项目路径**: `D:\Users\Administrator\AistudyProject\HAHA\claude-code-haha\`
+> **项目路径**: `D:\Users\Administrator\AistudyProject\HAHA\claw-web\`
 
 ---
 

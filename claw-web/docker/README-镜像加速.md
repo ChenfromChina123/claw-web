@@ -179,7 +179,7 @@ docker compose -f docker-compose.cn.yml build --platform linux/amd64
 1. **配置 Docker 镜像加速器**（参考方案一）
 2. **使用国内镜像版本构建**：
    ```bash
-   cd d:\Users\Administrator\AistudyProject\HAHA\claude-code-haha
+   cd d:\Users\Administrator\AistudyProject\HAHA\claw-web
    docker compose -f docker-compose.cn-fast.yml up -d --build
    ```
 3. **查看构建进度**：

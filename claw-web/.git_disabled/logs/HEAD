@@ -1,4 +1,4 @@
-0000000000000000000000000000000000000000 430502e7bbe7e502d08619722ebc869b92bdd826 ChenfromChina123 <3301767269@qq.com> 1775039556 +0800	clone: from https://github.com/NanmiCoder/claude-code-haha.git
+0000000000000000000000000000000000000000 430502e7bbe7e502d08619722ebc869b92bdd826 ChenfromChina123 <3301767269@qq.com> 1775039556 +0800	clone: from https://github.com/NanmiCoder/claw-web.git
 430502e7bbe7e502d08619722ebc869b92bdd826 d85b6960d5e4f55f9c784627e928274e5488d0c0 ChenfromChina123 <3301767269@qq.com> 1775041240 +0800	commit: feat: 改造为Web服务架构，增加Vue前端
 d85b6960d5e4f55f9c784627e928274e5488d0c0 aa01d00e5efdd5d117049e418112ae77b3262fbd ChenfromChina123 <3301767269@qq.com> 1775053415 +0800	commit: 添加MySQL会话持久化功能，支持多用户多会话和工具调用记录
 aa01d00e5efdd5d117049e418112ae77b3262fbd e9450850c57d5d571e841afc63c0caa8b92e4880 ChenfromChina123 <3301767269@qq.com> 1775055224 +0800	commit: 添加MySQL会话持久化功能，支持多用户多会话和工具调用记录
@@ -215,7 +215,7 @@ fa4bddb088834c8eeda3a65cdd64d02ad53668ff 1d3c06a75fd0d57f63372744f60b0987c87be6c
 0636ec1516ab3b0223187dcb56341947717b7391 c831ed4bd7c7c4727347cb237bcd23467a0716d3 ChenfromChina123 <3301767269@qq.com> 1775457431 +0800	commit: feat: 实现无感沙箱模式 - Agent 透明化工作目录
 c831ed4bd7c7c4727347cb237bcd23467a0716d3 0e6a44e35db86e292ee284a7d9bc62d4a2c37e55 ChenfromChina123 <3301767269@qq.com> 1775457788 +0800	commit: 新增Agent文件写入动态UI和文件输出卡片组件
 0e6a44e35db86e292ee284a7d9bc62d4a2c37e55 3ddb558e431c488495439896714d107fb789f98f ChenfromChina123 <3301767269@qq.com> 1775458999 +0800	commit: 添加 Agent 工作目录浏览器功能（高性能文件树 + Monaco Editor）
-3ddb558e431c488495439896714d107fb789f98f af68700082cc95bd4eb447ac8c9167364ff50f66 ChenfromChina123 <3301767269@qq.com> 1775459079 +0800	commit: 添加Agent主循环中断功能（参考claude-code-haha/src的AbortController机制）
+3ddb558e431c488495439896714d107fb789f98f af68700082cc95bd4eb447ac8c9167364ff50f66 ChenfromChina123 <3301767269@qq.com> 1775459079 +0800	commit: 添加Agent主循环中断功能（参考claw-web/src的AbortController机制）
 af68700082cc95bd4eb447ac8c9167364ff50f66 123c46d4ceb85707b620c652cdb694b2843bcb7d ChenfromChina123 <3301767269@qq.com> 1775460776 +0800	commit: 修复 ChatMessageList.vue 和 FileWriteToolInline.vue 的语法错误
 123c46d4ceb85707b620c652cdb694b2843bcb7d 45ccf11f276446f313e908e96eaa61c36a2e53db ChenfromChina123 <3301767269@qq.com> 1775460927 +0800	commit: 修复 AgentWorkDir.vue 图标导入错误：CodeOutlined -> FileCodeOutline
 45ccf11f276446f313e908e96eaa61c36a2e53db 7bfdcb5155a8aec1420431e882a0d1c977a55dd3 ChenfromChina123 <3301767269@qq.com> 1775461032 +0800	commit: 添加 Agent 图片查看工具 (ImageRead) 功能
@@ -282,7 +282,7 @@ b9cf0e9ae37a65139878de82b0146c080ab6ac9a 165a90cc5857ae8762c919404e5513cbce378a8
 20f19b0e104c9e7f6e8d0e0c61ced6d4bcf819fb e27ac09cbcb89f8079398f55b75e0e14d47ba6d1 ChenfromChina123 <3301767269@qq.com> 1775689663 +0800	commit: feat: 添加完整的 Docker 内存优化配置方案和文档
 e27ac09cbcb89f8079398f55b75e0e14d47ba6d1 fcc1bdfcc3ebcd3db527e71c982fb290ba887340 ChenfromChina123 <3301767269@qq.com> 1775690172 +0800	commit: refactor: 移除 Redis 依赖，简化 Docker 部署配置
 fcc1bdfcc3ebcd3db527e71c982fb290ba887340 f8712166924f4837e88726cd30912d64154203e2 ChenfromChina123 <3301767269@qq.com> 1775692095 +0800	commit: fix: 修复 Docker 构建和部署问题，服务全部启动成功
-f8712166924f4837e88726cd30912d64154203e2 9758dca012a987a3957024f46f2019bdc67e184c ChenfromChina123 <3301767269@qq.com> 1775695417 +0800	commit: 强化 Agent 提示词系统：高度对齐 claude-code-haha/src 规范
+f8712166924f4837e88726cd30912d64154203e2 9758dca012a987a3957024f46f2019bdc67e184c ChenfromChina123 <3301767269@qq.com> 1775695417 +0800	commit: 强化 Agent 提示词系统：高度对齐 claw-web/src 规范
 9758dca012a987a3957024f46f2019bdc67e184c 9a04e4c1864a5f0b1389f6b12389266b63accbcc ChenfromChina123 <3301767269@qq.com> 1775700674 +0800	commit: 修复 contextBuilder.ts 中的变量名拼写错误
 9a04e4c1864a5f0b1389f6b12389266b63accbcc f06864fecb3fa3ebdc6460c036afee1c3fbc62bf ChenfromChina123 <3301767269@qq.com> 1775711377 +0800	commit: 修复Monaco编辑器Web Worker配置和404错误处理
 f06864fecb3fa3ebdc6460c036afee1c3fbc62bf 7a74df0a50047006c04720d872e221875cebde50 ChenfromChina123 <3301767269@qq.com> 1775711849 +0800	commit: 修复文件不存在404警告和Monaco Web Worker配置

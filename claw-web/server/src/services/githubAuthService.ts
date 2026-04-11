@@ -136,7 +136,7 @@ export class GithubAuthService {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Claude-Code-HAHA',
+        'User-Agent': 'claw-web',
       },
     })
 
@@ -163,7 +163,7 @@ export class GithubAuthService {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Claude-Code-HAHA',
+        'User-Agent': 'claw-web',
       },
     })
 

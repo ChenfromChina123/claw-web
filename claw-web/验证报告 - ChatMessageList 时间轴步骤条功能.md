@@ -3,7 +3,7 @@
 ## 📋 验证概览
 
 **验证日期**: 2026-04-02  
-**验证组件**: [ChatMessageList.vue](file://d:\Users\Administrator\AistudyProject\HAHA\claude-code-haha\web\src\components\ChatMessageList.vue)  
+**验证组件**: [ChatMessageList.vue](file://d:\Users\Administrator\AistudyProject\HAHA\claw-web\web\src\components\ChatMessageList.vue)  
 **验证范围**: 时间轴步骤条功能集成与代码质量
 
 ---
@@ -16,7 +16,7 @@
 
 **验证结果**: ✅ **通过**
 
-**代码位置**: [ChatMessageList.vue:L291-296](file://d:\Users\Administrator\AistudyProject\HAHA\claude-code-haha\web\src\components\ChatMessageList.vue#L291-L296)
+**代码位置**: [ChatMessageList.vue:L291-296](file://d:\Users\Administrator\AistudyProject\HAHA\claw-web\web\src\components\ChatMessageList.vue#L291-L296)
 
 ```vue
 <!-- 展开内容：显示详细工具调用组件 -->
@@ -44,8 +44,8 @@
 **验证结果**: ✅ **通过**
 
 **代码位置**: 
-- FlowVisualizer: [ChatMessageList.vue:L348-350](file://d:\Users\Administrator\AistudyProject\HAHA\claude-code-haha\web\src\components\ChatMessageList.vue#L348-L350)
-- KnowledgeCard: [ChatMessageList.vue:L353-370](file://d:\Users\Administrator\AistudyProject\HAHA\claude-code-haha\web\src\components\ChatMessageList.vue#L353-L370)
+- FlowVisualizer: [ChatMessageList.vue:L348-350](file://d:\Users\Administrator\AistudyProject\HAHA\claw-web\web\src\components\ChatMessageList.vue#L348-L350)
+- KnowledgeCard: [ChatMessageList.vue:L353-370](file://d:\Users\Administrator\AistudyProject\HAHA\claw-web\web\src\components\ChatMessageList.vue#L353-L370)
 
 **FlowVisualizer 集成代码**:
 ```vue
@@ -93,7 +93,7 @@
 
 **验证结果**: ✅ **通过**
 
-**代码位置**: [ChatMessageList.vue:L261-266](file://d:\Users\Administrator\AistudyProject\HAHA\claude-code-haha\web\src\components\ChatMessageList.vue#L261-L266)
+**代码位置**: [ChatMessageList.vue:L261-266](file://d:\Users\Administrator\AistudyProject\HAHA\claw-web\web\src\components\ChatMessageList.vue#L261-L266)
 
 ```vue
 <div 
@@ -104,7 +104,7 @@
 >
 ```
 
-**样式绑定验证**: [ChatMessageList.vue:L625-642](file://d:\Users\Administrator\AistudyProject\HAHA\claude-code-haha\web\src\components\ChatMessageList.vue#L625-L642)
+**样式绑定验证**: [ChatMessageList.vue:L625-642](file://d:\Users\Administrator\AistudyProject\HAHA\claw-web\web\src\components\ChatMessageList.vue#L625-L642)
 
 ```css
 /* 不同状态下的徽章颜色 */
@@ -143,7 +143,7 @@
 
 **验证结果**: ✅ **通过**
 
-**代码位置**: [ChatMessageList.vue:L75-76](file://d:\Users\Administrator\AistudyProject\HAHA\claude-code-haha\web\src\components\ChatMessageList.vue#L75-L76)
+**代码位置**: [ChatMessageList.vue:L75-76](file://d:\Users\Administrator\AistudyProject\HAHA\claw-web\web\src\components\ChatMessageList.vue#L75-L76)
 
 ```typescript
 // 当前激活的步骤（手风琴效果）
@@ -164,7 +164,7 @@ const activeStep = ref<string | null>(null)
 
 **验证结果**: ✅ **通过**
 
-**代码位置**: [ChatMessageList.vue:L162-172](file://d:\Users\Administrator\AistudyProject\HAHA\claude-code-haha\web\src\components\ChatMessageList.vue#L162-L172)
+**代码位置**: [ChatMessageList.vue:L162-172](file://d:\Users\Administrator\AistudyProject\HAHA\claw-web\web\src\components\ChatMessageList.vue#L162-L172)
 
 ```typescript
 /**
@@ -195,7 +195,7 @@ function handleStepClick(toolCallId: string) {
 
 **验证结果**: ✅ **通过**
 
-**代码位置**: [ChatMessageList.vue:L139-160](file://d:\Users\Administrator\AistudyProject\HAHA\claude-code-haha\web\src\components\ChatMessageList.vue#L139-L160)
+**代码位置**: [ChatMessageList.vue:L139-160](file://d:\Users\Administrator\AistudyProject\HAHA\claw-web\web\src\components\ChatMessageList.vue#L139-L160)
 
 ```typescript
 /**

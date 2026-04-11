@@ -79,9 +79,9 @@ ruleInjector.clearCache()
 ```markdown
 # ~/.trae/rules/ai-pro.md
 
-1. 本项目是基于 claude-code-haha\src 这个项目开发的，请你在修改代码之前务必参考 claude-code-haha\src 的代码规范和注释。
+1. 本项目是基于 claw-web\src 这个项目开发的，请你在修改代码之前务必参考 claw-web\src 的代码规范和注释。
 2. 出现网络问题，请你使用代理端口 9674 访问互联网。
-3. 本项目的项目名称是 claw-web，不是 Claude-code-haha，遇到命名或者看到之前的 Claude-code-haha，请做好重新命名。
+3. 本项目的项目名称是 claw-web，不是 claw-web，遇到命名或者看到之前的 claw-web，请做好重新命名。
 ```
 
 ### 示例：项目规则

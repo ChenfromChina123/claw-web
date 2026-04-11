@@ -11,7 +11,7 @@
 以**管理员身份**打开 PowerShell，执行：
 
 ```powershell
-cd d:\Users\Administrator\AistudyProject\HAHA\claude-code-haha\docker
+cd d:\Users\Administrator\AistudyProject\HAHA\claw-web\docker
 .\configure-docker-mirror.ps1
 ```
 

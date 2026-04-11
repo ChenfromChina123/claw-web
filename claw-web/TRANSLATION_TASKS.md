@@ -1,7 +1,7 @@
 # Claude Code 源码注释翻译任务分配表
 
 ## 项目信息
-- **项目路径**: `d:\Users\Administrator\AistudyProject\HAHA\claude-code-haha`
+- **项目路径**: `d:\Users\Administrator\AistudyProject\HAHA\claw-web`
 - **总文件数**: 400+ 个文件
 - **翻译目标**: 将所有英文注释翻译为中文
 - **创建日期**: 2026-04-02

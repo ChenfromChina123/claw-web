@@ -1,4 +1,4 @@
-# Claude Code HAHA - 国内镜像加速版 Docker Compose（无 Redis 版本）
+# claw-web - 国内镜像加速版 Docker Compose（无 Redis 版本）
 #
 # 使用国内镜像源，解决 Docker Hub 访问问题
 # 轻量化部署：仅包含 MySQL + 后端 + 前端
@@ -25,7 +25,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./server/src/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
-      - ./server/src/db/fix_schema.sql:/docker-entrypoint-initdb.d/fix_schema.sql:ro
+      - ./server/src/db/z_fix_schema.sql:/docker-entrypoint-initdb.d/z_fix_schema.sql:ro
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
