@@ -601,6 +601,7 @@ function formatUserMessageForBubble(content: unknown): string {
  * 判断消息是否应该显示
  * - 过滤掉 tool_result 类型的用户消息（内部消息，不显示给用户）
  * - 过滤掉没有内容且没有工具调用的空助手消息
+ * - 但保留正在流式输出的助手消息（isLoading 状态下）
  */
 function shouldShowMessage(message: any): boolean {
   const content = (message as any).content
@@ -616,11 +617,14 @@ function shouldShowMessage(message: any): boolean {
     return formatUserMessageForBubble(content).length > 0
   }
 
-  // 助手消息：只要有内容或有关联的工具调用就显示
+  // 助手消息：只要有内容、有关联的工具调用、或是最后一条消息且正在加载中就显示
   if (message.role === 'assistant') {
     const hasContent = getMessageText(content).length > 0
     const hasTools = toolsForMessage(message.id).length > 0
-    return hasContent || hasTools
+    // 如果是最后一条助手消息且正在加载中，也显示（用于流式输出）
+    const isLastMessage = props.messages[props.messages.length - 1]?.id === message.id
+    const isStreaming = props.isLoading && isLastMessage
+    return hasContent || hasTools || isStreaming
   }
 
   return true
