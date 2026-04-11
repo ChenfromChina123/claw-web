@@ -1423,9 +1423,10 @@ async function handleInterruptExecution() {
   flex-direction: column;
 }
 
-/* 用户消息模式下，让内容靠右 */
+/* 用户消息模式下，确保内容完全靠右且不被头像压缩 */
 .user-message .message-content {
   align-items: flex-end;
+  margin-left: 40px;
 }
 
 /* 编辑按钮容器 - 放在气泡左侧 */
@@ -1563,28 +1564,27 @@ async function handleInterruptExecution() {
 
 /* 用户气泡：模仿图 2 的紧凑感 */
 .user-bubble {
-  /* 基础形状与颜色 */
+  /* 基础视觉 */
   background-color: #2a2a2a !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 12px 12px 2px 12px !important;
   padding: 8px 14px !important;
   color: #e0e0e0 !important;
 
-  /* 宽度核心修复：防止挤压 */
-  width: fit-content;
-  max-width: calc(100% - 10px);
-  min-width: 40px;
+  /* 宽度修复：使用自适应宽度 */
+  width: auto;
+  display: inline-flex;
+  max-width: 100%;
 
-  /* 关键：高度阈值控制 */
-  max-height: 240px;
-  overflow-y: auto;
-
-  /* 文本处理 */
+  /* 文本排版 */
   white-space: pre-wrap;
-  word-break: normal;
-  overflow-wrap: break-word;
+  word-break: break-word;
   line-height: 1.6;
   text-align: left;
+
+  /* 高度阈值 */
+  max-height: 240px;
+  overflow-y: auto;
 
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
