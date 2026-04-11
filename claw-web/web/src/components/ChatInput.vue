@@ -621,63 +621,7 @@ function handleUseTemplate(content: string) {
   padding: 8px;
 }
 
-/* IDE 模式下 input-container 样式 */
-.chat-input--ide .input-container {
-  width: 100%;
-  border-radius: 12px;
-}
-
-/* IDE 模式下 header 内的模型选择器 */
-.chat-input--ide .model-selector-wrapper :deep(.n-base-selection) {
-  --n-height: 26px !important;
-  font-size: 12px !important;
-}
-
-/* IDE 模式下输入框样式 */
-.chat-input--ide .input-main-wrapper :deep(.n-input.n-input--textarea) {
-  border-radius: 8px;
-  background: #1a1a1a;
-  --n-padding-left: 12px;
-  --n-padding-right: 12px;
-}
-
-.chat-input--ide .input-main-wrapper :deep(.n-input__textarea-el) {
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-  font-size: 13px !important;
-  line-height: 1.55 !important;
-  min-height: 72px !important;
-  resize: none !important;
-  caret-color: #58a6ff;
-}
-
-.chat-input--ide .input-footer .prompt-library-button {
-  height: 28px !important;
-  min-height: 28px !important;
-  padding: 0 8px !important;
-  font-size: 12px !important;
-}
-
-.chat-input--ide .input-footer .send-button {
-  width: 28px !important;
-  height: 28px !important;
-  min-height: 28px !important;
-}
-
-.chat-input--ide .input-footer .stop-button {
-  width: 28px !important;
-  height: 28px !important;
-  min-height: 28px !important;
-}
-
-.chat-input--ide .upload-button {
-  width: 28px !important;
-  height: 28px !important;
-}
-
-.chat-input--ide .input-footer .uploaded-files-list {
-  max-width: 200px;
-}
+/* IDE 模式下使用与默认变体相同的样式，不需要额外覆盖 */
 
 .chat-input--ide .chat-input-body {
   width: 100%;
@@ -696,17 +640,17 @@ function handleUseTemplate(content: string) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: #1e1e1e;
-  border: 1px solid #333;
-  border-radius: 16px;
-  padding: 12px 16px;
+  background-color: #161616;
+  border: 1px solid #2d2d2d;
+  border-radius: 14px;
+  padding: 16px 20px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .input-container:focus-within {
-  border-color: #444;
-  box-shadow: 0 0 0 1px #444;
+  border-color: #3d3d3d;
+  box-shadow: 0 0 0 1px rgba(25, 195, 125, 0.1);
 }
 
 .input-header {
@@ -714,20 +658,23 @@ function handleUseTemplate(content: string) {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  color: #9b9b9b;
+  color: #888;
   font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
   user-select: none;
 }
 
 .ai-icon {
   width: 18px;
   height: 18px;
-  background: #333;
+  background: #2a2a2a;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
+  color: #666;
 }
 
 .model-selector-wrapper {
@@ -750,39 +697,59 @@ function handleUseTemplate(content: string) {
   flex: 1;
 }
 
+/* 彻底重置 NInput 样式 */
 .input-main-wrapper :deep(.n-input) {
+  --n-border: none !important;
+  --n-border-hover: none !important;
+  --n-border-focus: none !important;
+  --n-box-shadow-focus: none !important;
+  --n-color: transparent !important;
+  --n-color-focus: transparent !important;
+  --n-color-disabled: transparent !important;
   background: transparent !important;
-  border: none !important;
 }
 
 .input-main-wrapper :deep(.n-input__input-el) {
-  padding: 4px 0 !important;
-  font-size: 16px;
+  padding: 8px 0 !important;
+  font-size: 15px;
   line-height: 1.6;
-  color: #ececec;
+  color: #d1d1d1 !important;
+}
+
+/* Placeholder 颜色更低调 */
+.input-main-wrapper :deep(.n-input__placeholder) {
+  color: #444 !important;
+}
+
+/* 光标颜色匹配发送按钮 */
+.input-main-wrapper :deep(.n-input__textarea-el) {
+  caret-color: #19c37d;
 }
 
 .input-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 8px;
-  border-top: 1px solid transparent;
+  margin-top: 12px;
+  padding-top: 8px;
 }
 
 .left-tools,
 .right-tools {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
 }
 
-/* 图标按钮通用样式 - 匹配 Input.html */
+/* 图标按钮样式 - 更有极客感 */
 .icon-btn {
-  color: #888;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-weight: bold;
+  font-size: 16px;
+  color: #666;
   cursor: pointer;
-  font-size: 18px;
-  transition: color 0.2s;
+  opacity: 0.6;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   user-select: none;
@@ -790,29 +757,30 @@ function handleUseTemplate(content: string) {
 
 .icon-btn:hover {
   color: #fff;
+  opacity: 1;
 }
 
-/* 模型选择器样式 - 匹配 Input.html */
+/* 模型选择器样式 - 药丸形状 */
 .model-picker :deep(.n-base-selection) {
-  --n-height: 28px !important;
+  --n-height: 32px !important;
   font-size: 13px !important;
   color: #888 !important;
-  background: transparent !important;
-  border: none !important;
+  background-color: #2a2a2a !important;
+  border: 1px solid #333 !important;
+  border-radius: 20px !important;
   cursor: pointer !important;
 }
 
 .model-picker :deep(.n-base-selection:hover) {
-  background: #2d2d2d !important;
-  color: #ccc !important;
+  background-color: #333 !important;
+  color: #aaa !important;
 }
 
 .model-picker :deep(.n-base-selection .n-base-selection__render) {
-  padding: 4px 8px !important;
-  border-radius: 6px !important;
+  padding: 4px 12px !important;
 }
 
-/* 默认变体的发送按钮样式 - 绿色小按钮 */
+/* 发送按钮样式 - 深绿色更耐看 */
 .input-footer .send-button {
   width: 32px !important;
   height: 32px !important;
@@ -821,28 +789,28 @@ function handleUseTemplate(content: string) {
   font-size: 13px !important;
   font-weight: bold !important;
   border-radius: 8px !important;
-  background: #19c37d !important;
+  background: #1a4d32 !important;
   color: white !important;
   border: none !important;
   box-shadow: none !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .input-footer .send-button:hover:not(:disabled) {
-  opacity: 0.9;
-  transform: none !important;
+  background: #236b45 !important;
+  transform: scale(1.05);
 }
 
 .input-footer .send-button:active:not(:disabled) {
-  transform: scale(0.95) !important;
+  transform: scale(0.95);
 }
 
 .input-footer .send-button:disabled {
-  opacity: 0.5 !important;
-  background: #19c37d !important;
-  box-shadow: none !important;
+  opacity: 0.3 !important;
+  background: #1a4d32 !important;
 }
 
 /* 默认变体的停止按钮样式 */
