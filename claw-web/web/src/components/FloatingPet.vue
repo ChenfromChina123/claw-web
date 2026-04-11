@@ -4,7 +4,7 @@
  * 提供可拖拽的电子宠物，支持气泡对话和多种宠物切换
  */
 
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 interface PetData {
   char: string
@@ -23,6 +23,13 @@ const PETS: Record<string, PetData> = {
   spider: { char: '🕷️', name: '除虫蜘蛛 (Spider)', moods: { idle: '在代码网格中编织...', happy: '捕获了一个 Bug！🕸️🧐', sad: 'Bug 隐藏得太深了...' } }
 }
 
+const STORAGE_KEY = 'floating-pet-state'
+
+interface PetState {
+  petKey: string
+  position: { x: number; y: number }
+}
+
 const currentPetKey = ref('draco')
 const speechText = ref('')
 const petEmoji = ref('🐲')
@@ -31,7 +38,25 @@ const isExpanded = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 const petPosition = ref({ x: 150, y: 150 })
 
-const petRef = ref<HTMLElement | null>(null)
+function loadPetState(): PetState | null {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      return JSON.parse(saved)
+    }
+  } catch (e) {
+    console.warn('[FloatingPet] 加载宠物状态失败:', e)
+  }
+  return null
+}
+
+function savePetState(state: PetState): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  } catch (e) {
+    console.warn('[FloatingPet] 保存宠物状态失败:', e)
+  }
+}
 
 function getCurrentPet(): PetData {
   return PETS[currentPetKey.value] || PETS.draco
@@ -76,6 +101,7 @@ function switchPet(key: string): void {
   const petData = PETS[key]
   if (petData) {
     updateUI(petData.char, petData.moods.idle)
+    savePetState({ petKey: key, position: petPosition.value })
   }
 }
 
@@ -98,6 +124,7 @@ function onDrag(e: MouseEvent): void {
 
 function stopDrag(): void {
   isDragging.value = false
+  savePetState({ petKey: currentPetKey.value, position: petPosition.value })
 }
 
 function toggleExpanded(): void {
@@ -105,7 +132,19 @@ function toggleExpanded(): void {
 }
 
 onMounted(() => {
-  updateUI(PETS.draco.char, PETS.draco.moods.idle)
+  const savedState = loadPetState()
+  if (savedState) {
+    if (PETS[savedState.petKey]) {
+      currentPetKey.value = savedState.petKey
+    }
+    if (savedState.position && typeof savedState.position.x === 'number' && typeof savedState.position.y === 'number') {
+      petPosition.value = savedState.position
+    }
+  }
+  const petData = PETS[currentPetKey.value]
+  if (petData) {
+    updateUI(petData.char, petData.moods.idle)
+  }
   document.addEventListener('mousemove', onDrag)
   document.addEventListener('mouseup', stopDrag)
 })
