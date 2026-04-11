@@ -1102,21 +1102,33 @@ async function handleInterruptExecution() {
 </template>
 
 <style scoped>
+/* ==================== 0. 全局 IDE 极简基础 ==================== */
+:root {
+  --ide-bg-main: #111111; /* 更纯粹的暗色 */
+  --ide-border: rgba(255, 255, 255, 0.06); /* 极其低调的边框 */
+  --ide-text-primary: #e0e0e0;
+  --ide-text-secondary: #888888;
+  --ide-text-tertiary: #555555;
+  --ide-green: #19c37d; /* 品牌绿 */
+}
+
 .message-list-wrapper {
   display: flex;
   flex-direction: column;
   width: 100%;
   min-height: 0;
   position: relative;
+  background-color: var(--ide-bg-main) !important;
 }
 
+/* ==================== 6. 导航按钮 (图 2 右上角极简风) ==================== */
 /* —— 时间线 + 回到底部浮动按钮 —— */
 
 /* 导航按钮容器 - 聊天框右上角悬浮 */
 .chat-nav-floating {
   position: absolute;
-  top: 16px;
-  right: 20px;
+  right: 12px;
+  top: 12px;
   z-index: 6;
   display: flex;
   flex-direction: column;
@@ -1147,95 +1159,67 @@ async function handleInterruptExecution() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border-radius: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--ide-border);
+  background: rgba(30, 30, 30, 0.8);
+  color: var(--ide-text-secondary);
+  box-shadow: none;
   cursor: pointer;
   transition: all 0.2s ease;
-  backdrop-filter: blur(8px);
-}
-
-.chat-nav-btn--secondary {
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  background: rgba(22, 22, 30, 0.85);
-  color: #22c55e;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-}
-
-.chat-nav-btn--secondary:hover {
-  background: rgba(34, 197, 94, 0.15);
-  border-color: rgba(34, 197, 94, 0.5);
-  color: #4ade80;
-  transform: scale(1.05);
 }
 
 .chat-nav-btn--primary {
-  border: 1px solid rgba(34, 197, 94, 0.35);
-  background: rgba(22, 22, 30, 0.85);
-  color: #22c55e;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  color: var(--ide-green);
+  border-color: rgba(25, 195, 125, 0.2);
 }
 
-.chat-nav-btn--primary:hover {
-  background: rgba(34, 197, 94, 0.2);
-  border-color: rgba(34, 197, 94, 0.5);
-  color: #4ade80;
-  transform: scale(1.05);
+.chat-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ide-text-primary);
 }
 
 /* IDE 风格的导航按钮 */
 .chat-nav-floating--ide .chat-nav-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  border: 1px solid #3f3f3f;
-  background: #2a2a2a;
-  color: #c0c0c0;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--ide-border);
+  background: rgba(30, 30, 30, 0.8);
+  color: var(--ide-text-secondary);
+  box-shadow: none;
 }
 
 .chat-nav-floating--ide .chat-nav-btn:hover {
-  background: #333333;
-  border-color: #505050;
-  color: #e8e8e8;
-}
-
-.chat-nav-floating--ide .chat-nav-btn--primary {
-  border-color: rgba(34, 197, 94, 0.5);
-  color: #4ade80;
-  background: rgba(34, 197, 94, 0.1);
-}
-
-.chat-nav-floating--ide .chat-nav-btn--primary:hover {
-  background: rgba(34, 197, 94, 0.2);
-  border-color: rgba(34, 197, 94, 0.7);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ide-text-primary);
 }
 
 /* 返回底部按钮样式 - 悬浮圆形按钮 */
 .scroll-to-bottom-btn {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  border: 2px solid rgba(34, 197, 94, 0.4);
-  background: rgba(22, 22, 30, 0.9);
-  color: #22c55e;
+  border: 1px solid var(--ide-border);
+  background: rgba(30, 30, 30, 0.9);
+  color: var(--ide-green);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 20px rgba(34, 197, 94, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(10px);
   animation: floatIn 0.3s ease-out;
 }
 
 .scroll-to-bottom-btn:hover {
-  background: rgba(34, 197, 94, 0.2);
-  border-color: rgba(34, 197, 94, 0.6);
-  color: #4ade80;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(25, 195, 125, 0.3);
+  color: var(--ide-green);
   transform: scale(1.1) translateY(-2px);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5), 0 0 30px rgba(34, 197, 94, 0.3);
 }
 
 .scroll-to-bottom-btn:active {
@@ -1400,7 +1384,7 @@ async function handleInterruptExecution() {
   cursor: not-allowed;
 }
 
-/* 消息列表 */
+/* ==================== 1. 消息列表布局 (密集化) ==================== */
 .message-list {
   flex: 1;
   min-height: 0;
@@ -1414,10 +1398,25 @@ async function handleInterruptExecution() {
 }
 
 .messages-container {
-  padding: 20px;
-  padding-bottom: 20px;
-  max-width: 900px;
+  padding: 16px 24px; /* 减小上下 padding，拉开左右 padding */
+  max-width: 1000px; /* 适当加宽内容区域 */
   margin: 0 auto;
+}
+
+.message-wrapper {
+  margin-bottom: 2px; /* 极致压缩气泡间的垂直间距 */
+}
+
+.message {
+  display: flex;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* 对齐控制：让头像、文字起始线一致 */
+.message-content {
+  gap: 12px;
+  max-width: 100%;
+  align-items: flex-start;
 }
 
 .welcome {
@@ -1478,15 +1477,6 @@ async function handleInterruptExecution() {
   font-size: 14px;
 }
 
-.message-wrapper {
-  margin-bottom: 8px;
-}
-
-.message {
-  display: flex;
-  animation: fadeIn 0.3s ease-out;
-}
-
 /* 用户消息 - 右边 */
 .user-message {
   justify-content: flex-end;
@@ -1497,17 +1487,41 @@ async function handleInterruptExecution() {
   justify-content: flex-start;
 }
 
-.message-content {
-  display: flex;
-  gap: 12px;
-  max-width: 100%;
-  align-items: flex-start;
-}
-
 /* 用户消息内容：头像在右边，消息在左边 */
 .user-message .message-content {
   flex-direction: row-reverse;
   justify-content: flex-start;
+}
+
+/* ==================== 2. 气泡样式 (从"表单框"到"嵌入式") ==================== */
+.message-bubble {
+  padding: 6px 0; /* 彻底去掉左右 padding，让文字贴着边缘 */
+  line-height: 1.6;
+  font-size: 15px;
+  background: transparent !important; /* 关键：去掉气泡背景色 */
+  border: none !important; /* 关键：去掉气泡边框 */
+  box-shadow: none !important; /* 彻底去掉阴影 */
+  max-width: 100%;
+}
+
+/* 用户气泡对齐微调 */
+.user-bubble {
+  color: var(--ide-text-primary) !important; /* 恢复正常文字颜色，而不是白字 */
+  text-align: right;
+}
+
+/* 编辑模式输入框优化 */
+.user-bubble .edit-input {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--ide-border) !important;
+  border-radius: 8px;
+  padding: 4px;
+}
+
+/* 助手气泡对齐 */
+.assistant-bubble {
+  color: var(--ide-text-primary);
+  text-align: left;
 }
 
 /* 气泡列容器 - 包含气泡和下方操作栏 */
@@ -1518,26 +1532,55 @@ async function handleInterruptExecution() {
   max-width: 92%;
 }
 
-/* 气泡下方的操作栏 - 显示模式 */
-.bubble-actions {
+/* ==================== 3. 聊天工具栏 (图 2 灵魂优化) ==================== */
+/* 彻底图标化和极简布局 */
+.bubble-actions,
+.bubble-edit-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  padding: 0 4px;
-  opacity: 0;
-  transition: opacity var(--transition-fast, 150ms) ease;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 0;
+  opacity: 0.7; /* 默认半透明 */
+  transition: opacity 0.2s;
 }
 
-.user-message:hover .bubble-actions {
+.message:hover .bubble-actions {
   opacity: 1;
+}
+
+/* 统一图标按钮样式 (极简、扁平) */
+.action-btn {
+  padding: 4px; /* 极小 Padding */
+  border: none;
+  background: transparent !important; /* 去掉按钮背景 */
+  color: var(--ide-text-tertiary) !important; /* 调暗图标颜色 */
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+
+.action-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--ide-text-secondary) !important;
+}
+
+/* 发送/保存按钮点亮 */
+.action-btn--save,
+.send-action-btn {
+  color: var(--ide-green) !important;
+  opacity: 0.5;
+}
+
+.action-btn--save:hover,
+.send-action-btn:hover {
+  opacity: 1;
+  background: transparent !important;
 }
 
 /* 气泡下方的编辑操作栏 */
 .bubble-edit-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 4px;
   animation: fadeIn 0.2s ease-out;
 }
 
@@ -1546,50 +1589,6 @@ async function handleInterruptExecution() {
   display: flex;
   gap: 8px;
   align-items: center;
-}
-
-/* 统一操作按钮样式 */
-.action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast, 150ms) ease;
-}
-
-/* 编辑按钮 */
-.action-btn--edit {
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.action-btn--edit:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.25);
-}
-
-/* 保存按钮 */
-.action-btn--save {
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.action-btn--save:hover:not(:disabled) {
-  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
-  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
-}
-
-.action-btn--save:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 /* 取消按钮 */
@@ -1610,69 +1609,19 @@ async function handleInterruptExecution() {
   color: rgba(255, 255, 255, 0.45);
 }
 
-.message-bubble {
-  padding: 12px 16px;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-word;
-  position: relative;
-  transition: all 0.2s ease;
-  max-width: 92%;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-
-/* 用户消息气泡 - 右边 */
-.user-bubble {
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-  color: white;
-  border-radius: 20px 20px 4px 20px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.25);
-}
-
-.user-bubble:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(34, 197, 94, 0.35);
-}
-
 /* 编辑模式下的气泡 */
 .user-bubble .edit-mode {
   padding: 0;
 }
 
-.user-bubble .edit-input {
-  background: rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  color: white;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
 .user-bubble .edit-input :deep(.n-input__textarea-el),
 .user-bubble .edit-input :deep(.n-input__input-el) {
-  color: white !important;
+  color: var(--ide-text-primary) !important;
   background: transparent !important;
 }
 
 .user-bubble .edit-input :deep(.n-input__placeholder) {
   color: rgba(255, 255, 255, 0.5) !important;
-}
-
-/* 助手消息气泡 - 左边 */
-.assistant-bubble {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border-radius: 4px 20px 20px 20px;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.assistant-bubble:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  border-color: rgba(99, 102, 241, 0.3);
 }
 
 .message-avatar {
@@ -1705,11 +1654,35 @@ async function handleInterruptExecution() {
   padding: 0;
 }
 
-/* Markdown 内容样式 - 表格、公式等 */
+/* ==================== 4. 文本排版 (像代码编辑器一样) ==================== */
 .markdown-content :deep(.markstream-vue) {
-  color: var(--text-primary);
-  font-size: 14px;
+  color: var(--ide-text-primary);
   line-height: 1.7;
+}
+
+/* 打字机光标 */
+.markdown-content :deep(.markstream-vue .typing-cursor) {
+  color: var(--ide-green);
+  opacity: 1;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* 行内代码微调 */
+.markdown-content :deep(.markstream-vue :not(pre) > code) {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 5px;
+  color: #c0c0c0;
+}
+
+/* 代码块更纯粹 */
+.markdown-content :deep(.markstream-vue pre) {
+  background: #080808 !important; /* 纯黑背景 */
+  border: 1px solid var(--ide-border) !important;
+  margin: 10px 0;
 }
 
 .markdown-content :deep(.markstream-vue p) {
@@ -1763,27 +1736,10 @@ async function handleInterruptExecution() {
   overflow-y: hidden;
 }
 
-/* 代码块样式 */
-.markdown-content :deep(.markstream-vue pre) {
-  background: #0d1117;
-  border-radius: 8px;
-  padding: 12px;
-  overflow-x: auto;
-  margin: 12px 0;
-}
-
 .markdown-content :deep(.markstream-vue code) {
   font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
   font-size: 13px;
   line-height: 1.5;
-}
-
-.markdown-content :deep(.markstream-vue :not(pre) > code) {
-  background: rgba(99, 102, 241, 0.15);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 13px;
-  color: #a5b4fc;
 }
 
 /* Mermaid 图表样式 */
@@ -1834,6 +1790,66 @@ async function handleInterruptExecution() {
 
 .markdown-content :deep(.markstream-vue h3) {
   font-size: 1.15em;
+}
+
+/* ==================== 5. 工具调用 (极致紧凑化) ==================== */
+/* 去掉所有框感，让图标和模型选择器直接悬浮 */
+.tool-calls-wrapper {
+  margin-left: 48px; /* 对齐文字起始线 */
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.tool-call-item {
+  background: transparent !important; /* 彻底去掉背景 */
+  border: none !important; /* 徹底去掉边框 */
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+.tool-call-header {
+  padding: 4px 0; /* 极小上下间距，贴着文字 */
+  cursor: pointer;
+  gap: 8px;
+  transition: color 0.2s;
+  opacity: 0.8;
+}
+
+.tool-call-header:hover {
+  opacity: 1;
+}
+
+.tool-call-icon {
+  font-size: 16px;
+  color: var(--ide-text-secondary);
+}
+
+.tool-call-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ide-text-secondary);
+  font-family: 'Consolas', monospace;
+}
+
+/* 模型选择器做成圆润的"药丸"形状 */
+.model-pill,
+.chat-input--ide .model-picker :deep(.n-base-selection) {
+  --n-height: 28px !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-radius: 14px !important; /* 关键：药丸形状 */
+  border: 1px solid var(--ide-border) !important;
+  color: var(--ide-text-secondary) !important;
+  font-size: 12px !important;
+}
+
+/* 绿色亮色点缀，匹配图 2 模型状态 */
+.model-indicator {
+  width: 7px;
+  height: 7px;
+  background: var(--ide-green);
+  border-radius: 50%;
+  margin-right: 2px;
 }
 
 /* 工具调用区域 */
