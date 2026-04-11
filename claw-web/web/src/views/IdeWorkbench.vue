@@ -67,6 +67,12 @@ const ideLayout = ref<IdeWorkbenchLayoutState>(loadIdeWorkbenchLayout())
 const rootSplitRef = ref<InstanceType<typeof Splitpanes> | null>(null)
 const editorTermSplitRef = ref<InstanceType<typeof Splitpanes> | null>(null)
 
+/** 确保 size 值始终为有效数字 */
+const safeSize = (val: number | undefined, fallback: number): number => {
+  const n = Number(val)
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+
 function persistRootSplitSizes(): void {
   const el = rootSplitRef.value?.$el as HTMLElement | undefined
   const sizes = readSplitPanePercents(el, false)
@@ -395,7 +401,7 @@ async function handleRetry(): Promise<void> {
         class="ide-splitpanes ide-split-root"
         @resized="onRootSplitResized"
       >
-        <Pane :size="ideLayout.rootSizes[0]" min-size="14" class="explorer-pane">
+        <Pane :size="safeSize(ideLayout.rootSizes[0], 20)" min-size="14" class="explorer-pane">
           <div class="pane-header">
             <span>{{ leftSidebarView === 'explorer' ? 'EXPLORER' : 'SESSIONS' }}</span>
           </div>
@@ -405,14 +411,14 @@ async function handleRetry(): Promise<void> {
           </div>
         </Pane>
 
-        <Pane :size="ideLayout.rootSizes[1]" min-size="30" class="editor-pane">
+        <Pane :size="safeSize(ideLayout.rootSizes[1], 52)" min-size="30" class="editor-pane">
           <Splitpanes
             ref="editorTermSplitRef"
             horizontal
             class="ide-editor-terminal-split"
             @resized="onEditorTermSplitResized"
           >
-            <Pane :size="ideLayout.editorTerminalSizes[0]" min-size="35" class="editor-pane-stack">
+            <Pane :size="safeSize(ideLayout.editorTerminalSizes[0], 68)" min-size="35" class="editor-pane-stack">
               <div class="pane-header">
                 <span>{{ editorTabTitle }}</span>
               </div>
@@ -420,7 +426,7 @@ async function handleRetry(): Promise<void> {
                 <AgentWorkdirEditorPanel />
               </div>
             </Pane>
-            <Pane :size="ideLayout.editorTerminalSizes[1]" min-size="14" max-size="55" class="editor-terminal-pane">
+            <Pane :size="safeSize(ideLayout.editorTerminalSizes[1], 32)" min-size="14" max-size="55" class="editor-terminal-pane">
               <div id="ide-bottom-terminal" class="ide-terminal-anchor">
                 <IdeTerminalTabs
                   v-if="terminalWebSocketReady"
@@ -432,7 +438,7 @@ async function handleRetry(): Promise<void> {
           </Splitpanes>
         </Pane>
 
-        <Pane :size="ideLayout.rootSizes[2]" min-size="20" class="right-column-pane chat-pane-full">
+        <Pane :size="safeSize(ideLayout.rootSizes[2], 28)" min-size="20" class="right-column-pane chat-pane-full">
           <div class="pane-header chat-pane-header">
             <span>AI AGENT</span>
             <button
