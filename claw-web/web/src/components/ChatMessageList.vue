@@ -1569,17 +1569,24 @@ async function handleInterruptExecution() {
   border-radius: 12px 12px 2px 12px !important; /* 右下角稍微尖一点，增加指向感 */
   padding: 8px 12px !important;
   color: #e0e0e0 !important;
-  text-align: right;
+  text-align: left;
+
+  /* 关键：宽度自适应内容 */
+  display: inline-block;
+  width: fit-content;
+  min-width: 2em;
+  max-width: calc(100% - 20px);
 
   /* 关键：高度阈值控制 */
-  max-width: 85%;            /* 限制宽度，防止横向铺满 */
   max-height: 200px;         /* 阈值高度：超过 200px 出现滚动条 */
   overflow-y: auto;          /* 内容超过高度时内部滚动 */
 
   /* 文本排版优化 */
   font-size: 14px;
   line-height: 1.5;
-  word-break: break-word;    /* 防止长英文单词撑破气泡 */
+  word-break: normal;        /* 中文换行回归正常逻辑 */
+  word-wrap: break-word;     /* 只有长单词才强制换行 */
+  white-space: pre-wrap;     /* 保留用户输入的换行，但允许自动折行 */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
