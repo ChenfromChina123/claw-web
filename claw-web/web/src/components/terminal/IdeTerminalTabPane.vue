@@ -111,6 +111,11 @@ const pty = usePTY({
       term.value.writeln(`\r\n\x1b[33m[Process exited with code ${exitCode ?? 0}]\x1b[0m`)
       connectionStatus.value = 'disconnected'
     } else {
+      // Windows 平台：过滤掉输入回显（由前端本地回显）
+      if (isWindowsPlatform && inputBuffer.length > 0 && data.includes(inputBuffer)) {
+        // 跳过包含输入缓冲区的回显
+        return
+      }
       term.value.write(data)
     }
   },

@@ -231,8 +231,7 @@ export class PTYSessionManager {
           shellArgs = ['-NoLogo', '-NoProfile', '-Command', '-']
         } else if (shell.includes('bash')) {
           // bash 需要交互式模式才能接受输入
-          // +o echo 禁用回显（由前端负责本地回显）
-          shellArgs = ['--login', '-i', '+o', 'echo']
+          shellArgs = ['--login', '-i']
         } else if (shell.includes('cmd')) {
           shellArgs = ['/K']
         }
