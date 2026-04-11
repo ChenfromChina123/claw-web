@@ -5,8 +5,8 @@ import {
   NEmpty, NScrollbar, NPopconfirm, useMessage
 } from 'naive-ui'
 import {
-  AddOutline, SearchOutline, ArrowBackOutline, StarOutline, Star,
-  CreateOutline, TrashOutline, ReorderFourOutline, CodeOutline,
+  AddOutline, SearchOutline, StarOutline, Star,
+  CreateOutline, TrashOutline, CodeOutline,
   PencilOutline, AnalyticsOutline, LanguageOutline, BulbOutline, FolderOutline
 } from '@vicons/ionicons5'
 import { promptTemplateApi, type PromptTemplate, type PromptTemplateCategory } from '@/api/promptTemplateApi'
@@ -342,33 +342,6 @@ onMounted(() => {
 
 <template>
   <div class="prompt-template-library">
-    <!-- 标签栏 -->
-    <div class="ptl-tab-bar">
-      <div class="ptl-tab-bar-left">
-        <!-- 返回按钮（非列表模式显示） -->
-        <button
-          v-if="activeView !== 'list'"
-          class="ptl-back-btn"
-          @click="goBackToList"
-          title="返回列表"
-        >
-          <NIcon :size="14"><ArrowBackOutline /></NIcon>
-        </button>
-
-        <!-- 图标 + 标题 -->
-        <NIcon v-if="activeView === 'list'" :size="14"><ReorderFourOutline /></NIcon>
-        <span class="ptl-tab-title">{{ viewTitle }}</span>
-      </div>
-
-      <!-- 关闭按钮（仅列表模式显示） -->
-      <button
-        v-if="activeView === 'list'"
-        class="ptl-close-btn"
-        @click="emit('close')"
-        title="关闭"
-      >×</button>
-    </div>
-
     <!-- 内容区域 -->
     <div class="ptl-body">
       <!-- ========== 列表视图 ========== -->
@@ -585,66 +558,6 @@ onMounted(() => {
   height: 100%;
   background: #1e1e1e;
   overflow: hidden;
-}
-
-/* ========== 标签栏样式（VS Code 风格） ========== */
-.ptl-tab-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  height: 35px;
-  background-color: #252526;
-  border-bottom: 1px solid #3c3c3c;
-  flex-shrink: 0;
-}
-
-.ptl-tab-bar-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ptl-back-btn {
-  background: transparent;
-  border: none;
-  color: #888;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
-}
-
-.ptl-back-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-}
-
-.ptl-tab-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: #cccccc;
-  user-select: none;
-}
-
-.ptl-close-btn {
-  background: transparent;
-  border: none;
-  color: #888;
-  font-size: 20px;
-  cursor: pointer;
-  padding: 4px 8px;
-  line-height: 1;
-  border-radius: 4px;
-  transition: all 0.15s;
-}
-
-.ptl-close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
 }
 
 /* ========== 内容区域 ========== */
