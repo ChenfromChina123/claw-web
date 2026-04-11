@@ -29,12 +29,6 @@ const timeDisplay = computed(() => {
 
 <template>
   <div class="message user-message">
-    <div v-if="showAvatar" class="avatar-wrapper">
-      <NAvatar round size="small" :style="{ backgroundColor: '#6366f1' }">
-        你
-      </NAvatar>
-    </div>
-
     <div class="message-content">
       <NTooltip trigger="hover" placement="top" :delay="500">
         <template #trigger>

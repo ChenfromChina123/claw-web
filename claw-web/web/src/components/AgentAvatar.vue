@@ -12,7 +12,12 @@ const riveInstance = ref<any>(null)
 const isHovered = ref(false)
 
 function initRive(): void {
-  if (!canvasRef.value) return
+  if (!canvasRef.value) {
+    console.warn('[AgentAvatar] canvas 未准备好')
+    return
+  }
+
+  console.log('[AgentAvatar] 开始加载 Rive 动画...')
 
   const rive = new Rive({
     src: '/blobby.riv',
@@ -25,6 +30,7 @@ function initRive(): void {
     }),
     stateMachines: 'State Machine 1',
     onLoad: () => {
+      console.log('[AgentAvatar] Rive 加载成功')
       rive.resizeDrawingSurfaceToCanvas()
       riveInstance.value = rive
       rive.play()
@@ -121,11 +127,13 @@ onUnmounted(() => {
 }
 
 .avatar-canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
+  width: 150% !important;
+  height: 150% !important;
+  display: block !important;
   background: transparent !important;
-  mix-blend-mode: screen;
+  /* 裁剪中间部分，向上偏移显示完整史莱姆 */
+  transform: scale(1.5) translateY(-5%);
+  margin: -25%;
 }
 
 .status-indicator {

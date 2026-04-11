@@ -181,10 +181,6 @@ watch(() => props.message.content, () => {
 
 <template>
   <div class="message assistant-message">
-    <div v-if="showAvatar" class="avatar-wrapper">
-      <AgentAvatar />
-    </div>
-
     <div class="message-content">
       <div class="message-header">
         <span class="assistant-label">助手</span>

@@ -35,6 +35,7 @@ import { interruptAgent } from '@/api/agentApi'
 import { extractIdeUserDisplay } from '@/utils/ideUserMessageMarkers'
 import { isUserTimelineAnchor, userMessageTimelinePreview } from '@/utils/chatTimeline'
 import { useChatStore } from '@/stores/chat'
+import AgentAvatar from './AgentAvatar.vue'
 
 /** 用户消息编辑功能 */
 const editingMessageId = ref<string | null>(null)
@@ -676,6 +677,9 @@ async function handleInterruptExecution() {
         <div class="messages-container">
           <!-- 欢迎消息 -->
           <div v-if="messages.length === 0 && !isLoading" class="welcome">
+            <div class="welcome-avatar">
+              <AgentAvatar />
+            </div>
             <h2>欢迎使用 Claude Code</h2>
             <p>我是您的 AI 助手，可以帮助您完成各种任务。</p>
             <div class="welcome-features">
@@ -709,7 +713,6 @@ async function handleInterruptExecution() {
             <!-- 用户消息 - 右边 -->
             <div v-if="message.role === 'user'" class="message user-message">
               <div class="message-content">
-                <div class="message-avatar user-avatar">👤</div>
                 <div class="message-bubble-column">
                   <!-- 气泡主体 -->
                   <div class="message-bubble user-bubble">
@@ -778,7 +781,6 @@ async function handleInterruptExecution() {
             <template v-else-if="message.role === 'assistant'">
               <div class="message assistant-message">
                 <div class="message-content">
-                  <div class="message-avatar assistant-avatar">🤖</div>
                   <div class="message-bubble assistant-bubble">
                     <div class="message-text markdown-content">
                       <MarkdownRender
@@ -915,7 +917,6 @@ async function handleInterruptExecution() {
           <!-- 加载状态（无 assistant 占位时兜底，避免与流式消息重复一行头像） -->
           <div v-if="showStandaloneLoadingRow" class="message-wrapper">
             <div class="message assistant-message">
-              <div class="message-avatar">🤖</div>
               <div class="message-content">
                 <NSpin size="small" />
               </div>
@@ -1407,7 +1408,23 @@ async function handleInterruptExecution() {
 
 .welcome {
   text-align: center;
-  padding: 60px 20px;
+  padding: 40px 20px;
+}
+
+.welcome-avatar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.welcome-avatar :deep(.agent-avatar) {
+  width: 80px;
+  height: 80px;
+}
+
+.welcome-avatar :deep(.avatar-ring) {
+  width: 80px;
+  height: 80px;
 }
 
 .welcome h2 {
