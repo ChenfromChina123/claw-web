@@ -621,18 +621,71 @@ function handleUseTemplate(content: string) {
   padding: 8px;
 }
 
-/* IDE 模式下使用与默认变体相同的样式，不需要额外覆盖 */
+/* ========== IDE 变体：嵌入式输入框样式 ========== */
 
-.chat-input--ide .chat-input-body {
-  width: 100%;
-  align-items: stretch;
+/* 1. 解决"突兀感"：从浮层变嵌入 */
+.chat-input--ide .input-container {
+  background-color: rgba(30, 30, 30, 0.6) !important; /* 半透明，透出底层颜色 */
+  backdrop-filter: blur(10px); /* 磨砂玻璃效果，增加深度感 */
+  border: 1px solid rgba(255, 255, 255, 0.08) !important; /* 极淡的边框 */
+  box-shadow: none !important; /* 彻底去掉阴影 */
+  border-radius: 12px !important;
+  padding: 16px 20px !important;
+  margin: 0 10px 10px 10px; /* 给外层留出一点边距，不要顶格 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.chat-input--ide .input-wrapper {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
+/* 聚焦时只让边框稍微亮一点点，不要有刺眼的高亮 */
+.chat-input--ide .input-container:focus-within {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  background-color: rgba(40, 40, 40, 0.8) !important;
+}
+
+/* 2. 解决"框中框"：彻底抹平 NInput */
+.chat-input--ide :deep(.n-input),
+.chat-input--ide :deep(.n-input-wrapper),
+.chat-input--ide :deep(.n-input__border),
+.chat-input--ide :deep(.n-input__state-border) {
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  --n-border: none !important;
+  --n-border-hover: none !important;
+  --n-border-focus: none !important;
+  --n-box-shadow-focus: none !important;
+}
+
+/* 移除 NInput 自带的 Padding，让内容受父容器控制 */
+.chat-input--ide :deep(.n-input) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  --n-padding-left: 0 !important;
+  --n-padding-right: 0 !important;
+}
+
+/* 3. 精细化排版 */
+.chat-input--ide .input-header {
+  font-size: 12px;
+  color: #666; /* 调暗，不抢戏 */
+  margin-bottom: 4px;
+}
+
+.chat-input--ide .input-footer {
+  margin-top: 12px;
+  opacity: 0.8; /* 默认半透明，输入时或 Hover 时变亮 */
+  transition: opacity 0.3s;
+}
+
+.chat-input--ide .input-container:focus-within .input-footer {
+  opacity: 1;
+}
+
+/* 模型选择器做成"药丸" */
+.chat-input--ide .model-picker :deep(.n-base-selection) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-radius: 20px !important;
+  --n-height: 28px !important; /* 稍微小一点，更精致 */
+  font-size: 12px !important;
 }
 
 /* ========== 默认变体：输入框容器样式 ========== */
