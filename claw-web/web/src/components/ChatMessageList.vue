@@ -1413,19 +1413,19 @@ async function handleInterruptExecution() {
 
 /* 对齐控制：让头像、文字起始线一致 */
 .message-content {
+  flex: 1;
+  min-width: 0;
   gap: 12px;
   max-width: 100%;
   align-items: flex-start;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
-/* 用户消息布局：编辑按钮在气泡左侧 */
+/* 用户消息模式下，让内容靠右 */
 .user-message .message-content {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
+  align-items: flex-end;
 }
 
 /* 编辑按钮容器 - 放在气泡左侧 */
@@ -1448,8 +1448,7 @@ async function handleInterruptExecution() {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-width: 85%;
-  flex-shrink: 0;
+  max-width: 100%;
 }
 
 /* 编辑图标按钮样式 */
@@ -1564,29 +1563,29 @@ async function handleInterruptExecution() {
 
 /* 用户气泡：模仿图 2 的紧凑感 */
 .user-bubble {
-  background-color: #2a2a2a !important; /* 深灰色背景，不抢眼 */
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 12px 12px 2px 12px !important; /* 右下角稍微尖一点，增加指向感 */
-  padding: 8px 12px !important;
+  /* 基础形状与颜色 */
+  background-color: #2a2a2a !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px 12px 2px 12px !important;
+  padding: 8px 14px !important;
   color: #e0e0e0 !important;
-  text-align: left;
 
-  /* 关键：宽度自适应内容 */
-  display: inline-block;
+  /* 宽度核心修复：防止挤压 */
   width: fit-content;
-  min-width: 2em;
-  max-width: calc(100% - 20px);
+  max-width: calc(100% - 10px);
+  min-width: 40px;
 
   /* 关键：高度阈值控制 */
-  max-height: 200px;         /* 阈值高度：超过 200px 出现滚动条 */
-  overflow-y: auto;          /* 内容超过高度时内部滚动 */
+  max-height: 240px;
+  overflow-y: auto;
 
-  /* 文本排版优化 */
-  font-size: 14px;
-  line-height: 1.5;
-  word-break: normal;        /* 中文换行回归正常逻辑 */
-  word-wrap: break-word;     /* 只有长单词才强制换行 */
-  white-space: pre-wrap;     /* 保留用户输入的换行，但允许自动折行 */
+  /* 文本处理 */
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.6;
+  text-align: left;
+
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
