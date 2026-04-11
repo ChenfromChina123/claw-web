@@ -28,9 +28,6 @@ export interface ExportOptions {
   messageIds?: string[]
 }
 
-/**
- * 导出为 Markdown
- */
 export async function exportAsMarkdown(options: ExportOptions): Promise<Blob> {
   const response = await apiClient.post('/api/export/markdown', options, {
     responseType: 'blob',
@@ -38,9 +35,6 @@ export async function exportAsMarkdown(options: ExportOptions): Promise<Blob> {
   return response.data
 }
 
-/**
- * 导出为 HTML
- */
 export async function exportAsHtml(options: ExportOptions): Promise<Blob> {
   const response = await apiClient.post('/api/export/html', options, {
     responseType: 'blob',
@@ -48,9 +42,6 @@ export async function exportAsHtml(options: ExportOptions): Promise<Blob> {
   return response.data
 }
 
-/**
- * 导出为 JSON
- */
 export async function exportAsJson(options: ExportOptions): Promise<Blob> {
   const response = await apiClient.post('/api/export/json', options, {
     responseType: 'blob',
@@ -58,12 +49,6 @@ export async function exportAsJson(options: ExportOptions): Promise<Blob> {
   return response.data
 }
 
-/**
- * 创建分享链接
- * @param sessionId 会话 ID
- * @param title 分享标题
- * @param expiresInHours 过期时间（小时），不提供则永不过期
- */
 export async function createShare(
   sessionId: string,
   title?: string,
@@ -77,9 +62,6 @@ export async function createShare(
   return response.data.data
 }
 
-/**
- * 获取分享内容（无需登录）
- */
 export async function getSharedSession(shareCode: string): Promise<{
   title: string
   session: any
@@ -92,24 +74,15 @@ export async function getSharedSession(shareCode: string): Promise<{
   return response.data.data
 }
 
-/**
- * 删除分享
- */
 export async function deleteShare(shareId: string): Promise<void> {
   await apiClient.delete(`/api/share/${shareId}`)
 }
 
-/**
- * 获取用户的分享列表
- */
 export async function getUserShares(): Promise<SharedSession[]> {
   const response = await apiClient.get('/api/share/user/list')
   return response.data.data.shares
 }
 
-/**
- * 下载 Blob 文件
- */
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -120,3 +93,16 @@ export function downloadBlob(blob: Blob, filename: string): void {
   document.body.removeChild(link)
   window.URL.revokeObjectURL(url)
 }
+
+const exportApi = {
+  exportAsMarkdown,
+  exportAsHtml,
+  exportAsJson,
+  createShare,
+  getSharedSession,
+  deleteShare,
+  getUserShares,
+  downloadBlob,
+}
+
+export default exportApi

@@ -8,7 +8,7 @@ export { sessionApi } from './sessionApi'
 export { toolApi } from './toolApi'
 export { modelApi } from './modelApi'
 export { mcpApi } from './mcpApi'
-export { exportApi } from './exportApi'
+export { default as exportApi } from './exportApi'
 export { promptTemplateApi } from './promptTemplateApi'
 export { default as agentApi } from './agentApi'
 export type {

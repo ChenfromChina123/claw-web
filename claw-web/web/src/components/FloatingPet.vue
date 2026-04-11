@@ -2,13 +2,16 @@
 /**
  * FloatingPet - 悬浮电子宠物组件
  * 提供可拖拽的电子宠物，支持气泡对话和多种宠物切换
+ * 支持 Rive 动画和 Emoji 两种渲染模式
  */
 
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRive, useStateMachineInput } from '@rive-app/canvas'
 
 interface PetData {
   char: string
   name: string
+  riveFile?: string
   moods: {
     idle: string
     happy: string
@@ -17,7 +20,12 @@ interface PetData {
 }
 
 const PETS: Record<string, PetData> = {
-  draco: { char: '🐲', name: '像素火龙 (Draco)', moods: { idle: '守护着这行代码...', happy: '代码优化完成，吐一口火庆祝！🔥', sad: '发生语法错误！😠' } },
+  draco: { 
+    char: '🐲', 
+    name: '像素火龙 (Draco)',
+    riveFile: '/blobby.riv',
+    moods: { idle: '守护着这行代码...', happy: '代码优化完成，吐一口火庆祝！🔥', sad: '发生语法错误！😠' } 
+  },
   kraken: { char: '🐙', name: '代码章鱼 (Kraken)', moods: { idle: '整理复杂的依赖关系...', happy: '发现了未定义的行为！🤯', sad: '代码太乱了...墨水喷溅！🕶️' } },
   spirit: { char: '💫', name: '数据精灵 (Spirit)', moods: { idle: '在内存中寻找灵感...', happy: '逻辑完美！闪耀着光芒✨💖', sad: '被垃圾回收器追赶了...🏃' } },
   spider: { char: '🕷️', name: '除虫蜘蛛 (Spider)', moods: { idle: '在代码网格中编织...', happy: '捕获了一个 Bug！🕸️🧐', sad: 'Bug 隐藏得太深了...' } }
@@ -33,10 +41,19 @@ interface PetState {
 const currentPetKey = ref('draco')
 const speechText = ref('')
 const petEmoji = ref('🐲')
+const isRiveMode = ref(false)
 const isDragging = ref(false)
 const isExpanded = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 const petPosition = ref({ x: 150, y: 150 })
+const canvasRef = ref<HTMLCanvasElement | null>(null)
+const containerRef = ref<HTMLElement | null>(null)
+
+const { RiveComponent, rive } = useRive({
+  src: PETS[currentPetKey.value]?.riveFile || '',
+  autoplay: true,
+  useDevicePixelRatio: true,
+})
 
 function loadPetState(): PetState | null {
   try {
@@ -101,6 +118,7 @@ function switchPet(key: string): void {
   const petData = PETS[key]
   if (petData) {
     updateUI(petData.char, petData.moods.idle)
+    isRiveMode.value = !!petData.riveFile
     savePetState({ petKey: key, position: petPosition.value })
   }
 }
@@ -143,6 +161,7 @@ onMounted(() => {
   }
   const petData = PETS[currentPetKey.value]
   if (petData) {
+    isRiveMode.value = !!petData.riveFile
     updateUI(petData.char, petData.moods.idle)
   }
   document.addEventListener('mousemove', onDrag)
@@ -152,13 +171,16 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
+  if (rive.value) {
+    rive.value.cleanup()
+  }
 })
 </script>
 
 <template>
   <div
     id="floating-pet-container"
-    ref="petRef"
+    ref="containerRef"
     class="floating-pet-container"
     :style="{ left: petPosition.x + 'px', top: petPosition.y + 'px' }"
     @mousedown="startDrag"
@@ -173,7 +195,12 @@ onUnmounted(() => {
 
     <!-- 宠物头像 -->
     <div class="pet-avatar" :class="{ 'pet-bounce': speechText }">
-      {{ petEmoji }}
+      <template v-if="isRiveMode && rive">
+        <canvas ref="canvasRef" class="rive-canvas"></canvas>
+      </template>
+      <template v-else>
+        {{ petEmoji }}
+      </template>
     </div>
 
     <!-- 宠物切换器 -->
@@ -265,6 +292,17 @@ onUnmounted(() => {
   transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.7));
   animation: float 4s ease-in-out infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+}
+
+.rive-canvas {
+  width: 80px;
+  height: 80px;
+  display: block;
 }
 
 .pet-bounce {

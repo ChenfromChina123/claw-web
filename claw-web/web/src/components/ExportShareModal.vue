@@ -10,7 +10,7 @@ import {
   NSelect, NSwitch, NSpin, NEmpty, NIcon, useMessage
 } from 'naive-ui'
 import type { SelectOption } from 'naive-ui'
-import { exportApi, type ShareInfo, type SharedSession } from '@/api/exportApi'
+import exportApi, { type ShareInfo, type SharedSession } from '@/api/exportApi'
 import { useChatStore } from '@/stores/chat'
 
 const props = defineProps<{
