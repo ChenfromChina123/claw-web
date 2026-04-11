@@ -244,7 +244,8 @@ onUnmounted(() => {
         <div class="fw-info">
           <div class="fw-title-row">
             <span class="fw-tool-name">FileWrite</span>
-            <NTag size="small" round :bordered="false" :style="{
+            <NTag
+size="small" round :bordered="false" :style="{
               background: statusConfig.color + '20',
               color: statusConfig.color,
               '--n-font-weight-strong': '500',

@@ -165,10 +165,10 @@ defineExpose({
         v-for="tab in tabs"
         v-show="activeTabId === tab.id"
         :key="tab.id"
+        :ref="(el: any) => { if (el) tab.pane = el as InstanceType<typeof IdeTerminalTabPane> }"
         :tab-id="tab.id"
         :default-cwd="defaultCwd"
         :mirror-agent-shell="tab.mirrorTarget"
-        :ref="(el: any) => { if (el) tab.pane = el as InstanceType<typeof IdeTerminalTabPane> }"
       />
     </div>
   </div>

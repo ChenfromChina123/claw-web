@@ -7,8 +7,8 @@
         <button
           v-if="!disabled"
           class="refresh-btn"
-          @click="$emit('refresh')"
           title="刷新 Agent 列表"
+          @click="$emit('refresh')"
         >
           <IconRefresh />
         </button>
@@ -175,7 +175,7 @@ const props = withDefaults(defineProps<{
 /**
  * 事件
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 const _emit = defineEmits<{
   (e: 'select', agent: AgentSelection): void
   (e: 'abort'): void

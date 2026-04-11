@@ -130,8 +130,8 @@ const hasWorkflow = computed(() => {
     :show="show"
     :width="400"
     placement="right"
-    @update:show="(val) => emit('update:show', val)"
     class="agent-activity-sidebar"
+    @update:show="(val) => emit('update:show', val)"
   >
     <NDrawerContent :native-scrollbar="false" closable>
       <!-- 头部 -->

@@ -145,7 +145,7 @@ onMounted(() => {
       
       <div class="header-right">
         <NSpace>
-          <NButton size="small" @click="loadSkills" :loading="loading">
+          <NButton size="small" :loading="loading" @click="loadSkills">
             刷新
           </NButton>
           <NButton 

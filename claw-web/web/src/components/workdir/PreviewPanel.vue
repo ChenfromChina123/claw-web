@@ -174,11 +174,11 @@ async function handleDownload(): Promise<void> {
         <NText depth="3" style="font-size: 12px; flex: 1;">
           📷 图片预览 · {{ activeEntry?.name }}
         </NText>
-        <NButton size="tiny" @click="zoomOut" title="缩小">−</NButton>
+        <NButton size="tiny" title="缩小" @click="zoomOut">−</NButton>
         <NText depth="3" style="font-size: 12px; min-width: 42px; text-align: center;">{{ Math.round(imageZoom * 100) }}%</NText>
-        <NButton size="tiny" @click="zoomIn" title="放大">+</NButton>
-        <NButton size="tiny" text @click="resetZoom" title="重置">↺</NButton>
-        <NButton size="tiny" text @click="handleDownload" title="下载">
+        <NButton size="tiny" title="放大" @click="zoomIn">+</NButton>
+        <NButton size="tiny" text title="重置" @click="resetZoom">↺</NButton>
+        <NButton size="tiny" text title="下载" @click="handleDownload">
           <template #icon><NIcon><CloudDownloadOutline /></NIcon></template>
         </NButton>
       </div>
@@ -215,7 +215,7 @@ async function handleDownload(): Promise<void> {
           {{ pdfCurrentPage }} / {{ pdfPageCount || '—' }}
         </NText>
         <NButton size="tiny" :disabled="pdfCurrentPage >= pdfPageCount" @click="nextPage">›</NButton>
-        <NButton size="tiny" text @click="handleDownload" title="下载">
+        <NButton size="tiny" text title="下载" @click="handleDownload">
           <template #icon><NIcon><CloudDownloadOutline /></NIcon></template>
         </NButton>
       </div>
@@ -234,7 +234,7 @@ async function handleDownload(): Promise<void> {
         <NText depth="3" style="font-size: 12px; flex: 1;">
           📎 {{ activeEntry?.name }}
         </NText>
-        <NButton size="tiny" text @click="handleDownload" title="下载">
+        <NButton size="tiny" text title="下载" @click="handleDownload">
           <template #icon><NIcon><CloudDownloadOutline /></NIcon></template>
         </NButton>
       </div>

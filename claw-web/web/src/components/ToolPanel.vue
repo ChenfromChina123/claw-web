@@ -85,7 +85,7 @@ onMounted(() => {
     <div class="tool-sidebar">
       <div class="sidebar-header">
         <h3>工具</h3>
-        <NButton size="tiny" @click="loadTools" :loading="loading">
+        <NButton size="tiny" :loading="loading" @click="loadTools">
           刷新
         </NButton>
       </div>
@@ -93,9 +93,9 @@ onMounted(() => {
       <div class="category-filter">
         <NTag 
           :type="!selectedCategory ? 'primary' : 'default'"
-          @click="selectedCategory = null"
           class="category-tag"
           checkable
+          @click="selectedCategory = null"
         >
           全部 ({{ tools.length }})
         </NTag>
@@ -103,9 +103,9 @@ onMounted(() => {
           v-for="cat in categories" 
           :key="cat"
           :type="selectedCategory === cat ? 'primary' : 'default'"
-          @click="selectedCategory = cat"
           class="category-tag"
           checkable
+          @click="selectedCategory = cat"
         >
           {{ getCategoryLabel(cat) }} ({{ tools.filter(t => t.category === cat).length }})
         </NTag>

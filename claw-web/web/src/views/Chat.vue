@@ -498,7 +498,7 @@ function handleAddTeamMember() {
         </div>
 
         <!-- Agent 活动侧边栏切换按钮 -->
-        <div class="agent-activity-toggle" @click="showAgentActivitySidebar = !showAgentActivitySidebar" :class="{ active: showAgentActivitySidebar }">
+        <div class="agent-activity-toggle" :class="{ active: showAgentActivitySidebar }" @click="showAgentActivitySidebar = !showAgentActivitySidebar">
           <span class="toggle-icon">🤖</span>
           <span class="toggle-label">活动</span>
           <div v-if="agentStore.pendingPermissionList.length > 0" class="pending-indicator">

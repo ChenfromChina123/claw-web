@@ -246,7 +246,7 @@ const teamStats = computed(() => {
       <!-- 连接线 -->
       <div v-if="childAgents.length > 0" class="connector">
         <div class="connector-line"></div>
-        <div class="connector-branch" v-for="i in childAgents.length" :key="i"></div>
+        <div v-for="i in childAgents.length" :key="i" class="connector-branch"></div>
       </div>
       
       <!-- 子 Agent -->

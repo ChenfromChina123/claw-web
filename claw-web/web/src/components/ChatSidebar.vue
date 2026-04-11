@@ -323,7 +323,7 @@ function formatTime(date: Date | string) {
               ref="loadMoreTriggerRef"
               class="load-more-trigger"
             >
-              <NSpin size="small" v-if="isLoadingMore" />
+              <NSpin v-if="isLoadingMore" size="small" />
               <span>{{ isLoadingMore ? '加载中...' : '滚动加载更多' }}</span>
             </div>
 
@@ -368,7 +368,7 @@ function formatTime(date: Date | string) {
     </NLayoutSider>
     
     <!-- 自定义折叠按钮 -->
-    <div class="custom-collapse-trigger" @click="collapsed = !collapsed" title="折叠侧边栏">
+    <div class="custom-collapse-trigger" title="折叠侧边栏" @click="collapsed = !collapsed">
       <svg viewBox="0 0 24 24" fill="none" class="collapse-icon" :class="{ rotated: collapsed }">
         <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>

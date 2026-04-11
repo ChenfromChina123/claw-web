@@ -396,8 +396,8 @@ defineExpose({
       <div 
         class="upload-button" 
         :class="{ 'disabled': !sessionId || disabled }"
-        @click="triggerFileSelect"
         :title="sessionId ? '上传文件到工作区' : '请先选择会话'"
+        @click="triggerFileSelect"
       >
         <template v-if="uploading">
           <NSpin size="18" stroke="#6366f1" />

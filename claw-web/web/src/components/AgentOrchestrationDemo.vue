@@ -220,8 +220,8 @@ onMounted(() => {
       <button 
         class="demo-btn"
         :class="{ disabled: isDemoing }"
-        @click="startDemo"
         :disabled="isDemoing"
+        @click="startDemo"
       >
         {{ isDemoing ? '演示中...' : '开始演示' }}
       </button>

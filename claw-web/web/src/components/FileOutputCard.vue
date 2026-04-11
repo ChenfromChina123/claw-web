@@ -271,7 +271,8 @@ async function handleCopyContent() {
           </div>
 
           <div class="header-right">
-            <NTag size="small" round :bordered="false" :style="{
+            <NTag
+size="small" round :bordered="false" :style="{
               background: categoryColor + '18',
               color: categoryColor,
             } as any">

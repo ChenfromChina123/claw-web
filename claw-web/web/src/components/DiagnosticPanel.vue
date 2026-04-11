@@ -248,7 +248,7 @@ onUnmounted(() => {
         <NButton size="small" @click="toggleAutoRefresh">
           {{ autoRefresh ? '停止刷新' : '自动刷新' }}
         </NButton>
-        <NButton size="small" @click="loadHealthStatus" :loading="loading">
+        <NButton size="small" :loading="loading" @click="loadHealthStatus">
           刷新
         </NButton>
       </div>

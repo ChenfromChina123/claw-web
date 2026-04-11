@@ -237,7 +237,7 @@ onUnmounted(() => {
     <!-- 工具栏 -->
     <div class="monitoring-toolbar">
       <NSpace>
-        <NButton size="small" @click="refresh" :loading="loading">
+        <NButton size="small" :loading="loading" @click="refresh">
           刷新
         </NButton>
         <NButton 

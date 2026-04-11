@@ -18,6 +18,7 @@ import {
   NInput,
   useMessage,
 } from 'naive-ui'
+import MarkdownRender from 'markstream-vue'
 import type { Message, ToolCall } from '@/types'
 import type { KnowledgeCard } from '@/types/flowKnowledge'
 import type { AgentTaskStep } from '@/types/agent'
@@ -779,7 +780,20 @@ async function handleInterruptExecution() {
                 <div class="message-content">
                   <div class="message-avatar assistant-avatar">🤖</div>
                   <div class="message-bubble assistant-bubble">
-                    <div class="message-text" v-html="getMessageText((message as any).content).replace(/\n/g, '<br>')"></div>
+                    <div class="message-text markdown-content">
+                      <MarkdownRender
+                        :content="getMessageText((message as any).content)"
+                        :enable-monaco="true"
+                        :enable-mermaid="true"
+                        :enable-katex="true"
+                        :final="!props.isLoading"
+                        :custom-id="'assistant-chat-' + message.id"
+                        :mermaid-props="{
+                          renderDebounceMs: 180,
+                          previewPollDelayMs: 500,
+                        }"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -843,7 +857,7 @@ async function handleInterruptExecution() {
                               <NTag size="small" type="error">{{ getErrorInfo(toolCall)?.type }}</NTag>
                             </div>
                             <div class="error-message">{{ getErrorInfo(toolCall)?.message }}</div>
-                            <div class="error-suggestion" v-if="getErrorInfo(toolCall)?.suggestion">
+                            <div v-if="getErrorInfo(toolCall)?.suggestion" class="error-suggestion">
                               💡 建议：{{ getErrorInfo(toolCall)?.suggestion }}
                             </div>
                           </div>
@@ -1658,6 +1672,137 @@ async function handleInterruptExecution() {
 
 .message-text {
   padding: 0;
+}
+
+/* Markdown 内容样式 - 表格、公式等 */
+.markdown-content :deep(.markstream-vue) {
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.markdown-content :deep(.markstream-vue p) {
+  margin: 0 0 8px 0;
+}
+
+.markdown-content :deep(.markstream-vue p:last-child) {
+  margin-bottom: 0;
+}
+
+/* 表格样式 */
+.markdown-content :deep(.markstream-vue table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 13px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.markdown-content :deep(.markstream-vue th),
+.markdown-content :deep(.markstream-vue td) {
+  border: 1px solid var(--border-color);
+  padding: 10px 14px;
+  text-align: left;
+}
+
+.markdown-content :deep(.markstream-vue th) {
+  background: rgba(99, 102, 241, 0.15);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.markdown-content :deep(.markstream-vue tr:nth-child(even)) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.markdown-content :deep(.markstream-vue tr:hover) {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+/* KaTeX 公式样式 */
+.markdown-content :deep(.markstream-vue .katex) {
+  font-size: 1.1em;
+  color: var(--text-primary);
+}
+
+.markdown-content :deep(.markstream-vue .katex-display) {
+  margin: 16px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* 代码块样式 */
+.markdown-content :deep(.markstream-vue pre) {
+  background: #0d1117;
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  margin: 12px 0;
+}
+
+.markdown-content :deep(.markstream-vue code) {
+  font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.markdown-content :deep(.markstream-vue :not(pre) > code) {
+  background: rgba(99, 102, 241, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #a5b4fc;
+}
+
+/* Mermaid 图表样式 */
+.markdown-content :deep(.markstream-vue .mermaid) {
+  background: transparent;
+  padding: 12px;
+  border-radius: 8px;
+  margin: 12px 0;
+  text-align: center;
+}
+
+/* 列表样式 */
+.markdown-content :deep(.markstream-vue ul),
+.markdown-content :deep(.markstream-vue ol) {
+  padding-left: 24px;
+  margin: 8px 0;
+}
+
+.markdown-content :deep(.markstream-vue li) {
+  margin: 4px 0;
+}
+
+/* 引用块样式 */
+.markdown-content :deep(.markstream-vue blockquote) {
+  border-left: 4px solid #6366f1;
+  padding-left: 16px;
+  margin: 12px 0;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* 标题样式 */
+.markdown-content :deep(.markstream-vue h1),
+.markdown-content :deep(.markstream-vue h2),
+.markdown-content :deep(.markstream-vue h3) {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.markdown-content :deep(.markstream-vue h1) {
+  font-size: 1.5em;
+}
+
+.markdown-content :deep(.markstream-vue h2) {
+  font-size: 1.3em;
+}
+
+.markdown-content :deep(.markstream-vue h3) {
+  font-size: 1.15em;
 }
 
 /* 工具调用区域 */

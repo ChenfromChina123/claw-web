@@ -61,7 +61,7 @@ const statusLabels: Record<string, string> = {
   >
     <!-- 状态指示器 -->
     <span v-if="showStatus" class="status-indicator" :style="{ backgroundColor: statusColors[status] }">
-      <span class="pulse" v-if="status === 'working' || status === 'thinking'"></span>
+      <span v-if="status === 'working' || status === 'thinking'" class="pulse"></span>
     </span>
 
     <!-- Agent 图标 -->
