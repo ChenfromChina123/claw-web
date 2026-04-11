@@ -560,17 +560,51 @@ function handleImageClick() {
             </button>
           </div>
           <div class="toolbar-right">
-            <!-- 模型选择（如果有） -->
-            <span v-if="selectedModelId" class="model-indicator">
-              {{ modelOptions.find(m => m.value === selectedModelId)?.label || '默认模型' }}
-            </span>
+            <!-- 提示词模板库按钮 -->
+            <button
+              type="button"
+              class="toolbar-btn toolbar-btn-text"
+              :disabled="!sessionId || disabled"
+              title="提示词模板"
+              @click="openPromptLibrary"
+            >
+              <NIcon :size="16">
+                <ReorderFourOutline />
+              </NIcon>
+              <span class="btn-text">模板</span>
+            </button>
+
+            <!-- 发送/停止按钮 -->
+            <template v-if="isGenerating">
+              <button
+                type="button"
+                class="toolbar-btn toolbar-btn-send stop-btn"
+                @click="emit('stop')"
+              >
+                <NIcon :size="16">
+                  <StopCircleOutline />
+                </NIcon>
+                <span class="btn-text">停止</span>
+              </button>
+            </template>
+            <template v-else>
+              <button
+                type="button"
+                class="toolbar-btn toolbar-btn-send"
+                :disabled="(!inputValue.trim() && !(variant === 'ide' && codeAttachments.length > 0)) || disabled || (variant !== 'ide' && uploading)"
+                @click="handleSend"
+              >
+                <span class="btn-text">发送</span>
+              </button>
+            </template>
           </div>
         </div>
       </div>
     </div>
+    </div>
 
-    <!-- 右侧：发送 / 停止按钮 -->
-    <div class="input-actions">
+    <!-- 右侧：发送 / 停止按钮 (仅 IDE 模式显示) -->
+    <div v-if="variant === 'ide'" class="input-actions">
       <!-- 提示词模板库按钮 -->
       <NButton
         class="prompt-library-button"
@@ -605,7 +639,6 @@ function handleImageClick() {
           发送
         </NButton>
       </template>
-    </div>
     </div>
 
     <!-- 提示词模板库抽屉 -->
@@ -785,9 +818,10 @@ function handleImageClick() {
   position: relative;
 }
 
-/* 调整 textarea 的内边距，为底部工具栏留出空间 */
+/* 调整 textarea 的内边距，为右下角的按钮留出空间 */
 .input-area :deep(.n-input__textarea-el) {
-  padding-bottom: 44px !important;
+  padding-bottom: 50px !important;
+  padding-right: 180px !important;
 }
 
 .input-wrapper :deep(.n-input) {
@@ -804,28 +838,22 @@ function handleImageClick() {
 /* 底部工具栏样式 - 悬浮在输入框内部 */
 .input-toolbar {
   position: absolute;
-  bottom: 4px;
-  left: 4px;
-  right: 4px;
+  bottom: 8px;
+  right: 8px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0;
   background: transparent;
-  border-radius: 0 0 8px 8px;
   pointer-events: auto;
   z-index: 10;
-}
-
-.toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .toolbar-right {
   display: flex;
   align-items: center;
+  gap: 8px;
 }
 
 .toolbar-btn {
@@ -856,88 +884,117 @@ function handleImageClick() {
   cursor: not-allowed;
 }
 
-.model-indicator {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
-  padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* 带文字的按钮 - 模板按钮 */
+.toolbar-btn-text {
+  width: auto;
+  padding: 0 14px;
+  height: 36px;
+  gap: 6px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
 }
 
-/* ====== 右侧操作区样式 ====== */
+.toolbar-btn-text:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* 发送按钮 */
+.toolbar-btn-send {
+  width: auto;
+  padding: 0 20px;
+  height: 36px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 10px;
+  border: none;
+}
+
+.toolbar-btn-send:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
+}
+
+.toolbar-btn-send:disabled {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* 停止按钮 */
+.stop-btn {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+}
+
+.stop-btn:hover {
+  background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+}
+
+.btn-text {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* ====== 右侧操作区样式（已移入输入框内部，保留 IDE 模式样式） ====== */
 .input-actions {
+  display: none;
+}
+
+/* IDE 模式下保留右侧操作区 */
+.chat-input--ide .input-actions {
   display: flex;
   align-items: flex-end;
   flex-shrink: 0;
   padding-bottom: 2px;
+  gap: 8px;
 }
 
-/* 发送按钮样式 - 绿色主题风格 */
-.send-button {
-  height: 56px !important;
-  min-height: 56px !important;
-  padding: 0 32px !important;
-  font-size: 15px !important;
-  font-weight: 600 !important;
-  border-radius: 14px !important;
+/* IDE 模式下的按钮样式 */
+.chat-input--ide .send-button {
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 16px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  border-radius: 8px !important;
   background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
   color: #ffffff !important;
   border: none !important;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s ease;
   box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
-  position: relative;
-  overflow: hidden;
 }
 
-.send-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.2),
-    transparent
-  );
-  transition: left 0.5s ease;
-}
-
-.send-button:hover:not(:disabled)::before {
-  left: 100%;
-}
-
-.send-button:hover:not(:disabled) {
+.chat-input--ide .send-button:hover:not(:disabled) {
   background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%) !important;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
 }
 
-.send-button:active:not(:disabled) {
-  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
-  transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
-}
-
-.send-button:disabled {
+.chat-input--ide .send-button:disabled {
   background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
   color: rgba(255, 255, 255, 0.5) !important;
   cursor: not-allowed;
   box-shadow: none;
 }
 
-/* 停止按钮 */
-.stop-button {
-  height: 56px !important;
-  min-height: 56px !important;
-  padding: 0 24px !important;
-  font-size: 15px !important;
-  font-weight: 600 !important;
-  border-radius: 12px !important;
+.chat-input--ide .stop-button {
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 14px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  border-radius: 8px !important;
   background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
   color: #fff !important;
   border: none !important;
@@ -946,31 +1003,13 @@ function handleImageClick() {
   box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
 }
 
-.stop-button:hover {
-  background: linear-gradient(135deg, #fb923c 0%, #f97316 100%) !important;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(249, 115, 22, 0.4);
-}
-
-.stop-button:active {
-  transform: translateY(0);
-}
-
-.chat-input--ide .stop-button {
-  height: 36px !important;
-  min-height: 36px !important;
-  padding: 0 14px !important;
-  font-size: 13px !important;
-  border-radius: 8px !important;
-  box-shadow: none !important;
-}
-
 .chat-input--ide .stop-button:hover {
-  transform: none;
+  background: linear-gradient(135deg, #fb923c 0%, #f97316 100%) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
 }
 
-/* 提示词模板库按钮 */
-.prompt-library-button {
+.chat-input--ide .prompt-library-button {
   height: 36px !important;
   min-height: 36px !important;
   padding: 0 12px !important;
@@ -984,31 +1023,15 @@ function handleImageClick() {
   transition: all 0.2s ease;
 }
 
-.prompt-library-button:hover:not(:disabled) {
+.chat-input--ide .prompt-library-button:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08) !important;
   color: rgba(255, 255, 255, 0.9) !important;
   border-color: rgba(255, 255, 255, 0.25) !important;
 }
 
-.prompt-library-button:active:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12) !important;
-}
-
-.prompt-library-button:disabled {
+.chat-input--ide .prompt-library-button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-}
-
-.chat-input--ide .prompt-library-button {
-  height: 30px !important;
-  min-height: 30px !important;
-  padding: 0 10px !important;
-  font-size: 12px !important;
-  border-radius: 6px !important;
-}
-
-.chat-input--ide .prompt-library-button:hover:not(:disabled) {
-  transform: none;
 }
 
 /* ========== IDE 侧栏变体 ========== */
