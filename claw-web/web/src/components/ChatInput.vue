@@ -382,6 +382,17 @@ function closePromptLibrary() {
   showPromptLibrary.value = false
 }
 
+// 模型选择相关
+const showModelSelect = ref(false)
+
+function openModelSelect() {
+  showModelSelect.value = true
+}
+
+function closeModelSelect() {
+  showModelSelect.value = false
+}
+
 function handleUseTemplate(content: string) {
   inputValue.value = content
   closePromptLibrary()
@@ -443,34 +454,21 @@ function handleUseTemplate(content: string) {
         </div>
 
         <div class="right-tools">
-          <!-- 模型胶囊 - 使用NSelect实现下拉功能 -->
-          <div class="model-capsule-wrapper">
-            <NSelect
-              v-model:value="selectedModelId"
-              :options="modelOptions"
-              :disabled="disabled || modelOptions.length === 0"
-              size="small"
-              class="model-capsule-select"
-              :consistent-menu-width="false"
-            >
-              <template #trigger>
-                <div class="model-capsule">
-                  <span class="model-indicator">◈</span>
-                  <span class="model-label">{{ selectedModelLabel || 'MODEL' }}</span>
-                </div>
-              </template>
-            </NSelect>
+          <!-- 模型胶囊 -->
+          <div class="model-pill" @click="openModelSelect" title="Select Model">
+            <span class="pill-dot"></span>
+            <span class="pill-text">{{ selectedModelLabel || 'MODEL' }}</span>
           </div>
 
           <!-- 模板按钮 -->
-          <button class="icon-btn-circle" @click="openPromptLibrary" title="Templates">
+          <button class="action-icon-btn" @click="openPromptLibrary" title="Templates">
             <NIcon :size="16"><ReorderFourOutline /></NIcon>
           </button>
 
           <!-- 发送/停止按钮 -->
           <button
-            class="send-action-btn"
-            :class="{ 'is-active': inputValue.trim() || codeAttachments.length > 0, 'is-generating': isGenerating }"
+            class="send-btn-minimal"
+            :class="{ 'can-send': inputValue.trim() || codeAttachments.length > 0, 'is-generating': isGenerating }"
             :disabled="(!inputValue.trim() && !(codeAttachments.length > 0)) || disabled"
             @click="isGenerating ? emit('stop') : handleSend()"
           >
@@ -584,6 +582,28 @@ function handleUseTemplate(content: string) {
         />
       </NDrawerContent>
     </NDrawer>
+
+    <!-- 模型选择抽屉 -->
+    <NDrawer
+      v-model:show="showModelSelect"
+      :width="320"
+      placement="right"
+    >
+      <NDrawerContent title="选择模型" :native-scrollbar="false" closable>
+        <div class="model-select-list">
+          <div
+            v-for="model in models"
+            :key="model.id"
+            class="model-select-item"
+            :class="{ 'is-selected': selectedModelId === model.id }"
+            @click="selectedModelId = model.id; closeModelSelect()"
+          >
+            <span class="model-select-dot" :class="{ 'is-active': selectedModelId === model.id }"></span>
+            <span class="model-select-name">{{ model.name }}</span>
+          </div>
+        </div>
+      </NDrawerContent>
+    </NDrawer>
   </div>
 </template>
 
@@ -631,8 +651,12 @@ function handleUseTemplate(content: string) {
 
 /* 聚焦时只让边框稍微亮一点点，不要有刺眼的高亮 */
 .chat-input--ide .input-container:focus-within {
-  border-color: rgba(255, 255, 255, 0.2) !important;
-  background-color: rgba(40, 40, 40, 0.8) !important;
+  /* 保持深色，只比平时亮 2% 左右，或者保持不变 */
+  background-color: rgba(20, 20, 20, 0.9) !important;
+  /* 边框稍微亮一点即可，不要用纯白 */
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  /* 阴影改为非常淡的扩散，增加深度感而非亮度 */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
 }
 
 /* 2. 解决"框中框"：彻底抹平 NInput */
@@ -647,6 +671,21 @@ function handleUseTemplate(content: string) {
   --n-border-hover: none !important;
   --n-border-focus: none !important;
   --n-box-shadow-focus: none !important;
+}
+
+/* 彻底压制 NInput 的聚焦反馈 */
+.chat-input--ide :deep(.n-input.n-input--focus) {
+  background-color: transparent !important;
+}
+
+.chat-input--ide :deep(.n-input .n-input__state-border) {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 确保文字颜色在聚焦时不会变白得刺眼 */
+.chat-input--ide :deep(.n-input__textarea-el) {
+  color: #d1d1d1 !important; /* 灰白色，非纯白 */
 }
 
 /* 移除 NInput 自带的 Padding，让内容受父容器控制 */
@@ -825,98 +864,100 @@ function handleUseTemplate(content: string) {
   gap: 8px;
 }
 
-/* 2. 模型胶囊：极致简约化 */
-.model-capsule-wrapper {
-  position: relative;
-}
 
-.model-capsule-wrapper :deep(.n-base-selection) {
-  background: transparent !important;
-  border: none !important;
-}
 
-.model-capsule-wrapper :deep(.n-base-selection__render) {
-  padding: 0 !important;
-}
-
-.model-capsule {
+/* 模型胶囊样式 */
+.model-pill {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
   cursor: pointer;
-  margin-right: 8px;
-  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s;
 }
+.model-pill:hover { background: rgba(255, 255, 255, 0.08); }
+.pill-dot { width: 6px; height: 6px; border-radius: 50%; background: #42b883; }
+.pill-text { font-size: 11px; color: #888; font-family: monospace; }
 
-.model-capsule:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.12);
+/* 功能图标按钮样式 */
+.action-icon-btn, .send-btn-minimal {
+  background: transparent;
+  border: none;
+  padding: 6px;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  transition: all 0.2s;
 }
+.action-icon-btn:hover { color: #aaa; }
 
-.model-indicator {
-  color: #10b981; /* 亮色点缀，代表活跃 */
-  font-size: 14px;
-}
-
-.model-label {
-  font-size: 11px;
-  font-family: var(--font-family-mono, 'Consolas', 'Monaco', monospace);
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* 3. 圆形图标按钮 */
-.icon-btn-circle {
+/* 发送按钮状态 */
+.send-btn-minimal {
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.03);
+  align-items: center;
+  justify-content: center;
 }
 
-.icon-btn-circle:hover {
-  background: rgba(255, 255, 255, 0.08);
+.send-btn-minimal.can-send {
+  color: #42b883; /* 仅在有内容时点亮 */
+}
+.send-btn-minimal.is-generating {
+  color: #ef4444; /* 停止状态显红色 */
 }
 
-/* 4. 发送按钮：从文本到功能块的转变 */
-.send-action-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  margin-left: 8px;
-}
-
-/* 当有文字输入时变绿 */
-.send-action-btn.is-active {
-  background: #19c37d;
-  color: white;
-  box-shadow: 0 4px 12px rgba(25, 195, 125, 0.2);
-}
-
-.send-action-btn.is-active:hover {
-  background: #22d68a;
-  box-shadow: 0 6px 16px rgba(25, 195, 125, 0.3);
-}
-
-/* 正在生成时的红色停止标识 */
-.send-action-btn.is-generating {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.2);
-}
-
-.send-action-btn.is-generating:hover {
-  background: rgba(239, 68, 68, 0.2);
-}
-
-.send-action-btn:disabled {
+.send-btn-minimal:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+/* 模型选择列表样式 */
+.model-select-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.model-select-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.model-select-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.model-select-item.is-selected {
+  background: rgba(66, 184, 131, 0.1);
+}
+
+.model-select-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #666;
+}
+
+.model-select-dot.is-active {
+  background: #42b883;
+}
+
+.model-select-name {
+  font-size: 13px;
+  color: #d1d1d1;
+}
+
+.model-select-item.is-selected .model-select-name {
+  color: #42b883;
 }
 
 /* 默认变体的停止按钮样式 */
