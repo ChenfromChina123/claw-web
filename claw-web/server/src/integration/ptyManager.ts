@@ -217,11 +217,20 @@ export class PTYSessionManager {
     try {
       if (isWindows) {
         // Windows 平台：使用 Node.js child_process.spawn
-        console.log(`[PTY] Windows 平台：使用 Node.js child_process`)
+        console.log(`[PTY] Windows 平台：使用 Node.js child_process, shell: ${shell}`)
         
-        const shellArgs = shell.includes('powershell') 
-          ? ['-NoLogo', '-NoProfile', '-Command', '-'] 
-          : []
+        // 根据 shell 类型设置参数
+        let shellArgs: string[] = []
+        if (shell.includes('powershell')) {
+          shellArgs = ['-NoLogo', '-NoProfile', '-Command', '-']
+        } else if (shell.includes('bash')) {
+          // bash 需要交互式模式才能接受输入
+          shellArgs = ['--login', '-i']
+        } else if (shell.includes('cmd')) {
+          shellArgs = ['/K']
+        }
+        
+        console.log(`[PTY] Windows spawn: ${shell} ${shellArgs.join(' ')}`)
         
         const childProcess = spawn(shell, shellArgs, {
           cwd,
