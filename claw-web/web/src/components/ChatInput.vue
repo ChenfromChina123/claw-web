@@ -4,7 +4,7 @@ import type { IdeAppendToChatOptions, IdeCodeRefPayload } from '@/composables/us
 import { buildIdeLayeredUserMessage } from '@/utils/ideUserMessageMarkers'
 import { NInput, NButton, NIcon, NSpin, NTag, NSelect, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
-import { CloudUploadOutline, StopCircleOutline } from '@vicons/ionicons5'
+import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline } from '@vicons/ionicons5'
 import { modelApi, type Model } from '@/api/modelApi'
 import { useChatStore } from '@/stores/chat'
 
@@ -417,9 +417,17 @@ defineExpose({
 
       <!-- 底部：功能按钮栏 -->
       <div class="input-footer">
-        <div class="left-toolsMono">
-          <button class="icon-btn" title="引用上下文 (@)">@</button>
-          <button class="icon-btn" title="选择意图 (#)">#</button>
+        <div class="left-tools">
+          <NButton
+            class="prompt-library-button"
+            :disabled="disabled"
+            @click="openPromptLibrary"
+          >
+            <template #icon>
+              <NIcon><ReorderFourOutline /></NIcon>
+            </template>
+            模板
+          </NButton>
         </div>
 
         <div class="right-tools">
@@ -830,26 +838,10 @@ defineExpose({
   color: #f1f5f9;
 }
 
-/* 5. 工具栏按钮：低调、灰色 */
-.left-toolsMono {
+/* 5. 左侧工具栏 */
+.left-tools {
   display: flex;
-  gap: 16px;
-  font-family: var(--font-family-mono, 'Consolas', 'Monaco', monospace);
-}
-
-.left-toolsMono .icon-btn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  color: #888; /* 默认灰色 */
-  font-size: 14px;
-  font-weight: 600;
-  transition: color 0.2s;
-}
-
-.left-toolsMono .icon-btn:hover {
-  color: #d1d1d1; /* 悬停时稍微变亮 */
+  align-items: center;
 }
 
 /* 右侧工具 */
