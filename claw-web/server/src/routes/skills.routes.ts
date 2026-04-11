@@ -436,15 +436,18 @@ function isValidUrl(urlString: string): boolean {
  * 获取用户工作空间目录
  */
 async function getWorkspaceDir(userId: string): Promise<string | null> {
-  // 这里需要根据实际的工作空间管理逻辑来获取目录
-  // 暂时返回 null，让调用方处理
-  // 实际实现应该调用 workspaceManager
-  const { workspaceManager } = await import('../services/workspaceManager')
-  const workspaces = await workspaceManager.listUserWorkspaces(userId)
-  if (workspaces.length === 0) {
+  try {
+    const { getWorkspaceManager } = await import('../services/workspaceManager')
+    const workspaceManager = getWorkspaceManager()
+    const workspace = await workspaceManager.getUserWorkspace(userId)
+    if (!workspace) {
+      return null
+    }
+    return workspace.path
+  } catch (error) {
+    console.error('[skills.routes] Failed to get workspace:', error)
     return null
   }
-  return workspaces[0].path
 }
 
 export default handleSkillImportRoutes
