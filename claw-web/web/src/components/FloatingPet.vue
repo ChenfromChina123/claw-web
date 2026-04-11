@@ -2,7 +2,7 @@
 /**
  * FloatingPet - 悬浮电子宠物组件
  * 提供可拖拽的电子宠物，支持气泡对话和多种宠物切换
- * 只使用 Rive 动画渲染
+ * 只使用 Rive 动画渲染，支持全页面鼠标交互
  */
 
 import { ref, onMounted, onUnmounted } from 'vue'
@@ -20,29 +20,29 @@ interface PetData {
 }
 
 const PETS: Record<string, PetData> = {
-  draco: { 
-    char: '🐲', 
+  draco: {
+    char: '🐲',
     name: '像素火龙 (Draco)',
     riveFile: '/blobby.riv',
-    moods: { idle: '守护着这行代码...', happy: '代码优化完成，吐一口火庆祝！🔥', sad: '发生语法错误！😠' } 
+    moods: { idle: '守护着这行代码...', happy: '代码优化完成，吐一口火庆祝！🔥', sad: '发生语法错误！😠' }
   },
-  kraken: { 
-    char: '🐙', 
+  kraken: {
+    char: '🐙',
     name: '代码章鱼 (Kraken)',
     riveFile: '/blobby.riv',
-    moods: { idle: '整理复杂的依赖关系...', happy: '发现了未定义的行为！🤯', sad: '代码太乱了...墨水喷溅！🕶️' } 
+    moods: { idle: '整理复杂的依赖关系...', happy: '发现了未定义的行为！🤯', sad: '代码太乱了...墨水喷溅！🕶️' }
   },
-  spirit: { 
-    char: '💫', 
+  spirit: {
+    char: '💫',
     name: '数据精灵 (Spirit)',
     riveFile: '/blobby.riv',
-    moods: { idle: '在内存中寻找灵感...', happy: '逻辑完美！闪耀着光芒✨💖', sad: '被垃圾回收器追赶了...🏃' } 
+    moods: { idle: '在内存中寻找灵感...', happy: '逻辑完美！闪耀着光芒✨💖', sad: '被垃圾回收器追赶了...🏃' }
   },
-  spider: { 
-    char: '🕷️', 
+  spider: {
+    char: '🕷️',
     name: '除虫蜘蛛 (Spider)',
     riveFile: '/blobby.riv',
-    moods: { idle: '在代码网格中编织...', happy: '捕获了一个 Bug！🕸️🧐', sad: 'Bug 隐藏得太深了...' } 
+    moods: { idle: '在代码网格中编织...', happy: '捕获了一个 Bug！🕸️🧐', sad: 'Bug 隐藏得太深了...' }
   }
 }
 
@@ -51,6 +51,7 @@ const STORAGE_KEY = 'floating-pet-state'
 interface PetState {
   petKey: string
   position: { x: number; y: number }
+  scale: number
 }
 
 const currentPetKey = ref('draco')
@@ -59,19 +60,22 @@ const isDragging = ref(false)
 const isExpanded = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 const petPosition = ref({ x: 150, y: 150 })
+const petScale = ref(1)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const containerRef = ref<HTMLElement | null>(null)
 
 const riveInstance = ref<any>(null)
+const mouseX = ref(0)
+const mouseY = ref(0)
 
 function initRive(riveFile: string): void {
   if (!canvasRef.value || !riveFile) return
-  
+
   if (riveInstance.value) {
     riveInstance.value.cleanup()
     riveInstance.value = null
   }
-  
+
   const rive = new Rive({
     src: riveFile,
     canvas: canvasRef.value,
@@ -86,12 +90,11 @@ function initRive(riveFile: string): void {
       rive.resizeDrawingSurfaceToCanvas()
       riveInstance.value = rive
       rive.play()
-      
-      // 尝试激活状态机的输入
+
       try {
         const inputs = rive.stateMachineInputs('State Machine 1')
         inputs.forEach((input: any) => {
-          if (input.type === 1) { // Boolean type
+          if (input.type === 1) {
             input.value = true
           }
         })
@@ -103,7 +106,7 @@ function initRive(riveFile: string): void {
       console.error('[FloatingPet] Rive 加载失败:', e)
     },
   })
-  
+
   riveInstance.value = rive
 }
 
@@ -131,7 +134,24 @@ function getCurrentPet(): PetData {
   return PETS[currentPetKey.value] || PETS.draco
 }
 
+function updateMousePosition(e: MouseEvent): void {
+  mouseX.value = e.clientX
+  mouseY.value = e.clientY
 
+  if (riveInstance.value) {
+    try {
+      const inputs = riveInstance.value.stateMachineInputs('State Machine 1')
+      inputs.forEach((input: any) => {
+        if (input.type === 0) {
+          input.value = e.clientX
+        } else if (input.type === 2) {
+          input.value = e.clientY
+        }
+      })
+    } catch (e) {
+    }
+  }
+}
 
 function handleInput(e: Event): void {
   const input = (e.target as HTMLInputElement).value.toLowerCase()
@@ -170,8 +190,14 @@ function switchPet(key: string): void {
     if (petData.riveFile && canvasRef.value) {
       initRive(petData.riveFile)
     }
-    savePetState({ petKey: key, position: petPosition.value })
+    savePetState({ petKey: key, position: petPosition.value, scale: petScale.value })
   }
+}
+
+function adjustScale(delta: number): void {
+  const newScale = Math.max(0.5, Math.min(3, petScale.value + delta))
+  petScale.value = newScale
+  savePetState({ petKey: currentPetKey.value, position: petPosition.value, scale: newScale })
 }
 
 function startDrag(e: MouseEvent): void {
@@ -193,7 +219,7 @@ function onDrag(e: MouseEvent): void {
 
 function stopDrag(): void {
   isDragging.value = false
-  savePetState({ petKey: currentPetKey.value, position: petPosition.value })
+  savePetState({ petKey: currentPetKey.value, position: petPosition.value, scale: petScale.value })
 }
 
 function toggleExpanded(): void {
@@ -209,6 +235,9 @@ onMounted(() => {
     if (savedState.position && typeof savedState.position.x === 'number' && typeof savedState.position.y === 'number') {
       petPosition.value = savedState.position
     }
+    if (savedState.scale && typeof savedState.scale === 'number') {
+      petScale.value = savedState.scale
+    }
   }
   const petData = PETS[currentPetKey.value]
   if (petData && petData.riveFile && canvasRef.value) {
@@ -217,11 +246,13 @@ onMounted(() => {
   }
   document.addEventListener('mousemove', onDrag)
   document.addEventListener('mouseup', stopDrag)
+  document.addEventListener('mousemove', updateMousePosition)
 })
 
 onUnmounted(() => {
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('mousemove', updateMousePosition)
   if (riveInstance.value) {
     riveInstance.value.cleanup()
     riveInstance.value = null
@@ -234,7 +265,11 @@ onUnmounted(() => {
     id="floating-pet-container"
     ref="containerRef"
     class="floating-pet-container"
-    :style="{ left: petPosition.x + 'px', top: petPosition.y + 'px' }"
+    :style="{
+      left: petPosition.x + 'px',
+      top: petPosition.y + 'px',
+      transform: 'scale(' + petScale + ')'
+    }"
     @mousedown="startDrag"
   >
     <!-- 气泡对话框 -->
@@ -253,6 +288,11 @@ onUnmounted(() => {
     <!-- 宠物切换器 -->
     <Transition name="control-fade">
       <div v-if="isExpanded" class="control-panel">
+        <div class="scale-controls">
+          <button class="scale-btn" @click="adjustScale(-0.1)">−</button>
+          <span class="scale-label">{{ Math.round(petScale * 100) }}%</span>
+          <button class="scale-btn" @click="adjustScale(0.1)">+</button>
+        </div>
         <div class="pet-selector">
           <span
             v-for="(pet, key) in PETS"
@@ -290,7 +330,7 @@ onUnmounted(() => {
   cursor: grab;
   user-select: none;
   width: fit-content;
-  transition: transform 0.2s ease;
+  transform-origin: center center;
 }
 
 .floating-pet-container:active {
@@ -337,17 +377,17 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 80px;
-  height: 80px;
+  width: 120px;
+  height: 120px;
   transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.7));
   animation: float 4s ease-in-out infinite;
 }
 
 .rive-canvas {
-  width: 80px;
-  height: 80px;
+  width: 120px;
+  height: 120px;
   display: block;
+  background: transparent;
 }
 
 .pet-bounce {
@@ -377,14 +417,50 @@ onUnmounted(() => {
   border: 1px solid #454545;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   display: flex;
-  align-items: center;
-  gap: 15px;
+  flex-direction: column;
+  gap: 10px;
   backdrop-filter: blur(5px);
+}
+
+.scale-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.scale-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #454545;
+  background: rgba(60, 60, 60, 0.9);
+  color: #cccccc;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.scale-btn:hover {
+  background: rgba(0, 122, 204, 0.3);
+  border-color: #007acc;
+}
+
+.scale-label {
+  font-size: 12px;
+  color: #888;
+  min-width: 40px;
+  text-align: center;
 }
 
 .pet-selector {
   display: flex;
   gap: 8px;
+  justify-content: center;
 }
 
 .pet-opt {
