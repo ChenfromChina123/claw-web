@@ -44,7 +44,6 @@ services:
       - --max_heap_table_size=16777216
       - --table_open_cache=400
       - --thread_cache_size=8
-      - --query_cache_type=0
       - --slow_query_log=1
       - --long_query_time=2
     networks:
