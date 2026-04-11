@@ -731,6 +731,26 @@ export class SessionManager {
     await this.saveSession(sessionId)
   }
 
+  /**
+   * 搜索消息
+   * @param userId 用户 ID
+   * @param options 搜索选项
+   * @returns 搜索到的消息列表，包含所属会话信息
+   */
+  async searchMessages(
+    userId: string,
+    options: {
+      keyword?: string
+      sessionId?: string
+      startDate?: string
+      endDate?: string
+      limit?: number
+      offset?: number
+    }
+  ): Promise<{ message: Message; sessionTitle: string; total: number }[]> {
+    return this.messageRepo.searchMessages(userId, options)
+  }
+
   async saveAllDirtySessions(): Promise<void> {
     const dirtySessionIds = Array.from(this.sessions.entries())
       .filter(([_, data]) => data.dirty)

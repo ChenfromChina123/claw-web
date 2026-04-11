@@ -21,12 +21,18 @@ import {
   Add,
 } from '@vicons/ionicons5'
 import { useChatStore } from '@/stores/chat'
+import { useSnippetStore } from '@/stores/snippet'
 import type { Session } from '@/types'
 import AgentWorkDir from './AgentWorkDir.vue'
+import SnippetLibrary from './SnippetLibrary.vue'
 
 const router = useRouter()
 const chatStore = useChatStore()
+const snippetStore = useSnippetStore()
 const message = useMessage()
+
+// 代码片段库弹窗状态
+const showSnippetLibrary = ref(false)
 
 const emit = defineEmits<{
   'update:collapsed': [value: boolean]
@@ -358,6 +364,15 @@ function formatTime(date: Date | string) {
             <NButton block quaternary size="small" @click="router.push('/settings')">
               设置
             </NButton>
+            <NButton block quaternary size="small" @click="showSnippetLibrary = true">
+              <template #icon>
+                <span>📝</span>
+              </template>
+              代码片段库
+              <NTag v-if="snippetStore.snippetCount > 0" size="tiny" type="success" :bordered="false">
+                {{ snippetStore.snippetCount }}
+              </NTag>
+            </NButton>
           </div>
           <div class="connection-status">
             <span :class="['status-dot', chatStore.isConnected ? 'online' : 'offline']"></span>
@@ -430,6 +445,9 @@ function formatTime(date: Date | string) {
         </div>
       </NDrawerContent>
     </NDrawer>
+
+    <!-- 代码片段库 -->
+    <SnippetLibrary v-model:show="showSnippetLibrary" />
   </div>
 </template>
 

@@ -31,6 +31,9 @@ export { handleDiagnosticsRoutes, default as diagnosticsRoutes } from './diagnos
 // 工作区路由
 export { handleWorkspaceRoutes, default as workspaceRoutes } from './workspace.routes'
 
+// 导出与分享路由
+export { handleExportRoutes, default as exportRoutes } from './export.routes'
+
 import type { Request, Response } from 'express'
 
 // 所有路由处理器列表（按优先级排序）
@@ -61,6 +64,9 @@ const routeHandlers = [
   
   // 工作区相关
   (req: Request) => import('./workspace.routes').then(m => m.handleWorkspaceRoutes(req)),
+  
+  // 导出与分享相关
+  (req: Request) => import('./export.routes').then(m => m.handleExportRoutes(req)),
 ]
 
 /**

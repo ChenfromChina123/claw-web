@@ -48,7 +48,6 @@ import type { InProcessTeammateTaskState } from '../../tasks/InProcessTeammateTa
 import { isPanelAgentTask, type LocalAgentTaskState } from '../../tasks/LocalAgentTask/LocalAgentTask.js';
 import { isBackgroundTask } from '../../tasks/types.js';
 import { AGENT_COLOR_TO_THEME_COLOR, AGENT_COLORS, type AgentColorName } from '../../tools/AgentTool/agentColorManager.js';
-import { SessionSwitcher } from '../SessionSwitcher.js';
 import type { AgentDefinition } from '../../tools/AgentTool/loadAgentsDir.js';
 import type { Message } from '../../types/message.js';
 import type { PermissionMode } from '../../types/permissions.js';
@@ -411,7 +410,6 @@ function PromptInput({
   const [showFastModePicker, setShowFastModePicker] = useState(false);
   const [showThinkingToggle, setShowThinkingToggle] = useState(false);
   const [showAutoModeOptIn, setShowAutoModeOptIn] = useState(false);
-  const [showSessionSwitcher, setShowSessionSwitcher] = useState(false);
   const [previousModeBeforeAuto, setPreviousModeBeforeAuto] = useState<PermissionMode | null>(null);
   const autoModeOptInTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -1729,15 +1727,6 @@ function PromptInput({
     isActive: feature('HISTORY_PICKER') ? !isModalOverlayActive : false
   });
 
-  // Handle Ctrl+L to open session switcher
-  useKeybinding('session:switch', () => {
-    setShowSessionSwitcher(true);
-    setHelpOpen(false);
-  }, {
-    context: 'Global',
-    isActive: !isModalOverlayActive && !showSessionSwitcher
-  });
-
   // Handle Ctrl+C to abort speculation when idle (not loading)
   // CancelRequestHandler only handles Ctrl+C during active tasks
   useKeybinding('app:interrupt', () => {
@@ -2126,14 +2115,6 @@ function PromptInput({
       </Box>;
   }, [showThinkingToggle, thinkingEnabled, handleThinkingSelect, handleThinkingCancel, messages.length]);
 
-  // Memoize the session switcher element
-  const sessionSwitcherElement = useMemo(() => {
-    if (!showSessionSwitcher) return null;
-    return <Box flexDirection="column" marginTop={1}>
-        <SessionSwitcher isOpen={showSessionSwitcher} onClose={() => setShowSessionSwitcher(false)} />
-      </Box>;
-  }, [showSessionSwitcher]);
-
   // Portal dialog to DialogOverlay in fullscreen so it escapes the bottom
   // slot's overflowY:hidden clip (same pattern as SuggestionsOverlay).
   // Must be called before early returns below to satisfy rules-of-hooks.
@@ -2181,9 +2162,6 @@ function PromptInput({
   }
   if (thinkingToggleElement) {
     return thinkingToggleElement;
-  }
-  if (sessionSwitcherElement) {
-    return sessionSwitcherElement;
   }
   if (showBridgeDialog) {
     return <BridgeDialog onDone={() => {

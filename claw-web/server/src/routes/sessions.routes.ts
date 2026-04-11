@@ -211,6 +211,50 @@ export async function handleSessionRoutes(req: Request): Promise<Response | null
     }
   }
 
+  // ==================== 消息搜索 ====================
+
+  // GET /api/sessions/messages/search - 搜索消息
+  if (path === '/api/sessions/messages/search' && method === 'GET') {
+    try {
+      const auth = await authMiddleware(req)
+      if (!auth.userId) {
+        return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
+      }
+
+      const url = new URL(req.url)
+      const searchParams = url.searchParams
+
+      const keyword = searchParams.get('keyword') || undefined
+      const sessionId = searchParams.get('sessionId') || undefined
+      const startDate = searchParams.get('startDate') || undefined
+      const endDate = searchParams.get('endDate') || undefined
+      const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) : undefined
+      const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!, 10) : undefined
+
+      // 验证参数
+      if (!keyword && !sessionId && !startDate && !endDate) {
+        return createErrorResponse('INVALID_PARAMS', '请至少提供一个搜索条件', 400)
+      }
+
+      const results = await sessionManager.searchMessages(auth.userId, {
+        keyword,
+        sessionId,
+        startDate,
+        endDate,
+        limit,
+        offset,
+      })
+
+      return createSuccessResponse({
+        results,
+        total: results.length > 0 ? results[0].total : 0,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '搜索消息失败'
+      return createErrorResponse('SEARCH_MESSAGES_FAILED', message, 500)
+    }
+  }
+
   // 不匹配任何路由，返回 null
   return null
 }

@@ -105,6 +105,90 @@ export class MessageRepository {
     )
   }
 
+  /**
+   * 搜索消息
+   * @param userId 用户 ID
+   * @param options 搜索选项
+   * @param options.keyword 关键词（可选）
+   * @param options.sessionId 会话 ID 筛选（可选）
+   * @param options.startDate 开始时间（可选）
+   * @param options.endDate 结束时间（可选）
+   * @param options.limit 返回数量限制（可选，默认 100）
+   * @param options.offset 偏移量（可选，默认 0）
+   * @returns 搜索到的消息列表，包含所属会话信息
+   */
+  async searchMessages(
+    userId: string,
+    options: {
+      keyword?: string
+      sessionId?: string
+      startDate?: string
+      endDate?: string
+      limit?: number
+      offset?: number
+    }
+  ): Promise<{ message: Message; sessionTitle: string; total: number }[]> {
+    const pool = getPool()
+    const conditions: string[] = []
+    const params: (string | number)[] = []
+
+    // 构建 WHERE 条件
+    if (options.keyword) {
+      conditions.push('m.content LIKE ?')
+      params.push(`%${options.keyword}%`)
+    }
+
+    if (options.sessionId) {
+      conditions.push('m.session_id = ?')
+      params.push(options.sessionId)
+    }
+
+    if (options.startDate) {
+      conditions.push('m.created_at >= ?')
+      params.push(options.startDate)
+    }
+
+    if (options.endDate) {
+      conditions.push('m.created_at <= ?')
+      params.push(options.endDate)
+    }
+
+    // 必须通过会话关联到用户
+    conditions.push('s.user_id = ?')
+    params.push(userId)
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+    // 查询总数
+    const countQuery = `
+      SELECT COUNT(DISTINCT m.id) as total
+      FROM messages m
+      INNER JOIN sessions s ON m.session_id = s.id
+      ${whereClause}
+    `
+    const [countResult] = await pool.query(countQuery, params) as [{ total: number }[], unknown]
+    const total = countResult[0]?.total || 0
+
+    // 查询消息
+    const limit = options.limit || 100
+    const offset = options.offset || 0
+    const dataQuery = `
+      SELECT m.*, s.title as session_title, s.user_id as session_user_id
+      FROM messages m
+      INNER JOIN sessions s ON m.session_id = s.id
+      ${whereClause}
+      ORDER BY m.created_at DESC
+      LIMIT ? OFFSET ?
+    `
+    const [rows] = await pool.query(dataQuery, [...params, limit, offset]) as [any[], unknown]
+
+    return rows.map(row => ({
+      message: this.mapToMessage(row),
+      sessionTitle: row.session_title,
+      total,
+    }))
+  }
+
   private mapToMessage(row: any): Message {
     let content = row.content
     

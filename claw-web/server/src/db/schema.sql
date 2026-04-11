@@ -204,3 +204,53 @@ CREATE TABLE IF NOT EXISTS session_open_files (
   UNIQUE KEY uk_session_id (session_id),
   INDEX idx_session_open_files_session_id (session_id)
 );
+
+-- ==================== 提示词模板相关表 ====================
+
+-- 提示词模板分类表
+CREATE TABLE IF NOT EXISTS prompt_template_categories (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(100) NOT NULL COMMENT '分类名称',
+  icon VARCHAR(50) DEFAULT 'folder' COMMENT '分类图标',
+  sort_order INT DEFAULT 0 COMMENT '排序顺序',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_prompt_categories_sort (sort_order)
+);
+
+-- 提示词模板表
+CREATE TABLE IF NOT EXISTS prompt_templates (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) COMMENT '创建者用户ID，NULL表示内置模板',
+  category_id VARCHAR(36) COMMENT '所属分类ID',
+  title VARCHAR(255) NOT NULL COMMENT '模板标题',
+  content TEXT NOT NULL COMMENT '模板内容',
+  description TEXT COMMENT '模板描述',
+  is_builtin BOOLEAN DEFAULT FALSE COMMENT '是否内置模板',
+  is_favorite BOOLEAN DEFAULT FALSE COMMENT '是否收藏',
+  use_count INT DEFAULT 0 COMMENT '使用次数',
+  tags JSON COMMENT '标签列表',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (category_id) REFERENCES prompt_template_categories(id) ON DELETE SET NULL,
+  INDEX idx_prompt_templates_user (user_id),
+  INDEX idx_prompt_templates_category (category_id),
+  INDEX idx_prompt_templates_favorite (is_favorite)
+);
+
+-- 分享会话表 (用于存储分享的对话链接)
+CREATE TABLE IF NOT EXISTS shared_sessions (
+  id VARCHAR(36) PRIMARY KEY,
+  share_code VARCHAR(32) NOT NULL UNIQUE COMMENT '分享码，用于生成链接',
+  session_id VARCHAR(36) NOT NULL,
+  user_id VARCHAR(36) NOT NULL,
+  title VARCHAR(255) DEFAULT '分享对话' COMMENT '分享标题',
+  expires_at TIMESTAMP NULL COMMENT '过期时间，NULL表示永不过期',
+  view_count INT DEFAULT 0 COMMENT '浏览次数',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_shared_sessions_share_code (share_code),
+  INDEX idx_shared_sessions_session_id (session_id),
+  INDEX idx_shared_sessions_user_id (user_id)
+);
