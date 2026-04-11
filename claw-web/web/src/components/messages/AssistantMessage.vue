@@ -16,6 +16,7 @@ import type { TextMessage } from '@/types'
 import { copyToClipboard, extractCodeBlocks } from '@/utils/markdown'
 import { formatDate } from '@/utils/format'
 import { useSnippetStore } from '@/stores/snippet'
+import AgentAvatar from '@/components/AgentAvatar.vue'
 
 interface Props {
   message: TextMessage
@@ -181,9 +182,7 @@ watch(() => props.message.content, () => {
 <template>
   <div class="message assistant-message">
     <div v-if="showAvatar" class="avatar-wrapper">
-      <NAvatar round size="small" :style="{ backgroundColor: '#10b981' }">
-        AI
-      </NAvatar>
+      <AgentAvatar />
     </div>
 
     <div class="message-content">
