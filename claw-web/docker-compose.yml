@@ -101,6 +101,7 @@ services:
       - USER_STORAGE_QUOTA_MB=${USER_STORAGE_QUOTA_MB:-500}
       - USER_SESSION_LIMIT=${USER_SESSION_LIMIT:-10}
       - USER_PTY_LIMIT=${USER_PTY_LIMIT:-5}
+      - PTY_ENABLED=${PTY_ENABLED:-true}
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-10}
       - MAX_FILES_PER_USER=${MAX_FILES_PER_USER:-1000}
       - API_TIMEOUT_MS=${API_TIMEOUT_MS:-300000}
@@ -141,6 +142,8 @@ services:
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-8888}:80"
+    environment:
+      - VITE_FEATURE_PTY_SHELL=true
     volumes:
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
