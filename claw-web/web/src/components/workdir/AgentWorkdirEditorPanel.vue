@@ -514,11 +514,11 @@ defineExpose({
         </div>
       </div>
 
-      <div v-if="breadcrumbText" class="breadcrumb-bar">
+      <div v-if="breadcrumbText && !showPromptLibraryTab" class="breadcrumb-bar">
         {{ breadcrumbText }}
       </div>
 
-      <div v-if="isActiveMarkdown" class="md-toolbar">
+      <div v-if="isActiveMarkdown && !showPromptLibraryTab" class="md-toolbar">
         <NText depth="3" class="md-toolbar-label">Markdown</NText>
         <NSpace :size="6" class="md-toolbar-btns">
           <NButton
@@ -547,7 +547,7 @@ defineExpose({
 
       <!-- 文本：Monaco ± Markdown 预览（v-show 避免切到二进制标签时卸载 Monaco） -->
       <div
-        v-show="!showPreview"
+        v-show="!showPreview && !showPromptLibraryTab"
         class="editor-main"
         :class="{
           'md-split': isActiveMarkdown && mdViewMode === 'split',
