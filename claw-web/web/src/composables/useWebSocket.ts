@@ -1069,11 +1069,17 @@ class EnhancedWebSocketClient {
     this.send({ type: 'list_sessions' })
   }
 
-  sendMessage(content: string, model?: string): void {
+  sendMessage(content: string, sessionId?: string, model?: string): void {
+    // 使用传入的 sessionId 或当前会话的 id
+    const targetSessionId = sessionId || this.currentSession.value?.id
+    if (!targetSessionId) {
+      console.error('[WS] Cannot send message: no sessionId provided and no current session')
+      return
+    }
     this.send({
       type: 'user_message',
       content,
-      sessionId: this.currentSession.value?.id,
+      sessionId: targetSessionId,
       model: model || this.currentSession.value?.model || 'qwen-plus',
     })
   }

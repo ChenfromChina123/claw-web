@@ -488,19 +488,25 @@ export const useChatStore = defineStore('chat', () => {
   }
   
   function sendMessage(content: string, model?: string) {
+    // 检查是否有当前会话
+    if (!currentSessionId.value) {
+      console.error('[ChatStore] Cannot send message: no current session')
+      return
+    }
+
     // 立即在前端添加用户消息，提供更好的用户体验
     const userMessageId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     messages.value.push({
       id: userMessageId,
-      sessionId: currentSessionId.value || '',
+      sessionId: currentSessionId.value,
       role: 'user',
       type: 'text',
       content: content,
       createdAt: new Date().toISOString(),
     })
-    
-    // 同时发送消息给后端
-    wsClient.sendMessage(content, model)
+
+    // 同时发送消息给后端，传入 sessionId 确保消息能正确路由
+    wsClient.sendMessage(content, currentSessionId.value, model)
   }
   
   function deleteSession(sessionId: string) {
