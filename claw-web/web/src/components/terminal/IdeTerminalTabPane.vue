@@ -239,14 +239,18 @@ async function initTerminal(): Promise<void> {
   t.onData(async (data: string) => {
     console.log('[TerminalTabPane] onData called, connectionStatus:', connectionStatus.value, 'data:', JSON.stringify(data))
     if (connectionStatus.value === 'connected') {
-      // Windows 平台：缓存输入直到收到回车键，解决换行问题
+      // Windows 平台：本地回显，回车后发送完整命令
       if (isWindowsPlatform) {
-        // 收到回车键，发送缓存的输入
+        // 收到回车键，发送缓存的输入到后端执行
         if (data === '\r') {
           if (inputBuffer.length > 0) {
+            // 本地显示换行
+            t.write('\r\n')
+            // 发送命令到后端
             await pty.write(inputBuffer + '\r\n')
             inputBuffer = ''
           } else {
+            t.write('\r\n')
             await pty.write('\r\n')
           }
         } else if (data === '\n') {
@@ -255,12 +259,13 @@ async function initTerminal(): Promise<void> {
           // 退格键
           if (inputBuffer.length > 0) {
             inputBuffer = inputBuffer.slice(0, -1)
-            // 发送退格序列
-            await pty.write('\b \b')
+            // 本地显示退格效果
+            t.write('\b \b')
           }
         } else {
-          // 其他字符，添加到缓存并显示
+          // 其他字符，添加到缓存并本地显示
           inputBuffer += data
+          t.write(data)
         }
       } else {
         // 非 Windows 平台：直接发送
