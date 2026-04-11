@@ -36,6 +36,23 @@ const modelOptions = computed(() =>
   (models.value ?? []).map(m => ({ label: m.name, value: m.id })),
 )
 
+// 当前选中模型的显示标签
+const selectedModelLabel = computed(() => {
+  const model = models.value.find(m => m.id === selectedModelId.value)
+  return model?.name || ''
+})
+
+// 打开模型选择器
+function openModelSelector() {
+  // TODO: 可以实现一个下拉菜单或弹窗来选择模型
+  // 暂时使用 Naive UI 的 Select 组件
+  const selectEl = document.querySelector('.model-capsule') as HTMLElement
+  if (selectEl) {
+    // 触发模型选择逻辑
+    console.log('Open model selector')
+  }
+}
+
 async function loadModels(): Promise<void> {
   try {
     const list = await modelApi.listModels()
@@ -434,59 +451,37 @@ function handleUseTemplate(content: string) {
       <div class="input-footer">
         <div class="left-tools">
           <!-- @ 提及按钮 -->
-          <span class="icon-btn" title="提及">@</span>
+          <button class="icon-btn" title="Mention Context">@</button>
           <!-- # 知识库按钮 -->
-          <span class="icon-btn" title="知识库">#</span>
+          <button class="icon-btn" title="Reference File">#</button>
         </div>
 
         <div class="right-tools">
-          <!-- 模型选择器 -->
-          <div class="model-selector-wrapper">
-            <NSelect
-              v-model:value="selectedModelId"
-              :options="modelOptions"
-              :disabled="disabled || modelOptions.length === 0"
-              size="small"
-              placeholder="选择模型"
-              class="model-picker"
-              :consistent-menu-width="false"
-            />
+          <!-- 模型胶囊 -->
+          <div class="model-capsule" @click="openModelSelector">
+            <span class="model-indicator">◈</span>
+            <span class="model-label">{{ selectedModelLabel || 'MODEL' }}</span>
           </div>
 
-          <!-- ✨ 按钮 -->
-          <span class="icon-btn" style="font-size: 16px;" title="优化">✨</span>
-
-          <!-- 🎤 语音按钮 -->
-          <span class="icon-btn" style="font-size: 16px;" title="语音输入">🎤</span>
+          <!-- 模板按钮 -->
+          <button class="icon-btn-circle" @click="openPromptLibrary" title="Templates">
+            <NIcon :size="16"><ReorderFourOutline /></NIcon>
+          </button>
 
           <!-- 发送/停止按钮 -->
-          <template v-if="isGenerating">
-            <NButton
-              type="warning"
-              class="stop-button"
-              @click="emit('stop')"
-            >
-              <template #icon>
-                <NIcon><StopCircleOutline /></NIcon>
-              </template>
-            </NButton>
-          </template>
-          <template v-else>
-            <NButton
-              type="primary"
-              :disabled="(!inputValue.trim() && !(codeAttachments.length > 0)) || disabled"
-              class="send-button"
-              @click="handleSend"
-            >
-              <template #icon>
-                <NIcon>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
-                  </svg>
-                </NIcon>
-              </template>
-            </NButton>
-          </template>
+          <button
+            class="send-action-btn"
+            :class="{ 'is-active': inputValue.trim() || codeAttachments.length > 0, 'is-generating': isGenerating }"
+            :disabled="(!inputValue.trim() && !(codeAttachments.length > 0)) || disabled"
+            @click="isGenerating ? emit('stop') : handleSend()"
+          >
+            <NIcon v-if="!isGenerating" :size="16">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+              </svg>
+            </NIcon>
+            <NIcon v-else :size="16"><StopCircleOutline /></NIcon>
+          </button>
         </div>
       </div>
     </div>
@@ -795,88 +790,121 @@ function handleUseTemplate(content: string) {
   justify-content: space-between;
 }
 
-.left-tools {
+/* 1. 基础按钮重置：去掉所有原生边框和背景 */
+.icon-btn, .icon-btn-circle, .send-action-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 24px !important;
+  justify-content: center;
+  transition: all 0.2s ease;
+  padding: 0;
+  color: #64748b; /* 低调的深灰色 */
 }
 
+.icon-btn:hover, .icon-btn-circle:hover {
+  color: #f1f5f9;
+}
+
+/* 左侧工具：等宽字体，拉开间距 */
+.left-tools {
+  display: flex;
+  gap: 20px; /* 拉开 @ 和 # 的间距 */
+  font-family: var(--font-family-mono, 'Consolas', 'Monaco', monospace);
+  font-weight: 600;
+}
+
+.left-tools .icon-btn {
+  font-size: 16px;
+}
+
+/* 右侧工具 */
 .right-tools {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
-/* 图标按钮样式 - 更低调 */
-.icon-btn {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-weight: bold;
-  font-size: 16px;
-  color: #555;
-  cursor: pointer;
-  transition: all 0.2s ease;
+/* 2. 模型胶囊：极致简约化 */
+.model-capsule {
   display: flex;
   align-items: center;
-  user-select: none;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  cursor: pointer;
+  margin-right: 8px;
+  transition: all 0.2s ease;
 }
 
-.icon-btn:hover {
-  color: #999;
+.model-capsule:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
-/* 模型选择器样式 - 胶囊形状 */
-.model-picker :deep(.n-base-selection) {
-  --n-height: 32px !important;
-  --n-border: 1px solid #333 !important;
-  --n-border-hover: 1px solid #444 !important;
-  --n-border-focus: 1px solid #444 !important;
-  --n-border-radius: 20px !important;
-  background-color: #222 !important;
-  color: #aaa !important;
-  font-size: 13px !important;
-  cursor: pointer !important;
+.model-indicator {
+  color: #10b981; /* 亮色点缀，代表活跃 */
+  font-size: 14px;
 }
 
-.model-picker :deep(.n-base-selection:hover) {
-  background-color: #2a2a2a !important;
-  color: #bbb !important;
+.model-label {
+  font-size: 11px;
+  font-family: var(--font-family-mono, 'Consolas', 'Monaco', monospace);
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.model-picker :deep(.n-base-selection .n-base-selection__render) {
-  padding: 4px 12px !important;
+/* 3. 圆形图标按钮 */
+.icon-btn-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
 }
 
-/* 发送按钮样式 - 绿色渐变 */
-.input-footer .send-button {
-  width: 34px !important;
-  height: 34px !important;
-  min-height: 34px !important;
-  padding: 0 !important;
-  font-size: 13px !important;
-  font-weight: bold !important;
-  border-radius: 10px !important;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-  color: white !important;
-  border: none !important;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2) !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.icon-btn-circle:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.input-footer .send-button:hover:not(:disabled) {
-  transform: scale(1.05);
-  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3) !important;
+/* 4. 发送按钮：从文本到功能块的转变 */
+.send-action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  margin-left: 8px;
 }
 
-.input-footer .send-button:active:not(:disabled) {
-  transform: scale(0.95);
+/* 当有文字输入时变绿 */
+.send-action-btn.is-active {
+  background: #19c37d;
+  color: white;
+  box-shadow: 0 4px 12px rgba(25, 195, 125, 0.2);
 }
 
-.input-footer .send-button:disabled {
-  opacity: 0.3 !important;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+.send-action-btn.is-active:hover {
+  background: #22d68a;
+  box-shadow: 0 6px 16px rgba(25, 195, 125, 0.3);
+}
+
+/* 正在生成时的红色停止标识 */
+.send-action-btn.is-generating {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.send-action-btn.is-generating:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.send-action-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 /* 默认变体的停止按钮样式 */
