@@ -127,6 +127,117 @@ const getSkillTagColor = (tag: string): string => {
   return colors[index]
 }
 
+// 导入相关状态
+const showImportModal = ref(false)
+const importTab = ref('url')
+const importUrl = ref('')
+const importFile = ref<File | null>(null)
+const importLoading = ref(false)
+const importProgress = ref(0)
+const skillPreview = ref<SkillPreview | null>(null)
+
+const handleImportClick = () => {
+  showImportModal.value = true
+  importUrl.value = ''
+  importFile.value = null
+  skillPreview.value = null
+  importProgress.value = 0
+}
+
+const handleFileChange = async (options: { file: UploadFileInfo }) => {
+  const file = options.file
+  if (file.file) {
+    importFile.value = file.file
+    // 验证文件
+    try {
+      const preview = await skillApi.validateSkill(undefined, undefined)
+      // 直接验证文件内容
+      const content = await file.file.text()
+      skillPreview.value = await skillApi.validateSkill(content)
+    } catch (error) {
+      console.error('Failed to validate file:', error)
+    }
+  }
+}
+
+const handleUrlPreview = async () => {
+  if (!importUrl.value.trim()) {
+    message.warning('请输入 URL')
+    return
+  }
+
+  importLoading.value = true
+  try {
+    skillPreview.value = await skillApi.validateSkill(undefined, importUrl.value)
+    if (!skillPreview.value.isValid) {
+      message.warning(`技能格式无效: ${skillPreview.value.errors.join(', ')}`)
+    }
+  } catch (error) {
+    message.error('验证失败')
+    console.error('Failed to validate URL:', error)
+  } finally {
+    importLoading.value = false
+  }
+}
+
+const handleImport = async () => {
+  importLoading.value = true
+  importProgress.value = 10
+
+  try {
+    let result
+
+    if (importTab.value === 'url') {
+      if (!importUrl.value.trim()) {
+        message.warning('请输入 URL')
+        importLoading.value = false
+        return
+      }
+      importProgress.value = 30
+      result = await skillApi.importSkillFromUrl(importUrl.value)
+    } else {
+      if (!importFile.value) {
+        message.warning('请选择文件')
+        importLoading.value = false
+        return
+      }
+      importProgress.value = 30
+      result = await skillApi.importSkillFromFile(importFile.value)
+    }
+
+    importProgress.value = 80
+
+    if (result.success) {
+      importProgress.value = 100
+      message.success(result.message || '导入成功')
+      showImportModal.value = false
+      await loadSkills() // 刷新技能列表
+    } else {
+      message.error(result.message || '导入失败')
+    }
+  } catch (error) {
+    message.error('导入失败')
+    console.error('Failed to import skill:', error)
+  } finally {
+    importLoading.value = false
+    importProgress.value = 0
+  }
+}
+
+const beforeUpload = (file: File) => {
+  const isMd = file.name.endsWith('.md')
+  if (!isMd) {
+    message.error('只支持 .md 格式的文件')
+    return false
+  }
+  const isLt1M = file.size / 1024 / 1024 < 1
+  if (!isLt1M) {
+    message.error('文件大小不能超过 1MB')
+    return false
+  }
+  return true
+}
+
 onMounted(() => {
   loadSkills()
 })
@@ -147,11 +258,14 @@ onMounted(() => {
       
       <div class="header-right">
         <NSpace>
+          <NButton size="small" type="primary" @click="handleImportClick">
+            导入技能
+          </NButton>
           <NButton size="small" :loading="loading" @click="loadSkills">
             刷新
           </NButton>
-          <NButton 
-            size="small" 
+          <NButton
+            size="small"
             @click="viewMode = viewMode === 'grid' ? 'list' : 'grid'"
           >
             {{ viewMode === 'grid' ? '列表视图' : '网格视图' }}

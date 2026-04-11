@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import type { IdeAppendToChatOptions, IdeCodeRefPayload } from '@/composables/useIdeChatAppend'
 import { buildIdeLayeredUserMessage } from '@/utils/ideUserMessageMarkers'
 import { NInput, NButton, NIcon, NSpin, NTag, NSelect, useMessage, NDrawer, NDrawerContent } from 'naive-ui'
@@ -379,12 +379,10 @@ function closePromptLibrary() {
 function handleUseTemplate(content: string) {
   inputValue.value = content
   closePromptLibrary()
-  void nextTick(() => {
+  nextTick(() => {
     inputRef.value?.focus()
   })
 }
-
-const nextTick = (fn: () => void) => Promise.resolve().then(fn)
 </script>
 
 <template>
@@ -492,6 +490,18 @@ const nextTick = (fn: () => void) => Promise.resolve().then(fn)
 
     <!-- 右侧：发送 / 停止按钮 -->
     <div class="input-actions">
+      <!-- 提示词模板库按钮 -->
+      <NButton
+        class="prompt-library-button"
+        :disabled="!sessionId || disabled"
+        @click="openPromptLibrary"
+      >
+        <template #icon>
+          <NIcon><ReorderFourOutline /></NIcon>
+        </template>
+        模板
+      </NButton>
+
       <template v-if="isGenerating">
         <NButton
           type="warning"
@@ -516,6 +526,21 @@ const nextTick = (fn: () => void) => Promise.resolve().then(fn)
       </template>
     </div>
     </div>
+
+    <!-- 提示词模板库抽屉 -->
+    <NDrawer
+      v-model:show="showPromptLibrary"
+      :width="500"
+      placement="right"
+    >
+      <NDrawerContent title="提示词模板库" :native-scrollbar="false" closable>
+        <PromptTemplateLibrary
+          :session-id="sessionId"
+          @use-template="handleUseTemplate"
+          @close="closePromptLibrary"
+        />
+      </NDrawerContent>
+    </NDrawer>
   </div>
 </template>
 

@@ -5,7 +5,10 @@ import type { SelectOption } from 'naive-ui'
 import { SearchOutline, CloseOutline, FilterOutline } from '@vicons/ionicons5'
 import { NIcon } from 'naive-ui'
 import { useChatStore } from '@/stores/chat'
+import { useAuthStore } from '@/stores/auth'
 import type { Message } from '@/types'
+
+const authStore = useAuthStore()
 
 interface SearchResult {
   message: Message
@@ -93,7 +96,7 @@ async function handleSearch() {
     const response = await fetch(`/api/sessions/messages/search?${params.toString()}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${chatStore.currentSessionId ? 'token' : ''}`,
+        'Authorization': authStore.token ? `Bearer ${authStore.token}` : '',
       },
     })
 
