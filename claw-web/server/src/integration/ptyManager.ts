@@ -247,11 +247,19 @@ export class PTYSessionManager {
           }
         })
 
-        // 监听 stderr
+        // 监听 stderr - 过滤掉已知的警告信息
         childProcess.stderr?.on('data', (data: Buffer) => {
-          const text = data.toString('utf8')
+          let text = data.toString('utf8')
           if (text.length > 0) {
-            this.handleOutput(sessionId, 'stderr', text)
+            // 过滤掉 Windows 上 bash 的常见警告信息
+            text = text
+              .replace(/bash: cannot set terminal process group \(-1\): Inappropriate ioctl for device\r?\n?/gi, '')
+              .replace(/bash: no job control in this shell\r?\n?/gi, '')
+            
+            // 如果过滤后还有内容，才发送
+            if (text.trim().length > 0) {
+              this.handleOutput(sessionId, 'stderr', text)
+            }
           }
         })
 
