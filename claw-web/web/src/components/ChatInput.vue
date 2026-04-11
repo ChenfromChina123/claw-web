@@ -42,17 +42,6 @@ const selectedModelLabel = computed(() => {
   return model?.name || ''
 })
 
-// 打开模型选择器
-function openModelSelector() {
-  // TODO: 可以实现一个下拉菜单或弹窗来选择模型
-  // 暂时使用 Naive UI 的 Select 组件
-  const selectEl = document.querySelector('.model-capsule') as HTMLElement
-  if (selectEl) {
-    // 触发模型选择逻辑
-    console.log('Open model selector')
-  }
-}
-
 async function loadModels(): Promise<void> {
   try {
     const list = await modelApi.listModels()
@@ -409,7 +398,7 @@ function handleUseTemplate(content: string) {
       <!-- 输入框 Header：AI角色标识 -->
       <div class="input-header">
         <div class="ai-icon">回</div>
-        <span>@SOLO Coder</span>
+        <span>claw-code</span>
       </div>
 
       <!-- 中间：输入框 + 代码引用 -->
@@ -450,17 +439,27 @@ function handleUseTemplate(content: string) {
       <!-- 底部：功能按钮栏 -->
       <div class="input-footer">
         <div class="left-tools">
-          <!-- @ 提及按钮 -->
-          <button class="icon-btn" title="Mention Context">@</button>
-          <!-- # 知识库按钮 -->
-          <button class="icon-btn" title="Reference File">#</button>
+          <!-- 左侧留空，保持对齐 -->
         </div>
 
         <div class="right-tools">
-          <!-- 模型胶囊 -->
-          <div class="model-capsule" @click="openModelSelector">
-            <span class="model-indicator">◈</span>
-            <span class="model-label">{{ selectedModelLabel || 'MODEL' }}</span>
+          <!-- 模型胶囊 - 使用NSelect实现下拉功能 -->
+          <div class="model-capsule-wrapper">
+            <NSelect
+              v-model:value="selectedModelId"
+              :options="modelOptions"
+              :disabled="disabled || modelOptions.length === 0"
+              size="small"
+              class="model-capsule-select"
+              :consistent-menu-width="false"
+            >
+              <template #trigger>
+                <div class="model-capsule">
+                  <span class="model-indicator">◈</span>
+                  <span class="model-label">{{ selectedModelLabel || 'MODEL' }}</span>
+                </div>
+              </template>
+            </NSelect>
           </div>
 
           <!-- 模板按钮 -->
@@ -827,6 +826,19 @@ function handleUseTemplate(content: string) {
 }
 
 /* 2. 模型胶囊：极致简约化 */
+.model-capsule-wrapper {
+  position: relative;
+}
+
+.model-capsule-wrapper :deep(.n-base-selection) {
+  background: transparent !important;
+  border: none !important;
+}
+
+.model-capsule-wrapper :deep(.n-base-selection__render) {
+  padding: 0 !important;
+}
+
 .model-capsule {
   display: flex;
   align-items: center;
