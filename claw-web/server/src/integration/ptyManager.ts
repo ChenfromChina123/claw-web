@@ -184,8 +184,9 @@ export class PTYSessionManager {
         envVars[key] = value
       }
     }
-    envVars['TERM'] = 'xterm-256color'
-    
+    // Windows 平台使用 dumb 终端类型避免换行问题
+    envVars['TERM'] = isWindows ? 'dumb' : 'xterm-256color'
+
     // 如果启用隔离，使用安全的环境变量
     if (enableIsolation && userId) {
       envVars['HOME'] = userRoot || cwd
@@ -225,8 +226,7 @@ export class PTYSessionManager {
           shellArgs = ['-NoLogo', '-NoProfile', '-Command', '-']
         } else if (shell.includes('bash')) {
           // bash 需要交互式模式才能接受输入
-          // --no-editing 禁用行编辑，避免 Windows 上的换行问题
-          shellArgs = ['--login', '-i', '--no-editing']
+          shellArgs = ['--login', '-i']
         } else if (shell.includes('cmd')) {
           shellArgs = ['/K']
         }
