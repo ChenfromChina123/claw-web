@@ -204,6 +204,11 @@ export class PTYSessionManager {
       envVars['PS1'] = '\\w\\$ '
     }
     
+    // Windows 平台禁用 bash 回显，由前端负责本地回显
+    if (isWindows) {
+      envVars['TERM'] = 'dumb'
+    }
+    
     // 删除敏感环境变量
     delete envVars['APPDATA']
     delete envVars['LOCALAPPDATA']
@@ -226,7 +231,8 @@ export class PTYSessionManager {
           shellArgs = ['-NoLogo', '-NoProfile', '-Command', '-']
         } else if (shell.includes('bash')) {
           // bash 需要交互式模式才能接受输入
-          shellArgs = ['--login', '-i']
+          // +o echo 禁用回显（由前端负责本地回显）
+          shellArgs = ['--login', '-i', '+o', 'echo']
         } else if (shell.includes('cmd')) {
           shellArgs = ['/K']
         }
