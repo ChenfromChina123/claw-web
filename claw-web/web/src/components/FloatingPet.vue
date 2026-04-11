@@ -81,11 +81,23 @@ function initRive(riveFile: string): void {
       fit: Fit.Contain,
       alignment: Alignment.Center,
     }),
+    stateMachines: 'State Machine 1',
     onLoad: () => {
       rive.resizeDrawingSurfaceToCanvas()
       riveInstance.value = rive
-      // 确保动画播放
       rive.play()
+      
+      // 尝试激活状态机的输入
+      try {
+        const inputs = rive.stateMachineInputs('State Machine 1')
+        inputs.forEach((input: any) => {
+          if (input.type === 1) { // Boolean type
+            input.value = true
+          }
+        })
+      } catch (e) {
+        console.log('[FloatingPet] 状态机输入配置:', e)
+      }
     },
     onError: (e: any) => {
       console.error('[FloatingPet] Rive 加载失败:', e)
