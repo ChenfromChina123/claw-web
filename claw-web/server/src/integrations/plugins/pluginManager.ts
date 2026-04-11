@@ -7,17 +7,17 @@
 import { readdir, readFile, writeFile, stat, mkdir } from 'fs/promises'
 import { resolve, join, extname, basename } from 'path'
 import { existsSync } from 'fs'
-import type {
-  Plugin,
-  PluginManifest,
-  PluginConfig,
-  PluginStatus,
+import {
   PluginType,
-  PluginInstance,
-  PluginValidationResult,
-  PluginInstallOptions,
-  PluginTool,
-  PluginHookContext,
+  PluginStatus,
+  type Plugin,
+  type PluginManifest,
+  type PluginConfig,
+  type PluginInstance,
+  type PluginValidationResult,
+  type PluginInstallOptions,
+  type PluginTool,
+  type PluginHookContext,
 } from './types'
 import type { Command } from '../../integrations/skillsAdapter'
 
