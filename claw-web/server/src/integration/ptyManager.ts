@@ -256,18 +256,6 @@ export class PTYSessionManager {
           windowsHide: false
         })
 
-        // PowerShell 启动后设置简化的提示符（只显示用户目录名）
-        childProcess.on('spawn', () => {
-          // 延迟一点发送，确保 shell 已准备好
-          setTimeout(() => {
-            // 获取当前目录的短名称（最后一级目录）
-            const shortDirName = cwd.split(/[/\\]/).pop() || 'workspaces'
-            // 直接执行 Set-Content 到 profile（静默方式）
-            const cmd = 'Set-Variable -Name Prompt -Value { "' + shortDirName + '> " }\r\n'
-            childProcess.stdin?.write(cmd)
-          }, 200)
-        })
-
         // 监听 stdout
         childProcess.stdout?.on('data', (data: Buffer) => {
           const text = data.toString('utf8')
