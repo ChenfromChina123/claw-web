@@ -1419,10 +1419,13 @@ async function handleInterruptExecution() {
   position: relative;
 }
 
-/* 用户消息布局：编辑按钮在左侧 */
+/* 用户消息布局：编辑按钮在气泡左侧 */
 .user-message .message-content {
+  display: flex;
   flex-direction: row;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
 }
 
 /* 编辑按钮容器 - 放在气泡左侧 */
@@ -1432,13 +1435,21 @@ async function handleInterruptExecution() {
   justify-content: center;
   opacity: 0;
   transition: opacity 0.2s ease;
-  padding-right: 8px;
-  order: -1; /* 确保按钮在气泡左边 */
+  flex-shrink: 0;
 }
 
 /* 鼠标悬停在消息上时显示编辑按钮 */
 .user-message:hover .edit-btn-wrapper {
   opacity: 1;
+}
+
+/* 气泡列容器 */
+.message-bubble-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 85%;
+  flex-shrink: 0;
 }
 
 /* 编辑图标按钮样式 */
