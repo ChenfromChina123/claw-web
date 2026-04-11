@@ -770,12 +770,9 @@ function handleImageClick() {
 }
 
 /* 输入框容器需要相对定位，以便工具栏绝对定位 */
-.input-area :deep(.n-input) {
+.input-area {
   position: relative;
-}
-
-.input-area :deep(.n-input__wrapper) {
-  position: relative;
+  width: 100%;
 }
 
 /* 调整 textarea 的内边距，为右下角的按钮留出空间 */
