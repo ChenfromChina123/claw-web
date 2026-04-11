@@ -6,7 +6,7 @@
  */
 
 import { ref, onMounted, onUnmounted } from 'vue'
-import Rive from '@rive-app/canvas'
+import { Rive, Layout, Fit, Alignment } from '@rive-app/canvas'
 
 interface PetData {
   char: string
@@ -69,17 +69,30 @@ function initRive(riveFile: string): void {
   
   if (riveInstance.value) {
     riveInstance.value.cleanup()
+    riveInstance.value = null
   }
   
-  riveInstance.value = new Rive({
+  const rive = new Rive({
     src: riveFile,
     canvas: canvasRef.value,
     autoplay: true,
     useDevicePixelRatio: true,
+    layout: new Layout({
+      fit: Fit.Contain,
+      alignment: Alignment.Center,
+    }),
     onLoad: () => {
-      riveInstance.value.resizeDrawingSurfaceToCanvas()
+      rive.resizeDrawingSurfaceToCanvas()
+      riveInstance.value = rive
+      // 确保动画播放
+      rive.play()
+    },
+    onError: (e: any) => {
+      console.error('[FloatingPet] Rive 加载失败:', e)
     },
   })
+  
+  riveInstance.value = rive
 }
 
 function loadPetState(): PetState | null {
@@ -199,6 +212,7 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', stopDrag)
   if (riveInstance.value) {
     riveInstance.value.cleanup()
+    riveInstance.value = null
   }
 })
 </script>
