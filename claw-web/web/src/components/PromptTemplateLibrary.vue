@@ -126,6 +126,122 @@ function getCategoryIcon(categoryId: string | null) {
   return iconMap[cat?.icon || 'folder'] || FolderOutline
 }
 
+// 示例模板数据
+const exampleTemplates: PromptTemplate[] = [
+  {
+    id: 'builtin-1',
+    title: '代码解释',
+    content: '请解释以下代码的工作原理：\n\n```\n{{code}}\n```',
+    description: '解释代码的功能和实现原理',
+    categoryId: 'code',
+    tags: ['代码', '解释', '分析'],
+    isBuiltin: true,
+    isFavorite: false,
+    useCount: 128,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'builtin-2',
+    title: '代码优化',
+    content: '请优化以下代码，提高其性能和可读性：\n\n```\n{{code}}\n```\n\n请提供优化后的代码和优化说明。',
+    description: '优化代码性能和可读性',
+    categoryId: 'code',
+    tags: ['代码', '优化', '重构'],
+    isBuiltin: true,
+    isFavorite: false,
+    useCount: 96,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'builtin-3',
+    title: 'Bug 修复',
+    content: '以下代码存在 Bug，请找出问题并修复：\n\n```\n{{code}}\n```\n\n请说明 Bug 原因和修复方案。',
+    description: '找出并修复代码中的 Bug',
+    categoryId: 'code',
+    tags: ['代码', 'Bug', '调试'],
+    isBuiltin: true,
+    isFavorite: false,
+    useCount: 85,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'builtin-4',
+    title: '生成单元测试',
+    content: '请为以下代码生成单元测试：\n\n```\n{{code}}\n```\n\n要求：\n1. 使用 {{framework}} 测试框架\n2. 覆盖主要功能路径\n3. 包含边界条件测试',
+    description: '为代码生成完整的单元测试',
+    categoryId: 'code',
+    tags: ['测试', '单元测试', '代码质量'],
+    isBuiltin: true,
+    isFavorite: false,
+    useCount: 72,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'builtin-5',
+    title: '代码审查',
+    content: '请对以下代码进行审查，检查：\n1. 代码风格和规范\n2. 潜在的安全问题\n3. 性能瓶颈\n4. 可维护性\n\n```\n{{code}}\n```',
+    description: '全面的代码审查和反馈',
+    categoryId: 'code',
+    tags: ['代码审查', '质量', '规范'],
+    isBuiltin: true,
+    isFavorite: false,
+    useCount: 64,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'builtin-6',
+    title: '编写文档',
+    content: '请为以下代码编写详细的技术文档：\n\n```\n{{code}}\n```\n\n文档应包含：\n- 功能说明\n- 参数说明\n- 返回值说明\n- 使用示例',
+    description: '生成代码的技术文档',
+    categoryId: 'writing',
+    tags: ['文档', '注释', '说明'],
+    isBuiltin: true,
+    isFavorite: false,
+    useCount: 58,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'builtin-7',
+    title: '重构建议',
+    content: '请分析以下代码，提供重构建议：\n\n```\n{{code}}\n```\n\n请从以下角度分析：\n- 设计模式应用\n- 代码结构优化\n- 依赖关系梳理',
+    description: '提供代码重构的专业建议',
+    categoryId: 'code',
+    tags: ['重构', '设计模式', '架构'],
+    isBuiltin: true,
+    isFavorite: false,
+    useCount: 45,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'builtin-8',
+    title: '正则表达式',
+    content: '请帮我写一个正则表达式，用于匹配：\n\n{{description}}\n\n要求：\n- 提供正则表达式\n- 解释各部分含义\n- 给出使用示例',
+    description: '生成并解释正则表达式',
+    categoryId: 'code',
+    tags: ['正则', '字符串', '匹配'],
+    isBuiltin: true,
+    isFavorite: false,
+    useCount: 112,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+]
+
+// 示例分类数据
+const exampleCategories: PromptTemplateCategory[] = [
+  { id: 'code', name: '代码助手', icon: 'code', sortOrder: 1 },
+  { id: 'writing', name: '文档写作', icon: 'pencil', sortOrder: 2 },
+  { id: 'analysis', name: '分析诊断', icon: 'analytics', sortOrder: 3 },
+  { id: 'learning', name: '学习辅助', icon: 'bulb', sortOrder: 4 }
+]
+
 // 加载数据
 async function loadData() {
   isLoading.value = true
@@ -134,11 +250,14 @@ async function loadData() {
       promptTemplateApi.getCategories(),
       promptTemplateApi.getTemplates()
     ])
-    categories.value = cats
-    templates.value = tpls
+    // 合并 API 数据和示例数据
+    categories.value = cats.length > 0 ? cats : exampleCategories
+    templates.value = [...exampleTemplates, ...tpls]
   } catch (error) {
-    message.error('加载数据失败')
-    console.error(error)
+    // 如果 API 失败，使用示例数据
+    categories.value = exampleCategories
+    templates.value = exampleTemplates
+    console.log('使用示例模板数据')
   } finally {
     isLoading.value = false
   }
