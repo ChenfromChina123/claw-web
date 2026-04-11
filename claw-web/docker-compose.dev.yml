@@ -1,19 +1,18 @@
-# Claude Code HAHA - 开发环境 Docker Compose（热重载模式）
+# Claw-Web - 开发版本 Docker Compose（热重载模式）
 #
 # 特性：
 # ✅ 热重载：改代码立即生效，无需 rebuild
 # ✅ 后端：bun --watch 监听文件变化自动重启
 # ✅ 前端：Vite HMR 浏览器热更新
-# ✅ 前后端代码目录直接挂载（绕过 COPY）
 #
 # 使用方法：
-# 1. 启动本文件全部服务（含独立 MySQL）：docker compose -f docker-compose.dev.yml up -d
-# 2. 访问：http://localhost:5173（浏览器只连本机；API/WS 由 Vite 代理到容器 backend）
+# 1. 启动：docker compose -f docker-compose.dev.yml up -d --build
+# 2. 访问：http://localhost:5173
 #
-# 关于「两个 MySQL」：
-# - docker-compose.yml 里的 claude-mysql：生产/默认栈，宿主机端口多为 3306
-# - 本文件的 claude-mysql-dev：仅开发栈，宿主机 3308 -> 容器 3306，与生产库数据隔离
-# 开发时不要同时需要两个库时，只起其中一套即可；本 dev 栈已自带 mysql，不必再开生产 mysql
+# 端口说明：
+#   - 前端: 5173
+#   - 后端: 3000
+#   - MySQL: 3308
 
 services:
   # ==================== MySQL 数据库（开发环境） ====================

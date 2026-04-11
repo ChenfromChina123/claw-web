@@ -1,27 +1,18 @@
-# Claude Code HAHA - 多租户 Docker Compose 配置（无 Redis 版本）
+# Claw-Web - 部署版本 Docker Compose（生产环境）
 #
-# 特性：
-# ✅ 完整的多租户用户隔离
-# ✅ 资源配额管理与内存优化
-# ✅ 三种预设配置：开发/标准/高性能
-# ✅ 生产级部署配置
-# ✅ 轻量化部署（无 Redis 依赖）
+# 使用方法：
+# 1. 确保已安装 Docker Desktop
+# 2. 运行：docker compose -f docker-compose.cn-fast.yml up -d --build
+# 3. 访问：http://localhost:8888
 #
-# 使用说明：
-# 1. 复制 .env.docker.example 为 .env 并填写配置
-# 2. 选择合适的配置方案（见下方注释）
-# 3. 运行: docker compose up -d
-# 4. 访问: http://localhost (前端) | http://localhost:3000/api (后端 API)
-#
-# 📚 内存配置文档：docs/DOCKER_MEMORY_CONFIG.md
-#
-# ⚙️ 配置方案选择（根据服务器内存）：
-#   方案 A: 开发环境  (2GB RAM)  → 取消注释 [DEV] 部分
-#   方案 B: 标准生产  (4GB RAM)  → 当前默认配置 ⭐ 推荐
-#   方案 C: 高性能    (8GB+ RAM) → 取消注释 [HIGH_PERF] 部分
+# 端口说明：
+#   - 前端: 8888
+#   - 后端: 3000
+#   - MySQL: 3306
 
 services:
-  # ==================== MySQL 数据库 ====================
+  # ==================== MySQL 数据库（国内镜像）====================
+  # 使用官方镜像，建议配置 Docker 镜像加速器
   mysql:
     image: mysql:8.0
     container_name: claude-mysql
@@ -53,6 +44,7 @@ services:
       - --max_heap_table_size=16777216
       - --table_open_cache=400
       - --thread_cache_size=8
+      - --query_cache_type=0
       - --slow_query_log=1
       - --long_query_time=2
     networks:
@@ -70,15 +62,18 @@ services:
         reservations:
           memory: 128M
 
-  # ==================== 后端服务（Bun Runtime） ====================
+  # ==================== 后端服务（本地构建，使用国内镜像加速）====================
   backend:
     build:
       context: .
       dockerfile: server/Dockerfile
+      args:
+        # 使用阿里云镜像加速器
+        BUN_INSTALL_REGISTRY: https://registry.npmmirror.com
     container_name: claude-backend
     restart: unless-stopped
     ports:
-      - "${PORT:-3001}:3000"
+      - "${PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
       - NODE_OPTIONS=--max-old-space-size=384
@@ -107,7 +102,6 @@ services:
       - USER_STORAGE_QUOTA_MB=${USER_STORAGE_QUOTA_MB:-500}
       - USER_SESSION_LIMIT=${USER_SESSION_LIMIT:-10}
       - USER_PTY_LIMIT=${USER_PTY_LIMIT:-5}
-      - PTY_ENABLED=${PTY_ENABLED:-true}
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-10}
       - MAX_FILES_PER_USER=${MAX_FILES_PER_USER:-1000}
       - API_TIMEOUT_MS=${API_TIMEOUT_MS:-300000}
@@ -117,10 +111,6 @@ services:
       - user_workspaces:/app/workspaces/users
       - session_workspaces:/app/workspaces/sessions
       - backend_logs:/app/logs
-    # PTY 支持需要特权模式和设备访问
-    privileged: true
-    stdin_open: true
-    tty: true
     depends_on:
       mysql:
         condition: service_healthy
@@ -140,15 +130,18 @@ services:
         reservations:
           memory: 256M
 
-  # ==================== 前端服务（Nginx） ====================
+  # ==================== 前端服务（本地构建，使用国内镜像加速）====================
   frontend:
     build:
       context: .
       dockerfile: web/Dockerfile
+      args:
+        # 使用阿里云镜像加速器
+        NPM_REGISTRY: https://registry.npmmirror.com
     container_name: claude-frontend
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_PORT:-8888}:80"
     volumes:
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
