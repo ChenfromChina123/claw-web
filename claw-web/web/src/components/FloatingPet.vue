@@ -93,11 +93,13 @@ function initRive(riveFile: string): void {
 
       try {
         const inputs = rive.stateMachineInputs('State Machine 1')
-        inputs.forEach((input: any) => {
-          if (input.type === 1) {
-            input.value = true
-          }
-        })
+        if (inputs) {
+          inputs.forEach((input: any) => {
+            if (input.type === 1) {
+              input.value = true
+            }
+          })
+        }
       } catch (e) {
         console.log('[FloatingPet] 状态机输入配置:', e)
       }
@@ -381,13 +383,16 @@ onUnmounted(() => {
   height: 120px;
   transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   animation: float 4s ease-in-out infinite;
+  background: transparent !important;
 }
 
 .rive-canvas {
   width: 120px;
   height: 120px;
   display: block;
-  background: transparent;
+  background: transparent !important;
+  filter: none;
+  mix-blend-mode: screen;
 }
 
 .pet-bounce {
