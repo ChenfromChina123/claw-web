@@ -152,44 +152,60 @@ const templates = [
 async function init() {
   console.log('开始初始化提示词模板数据...')
   const pool = getPool()
+  let connection: any = null
 
   try {
+    // 获取连接并开启事务
+    connection = await pool.getConnection()
+    await connection.beginTransaction()
+
     // 1. 创建分类
     console.log('创建分类...')
     for (const cat of categories) {
       try {
         // 检查分类是否已存在
-        const [existing] = await pool.query(
+        const [existing] = await connection.query(
           'SELECT id FROM prompt_template_categories WHERE id = ?',
           [cat.id]
         ) as [any[], unknown]
 
         if (existing.length === 0) {
-          await pool.query(
+          await connection.query(
             'INSERT INTO prompt_template_categories (id, name, icon, sort_order) VALUES (?, ?, ?, ?)',
             [cat.id, cat.name, cat.icon, cat.sortOrder]
           )
-          console.log(`✓ 创建分类: ${cat.name}`)
+          console.log(`✓ 创建分类: ${cat.name} (id=${cat.id})`)
         } else {
-          console.log(`  分类已存在: ${cat.name}`)
+          console.log(`  分类已存在: ${cat.name} (id=${cat.id})`)
         }
       } catch (error) {
         console.error(`✗ 创建分类失败: ${cat.name}`, error)
+        throw error
       }
     }
 
+    // 验证所有分类是否已创建
+    const [allCategories] = await connection.query(
+      'SELECT id, name FROM prompt_template_categories'
+    ) as [any[], unknown]
+    console.log('\n当前分类表中的数据:')
+    allCategories.forEach((cat: any) => {
+      console.log(`  - id=${cat.id}, name=${cat.name}`)
+    })
+
     // 2. 创建模板
-    console.log('创建模板...')
+    console.log('\n创建模板...')
     for (const tpl of templates) {
       try {
         // 检查模板是否已存在
-        const [existing] = await pool.query(
+        const [existing] = await connection.query(
           'SELECT id FROM prompt_templates WHERE id = ?',
           [tpl.id]
         ) as [any[], unknown]
 
         if (existing.length === 0) {
-          await pool.query(
+          console.log(`  正在插入模板: ${tpl.title}, categoryId=${tpl.categoryId}`)
+          await connection.query(
             `INSERT INTO prompt_templates 
              (id, user_id, category_id, title, content, description, is_builtin, is_favorite, use_count, tags, created_at, updated_at) 
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
@@ -211,16 +227,28 @@ async function init() {
           console.log(`  模板已存在: ${tpl.title}`)
         }
       } catch (error) {
-        console.error(`✗ 创建模板失败: ${tpl.title}`, error)
+        console.error(`✗ 创建模板失败: ${tpl.title}, categoryId=${tpl.categoryId}`, error)
+        throw error
       }
     }
 
+    // 提交事务
+    await connection.commit()
     console.log('\n初始化完成！')
-    process.exit(0)
   } catch (error) {
     console.error('初始化失败:', error)
+    if (connection) {
+      await connection.rollback()
+      console.log('事务已回滚')
+    }
     process.exit(1)
+  } finally {
+    if (connection) {
+      connection.release()
+    }
   }
+
+  process.exit(0)
 }
 
 // 运行初始化
