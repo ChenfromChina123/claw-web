@@ -2126,6 +2126,14 @@ function PromptInput({
       </Box>;
   }, [showThinkingToggle, thinkingEnabled, handleThinkingSelect, handleThinkingCancel, messages.length]);
 
+  // Memoize the session switcher element
+  const sessionSwitcherElement = useMemo(() => {
+    if (!showSessionSwitcher) return null;
+    return <Box flexDirection="column" marginTop={1}>
+        <SessionSwitcher isOpen={showSessionSwitcher} onClose={() => setShowSessionSwitcher(false)} />
+      </Box>;
+  }, [showSessionSwitcher]);
+
   // Portal dialog to DialogOverlay in fullscreen so it escapes the bottom
   // slot's overflowY:hidden clip (same pattern as SuggestionsOverlay).
   // Must be called before early returns below to satisfy rules-of-hooks.
@@ -2173,6 +2181,9 @@ function PromptInput({
   }
   if (thinkingToggleElement) {
     return thinkingToggleElement;
+  }
+  if (sessionSwitcherElement) {
+    return sessionSwitcherElement;
   }
   if (showBridgeDialog) {
     return <BridgeDialog onDone={() => {
