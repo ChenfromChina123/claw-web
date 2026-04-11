@@ -15,11 +15,14 @@
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Box, Text, useInput, useApp, useStdin } from '../ink.js';
-import type { Session } from '../types/session.js';
 import { useAppState, useSetAppState } from '../state/AppState.js';
 import { getSessionId, switchSession } from '../bootstrap/state.js';
 import { asSessionId } from '../types/ids.js';
 import { useNotifications } from '../context/notifications.js';
+import { getTranscriptPath, getSessionTitleFromTranscript } from '../utils/sessionStorage.js';
+import { readdir, stat } from 'fs/promises';
+import { join, basename } from 'path';
+import { getProjectRoot } from '../bootstrap/state.js';
 
 interface SessionSwitcherProps {
   isOpen: boolean;
@@ -42,36 +45,86 @@ export function SessionSwitcher({ isOpen, onClose }: SessionSwitcherProps): Reac
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isSearchMode, setIsSearchMode] = useState(false);
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
-  // 从 AppState 获取会话列表
-  const sessions = useAppState(s => s.sessions || []);
-  const currentSessionId = useAppState(() => getSessionId());
+  const currentSessionId = getSessionId();
   
-  // 转换会话数据
-  const sessionInfos: SessionInfo[] = useMemo(() => {
-    return sessions.map((session: Session) => ({
-      id: session.id,
-      title: session.title || '未命名会话',
-      updatedAt: new Date(session.updatedAt),
-      isCurrent: session.id === currentSessionId,
-    })).sort((a, b) => {
-      // 当前会话排在最前面
-      if (a.isCurrent && !b.isCurrent) return -1;
-      if (!a.isCurrent && b.isCurrent) return 1;
-      // 然后按更新时间倒序
-      return b.updatedAt.getTime() - a.updatedAt.getTime();
-    });
-  }, [sessions, currentSessionId]);
+  // 加载会话列表
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    async function loadSessions() {
+      setIsLoading(true);
+      try {
+        const projectRoot = getProjectRoot();
+        const sessionsDir = join(projectRoot, '.claude', 'sessions');
+        
+        // 读取会话目录
+        let entries: string[] = [];
+        try {
+          entries = await readdir(sessionsDir);
+        } catch {
+          // 目录不存在，返回空列表
+          setSessions([]);
+          setIsLoading(false);
+          return;
+        }
+        
+        // 获取每个会话的信息
+        const sessionPromises = entries
+          .filter(entry => entry.endsWith('.jsonl'))
+          .map(async (entry) => {
+            const sessionId = entry.replace('.jsonl', '');
+            const sessionPath = join(sessionsDir, entry);
+            
+            try {
+              const stats = await stat(sessionPath);
+              // 尝试从转录文件获取标题
+              const title = await getSessionTitleFromTranscript(sessionId) || `会话 ${sessionId.slice(0, 8)}`;
+              
+              return {
+                id: sessionId,
+                title,
+                updatedAt: stats.mtime,
+                isCurrent: sessionId === currentSessionId,
+              };
+            } catch {
+              return null;
+            }
+          });
+        
+        const loadedSessions = (await Promise.all(sessionPromises))
+          .filter((s): s is SessionInfo => s !== null)
+          .sort((a, b) => {
+            // 当前会话排在最前面
+            if (a.isCurrent && !b.isCurrent) return -1;
+            if (!a.isCurrent && b.isCurrent) return 1;
+            // 然后按更新时间倒序
+            return b.updatedAt.getTime() - a.updatedAt.getTime();
+          });
+        
+        setSessions(loadedSessions);
+      } catch (error) {
+        // 加载失败，使用空列表
+        setSessions([]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    loadSessions();
+  }, [isOpen, currentSessionId]);
   
   // 过滤会话
   const filteredSessions = useMemo(() => {
-    if (!searchQuery.trim()) return sessionInfos;
+    if (!searchQuery.trim()) return sessions;
     const query = searchQuery.toLowerCase();
-    return sessionInfos.filter(s => 
+    return sessions.filter(s => 
       s.title.toLowerCase().includes(query) ||
       s.id.toLowerCase().includes(query)
     );
-  }, [sessionInfos, searchQuery]);
+  }, [sessions, searchQuery]);
   
   // 重置选中索引当过滤结果变化时
   useEffect(() => {
@@ -185,7 +238,9 @@ export function SessionSwitcher({ isOpen, onClose }: SessionSwitcherProps): Reac
       
       {/* 会话列表 */}
       <Box flexDirection="column">
-        {filteredSessions.length === 0 ? (
+        {isLoading ? (
+          <Text dimColor>加载中...</Text>
+        ) : filteredSessions.length === 0 ? (
           <Text dimColor>没有找到匹配的会话</Text>
         ) : (
           filteredSessions.slice(0, 10).map((session, index) => (
@@ -217,7 +272,7 @@ export function SessionSwitcher({ isOpen, onClose }: SessionSwitcherProps): Reac
           ))
         )}
         
-        {filteredSessions.length > 10 && (
+        {!isLoading && filteredSessions.length > 10 && (
           <Box marginTop={1}>
             <Text dimColor>
               ... 还有 {filteredSessions.length - 10} 个会话
@@ -229,7 +284,7 @@ export function SessionSwitcher({ isOpen, onClose }: SessionSwitcherProps): Reac
       {/* 底部提示 */}
       <Box marginTop={1}>
         <Text dimColor>
-          当前会话: <Text color="green">{sessionInfos.find(s => s.isCurrent)?.title || '未命名'}</Text>
+          当前会话: <Text color="green">{sessions.find(s => s.isCurrent)?.title || '未命名'}</Text>
         </Text>
       </Box>
     </Box>

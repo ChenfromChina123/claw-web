@@ -500,6 +500,9 @@ async function handleRetry(): Promise<void> {
         @select="handleCommandSelect"
       />
     </Teleport>
+
+    <!-- 悬浮电子宠物 -->
+    <FloatingPet />
   </div>
 </template>
 
