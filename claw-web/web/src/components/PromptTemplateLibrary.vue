@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import {
-  NCard, NButton, NIcon, NInput, NSelect, NTag, NModal, NForm, NFormItem,
-  NEmpty, NScrollbar, NPopconfirm, useMessage, useDialog
+  NButton, NIcon, NInput, NSelect, NTag, NForm, NFormItem,
+  NEmpty, NScrollbar, NPopconfirm, useMessage
 } from 'naive-ui'
 import {
-  AddOutline, SearchOutline, CloseOutline, StarOutline, Star,
+  AddOutline, SearchOutline, ArrowBackOutline, StarOutline, Star,
   CreateOutline, TrashOutline, ReorderFourOutline, CodeOutline,
   PencilOutline, AnalyticsOutline, LanguageOutline, BulbOutline, FolderOutline
 } from '@vicons/ionicons5'
@@ -21,7 +21,12 @@ const emit = defineEmits<{
 }>()
 
 const message = useMessage()
-const dialog = useDialog()
+
+/**
+ * 当前视图状态：列表 | 新建 | 编辑 | 使用
+ */
+type ViewMode = 'list' | 'create' | 'edit' | 'use'
+const activeView = ref<ViewMode>('list')
 
 // 状态
 const categories = ref<PromptTemplateCategory[]>([])
@@ -30,9 +35,6 @@ const selectedCategoryId = ref<string | null>(null)
 const searchKeyword = ref('')
 const showFavoritesOnly = ref(false)
 const isLoading = ref(false)
-const showCreateModal = ref(false)
-const showEditModal = ref(false)
-const showUseModal = ref(false)
 
 // 新建/编辑表单
 const formData = ref({
@@ -76,6 +78,16 @@ const favoriteOptions = [
   { label: '我的收藏', value: true }
 ]
 
+// 当前视图标题
+const viewTitle = computed(() => {
+  switch (activeView.value) {
+    case 'create': return '新建模板'
+    case 'edit': return '编辑模板'
+    case 'use': return `使用模板 - ${useFormData.value.template?.title || ''}`
+    default: return '提示词模板库'
+  }
+})
+
 // 过滤后的模板
 const filteredTemplates = computed(() => {
   let result = templates.value
@@ -112,21 +124,27 @@ const templatesByCategory = computed(() => {
   return grouped
 })
 
-// 获取分类名称
+/**
+ * 获取分类名称
+ */
 function getCategoryName(categoryId: string | null): string {
   if (!categoryId) return '未分类'
   const cat = categories.value.find(c => c.id === categoryId)
   return cat?.name || '未分类'
 }
 
-// 获取分类图标
+/**
+ * 获取分类图标
+ */
 function getCategoryIcon(categoryId: string | null) {
   if (!categoryId) return FolderOutline
   const cat = categories.value.find(c => c.id === categoryId)
   return iconMap[cat?.icon || 'folder'] || FolderOutline
 }
 
-// 加载数据
+/**
+ * 加载数据
+ */
 async function loadData() {
   isLoading.value = true
   try {
@@ -144,7 +162,9 @@ async function loadData() {
   }
 }
 
-// 创建模板
+/**
+ * 创建模板
+ */
 async function handleCreate() {
   if (!formData.value.title.trim() || !formData.value.content.trim()) {
     message.warning('请填写标题和内容')
@@ -165,7 +185,7 @@ async function handleCreate() {
     })
 
     message.success('创建成功')
-    showCreateModal.value = false
+    activeView.value = 'list'
     resetForm()
     await loadData()
   } catch (error) {
@@ -174,7 +194,9 @@ async function handleCreate() {
   }
 }
 
-// 编辑模板
+/**
+ * 编辑模板
+ */
 async function handleUpdate() {
   if (!formData.value.id) return
   if (!formData.value.title.trim() || !formData.value.content.trim()) {
@@ -196,7 +218,7 @@ async function handleUpdate() {
     })
 
     message.success('更新成功')
-    showEditModal.value = false
+    activeView.value = 'list'
     resetForm()
     await loadData()
   } catch (error) {
@@ -205,7 +227,9 @@ async function handleUpdate() {
   }
 }
 
-// 删除模板
+/**
+ * 删除模板
+ */
 async function handleDelete(id: string) {
   try {
     await promptTemplateApi.deleteTemplate(id)
@@ -217,7 +241,9 @@ async function handleDelete(id: string) {
   }
 }
 
-// 切换收藏
+/**
+ * 切换收藏
+ */
 async function handleToggleFavorite(template: PromptTemplate) {
   try {
     await promptTemplateApi.toggleFavorite(template.id, !template.isFavorite)
@@ -228,8 +254,10 @@ async function handleToggleFavorite(template: PromptTemplate) {
   }
 }
 
-// 打开使用弹窗
-function openUseModal(template: PromptTemplate) {
+/**
+ * 打开使用视图
+ */
+function openUseView(template: PromptTemplate) {
   useFormData.value.template = template
 
   // 提取模板中的变量
@@ -240,10 +268,12 @@ function openUseModal(template: PromptTemplate) {
     variables[match[1]] = ''
   }
   useFormData.value.variables = variables
-  showUseModal.value = true
+  activeView.value = 'use'
 }
 
-// 使用模板
+/**
+ * 使用模板
+ */
 function confirmUseTemplate() {
   if (!useFormData.value.template) return
 
@@ -255,11 +285,13 @@ function confirmUseTemplate() {
   }
 
   emit('useTemplate', content)
-  showUseModal.value = false
+  activeView.value = 'list'
   message.success('已使用模板')
 }
 
-// 重置表单
+/**
+ * 重置表单
+ */
 function resetForm() {
   formData.value = {
     id: '',
@@ -271,8 +303,10 @@ function resetForm() {
   }
 }
 
-// 打开编辑弹窗
-function openEditModal(template: PromptTemplate) {
+/**
+ * 打开编辑视图
+ */
+function openEditView(template: PromptTemplate) {
   formData.value = {
     id: template.id,
     title: template.title,
@@ -281,13 +315,24 @@ function openEditModal(template: PromptTemplate) {
     categoryId: template.categoryId || '',
     tags: template.tags.join(', ')
   }
-  showEditModal.value = true
+  activeView.value = 'edit'
 }
 
-// 打开创建弹窗
-function openCreateModal() {
+/**
+ * 打开创建视图
+ */
+function openCreateView() {
   resetForm()
-  showCreateModal.value = true
+  activeView.value = 'create'
+}
+
+/**
+ * 返回列表视图
+ */
+function goBackToList() {
+  activeView.value = 'list'
+  resetForm()
+  useFormData.value = { template: null, variables: {} }
 }
 
 onMounted(() => {
@@ -297,281 +342,239 @@ onMounted(() => {
 
 <template>
   <div class="prompt-template-library">
-    <!-- 头部 -->
-    <div class="ptl-header">
-      <div class="ptl-title">
-        <NIcon :size="20"><ReorderFourOutline /></NIcon>
-        <span>提示词模板库</span>
+    <!-- 标签栏 -->
+    <div class="ptl-tab-bar">
+      <div class="ptl-tab-bar-left">
+        <!-- 返回按钮（非列表模式显示） -->
+        <button
+          v-if="activeView !== 'list'"
+          class="ptl-back-btn"
+          @click="goBackToList"
+          title="返回列表"
+        >
+          <NIcon :size="14"><ArrowBackOutline /></NIcon>
+        </button>
+
+        <!-- 图标 + 标题 -->
+        <NIcon v-if="activeView === 'list'" :size="14"><ReorderFourOutline /></NIcon>
+        <span class="ptl-tab-title">{{ viewTitle }}</span>
       </div>
-      <NButton size="small" @click="emit('close')">
-        <template #icon><NIcon><CloseOutline /></NIcon></template>
-      </NButton>
+
+      <!-- 关闭按钮（仅列表模式显示） -->
+      <button
+        v-if="activeView === 'list'"
+        class="ptl-close-btn"
+        @click="emit('close')"
+        title="关闭"
+      >×</button>
     </div>
 
-    <!-- 工具栏 -->
-    <div class="ptl-toolbar">
-      <NInput
-        v-model:value="searchKeyword"
-        placeholder="搜索模板..."
-        size="small"
-        clearable
-        class="ptl-search"
-      >
-        <template #prefix><NIcon><SearchOutline /></NIcon></template>
-      </NInput>
+    <!-- 内容区域 -->
+    <div class="ptl-body">
+      <!-- ========== 列表视图 ========== -->
+      <template v-if="activeView === 'list'">
+        <!-- 工具栏 -->
+        <div class="ptl-toolbar">
+          <NInput
+            v-model:value="searchKeyword"
+            placeholder="搜索模板..."
+            size="small"
+            clearable
+            class="ptl-search"
+          >
+            <template #prefix><NIcon><SearchOutline /></NIcon></template>
+          </NInput>
 
-      <NSelect
-        v-model:value="selectedCategoryId"
-        :options="categoryOptions"
-        size="small"
-        placeholder="分类"
-        clearable
-        class="ptl-category-select"
-      />
+          <NSelect
+            v-model:value="selectedCategoryId"
+            :options="categoryOptions"
+            size="small"
+            placeholder="分类"
+            clearable
+            class="ptl-category-select"
+          />
 
-      <NSelect
-        v-model:value="showFavoritesOnly"
-        :options="favoriteOptions"
-        size="small"
-        placeholder="筛选"
-        class="ptl-favorite-select"
-      />
+          <NSelect
+            v-model:value="showFavoritesOnly"
+            :options="favoriteOptions"
+            size="small"
+            placeholder="筛选"
+            class="ptl-favorite-select"
+          />
 
-      <NButton size="small" type="primary" @click="openCreateModal">
-        <template #icon><NIcon><AddOutline /></NIcon></template>
-        新建
-      </NButton>
-    </div>
+          <NButton size="small" type="primary" @click="openCreateView">
+            <template #icon><NIcon><AddOutline /></NIcon></template>
+            新建
+          </NButton>
+        </div>
 
-    <!-- 模板列表 -->
-    <NScrollbar class="ptl-content">
-      <div v-if="filteredTemplates.length === 0" class="ptl-empty">
-        <NEmpty description="暂无模板">
-          <template #extra>
-            <NButton size="small" @click="openCreateModal">创建模板</NButton>
-          </template>
-        </NEmpty>
-      </div>
-
-      <div v-else class="ptl-list">
-        <template v-for="(catTemplates, catId) in templatesByCategory" :key="catId">
-          <div class="ptl-category-header">
-            <NIcon :size="16"><component :is="getCategoryIcon(catId as any)" /></NIcon>
-            <span>{{ getCategoryName(catId as any) }}</span>
-            <span class="ptl-category-count">{{ catTemplates.length }}</span>
+        <!-- 模板列表 -->
+        <NScrollbar class="ptl-content">
+          <div v-if="filteredTemplates.length === 0" class="ptl-empty">
+            <NEmpty description="暂无模板">
+              <template #extra>
+                <NButton size="small" @click="openCreateView">创建模板</NButton>
+              </template>
+            </NEmpty>
           </div>
 
-          <div class="ptl-templates">
-            <NCard
-              v-for="template in catTemplates"
-              :key="template.id"
-              size="small"
-              class="ptl-template-card"
-              :class="{ 'is-builtin': template.isBuiltin }"
-            >
-              <div class="ptl-template-header">
-                <span class="ptl-template-title">{{ template.title }}</span>
-                <div class="ptl-template-actions">
-                  <NButton
-                    text
-                    size="tiny"
-                    @click="handleToggleFavorite(template)"
-                  >
-                    <template #icon>
-                      <NIcon>
-                        <Star v-if="template.isFavorite" />
-                        <StarOutline v-else />
-                      </NIcon>
-                    </template>
-                  </NButton>
+          <div v-else class="ptl-list">
+            <template v-for="(catTemplates, catId) in templatesByCategory" :key="catId">
+              <div class="ptl-category-header">
+                <NIcon :size="14"><component :is="getCategoryIcon(catId as any)" /></NIcon>
+                <span>{{ getCategoryName(catId as any) }}</span>
+                <span class="ptl-category-count">{{ catTemplates.length }}</span>
+              </div>
+
+              <div class="ptl-templates">
+                <div
+                  v-for="template in catTemplates"
+                  :key="template.id"
+                  class="ptl-template-card"
+                  :class="{ 'is-builtin': template.isBuiltin }"
+                >
+                  <div class="ptl-template-header">
+                    <span class="ptl-template-title">{{ template.title }}</span>
+                    <div class="ptl-template-actions">
+                      <button
+                        class="ptl-star-btn"
+                        @click="handleToggleFavorite(template)"
+                        :title="template.isFavorite ? '取消收藏' : '收藏'"
+                      >
+                        <NIcon :size="14">
+                          <Star v-if="template.isFavorite" />
+                          <StarOutline v-else />
+                        </NIcon>
+                      </button>
+                    </div>
+                  </div>
+
+                  <p v-if="template.description" class="ptl-template-desc">
+                    {{ template.description }}
+                  </p>
+
+                  <div class="ptl-template-tags">
+                    <span v-if="template.isBuiltin" class="ptl-tag builtin">内置</span>
+                    <span v-for="tag in template.tags.slice(0, 3)" :key="tag" class="ptl-tag">
+                      {{ tag }}
+                    </span>
+                  </div>
+
+                  <div class="ptl-template-footer">
+                    <span class="ptl-use-count">使用 {{ template.useCount }} 次</span>
+                    <div class="ptl-template-buttons">
+                      <button class="ptl-btn primary" @click="openUseView(template)">使用</button>
+                      <button
+                        v-if="!template.isBuiltin"
+                        class="ptl-btn"
+                        @click="openEditView(template)"
+                        title="编辑"
+                      >
+                        <NIcon :size="12"><CreateOutline /></NIcon>
+                      </button>
+                      <NPopconfirm
+                        v-if="!template.isBuiltin"
+                        @positive-click="handleDelete(template.id)"
+                      >
+                        <template #trigger>
+                          <button class="ptl-btn danger" title="删除">
+                            <NIcon :size="12"><TrashOutline /></NIcon>
+                          </button>
+                        </template>
+                        确定删除该模板？
+                      </NPopconfirm>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <p v-if="template.description" class="ptl-template-desc">
-                {{ template.description }}
-              </p>
-
-              <div class="ptl-template-tags">
-                <NTag v-if="template.isBuiltin" size="tiny" type="info">内置</NTag>
-                <NTag v-for="tag in template.tags.slice(0, 3)" :key="tag" size="tiny">
-                  {{ tag }}
-                </NTag>
-              </div>
-
-              <div class="ptl-template-footer">
-                <span class="ptl-use-count">使用 {{ template.useCount }} 次</span>
-                <div class="ptl-template-buttons">
-                  <NButton size="tiny" @click="openUseModal(template)">使用</NButton>
-                  <NButton
-                    v-if="!template.isBuiltin"
-                    size="tiny"
-                    @click="openEditModal(template)"
-                  >
-                    <template #icon><NIcon><CreateOutline /></NIcon></template>
-                  </NButton>
-                  <NPopconfirm
-                    v-if="!template.isBuiltin"
-                    @positive-click="handleDelete(template.id)"
-                  >
-                    <template #trigger>
-                      <NButton size="tiny" type="error">
-                        <template #icon><NIcon><TrashOutline /></NIcon></template>
-                      </NButton>
-                    </template>
-                    确定删除该模板？
-                  </NPopconfirm>
-                </div>
-              </div>
-            </NCard>
+            </template>
           </div>
-        </template>
-      </div>
-    </NScrollbar>
-
-    <!-- 创建模板弹窗 -->
-    <NModal
-      v-model:show="showCreateModal"
-      preset="card"
-      title="新建模板"
-      style="width: 600px; max-width: 90vw;"
-    >
-      <NForm label-placement="top">
-        <NFormItem label="标题" required>
-          <NInput v-model:value="formData.title" placeholder="请输入模板标题" />
-        </NFormItem>
-
-        <NFormItem label="分类">
-          <NSelect
-            v-model:value="formData.categoryId"
-            :options="categoryOptions.filter(o => o.value !== null)"
-            placeholder="选择分类"
-            clearable
-          />
-        </NFormItem>
-
-        <NFormItem label="描述">
-          <NInput
-            v-model:value="formData.description"
-            type="textarea"
-            placeholder="简要描述模板用途"
-            :rows="2"
-          />
-        </NFormItem>
-
-        <NFormItem label="内容" required>
-          <NInput
-            v-model:value="formData.content"
-            type="textarea"
-            placeholder="输入提示词内容，使用 {{variable}} 表示变量"
-            :rows="6"
-          />
-        </NFormItem>
-
-        <NFormItem label="标签（逗号分隔）">
-          <NInput v-model:value="formData.tags" placeholder="如：代码, 优化, 助手" />
-        </NFormItem>
-      </NForm>
-
-      <template #footer>
-        <div class="ptl-modal-footer">
-          <NButton @click="showCreateModal = false">取消</NButton>
-          <NButton type="primary" @click="handleCreate">创建</NButton>
-        </div>
+        </NScrollbar>
       </template>
-    </NModal>
 
-    <!-- 编辑模板弹窗 -->
-    <NModal
-      v-model:show="showEditModal"
-      preset="card"
-      title="编辑模板"
-      style="width: 600px; max-width: 90vw;"
-    >
-      <NForm label-placement="top">
-        <NFormItem label="标题" required>
-          <NInput v-model:value="formData.title" placeholder="请输入模板标题" />
-        </NFormItem>
+      <!-- ========== 新建/编辑视图 ========== -->
+      <template v-else-if="activeView === 'create' || activeView === 'edit'">
+        <NScrollbar class="ptl-form-content">
+          <NForm label-placement="top" class="ptl-form">
+            <NFormItem label="标题" required>
+              <NInput v-model:value="formData.title" placeholder="请输入模板标题" />
+            </NFormItem>
 
-        <NFormItem label="分类">
-          <NSelect
-            v-model:value="formData.categoryId"
-            :options="categoryOptions.filter(o => o.value !== null)"
-            placeholder="选择分类"
-            clearable
-          />
-        </NFormItem>
-
-        <NFormItem label="描述">
-          <NInput
-            v-model:value="formData.description"
-            type="textarea"
-            placeholder="简要描述模板用途"
-            :rows="2"
-          />
-        </NFormItem>
-
-        <NFormItem label="内容" required>
-          <NInput
-            v-model:value="formData.content"
-            type="textarea"
-            placeholder="输入提示词内容，使用 {{variable}} 表示变量"
-            :rows="6"
-          />
-        </NFormItem>
-
-        <NFormItem label="标签（逗号分隔）">
-          <NInput v-model:value="formData.tags" placeholder="如：代码, 优化, 助手" />
-        </NFormItem>
-      </NForm>
-
-      <template #footer>
-        <div class="ptl-modal-footer">
-          <NButton @click="showEditModal = false">取消</NButton>
-          <NButton type="primary" @click="handleUpdate">保存</NButton>
-        </div>
-      </template>
-    </NModal>
-
-    <!-- 使用模板弹窗 -->
-    <NModal
-      v-model:show="showUseModal"
-      preset="card"
-      title="使用模板"
-      style="width: 500px; max-width: 90vw;"
-    >
-      <div v-if="useFormData.template" class="ptl-use-modal">
-        <p class="ptl-use-title">{{ useFormData.template.title }}</p>
-
-        <div v-if="Object.keys(useFormData.variables).length > 0" class="ptl-use-variables">
-          <NForm label-placement="top">
-            <NFormItem
-              v-for="(value, key) in useFormData.variables"
-              :key="key"
-              :label="`{{${key}}}`"
-            >
-              <NInput
-                v-model:value="useFormData.variables[key]"
-                :placeholder="`请输入 ${key}`"
+            <NFormItem label="分类">
+              <NSelect
+                v-model:value="formData.categoryId"
+                :options="categoryOptions.filter(o => o.value !== null)"
+                placeholder="选择分类"
+                clearable
               />
             </NFormItem>
+
+            <NFormItem label="描述">
+              <NInput
+                v-model:value="formData.description"
+                type="textarea"
+                placeholder="简要描述模板用途"
+                :rows="2"
+              />
+            </NFormItem>
+
+            <NFormItem label="内容" required>
+              <NInput
+                v-model:value="formData.content"
+                type="textarea"
+                placeholder="输入提示词内容，使用 {{variable}} 表示变量"
+                :rows="8"
+              />
+            </NFormItem>
+
+            <NFormItem label="标签（逗号分隔）">
+              <NInput v-model:value="formData.tags" placeholder="如：代码, 优化, 助手" />
+            </NFormItem>
           </NForm>
-        </div>
+        </NScrollbar>
 
-        <div class="ptl-use-preview">
-          <p class="ptl-use-preview-label">预览：</p>
-          <div class="ptl-use-preview-content">
-            {{ useFormData.template.content }}
-          </div>
-        </div>
-      </div>
-
-      <template #footer>
-        <div class="ptl-modal-footer">
-          <NButton @click="showUseModal = false">取消</NButton>
-          <NButton type="primary" @click="confirmUseTemplate">使用</NButton>
+        <div class="ptl-form-footer">
+          <NButton @click="goBackToList">取消</NButton>
+          <NButton type="primary" @click="activeView === 'create' ? handleCreate() : handleUpdate()">
+            {{ activeView === 'create' ? '创建' : '保存' }}
+          </NButton>
         </div>
       </template>
-    </NModal>
+
+      <!-- ========== 使用模板视图 ========== -->
+      <template v-else-if="activeView === 'use' && useFormData.template">
+        <NScrollbar class="ptl-use-content">
+          <p class="ptl-use-title">{{ useFormData.template.title }}</p>
+
+          <!-- 变量输入 -->
+          <div v-if="Object.keys(useFormData.variables).length > 0" class="ptl-use-variables">
+            <NForm label-placement="top">
+              <NFormItem
+                v-for="(value, key) in useFormData.variables"
+                :key="key"
+                :label="`{{${key}}}`"
+              >
+                <NInput
+                  v-model:value="useFormData.variables[key]"
+                  :placeholder="`请输入 ${key}`"
+                />
+              </NFormItem>
+            </NForm>
+          </div>
+
+          <!-- 预览 -->
+          <div class="ptl-use-preview">
+            <p class="ptl-use-preview-label">预览：</p>
+            <pre class="ptl-use-preview-content">{{ useFormData.template.content }}</pre>
+          </div>
+        </NScrollbar>
+
+        <div class="ptl-form-footer">
+          <NButton @click="goBackToList">取消</NButton>
+          <NButton type="primary" @click="confirmUseTemplate">使用此模板</NButton>
+        </div>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -580,47 +583,102 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-secondary);
-  border-radius: 8px;
+  background: #1e1e1e;
+  overflow: hidden;
 }
 
-.ptl-header {
+/* ========== 标签栏样式（VS Code 风格） ========== */
+.ptl-tab-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
+  padding: 0 12px;
+  height: 35px;
+  background-color: #252526;
+  border-bottom: 1px solid #3c3c3c;
+  flex-shrink: 0;
 }
 
-.ptl-title {
+.ptl-tab-bar-left {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 600;
-  font-size: 15px;
 }
 
+.ptl-back-btn {
+  background: transparent;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.ptl-back-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.ptl-tab-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #cccccc;
+  user-select: none;
+}
+
+.ptl-close-btn {
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.ptl-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* ========== 内容区域 ========== */
+.ptl-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ========== 工具栏 ========== */
 .ptl-toolbar {
   display: flex;
-  gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
+  gap: 6px;
+  padding: 8px 12px;
+  flex-shrink: 0;
   flex-wrap: wrap;
 }
 
 .ptl-search {
   flex: 1;
-  min-width: 150px;
+  min-width: 120px;
 }
 
 .ptl-category-select {
-  width: 140px;
-}
-
-.ptl-favorite-select {
   width: 120px;
 }
 
+.ptl-favorite-select {
+  width: 100px;
+}
+
+/* ========== 模板列表 ========== */
 .ptl-content {
   flex: 1;
   min-height: 0;
@@ -635,43 +693,49 @@ onMounted(() => {
 }
 
 .ptl-list {
-  padding: 16px;
+  padding: 12px;
 }
 
 .ptl-category-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 12px;
+  color: #858585;
+  margin-bottom: 10px;
   padding-left: 4px;
 }
 
 .ptl-category-count {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: normal;
-  color: var(--text-tertiary);
-  background: var(--bg-tertiary);
-  padding: 2px 8px;
-  border-radius: 10px;
+  color: #6e6e6e;
+  background: #2d2d2d;
+  padding: 1px 6px;
+  border-radius: 8px;
 }
 
 .ptl-templates {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
+/* ========== 模板卡片 ========== */
 .ptl-template-card {
-  transition: all 0.2s;
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  padding: 12px;
+  transition: all 0.15s;
+  cursor: default;
 }
 
 .ptl-template-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: #007acc;
+  background: #2a2a2a;
 }
 
 .ptl-template-card.is-builtin {
@@ -682,12 +746,13 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .ptl-template-title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
+  color: #cccccc;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -696,12 +761,29 @@ onMounted(() => {
 
 .ptl-template-actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
+}
+
+.ptl-star-btn {
+  background: transparent;
+  border: none;
+  color: #6e6e6e;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+
+.ptl-star-btn:hover {
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.1);
 }
 
 .ptl-template-desc {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 11px;
+  color: #858585;
   margin-bottom: 8px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -716,17 +798,30 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 
+.ptl-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #2d2d2d;
+  color: #858585;
+}
+
+.ptl-tag.builtin {
+  background: rgba(24, 160, 88, 0.15);
+  color: #18a058;
+}
+
 .ptl-template-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding-top: 8px;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid #3c3c3c;
 }
 
 .ptl-use-count {
-  font-size: 11px;
-  color: var(--text-tertiary);
+  font-size: 10px;
+  color: #6e6e6e;
 }
 
 .ptl-template-buttons {
@@ -734,42 +829,104 @@ onMounted(() => {
   gap: 4px;
 }
 
-.ptl-modal-footer {
+.ptl-btn {
+  background: #2d2d2d;
+  border: 1px solid #3c3c3c;
+  color: #ccc;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
   display: flex;
-  justify-content: flex-end;
-  gap: 12px;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.15s;
 }
 
-.ptl-use-modal {
-  max-height: 60vh;
-  overflow-y: auto;
+.ptl-btn:hover {
+  background: #383838;
+  border-color: #555;
+}
+
+.ptl-btn.primary {
+  background: #007acc;
+  border-color: #007acc;
+  color: #fff;
+}
+
+.ptl-btn.primary:hover {
+  background: #1177bb;
+}
+
+.ptl-btn.danger {
+  color: #f44336;
+}
+
+.ptl-btn.danger:hover {
+  background: rgba(244, 67, 54, 0.15);
+}
+
+/* ========== 表单视图 ========== */
+.ptl-form-content {
+  flex: 1;
+  padding: 16px;
+  min-height: 0;
+}
+
+.ptl-form {
+  max-width: 550px;
+}
+
+.ptl-form-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid #3c3c3c;
+  flex-shrink: 0;
+}
+
+/* ========== 使用模板视图 ========== */
+.ptl-use-content {
+  flex: 1;
+  padding: 16px;
+  min-height: 0;
 }
 
 .ptl-use-title {
   font-weight: 600;
-  font-size: 16px;
+  font-size: 15px;
+  color: #cccccc;
   margin-bottom: 16px;
 }
 
 .ptl-use-variables {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  background: #252526;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #3c3c3c;
 }
 
 .ptl-use-preview {
-  background: var(--bg-tertiary);
-  border-radius: 8px;
+  background: #252526;
+  border-radius: 6px;
   padding: 12px;
+  border: 1px solid #3c3c3c;
 }
 
 .ptl-use-preview-label {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: #858585;
   margin-bottom: 8px;
 }
 
 .ptl-use-preview-content {
   font-size: 13px;
+  color: #cccccc;
   white-space: pre-wrap;
   word-break: break-word;
+  margin: 0;
+  font-family: var(--font-family-mono, 'Consolas', monospace);
 }
 </style>

@@ -590,20 +590,11 @@ defineExpose({
 
     <!-- 提示词模板库：嵌入式页面（类似编辑器标签页） -->
     <div v-if="showPromptLibrary && variant === 'ide'" class="prompt-library-panel">
-      <div class="plp-tab-bar">
-        <div class="plp-tab">
-          <NIcon :size="14"><ReorderFourOutline /></NIcon>
-          <span>提示词模板</span>
-        </div>
-        <button class="plp-close-btn" @click="handleCloseTemplateLibrary" title="关闭">×</button>
-      </div>
-      <div class="plp-content">
-        <PromptTemplateLibrary
-          :session-id="sessionId"
-          @use-template="handleUseTemplate"
-          @close="handleCloseTemplateLibrary"
-        />
-      </div>
+      <PromptTemplateLibrary
+        :session-id="sessionId"
+        @use-template="handleUseTemplate"
+        @close="handleCloseTemplateLibrary"
+      />
     </div>
 
     <!-- 默认变体的提示词模板库弹窗 -->
@@ -1463,12 +1454,12 @@ defineExpose({
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 400px; /* 固定高度，类似编辑器标签页 */
+  height: 420px; /* 固定高度，类似编辑器标签页 */
   min-height: 300px;
-  max-height: 500px;
+  max-height: 550px;
   background-color: #1e1e1e;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   margin-top: 4px;
   animation: slideDown 0.2s ease-out;
@@ -1483,75 +1474,5 @@ defineExpose({
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-/* 标签栏：类似编辑器 tab */
-.plp-tab-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  height: 36px;
-  background-color: #252526;
-  border-bottom: 1px solid #3c3c3c;
-  flex-shrink: 0;
-}
-
-.plp-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #cccccc;
-  font-weight: 500;
-  user-select: none;
-}
-
-.plp-tab:hover {
-  color: #ffffff;
-}
-
-.plp-close-btn {
-  background: transparent;
-  border: none;
-  color: #888;
-  font-size: 20px;
-  cursor: pointer;
-  padding: 4px 8px;
-  line-height: 1;
-  border-radius: 4px;
-  transition: all 0.15s;
-}
-
-.plp-close-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: #fff;
-}
-
-/* 内容区域 */
-.plp-content {
-  flex: 1;
-  overflow: hidden;
-  background-color: #1e1e1e;
-}
-
-/* 覆盖 PromptTemplateLibrary 的部分样式以适配嵌入式面板 */
-.plp-content :deep(.prompt-template-library) {
-  height: 100%;
-  border-radius: 0;
-  background: transparent;
-}
-
-.plp-content :deep(.ptl-header) {
-  display: none; /* 隐藏内部 header，使用外部的 tab 栏 */
-}
-
-.plp-content :deep(.ptl-toolbar) {
-  padding: 8px 16px;
-  gap: 6px;
-}
-
-.plp-content :deep(.ptl-content) {
-  height: calc(100% - 80px); /* 减去工具栏高度 */
 }
 </style>
