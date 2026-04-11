@@ -4,7 +4,7 @@
  * 仿照原项目commands.ts，提供统一的技能命令导出
  */
 
-import memoize from 'lodash/memoize.js'
+import memoize from 'lodash-es/memoize'
 import {
   getSkillDirCommands,
   findCommand as findSkillCommand,
