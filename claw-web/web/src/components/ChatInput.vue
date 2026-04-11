@@ -387,22 +387,9 @@ function handleUseTemplate(content: string) {
 
 <template>
   <div class="chat-input" :class="`chat-input--${variant || 'default'}`">
-    <!-- IDE 变体：顶部工具栏（模型选择器） -->
-    <div v-if="variant === 'ide'" class="ide-input-toolbar">
-      <NSelect
-        v-model:value="selectedModelId"
-        :options="modelOptions"
-        :disabled="disabled || modelOptions.length === 0"
-        size="small"
-        placeholder="模型"
-        class="ide-model-select"
-        :consistent-menu-width="false"
-      />
-    </div>
-
-    <!-- 默认变体：输入框容器 -->
-    <div v-if="variant !== 'ide'" class="input-container">
-      <!-- 输入框 Header：AI角色标识 -->
+    <!-- IDE 变体：输入框容器（所有组件都在输入框内部） -->
+    <div v-if="variant === 'ide'" class="input-container">
+      <!-- 输入框 Header：AI角色标识 + 模型选择器 -->
       <div class="input-header">
         <div class="ai-icon">回</div>
         <span>@SOLO Coder</span>
@@ -419,14 +406,36 @@ function handleUseTemplate(content: string) {
         </div>
       </div>
 
-      <!-- 中间：输入框 -->
+      <!-- 中间：输入框 + 代码引用 -->
       <div class="input-main-wrapper">
+        <!-- 代码引用显示 -->
+        <div v-if="codeAttachments.length > 0" class="ide-code-refs">
+          <div
+            v-for="a in codeAttachments"
+            :key="a.id"
+            class="ide-code-chip"
+            :title="a.filePath"
+          >
+            <span class="ide-code-chip-lang">{{ chipLang(a.fileName) }}</span>
+            <span class="ide-code-chip-text">{{ a.fileName }} ({{ a.startLine }}-{{ a.endLine }})</span>
+            <button
+              type="button"
+              class="ide-code-chip-x"
+              aria-label="移除引用"
+              @click="removeCodeAttachment(a.id)"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
         <NInput
           ref="inputRef"
           v-model:value="inputValue"
           type="textarea"
           :placeholder="props.placeholder || '输入消息... (Shift+Enter 换行)'"
-          :autosize="{ minRows: 1, maxRows: 8 }"
+          :rows="3"
+          :autosize="false"
           :disabled="disabled"
           @keydown="handleKeyDown"
           @focus="handleFocus"
@@ -436,6 +445,46 @@ function handleUseTemplate(content: string) {
       <!-- 底部：功能按钮栏 -->
       <div class="input-footer">
         <div class="left-tools">
+          <!-- 上传按钮 -->
+          <input
+            ref="fileInputRef"
+            type="file"
+            multiple
+            style="display: none"
+            @change="handleFileChange"
+          />
+          <div
+            class="upload-button"
+            :class="{ 'disabled': !sessionId || disabled }"
+            :title="sessionId ? '上传文件到工作区' : '请先选择会话'"
+            @click="triggerFileSelect"
+          >
+            <template v-if="uploading">
+              <NSpin size="16" stroke="#6366f1" />
+            </template>
+            <template v-else>
+              <NIcon :size="16" :color="'#3b9eff'">
+                <CloudUploadOutline />
+              </NIcon>
+            </template>
+            <span v-if="uploadedFiles.length > 0" class="upload-badge">
+              {{ uploadedFiles.length }}
+            </span>
+          </div>
+
+          <!-- 已上传文件预览 -->
+          <div v-if="uploadedFiles.length > 0" class="uploaded-files-list">
+            <div
+              v-for="file in uploadedFiles"
+              :key="file.id"
+              class="uploaded-file-item"
+            >
+              <NTag size="small" round closable type="info" @close="removeFile(file.id)">
+                <span class="file-name">{{ file.name }}</span>
+              </NTag>
+            </div>
+          </div>
+
           <NButton
             class="prompt-library-button"
             :disabled="!sessionId || disabled"
@@ -463,7 +512,7 @@ function handleUseTemplate(content: string) {
           <template v-else>
             <NButton
               type="primary"
-              :disabled="!inputValue.trim() || disabled"
+              :disabled="(!inputValue.trim() && !(codeAttachments.length > 0)) || disabled"
               class="send-button"
               @click="handleSend"
             >
@@ -480,11 +529,10 @@ function handleUseTemplate(content: string) {
       </div>
     </div>
 
-    <!-- IDE 变体：原有布局 -->
-    <div v-if="variant === 'ide'" class="chat-input-body">
+    <!-- 默认变体：简单的输入框（不改变原有功能布局） -->
+    <div v-if="variant !== 'ide'" class="chat-input-body">
       <!-- 左侧：文件上传区域 -->
       <div class="upload-section">
-        <!-- 隐藏的文件输入框 -->
         <input
           ref="fileInputRef"
           type="file"
@@ -492,8 +540,6 @@ function handleUseTemplate(content: string) {
           style="display: none"
           @change="handleFileChange"
         />
-
-        <!-- 上传按钮 -->
         <div
           class="upload-button"
           :class="{ 'disabled': !sessionId || disabled }"
@@ -504,32 +550,17 @@ function handleUseTemplate(content: string) {
             <NSpin size="18" stroke="#6366f1" />
           </template>
           <template v-else>
-            <NIcon :size="18" :color="'#3b9eff'">
+            <NIcon :size="22" color="#6366f1">
               <CloudUploadOutline />
             </NIcon>
           </template>
-
-          <!-- 已上传文件数量角标 -->
           <span v-if="uploadedFiles.length > 0" class="upload-badge">
             {{ uploadedFiles.length }}
           </span>
         </div>
-
-        <!-- 已上传文件预览列表 -->
         <div v-if="uploadedFiles.length > 0" class="uploaded-files-list">
-          <div
-            v-for="file in uploadedFiles"
-            :key="file.id"
-            class="uploaded-file-item"
-            :title="`${file.name} (${formatFileSize(file.file?.size || 0)})`"
-          >
-            <NTag
-              size="small"
-              round
-              closable
-              type="info"
-              @close="removeFile(file.id)"
-            >
+          <div v-for="file in uploadedFiles" :key="file.id" class="uploaded-file-item">
+            <NTag size="small" round closable type="info" @close="removeFile(file.id)">
               <span class="file-name">{{ file.name }}</span>
             </NTag>
           </div>
@@ -538,32 +569,12 @@ function handleUseTemplate(content: string) {
 
       <!-- 中间：输入框 -->
       <div class="input-wrapper">
-        <div v-if="codeAttachments.length > 0" class="ide-code-refs">
-          <div
-            v-for="a in codeAttachments"
-            :key="a.id"
-            class="ide-code-chip"
-            :title="a.filePath"
-          >
-            <span class="ide-code-chip-lang">{{ chipLang(a.fileName) }}</span>
-            <span class="ide-code-chip-text">{{ a.fileName }} ({{ a.startLine }}-{{ a.endLine }})</span>
-            <button
-              type="button"
-              class="ide-code-chip-x"
-              aria-label="移除引用"
-              @click="removeCodeAttachment(a.id)"
-            >
-              ×
-            </button>
-          </div>
-        </div>
         <NInput
           ref="inputRef"
           v-model:value="inputValue"
           type="textarea"
           :placeholder="props.placeholder || '输入消息... (Shift+Enter 换行)'"
-          :rows="3"
-          :autosize="false"
+          :autosize="{ minRows: 3, maxRows: 8 }"
           :disabled="disabled"
           @keydown="handleKeyDown"
           @focus="handleFocus"
@@ -582,13 +593,8 @@ function handleUseTemplate(content: string) {
           </template>
           模板
         </NButton>
-
         <template v-if="isGenerating">
-          <NButton
-            type="warning"
-            class="stop-button"
-            @click="emit('stop')"
-          >
+          <NButton type="warning" class="stop-button" @click="emit('stop')">
             <template #icon>
               <NIcon><StopCircleOutline /></NIcon>
             </template>
@@ -598,7 +604,7 @@ function handleUseTemplate(content: string) {
         <template v-else>
           <NButton
             type="primary"
-            :disabled="(!inputValue.trim() && !(codeAttachments.length > 0)) || disabled"
+            :disabled="!inputValue.trim() || disabled"
             class="send-button"
             @click="handleSend"
           >
@@ -651,6 +657,64 @@ function handleUseTemplate(content: string) {
   align-items: stretch;
   gap: 8px;
   padding: 8px;
+}
+
+/* IDE 模式下 input-container 样式 */
+.chat-input--ide .input-container {
+  width: 100%;
+  border-radius: 12px;
+}
+
+/* IDE 模式下 header 内的模型选择器 */
+.chat-input--ide .model-selector-wrapper :deep(.n-base-selection) {
+  --n-height: 26px !important;
+  font-size: 12px !important;
+}
+
+/* IDE 模式下输入框样式 */
+.chat-input--ide .input-main-wrapper :deep(.n-input.n-input--textarea) {
+  border-radius: 8px;
+  background: #1a1a1a;
+  --n-padding-left: 12px;
+  --n-padding-right: 12px;
+}
+
+.chat-input--ide .input-main-wrapper :deep(.n-input__textarea-el) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+  min-height: 72px !important;
+  resize: none !important;
+  caret-color: #58a6ff;
+}
+
+.chat-input--ide .input-footer .prompt-library-button {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 8px !important;
+  font-size: 12px !important;
+}
+
+.chat-input--ide .input-footer .send-button {
+  width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+}
+
+.chat-input--ide .input-footer .stop-button {
+  width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+}
+
+.chat-input--ide .upload-button {
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.chat-input--ide .input-footer .uploaded-files-list {
+  max-width: 200px;
 }
 
 .chat-input--ide .chat-input-body {
