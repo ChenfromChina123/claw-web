@@ -29,9 +29,14 @@ const initError = ref<string | null>(null)
 const sidebarCollapsed = ref(false)
 
 /**
- * 顶部视图：会话管理 vs 聊天
+ * 顶部视图切换：会话管理 vs 聊天
  */
 const topView = ref<'chat' | 'sessions'>('chat')
+
+/**
+ * 显示会话切换器（在聊天界面内快速切换）
+ */
+const showSessionSwitcher = ref(false)
 
 /**
  * Agent 协调状态（从真实数据转换）
@@ -272,6 +277,11 @@ function handleKeyDown(e: KeyboardEvent): void {
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault()
     showCommandPalette.value = !showCommandPalette.value
+  }
+  // Ctrl/Cmd + L 打开会话切换器
+  if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+    e.preventDefault()
+    showSessionSwitcher.value = !showSessionSwitcher.value
   }
 }
 
