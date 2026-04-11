@@ -624,7 +624,17 @@ function shouldShowMessage(message: any): boolean {
     // 如果是最后一条助手消息且正在加载中，也显示（用于流式输出）
     const isLastMessage = props.messages[props.messages.length - 1]?.id === message.id
     const isStreaming = props.isLoading && isLastMessage
-    return hasContent || hasTools || isStreaming
+    const shouldShow = hasContent || hasTools || isStreaming
+    console.log('[ChatMessageList] shouldShowMessage:', {
+      messageId: message.id,
+      hasContent,
+      hasTools,
+      isLastMessage,
+      isLoading: props.isLoading,
+      isStreaming,
+      shouldShow
+    })
+    return shouldShow
   }
 
   return true

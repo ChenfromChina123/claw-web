@@ -4,7 +4,7 @@ import type { IdeAppendToChatOptions, IdeCodeRefPayload } from '@/composables/us
 import { buildIdeLayeredUserMessage } from '@/utils/ideUserMessageMarkers'
 import { NInput, NButton, NIcon, NSpin, NTag, NSelect, useMessage, NDrawer, NDrawerContent } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
-import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline } from '@vicons/ionicons5'
+import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline, ImageOutline, HappyOutline, ChatboxEllipsesOutline } from '@vicons/ionicons5'
 import { modelApi, type Model } from '@/api/modelApi'
 import { useChatStore } from '@/stores/chat'
 import PromptTemplateLibrary from './PromptTemplateLibrary.vue'
@@ -383,6 +383,38 @@ function handleUseTemplate(content: string) {
     inputRef.value?.focus()
   })
 }
+
+// ========== 底部工具栏功能 ==========
+
+/**
+ * 处理表情按钮点击
+ */
+function handleEmojiClick() {
+  message.info('表情功能开发中...')
+}
+
+/**
+ * 处理话题按钮点击
+ */
+function handleTopicClick() {
+  message.info('话题功能开发中...')
+}
+
+/**
+ * 处理图片按钮点击
+ */
+function handleImageClick() {
+  // 触发文件选择，限制为图片类型
+  if (!currentSessionId.value) {
+    message.warning('请先创建或选择一个会话')
+    return
+  }
+  // 设置 accept 属性为图片类型
+  if (fileInputRef.value) {
+    fileInputRef.value.accept = 'image/*'
+  }
+  fileInputRef.value?.click()
+}
 </script>
 
 <template>
@@ -475,17 +507,66 @@ function handleUseTemplate(content: string) {
           </button>
         </div>
       </div>
-      <NInput
-        ref="inputRef"
-        v-model:value="inputValue"
-        type="textarea"
-        :placeholder="props.placeholder || '输入消息... (Shift+Enter 换行)'"
-        :rows="variant === 'ide' ? 3 : undefined"
-        :autosize="variant === 'ide' ? false : { minRows: 3, maxRows: 8 }"
-        :disabled="disabled"
-        @keydown="handleKeyDown"
-        @focus="handleFocus"
-      />
+      <div class="input-area">
+        <NInput
+          ref="inputRef"
+          v-model:value="inputValue"
+          type="textarea"
+          :placeholder="props.placeholder || '输入消息... (Shift+Enter 换行)'"
+          :rows="variant === 'ide' ? 3 : undefined"
+          :autosize="variant === 'ide' ? false : { minRows: 3, maxRows: 8 }"
+          :disabled="disabled"
+          @keydown="handleKeyDown"
+          @focus="handleFocus"
+        />
+        <!-- 底部工具栏 -->
+        <div v-if="variant !== 'ide'" class="input-toolbar">
+          <div class="toolbar-left">
+            <!-- 表情按钮 -->
+            <button
+              type="button"
+              class="toolbar-btn"
+              :disabled="disabled"
+              title="表情"
+              @click="handleEmojiClick"
+            >
+              <NIcon :size="18">
+                <HappyOutline />
+              </NIcon>
+            </button>
+            <!-- 话题按钮 -->
+            <button
+              type="button"
+              class="toolbar-btn"
+              :disabled="disabled"
+              title="话题"
+              @click="handleTopicClick"
+            >
+              <NIcon :size="18">
+                <ChatboxEllipsesOutline />
+              </NIcon>
+            </button>
+            <!-- 图片按钮 -->
+            <button
+              type="button"
+              class="toolbar-btn"
+              :disabled="disabled || !sessionId"
+              title="上传图片"
+              @click="handleImageClick"
+            >
+              <NIcon :size="18">
+                <ImageOutline />
+              </NIcon>
+            </button>
+          </div>
+          <div class="toolbar-right">
+            <!-- 模型选择（如果有） -->
+            <span v-if="selectedModelId" class="model-indicator">
+              {{ modelOptions.find(m => m.value === selectedModelId)?.label || '默认模型' }}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 右侧：发送 / 停止按钮 -->
@@ -689,6 +770,12 @@ function handleUseTemplate(content: string) {
   min-width: 0;
 }
 
+.input-area {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
 .input-wrapper :deep(.n-input) {
   background: var(--bg-secondary);
   border-radius: 12px;
@@ -698,6 +785,64 @@ function handleUseTemplate(content: string) {
   padding: 14px 18px !important;
   font-size: 15px;
   line-height: 1.6;
+}
+
+/* 底部工具栏样式 */
+.input-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+}
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toolbar-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.toolbar-btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.model-indicator {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* ====== 右侧操作区样式 ====== */

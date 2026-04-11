@@ -197,6 +197,7 @@ export const useChatStore = defineStore('chat', () => {
       const payload = data as { messageId?: string; iteration?: number }
       const messageId = payload?.messageId || ''
       currentStreamingAssistantId.value = messageId
+      console.log('[Chat] Before push - messages count:', messages.value.length)
       messages.value.push({
         id: messageId,
         sessionId: currentSessionId.value || '',
@@ -205,6 +206,8 @@ export const useChatStore = defineStore('chat', () => {
         content: '',
         createdAt: new Date().toISOString(),
       })
+      console.log('[Chat] After push - messages count:', messages.value.length)
+      console.log('[Chat] Last message:', messages.value[messages.value.length - 1])
     })
     
     /**
@@ -221,10 +224,19 @@ export const useChatStore = defineStore('chat', () => {
           : typeof payload?.delta === 'string'
             ? payload.delta
             : ''
-      if (!chunk) return
+      console.log('[Chat] Extracted chunk:', chunk)
+      if (!chunk) {
+        console.log('[Chat] Empty chunk, skipping')
+        return
+      }
 
+      const store = useChatStore()
+      const messages = store.messages
       const lastIndex = messages.value.length - 1
       const lastMsg = messages.value[lastIndex]
+
+      console.log('[Chat] Last message before update:', lastMsg)
+      console.log('[Chat] lastIndex:', lastIndex)
 
       if (lastMsg && lastMsg.role === 'assistant' && lastMsg.type === 'text') {
         const updatedMessages = [...messages.value]
@@ -233,6 +245,9 @@ export const useChatStore = defineStore('chat', () => {
           content: lastMsg.content + chunk,
         }
         messages.value = updatedMessages
+        console.log('[Chat] Updated message content:', messages.value[lastIndex].content)
+      } else {
+        console.log('[Chat] Cannot update: last message is not assistant text message')
       }
     })
     
@@ -488,6 +503,8 @@ export const useChatStore = defineStore('chat', () => {
   }
   
   function sendMessage(content: string, model?: string) {
+    console.log('[ChatStore] sendMessage called:', { content, model, currentSessionId: currentSessionId.value })
+
     // 检查是否有当前会话
     if (!currentSessionId.value) {
       console.error('[ChatStore] Cannot send message: no current session')
@@ -496,6 +513,7 @@ export const useChatStore = defineStore('chat', () => {
 
     // 立即在前端添加用户消息，提供更好的用户体验
     const userMessageId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    console.log('[ChatStore] Adding user message:', userMessageId)
     messages.value.push({
       id: userMessageId,
       sessionId: currentSessionId.value,
@@ -504,8 +522,10 @@ export const useChatStore = defineStore('chat', () => {
       content: content,
       createdAt: new Date().toISOString(),
     })
+    console.log('[ChatStore] User message added, total messages:', messages.value.length)
 
     // 同时发送消息给后端，传入 sessionId 确保消息能正确路由
+    console.log('[ChatStore] Calling wsClient.sendMessage')
     wsClient.sendMessage(content, currentSessionId.value, model)
   }
   
