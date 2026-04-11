@@ -2,7 +2,7 @@
 /**
  * FloatingPet - 悬浮电子宠物组件
  * 提供可拖拽的电子宠物，支持气泡对话和多种宠物切换
- * 支持 Rive 动画和 Emoji 两种渲染模式
+ * 只使用 Rive 动画渲染
  */
 
 import { ref, onMounted, onUnmounted } from 'vue'
@@ -11,7 +11,7 @@ import Rive from '@rive-app/canvas'
 interface PetData {
   char: string
   name: string
-  riveFile?: string
+  riveFile: string
   moods: {
     idle: string
     happy: string
@@ -26,9 +26,24 @@ const PETS: Record<string, PetData> = {
     riveFile: '/blobby.riv',
     moods: { idle: '守护着这行代码...', happy: '代码优化完成，吐一口火庆祝！🔥', sad: '发生语法错误！😠' } 
   },
-  kraken: { char: '🐙', name: '代码章鱼 (Kraken)', moods: { idle: '整理复杂的依赖关系...', happy: '发现了未定义的行为！🤯', sad: '代码太乱了...墨水喷溅！🕶️' } },
-  spirit: { char: '💫', name: '数据精灵 (Spirit)', moods: { idle: '在内存中寻找灵感...', happy: '逻辑完美！闪耀着光芒✨💖', sad: '被垃圾回收器追赶了...🏃' } },
-  spider: { char: '🕷️', name: '除虫蜘蛛 (Spider)', moods: { idle: '在代码网格中编织...', happy: '捕获了一个 Bug！🕸️🧐', sad: 'Bug 隐藏得太深了...' } }
+  kraken: { 
+    char: '🐙', 
+    name: '代码章鱼 (Kraken)',
+    riveFile: '/blobby.riv',
+    moods: { idle: '整理复杂的依赖关系...', happy: '发现了未定义的行为！🤯', sad: '代码太乱了...墨水喷溅！🕶️' } 
+  },
+  spirit: { 
+    char: '💫', 
+    name: '数据精灵 (Spirit)',
+    riveFile: '/blobby.riv',
+    moods: { idle: '在内存中寻找灵感...', happy: '逻辑完美！闪耀着光芒✨💖', sad: '被垃圾回收器追赶了...🏃' } 
+  },
+  spider: { 
+    char: '🕷️', 
+    name: '除虫蜘蛛 (Spider)',
+    riveFile: '/blobby.riv',
+    moods: { idle: '在代码网格中编织...', happy: '捕获了一个 Bug！🕸️🧐', sad: 'Bug 隐藏得太深了...' } 
+  }
 }
 
 const STORAGE_KEY = 'floating-pet-state'
@@ -40,8 +55,6 @@ interface PetState {
 
 const currentPetKey = ref('draco')
 const speechText = ref('')
-const petEmoji = ref('🐲')
-const isRiveMode = ref(false)
 const isDragging = ref(false)
 const isExpanded = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
@@ -93,35 +106,32 @@ function getCurrentPet(): PetData {
   return PETS[currentPetKey.value] || PETS.draco
 }
 
-function updateUI(emoji: string, text: string): void {
-  petEmoji.value = emoji
-  speechText.value = text
-}
+
 
 function handleInput(e: Event): void {
   const input = (e.target as HTMLInputElement).value.toLowerCase()
   const petData = getCurrentPet()
 
   if (input.includes('error') || input.includes('crash')) {
-    updateUI('😱', petData.moods.sad)
+    speechText.value = petData.moods.sad
   } else if (input.includes('love') || input.includes('cool') || input.includes('optimize')) {
-    updateUI('🥰', petData.moods.happy)
+    speechText.value = petData.moods.happy
   } else if (input.includes('clean') || input.includes('format')) {
-    updateUI('✨', '代码格式化完成，焕然一新！')
+    speechText.value = '代码格式化完成，焕然一新！'
   } else if (input.includes('bug')) {
     if (currentPetKey.value === 'spider') {
-      updateUI('🕷️', '找到了！Bug 已经被我缠住了！🕸️')
+      speechText.value = '找到了！Bug 已经被我缠住了！🕸️'
     } else {
-      updateUI('😨', '我不喜欢 Bug... 快清理掉！')
+      speechText.value = '我不喜欢 Bug... 快清理掉！'
     }
   } else if (input.includes('code') || input.includes('script')) {
     if (currentPetKey.value === 'draco') {
-      updateUI('🛡️', '我正在守护这行核心代码！')
+      speechText.value = '我正在守护这行核心代码！'
     } else {
-      updateUI('📝', '代码编写中...我正在给你灵感！')
+      speechText.value = '代码编写中...我正在给你灵感！'
     }
   } else {
-    updateUI(petData.char, `"${(e.target as HTMLInputElement).value}"？我不明白，但我大受震撼。`)
+    speechText.value = `"${(e.target as HTMLInputElement).value}"？我不明白，但我大受震撼。`
   }
 
   ;(e.target as HTMLInputElement).value = ''
@@ -131,13 +141,9 @@ function switchPet(key: string): void {
   currentPetKey.value = key
   const petData = PETS[key]
   if (petData) {
-    updateUI(petData.char, petData.moods.idle)
-    isRiveMode.value = !!petData.riveFile
+    speechText.value = petData.moods.idle
     if (petData.riveFile && canvasRef.value) {
       initRive(petData.riveFile)
-    } else if (!petData.riveFile && riveInstance.value) {
-      riveInstance.value.cleanup()
-      riveInstance.value = null
     }
     savePetState({ petKey: key, position: petPosition.value })
   }
@@ -180,12 +186,9 @@ onMounted(() => {
     }
   }
   const petData = PETS[currentPetKey.value]
-  if (petData) {
-    isRiveMode.value = !!petData.riveFile
-    updateUI(petData.char, petData.moods.idle)
-    if (petData.riveFile && canvasRef.value) {
-      initRive(petData.riveFile)
-    }
+  if (petData && petData.riveFile && canvasRef.value) {
+    initRive(petData.riveFile)
+    speechText.value = petData.moods.idle
   }
   document.addEventListener('mousemove', onDrag)
   document.addEventListener('mouseup', stopDrag)
@@ -218,12 +221,7 @@ onUnmounted(() => {
 
     <!-- 宠物头像 -->
     <div class="pet-avatar" :class="{ 'pet-bounce': speechText }">
-      <template v-if="isRiveMode && riveInstance">
-        <canvas ref="canvasRef" class="rive-canvas"></canvas>
-      </template>
-      <template v-else>
-        {{ petEmoji }}
-      </template>
+      <canvas ref="canvasRef" class="rive-canvas"></canvas>
     </div>
 
     <!-- 宠物切换器 -->
@@ -310,16 +308,14 @@ onUnmounted(() => {
 }
 
 .pet-avatar {
-  font-size: 64px;
-  display: inline-block;
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.7));
-  animation: float 4s ease-in-out infinite;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 80px;
   height: 80px;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.7));
+  animation: float 4s ease-in-out infinite;
 }
 
 .rive-canvas {
