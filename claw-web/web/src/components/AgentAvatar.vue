@@ -132,7 +132,7 @@ onUnmounted(() => {
   display: block !important;
   background: transparent !important;
   /* 裁剪中间部分，向上偏移显示完整史莱姆 */
-  transform: scale(1.35) translateY(-5%);
+  transform: scale(1.45) translateY(-5%);
   margin: -25%;
 }
 
