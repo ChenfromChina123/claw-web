@@ -96,16 +96,22 @@ export const useChatStore = defineStore('chat', () => {
       const msg = data as { session?: Session; messages?: Message[]; toolCalls?: ToolCall[] }
       const session = msg?.session
       if (!session || !session.id) return
-      
+
       // 防止竞态条件：只处理当前正在加载的会话
       const targetSessionId = session.id
       if (targetSessionId !== currentSessionId.value) {
         console.warn('[ChatStore] session_loaded: ignoring event for session', targetSessionId, 'current:', currentSessionId.value)
         return
       }
-      
+
       console.log('[ChatStore] 会话加载完成，sessionId:', session.id, 'messages:', msg.messages?.length, 'toolCalls:', msg.toolCalls?.length)
-      messages.value = msg?.messages || []
+      // 按 createdAt 排序消息，确保时间顺序正确
+      const sortedMessages = (msg?.messages || []).sort((a, b) => {
+        const timeA = new Date(a.createdAt || 0).getTime()
+        const timeB = new Date(b.createdAt || 0).getTime()
+        return timeA - timeB
+      })
+      messages.value = sortedMessages
       toolCalls.value = msg?.toolCalls || []
     })
     
@@ -182,7 +188,13 @@ export const useChatStore = defineStore('chat', () => {
         console.warn('[ChatStore] session_rolled_back: ignoring other session', session.id)
         return
       }
-      messages.value = msg.messages || []
+      // 按 createdAt 排序消息，确保时间顺序正确
+      const sortedMessages = (msg.messages || []).sort((a, b) => {
+        const timeA = new Date(a.createdAt || 0).getTime()
+        const timeB = new Date(b.createdAt || 0).getTime()
+        return timeA - timeB
+      })
+      messages.value = sortedMessages
       toolCalls.value = msg.toolCalls || []
       isLoading.value = false
       currentStreamingAssistantId.value = null

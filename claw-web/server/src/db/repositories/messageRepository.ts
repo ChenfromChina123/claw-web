@@ -56,13 +56,11 @@ export class MessageRepository {
 
   async findBySessionId(sessionId: string): Promise<Message[]> {
     const pool = getPool()
-    // 使用 sequence 字段排序，如果没有则回退到 created_at
+    // 使用 created_at 字段作为主要排序依据，sequence 作为辅助
+    // 这样可以避免回滚后 sequence 不连续导致的顺序错乱问题
     const [rows] = await pool.query(
       `SELECT * FROM messages WHERE session_id = ?
-       ORDER BY
-         CASE WHEN sequence IS NOT NULL AND sequence > 0 THEN 0 ELSE 1 END,
-         sequence ASC,
-         created_at ASC`,
+       ORDER BY created_at ASC, sequence ASC`,
       [sessionId]
     ) as [Message[], unknown]
 
