@@ -727,6 +727,21 @@ async function handleInterruptExecution() {
             <!-- 用户消息 - 右边 -->
             <div v-if="message.role === 'user'" class="message user-message">
               <div class="message-content">
+                <!-- 编辑按钮 - 鼠标悬停时显示在气泡左侧 -->
+                <div v-if="!isEditing(message.id)" class="edit-btn-wrapper">
+                  <button
+                    type="button"
+                    class="action-btn action-btn--edit-icon"
+                    title="编辑消息"
+                    @click="startEditingMessage(message.id, formatUserMessageForBubble((message as any).content))"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="14" height="14">
+                      <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      <path d="M18.5 2.50001C18.8978 2.10219 19.4374 1.87869 20 1.87869C20.5626 1.87869 21.1022 2.10219 21.5 2.50001C21.8978 2.89784 22.1213 3.4374 22.1213 4.00001C22.1213 4.56262 21.8978 5.10219 21.5 5.50001L12 15L8 16L9 12L18.5 2.50001Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+
                 <div class="message-bubble-column">
                   <!-- 气泡主体 -->
                   <div class="message-bubble user-bubble">
@@ -770,22 +785,6 @@ async function handleInterruptExecution() {
                         {{ isSavingEdit ? '发送中...' : '发送' }}
                       </button>
                     </div>
-                  </div>
-
-                  <!-- 气泡下方操作栏：显示模式 - 编辑按钮 -->
-                  <div v-else class="bubble-actions">
-                    <button
-                      type="button"
-                      class="action-btn action-btn--edit"
-                      title="编辑消息"
-                      @click="startEditingMessage(message.id, formatUserMessageForBubble((message as any).content))"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="14" height="14">
-                        <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M18.5 2.50001C18.8978 2.10219 19.4374 1.87869 20 1.87869C20.5626 1.87869 21.1022 2.10219 21.5 2.50001C21.8978 2.89784 22.1213 3.4374 22.1213 4.00001C22.1213 4.56262 21.8978 5.10219 21.5 5.50001L12 15L8 16L9 12L18.5 2.50001Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                      </svg>
-                      编辑
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1417,6 +1416,49 @@ async function handleInterruptExecution() {
   gap: 12px;
   max-width: 100%;
   align-items: flex-start;
+  position: relative;
+}
+
+/* 用户消息布局：编辑按钮在左侧 */
+.user-message .message-content {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+
+/* 编辑按钮容器 - 放在气泡左侧 */
+.edit-btn-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  padding-right: 4px;
+}
+
+/* 鼠标悬停在消息上时显示编辑按钮 */
+.user-message:hover .edit-btn-wrapper {
+  opacity: 1;
+}
+
+/* 编辑图标按钮样式 */
+.action-btn--edit-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ide-text-tertiary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.action-btn--edit-icon:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ide-text-secondary);
 }
 
 .welcome {
@@ -1534,7 +1576,6 @@ async function handleInterruptExecution() {
 
 /* ==================== 3. 聊天工具栏 (图 2 灵魂优化) ==================== */
 /* 彻底图标化和极简布局 */
-.bubble-actions,
 .bubble-edit-actions {
   display: flex;
   align-items: center;
@@ -1542,41 +1583,35 @@ async function handleInterruptExecution() {
   gap: 6px;
   margin-top: 4px;
   padding: 0;
-  opacity: 0.7; /* 默认半透明 */
-  transition: opacity 0.2s;
-}
-
-.message:hover .bubble-actions {
-  opacity: 1;
 }
 
 /* 统一图标按钮样式 (极简、扁平) */
 .action-btn {
   padding: 4px; /* 极小 Padding */
   border: none;
-  background: transparent !important; /* 去掉按钮背景 */
-  color: var(--ide-text-tertiary) !important; /* 调暗图标颜色 */
+  background: transparent; /* 去掉按钮背景 */
+  color: var(--ide-text-tertiary); /* 调暗图标颜色 */
   cursor: pointer;
   transition: all 0.2s;
   border-radius: 4px;
 }
 
 .action-btn:hover {
-  background: rgba(255, 255, 255, 0.08) !important;
-  color: var(--ide-text-secondary) !important;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ide-text-secondary);
 }
 
 /* 发送/保存按钮点亮 */
 .action-btn--save,
 .send-action-btn {
-  color: var(--ide-green) !important;
+  color: var(--ide-green);
   opacity: 0.5;
 }
 
 .action-btn--save:hover,
 .send-action-btn:hover {
   opacity: 1;
-  background: transparent !important;
+  background: transparent;
 }
 
 /* 气泡下方的编辑操作栏 */
