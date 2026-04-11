@@ -1541,16 +1541,47 @@ async function handleInterruptExecution() {
   padding: 6px 0; /* 彻底去掉左右 padding，让文字贴着边缘 */
   line-height: 1.6;
   font-size: 15px;
-  background: transparent !important; /* 关键：去掉气泡背景色 */
-  border: none !important; /* 关键：去掉气泡边框 */
-  box-shadow: none !important; /* 彻底去掉阴影 */
   max-width: 100%;
 }
 
-/* 用户气泡对齐微调 */
+/* 用户消息容器：使其靠右对齐 */
+.message--user {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+/* 用户气泡：模仿图 2 的紧凑感 */
 .user-bubble {
-  color: var(--ide-text-primary) !important; /* 恢复正常文字颜色，而不是白字 */
+  background-color: #2a2a2a !important; /* 深灰色背景，不抢眼 */
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px 12px 2px 12px !important; /* 右下角稍微尖一点，增加指向感 */
+  padding: 8px 12px !important;
+  color: #e0e0e0 !important;
   text-align: right;
+
+  /* 关键：高度阈值控制 */
+  max-width: 85%;            /* 限制宽度，防止横向铺满 */
+  max-height: 200px;         /* 阈值高度：超过 200px 出现滚动条 */
+  overflow-y: auto;          /* 内容超过高度时内部滚动 */
+
+  /* 文本排版优化 */
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;    /* 防止长英文单词撑破气泡 */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* 自定义气泡内滚动条样式（让它看起来更精致） */
+.user-bubble::-webkit-scrollbar {
+  width: 4px;
+}
+.user-bubble::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+.user-bubble::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* 编辑模式输入框优化 */
@@ -1565,6 +1596,10 @@ async function handleInterruptExecution() {
 .assistant-bubble {
   color: var(--ide-text-primary);
   text-align: left;
+  background: transparent !important;
+  border: none !important;
+  padding: 8px 0 !important;
+  max-width: 100%;
 }
 
 /* 气泡列容器 - 包含气泡和下方操作栏 */
