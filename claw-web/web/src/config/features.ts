@@ -48,7 +48,8 @@ function resolveIsDevMode(): boolean {
 export const featureConfig: FeatureConfig = {
   ptyShell: {
     enabled: resolvePtyEnabled(),
-    defaultShell: 'bash',
+    // Windows 平台默认使用 PowerShell，其他平台使用 bash
+    defaultShell: navigator.platform.includes('Win') ? 'powershell' : 'bash',
     defaultCols: 120,
     defaultRows: 30,
   },
