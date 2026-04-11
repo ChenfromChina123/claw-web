@@ -40,6 +40,11 @@ const topView = ref<'chat' | 'sessions'>('chat')
 const showSessionSwitcher = ref(false)
 
 /**
+ * 显示右侧会话列表面板
+ */
+const showSessionsPanel = ref(false)
+
+/**
  * Agent 协调状态（从真实数据转换）
  */
 const orchestrationState = ref<MultiAgentOrchestrationState>(createInitialOrchestrationState())
@@ -515,8 +520,8 @@ function handleSessionSwitcherSelect(sessionId: string) {
           <button
             type="button"
             class="view-tab"
-            :class="{ active: topView === 'sessions' }"
-            @click="topView = 'sessions'"
+            :class="{ active: showSessionsPanel }"
+            @click="showSessionsPanel = !showSessionsPanel"
           >
             <NIcon :size="16"><ListOutline /></NIcon>
             会话管理
@@ -557,61 +562,60 @@ function handleSessionSwitcherSelect(sessionId: string) {
       </div>
 
       <!-- 主内容容器 -->
-      <div v-else class="chat-main" :class="{ 'with-agent-panel': showAgentPanel }">
-        <!-- 会话管理视图 -->
-        <div v-if="topView === 'sessions'" class="sessions-view">
-          <IdeSessionsPanel />
+      <div v-else class="chat-main" :class="{ 'with-agent-panel': showAgentPanel, 'with-sessions-panel': showSessionsPanel }">
+        <!-- 聊天区域 -->
+        <div class="chat-area">
+          <!-- 消息列表 -->
+          <ChatMessageList
+            :messages="chatStore.messages"
+            :tool-calls="chatStore.toolCalls"
+            :is-loading="chatStore.isLoading"
+            :current-agent-id="getCurrentAgentId()"
+            show-timeline-nav
+            class="message-list-container"
+            @interrupt="handleToolInterrupt"
+            @focus-terminal="handleFocusTerminalHint"
+          />
+
+          <!-- 输入区包装器 -->
+          <div class="input-wrapper">
+            <GlassPanel variant="normal" bordered class="input-container">
+              <ChatInput
+                ref="inputRef"
+                :disabled="!chatStore.currentSessionId"
+                :sidebar-collapsed="sidebarCollapsed"
+                :session-id="chatStore.currentSessionId || undefined"
+                :is-generating="chatStore.isLoading"
+                @send="handleSendMessage"
+                @stop="handleStopGeneration"
+                @focus="showCommandPalette = false"
+              />
+            </GlassPanel>
+          </div>
         </div>
 
-        <!-- 聊天视图 -->
-        <template v-else>
-          <!-- 聊天区域 -->
-          <div class="chat-area">
-            <!-- 消息列表 -->
-            <ChatMessageList
-              :messages="chatStore.messages"
-              :tool-calls="chatStore.toolCalls"
-              :is-loading="chatStore.isLoading"
-              :current-agent-id="getCurrentAgentId()"
-              show-timeline-nav
-              class="message-list-container"
-              @interrupt="handleToolInterrupt"
-              @focus-terminal="handleFocusTerminalHint"
+        <!-- Agent 状态面板 -->
+        <Transition name="agent-panel">
+          <div v-if="showAgentPanel" class="agent-panel">
+            <AgentStatusPanel 
+              :agents="availableAgents"
+              :execution-status="currentAgentStatus"
+              :tool-calls="currentToolCalls"
+              :team-members="currentTeamMembers"
+              @select="(agent) => console.log('Agent selected:', agent)"
+              @abort="handleAbortAgent"
+              @refresh="handleRefreshAgentStatus"
+              @add-member="handleAddTeamMember"
             />
-
-            <!-- 输入区包装器 -->
-            <div class="input-wrapper">
-              <GlassPanel variant="normal" bordered class="input-container">
-                <ChatInput
-                  ref="inputRef"
-                  :disabled="!chatStore.currentSessionId"
-                  :sidebar-collapsed="sidebarCollapsed"
-                  :session-id="chatStore.currentSessionId || undefined"
-                  :is-generating="chatStore.isLoading"
-                  @send="handleSendMessage"
-                  @stop="handleStopGeneration"
-                  @focus="showCommandPalette = false"
-                />
-              </GlassPanel>
-            </div>
           </div>
+        </Transition>
 
-          <!-- Agent 状态面板 -->
-          <Transition name="agent-panel">
-            <div v-if="showAgentPanel" class="agent-panel">
-              <AgentStatusPanel 
-                :agents="availableAgents"
-                :execution-status="currentAgentStatus"
-                :tool-calls="currentToolCalls"
-                :team-members="currentTeamMembers"
-                @select="(agent) => console.log('Agent selected:', agent)"
-                @abort="handleAbortAgent"
-                @refresh="handleRefreshAgentStatus"
-                @add-member="handleAddTeamMember"
-              />
-            </div>
-          </Transition>
-        </template>
+        <!-- 会话列表面板（右侧） -->
+        <Transition name="sessions-panel">
+          <div v-if="showSessionsPanel" class="sessions-panel">
+            <IdeSessionsPanel />
+          </div>
+        </Transition>
       </div>
     </NLayoutContent>
     
@@ -861,6 +865,10 @@ function handleSessionSwitcherSelect(sessionId: string) {
   flex-direction: row;
 }
 
+.chat-main.with-sessions-panel {
+  flex-direction: row;
+}
+
 /* ---- 聊天区域 ---- */
 .chat-area {
   flex: 1;
@@ -893,6 +901,29 @@ function handleSessionSwitcherSelect(sessionId: string) {
 
 .agent-panel-enter-from,
 .agent-panel-leave-to {
+  width: 0;
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+/* ---- 会话列表面板（右侧） ---- */
+.sessions-panel {
+  width: 320px;
+  flex-shrink: 0;
+  height: 100%;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.2);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* 会话列表面板过渡动画 */
+.sessions-panel-enter-active,
+.sessions-panel-leave-active {
+  transition: all var(--transition-normal, 250ms) ease;
+}
+
+.sessions-panel-enter-from,
+.sessions-panel-leave-to {
   width: 0;
   opacity: 0;
   transform: translateX(20px);
