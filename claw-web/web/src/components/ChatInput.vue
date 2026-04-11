@@ -2,12 +2,11 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import type { IdeAppendToChatOptions, IdeCodeRefPayload } from '@/composables/useIdeChatAppend'
 import { buildIdeLayeredUserMessage } from '@/utils/ideUserMessageMarkers'
-import { NInput, NButton, NIcon, NSpin, NTag, NSelect, useMessage, NDrawer, NDrawerContent } from 'naive-ui'
+import { NInput, NButton, NIcon, NSpin, NTag, NSelect, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
-import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline } from '@vicons/ionicons5'
+import { CloudUploadOutline, StopCircleOutline } from '@vicons/ionicons5'
 import { modelApi, type Model } from '@/api/modelApi'
 import { useChatStore } from '@/stores/chat'
-import PromptTemplateLibrary from './PromptTemplateLibrary.vue'
 
 const props = defineProps<{
   disabled?: boolean
@@ -370,36 +369,6 @@ defineExpose({
   focus: () => inputRef.value?.focus(),
   appendToChatInput,
 })
-
-// 提示词模板库相关
-const showPromptLibrary = ref(false)
-
-function openPromptLibrary() {
-  showPromptLibrary.value = true
-}
-
-function closePromptLibrary() {
-  showPromptLibrary.value = false
-}
-
-// 模型选择相关
-const showModelSelect = ref(false)
-
-function openModelSelect() {
-  showModelSelect.value = true
-}
-
-function closeModelSelect() {
-  showModelSelect.value = false
-}
-
-function handleUseTemplate(content: string) {
-  inputValue.value = content
-  closePromptLibrary()
-  nextTick(() => {
-    inputRef.value?.focus()
-  })
-}
 </script>
 
 <template>
@@ -454,16 +423,16 @@ function handleUseTemplate(content: string) {
         </div>
 
         <div class="right-tools">
-          <!-- 模型胶囊 -->
-          <div class="model-pill" @click="openModelSelect" title="Select Model">
-            <span class="pill-dot"></span>
-            <span class="pill-text">{{ selectedModelLabel || 'MODEL' }}</span>
-          </div>
-
-          <!-- 模板按钮 -->
-          <button class="action-icon-btn" @click="openPromptLibrary" title="Templates">
-            <NIcon :size="16"><ReorderFourOutline /></NIcon>
-          </button>
+          <!-- 模型选择下拉 -->
+          <NSelect
+            v-if="variant === 'ide'"
+            v-model:value="selectedModelId"
+            :options="modelOptions"
+            :disabled="disabled || modelOptions.length === 0"
+            size="small"
+            class="model-select-dropdown"
+            :consistent-menu-width="false"
+          />
 
           <!-- 发送/停止按钮 -->
           <button
@@ -568,42 +537,7 @@ function handleUseTemplate(content: string) {
       </div>
     </div>
 
-    <!-- 提示词模板库抽屉 -->
-    <NDrawer
-      v-model:show="showPromptLibrary"
-      :width="500"
-      placement="right"
-    >
-      <NDrawerContent title="提示词模板库" :native-scrollbar="false" closable>
-        <PromptTemplateLibrary
-          :session-id="sessionId"
-          @use-template="handleUseTemplate"
-          @close="closePromptLibrary"
-        />
-      </NDrawerContent>
-    </NDrawer>
 
-    <!-- 模型选择抽屉 -->
-    <NDrawer
-      v-model:show="showModelSelect"
-      :width="320"
-      placement="right"
-    >
-      <NDrawerContent title="选择模型" :native-scrollbar="false" closable>
-        <div class="model-select-list">
-          <div
-            v-for="model in models"
-            :key="model.id"
-            class="model-select-item"
-            :class="{ 'is-selected': selectedModelId === model.id }"
-            @click="selectedModelId = model.id; closeModelSelect()"
-          >
-            <span class="model-select-dot" :class="{ 'is-active': selectedModelId === model.id }"></span>
-            <span class="model-select-name">{{ model.name }}</span>
-          </div>
-        </div>
-      </NDrawerContent>
-    </NDrawer>
   </div>
 </template>
 
@@ -866,21 +800,23 @@ function handleUseTemplate(content: string) {
 
 
 
-/* 模型胶囊样式 */
-.model-pill {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  transition: all 0.2s;
+/* 模型选择下拉框样式 */
+.model-select-dropdown {
+  width: 140px;
 }
-.model-pill:hover { background: rgba(255, 255, 255, 0.08); }
-.pill-dot { width: 6px; height: 6px; border-radius: 50%; background: #42b883; }
-.pill-text { font-size: 11px; color: #888; font-family: monospace; }
+
+.model-select-dropdown :deep(.n-base-selection) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  --n-height: 28px !important;
+}
+
+.model-select-dropdown :deep(.n-base-selection__render) {
+  color: #888 !important;
+  font-size: 12px !important;
+  font-family: monospace;
+}
 
 /* 功能图标按钮样式 */
 .action-icon-btn, .send-btn-minimal {
@@ -913,51 +849,6 @@ function handleUseTemplate(content: string) {
 .send-btn-minimal:disabled {
   opacity: 0.3;
   cursor: not-allowed;
-}
-
-/* 模型选择列表样式 */
-.model-select-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.model-select-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.model-select-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.model-select-item.is-selected {
-  background: rgba(66, 184, 131, 0.1);
-}
-
-.model-select-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #666;
-}
-
-.model-select-dot.is-active {
-  background: #42b883;
-}
-
-.model-select-name {
-  font-size: 13px;
-  color: #d1d1d1;
-}
-
-.model-select-item.is-selected .model-select-name {
-  color: #42b883;
 }
 
 /* 默认变体的停止按钮样式 */
