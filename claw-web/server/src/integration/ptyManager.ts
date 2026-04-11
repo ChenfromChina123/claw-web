@@ -262,8 +262,8 @@ export class PTYSessionManager {
           setTimeout(() => {
             // 获取当前目录的短名称（最后一级目录）
             const shortDirName = cwd.split(/[/\\]/).pop() || 'workspaces'
-            // 使用字符串拼接避免模板字符串解析问题
-            const cmd = '$function:prompt = { ' + "'" + shortDirName + '> ' + "' }\r\n"
+            // 使用 prompt 函数的重写方式
+            const cmd = 'function prompt { "' + shortDirName + '> " }\r\n'
             childProcess.stdin?.write(cmd)
           }, 200)
         })
