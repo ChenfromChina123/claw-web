@@ -1,0 +1,24 @@
+{
+  "workspaceId": "ws_4e47cbc1-889a-4f7d-8a58-d337eb99921f_c2be0a0c-e72d-4623-9c18-a6cbca29fbad",
+  "userId": "4e47cbc1-889a-4f7d-8a58-d337eb99921f",
+  "sessionId": "c2be0a0c-e72d-4623-9c18-a6cbca29fbad",
+  "createdAt": "2026-04-06T06:12:15.261Z",
+  "lastModifiedAt": "2026-04-06T06:12:39.785Z",
+  "path": "D:\\Users\\Administrator\\AistudyProject\\HAHA\\claude-code-haha\\workspaces\\4e47cbc1-889a-4f7d-8a58-d337eb99921f\\c2be0a0c-e72d-4623-9c18-a6cbca29fbad",
+  "stats": {
+    "totalFiles": 1,
+    "totalSize": 6231,
+    "uploadCount": 1,
+    "outputCount": 0
+  },
+  "uploadedFiles": [
+    {
+      "filename": "ed7bef4b-cd88-4487-adf1-66235acc4ef8.py",
+      "originalName": "1111.py",
+      "size": 6231,
+      "type": "application/octet-stream",
+      "uploadedAt": "2026-04-06T06:12:39.785Z",
+      "path": "D:\\Users\\Administrator\\AistudyProject\\HAHA\\claude-code-haha\\workspaces\\4e47cbc1-889a-4f7d-8a58-d337eb99921f\\c2be0a0c-e72d-4623-9c18-a6cbca29fbad\\uploads\\ed7bef4b-cd88-4487-adf1-66235acc4ef8.py"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "workspaceId": "ws_0b3c36f0-d17a-49f1-9b1a-cd51160852e8_e23c2b59-760c-401b-bd5d-7ab25d46dc4b",
+  "userId": "0b3c36f0-d17a-49f1-9b1a-cd51160852e8",
+  "sessionId": "e23c2b59-760c-401b-bd5d-7ab25d46dc4b",
+  "createdAt": "2026-04-11T05:34:50.552Z",
+  "lastModifiedAt": "2026-04-11T05:34:50.552Z",
+  "path": "/app/workspaces/sessions/0b3c36f0-d17a-49f1-9b1a-cd51160852e8/e23c2b59-760c-401b-bd5d-7ab25d46dc4b",
+  "stats": {
+    "totalFiles": 0,
+    "totalSize": 0,
+    "uploadCount": 0,
+    "outputCount": 0
+  },
+  "uploadedFiles": []
+}

@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Code HAHA - Agent Workflow Visualization Demo</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, #18a058 0%, #2080f0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .glass {
+            background: rgba(26, 26, 26, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animate-slide { animation: slideIn 0.3s ease-out; }
+        .animate-fade { animation: fadeIn 0.4s ease-out; }
+        
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .status-running { background: rgba(32, 128, 240, 0.2); border-left: 3px solid #2080f0; }
+        .status-completed { background: rgba(24, 160, 88, 0.1); border-left: 3px solid #18a058; }
+        .status-blocked { background: rgba(240, 160, 32, 0.15); border-left: 3px solid #f0a020; }
+        .status-failed { background: rgba(208, 48, 80, 0.1); border-left: 3px solid #d03050; }
+        
+        .tree-line {
+            border-left: 2px dashed rgba(255, 255, 255, 0.2);
+            margin-left: 12px;
+            padding-left: 20px;
+        }
+        
+        .node-dot::before {
+            content: '';
+            position: absolute;
+            left: -24px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+        
+        .countdown-pulse {
+            animation: countdownPulse 1s ease infinite;
+        }
+        
+        @keyframes countdownPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+    <div id="app">
+        <div class="flex h-screen">
+            <!-- Main Chat Area -->
+            <div class="flex-1 flex flex-col relative overflow-hidden">
+                <!-- Header -->
+                <header class="glass px-6 py-4 flex items-center justify-between z-10">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-blue-500 flex items-center justify-center font-bold text-lg">
+                            🤖
+                        </div>
+                        <div>
+                            <h1 class="text-lg font-semibold gradient-text">Claude Code HAHA</h1>
+                            <p class="text-xs text-gray-500">Multi-Agent Orchestration</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-3">
+                        <!-- Permission Mode Selector -->
+                        <div class="relative">
+                            <button @click="showModeDropdown = !showModeDropdown" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 transition">
+                                <span>{{ currentMode.icon }}</span>
+                                <span class="text-sm">{{ currentMode.label }}</span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </button>
+                            
+                            <!-- Mode Dropdown -->
+                            <div v-if="showModeDropdown" class="absolute right-0 mt-2 w-64 glass rounded-xl p-2 z-50 animate-fade">
+                                <div v-for="mode in permissionModes" :key="mode.value"
+                                     @click="selectMode(mode)"
+                                     class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-700 cursor-pointer"
+                                     :class="{ 'bg-gray-700': currentMode.value === mode.value }">
+                                    <span class="text-lg">{{ mode.icon }}</span>
+                                    <div class="flex-1">
+                                        <div class="text-sm font-medium">{{ mode.label }}</div>
+                                        <div class="text-xs text-gray-500">{{ mode.description }}</div>
+                                    </div>
+                                    <span v-if="currentMode.value === mode.value" class="text-green-500">✓</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Activity Toggle -->
+                        <button @click="showActivitySidebar = !showActivitySidebar" 
+                                class="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 transition shadow-lg shadow-green-500/20">
+                            <span class="text-lg">🤖</span>
+                            <span class="text-sm font-medium">Agent 活动</span>
+                            <span v-if="pendingPermissions.length > 0" class="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full animate-pulse">
+                                {{ pendingPermissions.length }}
+                            </span>
+                        </button>
+                    </div>
+                </header>
+                
+                <!-- Chat Messages -->
+                <div class="flex-1 overflow-y-auto px-6 py-4 scrollbar-hide">
+                    <!-- User Message -->
+                    <div class="flex justify-end mb-4 animate-fade">
+                        <div class="max-w-xl bg-blue-600 rounded-2xl rounded-br-md px-4 py-3">
+                            <p class="text-sm">请帮我分析这个项目的结构，找出所有的 Vue 组件</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Agent Response -->
+                    <div class="flex gap-3 mb-6 animate-fade">
+                        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-sm flex-shrink-0">
+                            🤖
+                        </div>
+                        <div class="flex-1 max-w-3xl">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="font-medium text-sm">Coordinator Agent</span>
+                                <span class="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full">运行中</span>
+                            </div>
+                            <div class="text-sm text-gray-300 leading-relaxed">
+                                <p>好的，我将启动多 Agent 协作来完成任务分解和执行。</p>
+                                <p class="mt-2">首先，我将创建以下子 Agent：</p>
+                                <ul class="mt-2 space-y-1">
+                                    <li>• <span class="text-blue-400">Explore Agent</span> - 扫描项目目录结构</li>
+                                    <li>• <span class="text-yellow-400">Plan Agent</span> - 分析组件依赖关系</li>
+                                    <li>• <span class="text-purple-400">Code Agent</span> - 生成分析报告</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Input Area -->
+                <div class="glass p-4 mx-6 mb-6 rounded-2xl">
+                    <div class="flex items-center gap-3">
+                        <input type="text" placeholder="输入消息..." 
+                               class="flex-1 bg-gray-800/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50 transition">
+                        <button class="px-6 py-3 bg-green-600 hover:bg-green-500 rounded-xl text-sm font-medium transition">
+                            发送
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Activity Sidebar -->
+            <transition name="slide">
+                <div v-if="showActivitySidebar" class="w-96 glass border-l border-gray-800 flex flex-col animate-slide">
+                    <!-- Sidebar Header -->
+                    <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                        <h2 class="font-semibold flex items-center gap-2">
+                            <span>🤖</span>
+                            Agent 活动
+                        </h2>
+                        <button @click="showActivitySidebar = false" class="p-1 hover:bg-gray-700 rounded">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Stats Overview -->
+                    <div class="p-4 border-b border-gray-800 grid grid-cols-3 gap-3">
+                        <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                            <div class="text-xl font-bold text-blue-400">{{ activeAgents.length }}</div>
+                            <div class="text-xs text-gray-500">活跃 Agent</div>
+                        </div>
+                        <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                            <div class="text-xl font-bold text-green-400">{{ completedSteps }}</div>
+                            <div class="text-xs text-gray-500">已完成步骤</div>
+                        </div>
+                        <div class="bg-gray-800/50 rounded-lg p-3 text-center" :class="pendingPermissions.length > 0 ? 'bg-orange-500/20' : ''">
+                            <div class="text-xl font-bold" :class="pendingPermissions.length > 0 ? 'text-orange-400' : 'text-gray-400'">{{ pendingPermissions.length }}</div>
+                            <div class="text-xs text-gray-500">待审批</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Permission Alert -->
+                    <div v-if="pendingPermissions.length > 0" class="p-4 border-b border-gray-800">
+                        <div class="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 animate-fade">
+                            <div class="flex items-start gap-3">
+                                <span class="text-2xl">⚠️</span>
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <span class="font-medium text-orange-400">需要授权</span>
+                                        <span class="text-xs px-2 py-0.5 bg-orange-500/30 text-orange-300 rounded">高风险</span>
+                                    </div>
+                                    <p class="text-sm text-gray-400 mb-3">Agent 尝试执行危险命令</p>
+                                    <div class="flex items-center justify-between">
+                                        <div class="text-xs text-gray-500">
+                                            <span class="countdown-pulse inline-block">{{ countdown }}s</span> 后自动拒绝
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button @click="denyPermission" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition">
+                                                拒绝
+                                            </button>
+                                            <button @click="approvePermission" class="px-3 py-1.5 bg-green-600 hover:bg-green-500 rounded-lg text-sm transition">
+                                                允许
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Tabs -->
+                    <div class="flex border-b border-gray-800">
+                        <button v-for="tab in tabs" :key="tab.id"
+                                @click="activeTab = tab.id"
+                                class="flex-1 px-4 py-2 text-sm font-medium transition relative"
+                                :class="activeTab === tab.id ? 'text-green-400' : 'text-gray-500 hover:text-gray-300'">
+                            {{ tab.label }}
+                            <div v-if="activeTab === tab.id" class="absolute bottom-0 left-0 right-0 h-0.5 bg-green-500"></div>
+                        </button>
+                    </div>
+                    
+                    <!-- Tab Content -->
+                    <div class="flex-1 overflow-y-auto scrollbar-hide p-4">
+                        <!-- Workflow Tab -->
+                        <div v-if="activeTab === 'workflow'" class="space-y-3">
+                            <div v-for="agent in agents" :key="agent.id" class="relative">
+                                <!-- Agent Node -->
+                                <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition cursor-pointer node-dot" :class="'status-' + agent.status">
+                                    <div class="flex items-center gap-3 mb-3">
+                                        <span class="text-xl">{{ agent.icon }}</span>
+                                        <div class="flex-1">
+                                            <div class="font-medium text-sm">{{ agent.name }}</div>
+                                            <div class="text-xs text-gray-500">{{ agent.type }}</div>
+                                        </div>
+                                        <span class="text-xs px-2 py-0.5 rounded-full" :class="getStatusClass(agent.status)">
+                                            {{ getStatusLabel(agent.status) }}
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- Progress Bar -->
+                                    <div v-if="agent.steps.length > 0" class="mb-3">
+                                        <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                                            <span>进度</span>
+                                            <span>{{ agent.completedSteps }}/{{ agent.steps.length }}</span>
+                                        </div>
+                                        <div class="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                                            <div class="h-full bg-gradient-to-r from-green-500 to-green-400 transition-all duration-500" 
+                                                 :style="{ width: (agent.completedSteps / agent.steps.length * 100) + '%' }"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Steps -->
+                                    <div class="space-y-2">
+                                        <div v-for="(step, idx) in agent.steps" :key="idx" 
+                                             class="flex items-center gap-2 text-xs p-2 rounded-lg transition cursor-pointer"
+                                             :class="'status-' + step.status">
+                                            <span>{{ step.icon }}</span>
+                                            <span class="flex-1 truncate">{{ step.label }}</span>
+                                            <span v-if="step.duration" class="text-gray-500 mono">{{ step.duration }}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Child Agents -->
+                                    <div v-if="agent.children && agent.children.length > 0" class="mt-4 tree-line">
+                                        <div v-for="child in agent.children" :key="child.id" class="bg-gray-800/30 rounded-lg p-3 mb-2">
+                                            <div class="flex items-center gap-2">
+                                                <span>{{ child.icon }}</span>
+                                                <span class="text-sm">{{ child.name }}</span>
+                                                <span class="text-xs px-2 py-0.5 rounded-full ml-auto" :class="getStatusClass(child.status)">
+                                                    {{ getStatusLabel(child.status) }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Team Tab -->
+                        <div v-if="activeTab === 'team'" class="space-y-4">
+                            <div class="text-center py-8">
+                                <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-green-500 to-blue-500 flex items-center justify-center text-3xl">
+                                    🎯
+                                </div>
+                                <div class="font-semibold mb-1">协调者</div>
+                                <div class="text-xs text-gray-500">Coordinator Agent</div>
+                            </div>
+                            
+                            <div class="flex justify-center">
+                                <div class="w-0.5 h-8 bg-gray-700"></div>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-3">
+                                <div v-for="member in teamMembers" :key="member.id" 
+                                     class="bg-gray-800/50 rounded-xl p-3 text-center border border-gray-700">
+                                    <div class="text-2xl mb-2">{{ member.icon }}</div>
+                                    <div class="text-sm font-medium">{{ member.name }}</div>
+                                    <div class="text-xs text-gray-500 mb-2">{{ member.role }}</div>
+                                    <div class="h-1 bg-gray-700 rounded-full overflow-hidden">
+                                        <div class="h-full bg-blue-500" :style="{ width: member.progress + '%' }"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tasks Tab -->
+                        <div v-if="activeTab === 'tasks'" class="space-y-3">
+                            <div v-for="task in backgroundTasks" :key="task.id" 
+                                 class="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <span class="text-lg">{{ task.icon }}</span>
+                                    <div class="flex-1">
+                                        <div class="font-medium text-sm">{{ task.name }}</div>
+                                        <div class="text-xs text-gray-500">{{ task.time }}</div>
+                                    </div>
+                                    <span class="text-xs px-2 py-0.5 rounded-full" :class="getStatusClass(task.status)">
+                                        {{ getStatusLabel(task.status) }}
+                                    </span>
+                                </div>
+                                <div v-if="task.progress < 100" class="h-1 bg-gray-700 rounded-full overflow-hidden">
+                                    <div class="h-full bg-green-500 transition-all duration-500" :style="{ width: task.progress + '%' }"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, onUnmounted } = Vue
+        
+        createApp({
+            setup() {
+                // State
+                const showActivitySidebar = ref(true)
+                const showModeDropdown = ref(false)
+                const activeTab = ref('workflow')
+                const countdown = ref(30)
+                const currentMode = ref({
+                    value: 'auto',
+                    icon: '🔄',
+                    label: '自动',
+                    description: '自动允许安全操作，高风险需确认'
+                })
+                
+                const permissionModes = [
+                    { value: 'bypass', icon: '⚡', label: '无限制', description: '所有操作直接执行' },
+                    { value: 'auto', icon: '🔄', label: '自动', description: '自动允许安全操作，高风险需确认' },
+                    { value: 'plan', icon: '📋', label: '计划模式', description: '先规划后执行，所有修改需确认' }
+                ]
+                
+                const tabs = [
+                    { id: 'workflow', label: '🌳 工作流' },
+                    { id: 'team', label: '👥 团队' },
+                    { id: 'tasks', label: '📋 任务' }
+                ]
+                
+                // Data
+                const activeAgents = ref([
+                    { id: '1', name: 'Coordinator', type: '协调者', icon: '🎯', status: 'running', steps: [], children: [] }
+                ])
+                
+                const agents = ref([
+                    {
+                        id: 'coordinator',
+                        name: 'Coordinator Agent',
+                        type: '协调者',
+                        icon: '🎯',
+                        status: 'running',
+                        completedSteps: 1,
+                        steps: [
+                            { icon: '🤔', label: '解析用户意图', status: 'completed', duration: '1.2s' },
+                            { icon: '📋', label: '生成执行计划', status: 'completed', duration: '0.8s' },
+                            { icon: '🤖', label: '派生子 Agent', status: 'running' }
+                        ],
+                        children: [
+                            { id: 'explore', name: 'Explore', icon: '🔍', status: 'running' },
+                            { id: 'plan', name: 'Plan', icon: '📋', status: 'completed' }
+                        ]
+                    }
+                ])
+                
+                const teamMembers = ref([
+                    { id: '1', name: 'Explore', icon: '🔍', role: '探索者', progress: 65 },
+                    { id: '2', name: 'Plan', icon: '📋', role: '规划师', progress: 100 },
+                    { id: '3', name: 'Code', icon: '💻', role: '编码员', progress: 30 },
+                    { id: '4', name: 'Verify', icon: '✅', role: '验证者', progress: 0 }
+                ])
+                
+                const backgroundTasks = ref([
+                    { id: '1', name: '扫描项目结构', icon: '📁', status: 'running', progress: 75, time: '2分钟前' },
+                    { id: '2', name: '分析组件依赖', icon: '🔗', status: 'completed', progress: 100, time: '1分钟前' },
+                    { id: '3', name: '生成报告', icon: '📊', status: 'pending', progress: 0, time: '等待中' }
+                ])
+                
+                const pendingPermissions = ref([
+                    { id: 'p1', tool: 'Bash', command: 'rm -rf ./node_modules', risk: 'HIGH' }
+                ])
+                
+                const completedSteps = computed(() => {
+                    return agents.value.reduce((sum, agent) => sum + agent.completedSteps, 0)
+                })
+                
+                // Methods
+                function selectMode(mode) {
+                    currentMode.value = mode
+                    showModeDropdown.value = false
+                }
+                
+                function approvePermission() {
+                    pendingPermissions.value = []
+                    countdown.value = 30
+                }
+                
+                function denyPermission() {
+                    pendingPermissions.value = []
+                    countdown.value = 30
+                }
+                
+                function getStatusClass(status) {
+                    const classes = {
+                        running: 'bg-blue-500/20 text-blue-400',
+                        completed: 'bg-green-500/20 text-green-400',
+                        blocked: 'bg-orange-500/20 text-orange-400',
+                        failed: 'bg-red-500/20 text-red-400',
+                        pending: 'bg-gray-500/20 text-gray-400'
+                    }
+                    return classes[status] || classes.pending
+                }
+                
+                function getStatusLabel(status) {
+                    const labels = {
+                        running: '运行中',
+                        completed: '已完成',
+                        blocked: '已阻塞',
+                        failed: '失败',
+                        pending: '等待中'
+                    }
+                    return labels[status] || status
+                }
+                
+                // Countdown timer
+                let timer = null
+                
+                onMounted(() => {
+                    timer = setInterval(() => {
+                        if (pendingPermissions.value.length > 0 && countdown.value > 0) {
+                            countdown.value--
+                            if (countdown.value === 0) {
+                                denyPermission()
+                            }
+                        }
+                    }, 1000)
+                    
+                    // Simulate agent updates
+                    setTimeout(() => {
+                        agents.value[0].children.push({ id: 'code', name: 'Code', icon: '💻', status: 'running' })
+                        teamMembers.value[2].progress = 15
+                    }, 3000)
+                })
+                
+                onUnmounted(() => {
+                    if (timer) clearInterval(timer)
+                })
+                
+                return {
+                    showActivitySidebar,
+                    showModeDropdown,
+                    activeTab,
+                    countdown,
+                    currentMode,
+                    permissionModes,
+                    tabs,
+                    activeAgents,
+                    agents,
+                    teamMembers,
+                    backgroundTasks,
+                    pendingPermissions,
+                    completedSteps,
+                    selectMode,
+                    approvePermission,
+                    denyPermission,
+                    getStatusClass,
+                    getStatusLabel
+                }
+            }
+        }).mount('#app')
+    </script>
+    
+    <style>
+        .slide-enter-active,
+        .slide-leave-active {
+            transition: all 0.3s ease;
+        }
+        
+        .slide-enter-from,
+        .slide-leave-to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    </style>
+</body>
+</html>

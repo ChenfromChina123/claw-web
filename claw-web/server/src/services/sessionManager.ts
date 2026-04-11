@@ -1,0 +1,752 @@
+import { v4 as uuidv4 } from 'uuid'
+import { UserRepository } from '../db/repositories/userRepository'
+import { SessionRepository } from '../db/repositories/sessionRepository'
+import { MessageRepository } from '../db/repositories/messageRepository'
+import { ToolCallRepository } from '../db/repositories/toolCallRepository'
+import type { Session, Message, ConversationMessage, ToolCall } from '../models/types'
+import { generateSessionTitleWithLLM } from './sessionTitleGenerator'
+import { extractIdeUserDisplay } from '../utils/ideUserMessageMarkers'
+
+export interface InMemorySession {
+  session: Session
+  messages: Message[]  // 使用完整 Message 类型
+  toolCalls: ToolCall[]
+  dirty: boolean
+  /** 标记是否需要从数据库补充数据（由列表加载放入缓存时设置） */
+  needsHydration?: boolean
+}
+
+export class SessionManager {
+  private static instance: SessionManager
+
+  private sessions: Map<string, InMemorySession> = new Map()
+  private userSessions: Map<string, string[]> = new Map()
+
+  private userRepo = new UserRepository()
+  private sessionRepo = new SessionRepository()
+  private messageRepo = new MessageRepository()
+  private toolCallRepo = new ToolCallRepository()
+
+  private saveDebounceTimers: Map<string, NodeJS.Timeout> = new Map()
+
+  /** 会话标题更新回调 */
+  private onSessionTitleUpdated: ((sessionId: string, title: string) => void) | null = null
+
+  /** 标题生成序列号 Map，用于并行标题生成时只保留最新请求 */
+  private titleGenSeq: Map<string, number> = new Map()
+
+  /**
+   * 设置会话标题更新回调
+   */
+  setOnSessionTitleUpdated(callback: (sessionId: string, title: string) => void): void {
+    this.onSessionTitleUpdated = callback
+  }
+
+  static getInstance(): SessionManager {
+    if (!SessionManager.instance) {
+      SessionManager.instance = new SessionManager()
+    }
+    return SessionManager.instance
+  }
+
+  async getOrCreateUser(userId: string, username?: string): Promise<{ id: string; username: string }> {
+    let user = await this.userRepo.findById(userId)
+    if (!user) {
+      user = await this.userRepo.create(username || `user_${userId.slice(0, 8)}`)
+    }
+    return { id: user.id, username: user.username }
+  }
+
+  /**
+   * 检查用户是否有空会话(没有消息的会话)
+   * @param userId 用户ID
+   * @returns 如果有空会话返回true,否则返回false
+   */
+  async hasEmptySession(userId: string): Promise<boolean> {
+    const emptySession = await this.sessionRepo.findEmptySessionByUserId(userId)
+    return emptySession !== null
+  }
+
+  /**
+   * 创建新会话
+   * @param userId 用户ID
+   * @param title 会话标题
+   * @param model 使用的模型
+   * @param force 是否强制创建(忽略空会话检查)
+   * @returns 创建的会话对象
+   */
+  async createSession(userId: string, title?: string, model?: string, force?: boolean): Promise<Session> {
+    if (!force) {
+      const emptySession = await this.sessionRepo.findEmptySessionByUserId(userId)
+      if (emptySession) {
+        console.log(`[SessionManager] User ${userId} has empty session, returning it instead of creating new one`)
+        return emptySession
+      }
+    }
+
+    const session = await this.sessionRepo.create(userId, title || '新对话', model || 'qwen-plus')
+
+    this.sessions.set(session.id, {
+      session,
+      messages: [],
+      toolCalls: [],
+      dirty: true,
+    })
+
+    const userSessionList = this.userSessions.get(userId) || []
+    userSessionList.unshift(session.id)
+    this.userSessions.set(userId, userSessionList)
+
+    return session
+  }
+
+  async loadSession(sessionId: string): Promise<InMemorySession | null> {
+    console.log(`[SessionManager] loadSession called for session ${sessionId}`)
+    
+    // 无论是否有缓存，都从数据库重新加载完整数据
+    // 这样可以确保始终获取到最新、最完整的数据
+    const session = await this.sessionRepo.findById(sessionId)
+    if (!session) {
+      console.warn(`[SessionManager] Session ${sessionId} not found in database`)
+      return null
+    }
+
+    const dbMessages = await this.messageRepo.findBySessionId(sessionId)
+    const dbToolCalls = await this.toolCallRepo.findBySessionId(sessionId)
+
+    console.log(`[SessionManager] Retrieved from DB - messages: ${dbMessages.length}, toolCalls: ${dbToolCalls.length}`)
+
+    // 标准化 createdAt 为 ISO 字符串格式，确保与前端兼容
+    const messages: Message[] = dbMessages.map(msg => {
+      const normalized: Message = {
+        id: msg.id,
+        sessionId: msg.sessionId,
+        role: msg.role,
+        content: msg.content,
+        createdAt: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : msg.createdAt,
+        toolCalls: msg.toolCalls,
+      }
+      return normalized
+    })
+
+    const sessionData: InMemorySession = {
+      session,
+      messages,
+      toolCalls: dbToolCalls,
+      dirty: false,
+      needsHydration: false,
+    }
+
+    // 更新缓存（覆盖现有缓存，确保数据一致性）
+    this.sessions.set(sessionId, sessionData)
+
+    const userSessionList = this.userSessions.get(session.userId) || []
+    if (!userSessionList.includes(sessionId)) {
+      userSessionList.unshift(sessionId)
+      this.userSessions.set(session.userId, userSessionList)
+    }
+
+    // 添加数据完整性日志
+    console.log(`[SessionManager] Loaded session ${sessionId} successfully:`, {
+      messageCount: messages.length,
+      toolCallCount: dbToolCalls.length,
+      dirty: false
+    })
+
+    return sessionData
+  }
+
+  /** 从数据库填充仅由列表接口放入缓存、尚未加载过消息的会话 */
+  private async hydrateSessionFromDb(sessionId: string, cached: InMemorySession): Promise<void> {
+    console.log(`[SessionManager] Hydrating session ${sessionId} from DB...`)
+    const dbMessages = await this.messageRepo.findBySessionId(sessionId)
+    if (dbMessages.length > 0) {
+      // 标准化 createdAt 为 ISO 字符串格式，确保与前端兼容
+      cached.messages = dbMessages.map(msg => {
+        const normalized: Message = {
+          id: msg.id,
+          sessionId: msg.sessionId,
+          role: msg.role,
+          content: msg.content,
+          createdAt: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : msg.createdAt,
+          toolCalls: msg.toolCalls,
+        }
+        return normalized
+      })
+      console.log(`[SessionManager] Hydrated ${dbMessages.length} messages for session ${sessionId}`)
+    }
+    const dbToolCalls = await this.toolCallRepo.findBySessionId(sessionId)
+    if (dbToolCalls.length > 0) {
+      cached.toolCalls = dbToolCalls
+      console.log(`[SessionManager] Hydrated ${dbToolCalls.length} toolCalls for session ${sessionId}`)
+    }
+    // 清除 hydration 标记
+    cached.needsHydration = false
+  }
+
+  async getUserSessions(userId: string): Promise<Session[]> {
+    const sessions = await this.sessionRepo.findByUserId(userId)
+
+    for (const session of sessions) {
+      if (!this.sessions.has(session.id)) {
+        this.sessions.set(session.id, {
+          session,
+          messages: [],
+          toolCalls: [],
+          dirty: false,
+          needsHydration: true,  // 标记需要从数据库补充数据
+        })
+      }
+    }
+
+    return sessions
+  }
+
+  /**
+   * 清理用户的重复主会话
+   * 只保留一个主会话（基于标题"主会话"或 is_master 标记）
+   */
+  async cleanupDuplicateMasterSessions(userId: string): Promise<Session | null> {
+    const sessions = await this.sessionRepo.findByUserId(userId)
+    
+    // 找到所有可能是主会话的记录：isMaster=true 或 title="主会话"
+    const potentialMasterSessions = sessions.filter(s => s.isMaster === true || s.title === '主会话')
+    
+    if (potentialMasterSessions.length === 0) {
+      return null
+    }
+    
+    console.log(`[SessionManager] Found ${potentialMasterSessions.length} potential master sessions for user ${userId}`)
+    
+    // 保留第一个作为真正的主会话
+    const primarySession = potentialMasterSessions[0]
+    
+    // 确保第一个有 isMaster 标记
+    if (!primarySession.isMaster) {
+      primarySession.isMaster = true
+      await this.sessionRepo.save(primarySession)
+      console.log(`[SessionManager] Set isMaster=true for primary session: ${primarySession.id}`)
+    }
+    
+    // 其他的全部取消标记，并改名为普通会话
+    for (let i = 1; i < potentialMasterSessions.length; i++) {
+      const session = potentialMasterSessions[i]
+      if (session.isMaster || session.title === '主会话') {
+        session.isMaster = false
+        // 如果标题是"主会话"，改成"旧主会话"以示区分
+        if (session.title === '主会话') {
+          session.title = '旧主会话'
+        }
+        await this.sessionRepo.save(session)
+        console.log(`[SessionManager] Demoted session: ${session.id}, new title: ${session.title}`)
+      }
+    }
+    
+    return primarySession
+  }
+
+  /**
+   * 获取或创建用户的主会话
+   * 主会话用于管理 skills 和用户配置
+   * 确保每个用户只有一个主会话
+   */
+  async getOrCreateMasterSession(userId: string): Promise<Session> {
+    // 先清理重复的主会话
+    const existingMaster = await this.cleanupDuplicateMasterSessions(userId)
+    
+    // 如果找到了已有的主会话，直接返回
+    if (existingMaster) {
+      console.log(`[SessionManager] Returning existing master session: ${existingMaster.id}`)
+      return existingMaster
+    }
+
+    console.log(`[SessionManager] Creating new master session for user: ${userId}`)
+    // 直接创建时设置 isMaster=true，避免后续的 UPDATE 操作
+    const newMasterSession = await this.sessionRepo.create(userId, '主会话', 'qwen-plus', true)
+
+    return newMasterSession
+  }
+
+  getInMemorySession(sessionId: string): InMemorySession | undefined {
+    return this.sessions.get(sessionId)
+  }
+
+  /**
+   * 切换会话前强制保存当前会话
+   * @param currentSessionId 当前会话ID
+   * @param newSessionId 新会话ID
+   */
+  async switchSession(currentSessionId: string, newSessionId: string): Promise<void> {
+    if (currentSessionId && this.sessions.has(currentSessionId)) {
+      const sessionData = this.sessions.get(currentSessionId)
+      if (sessionData && sessionData.dirty) {
+        console.log(`[SwitchSession] Saving dirty session ${currentSessionId} before switching`)
+        // 使用强制保存，确保数据立即落库
+        await this.forceSaveSession(currentSessionId)
+      }
+    }
+  }
+
+  addMessage(sessionId: string, role: 'user' | 'assistant', content: string | any[], toolCalls?: ToolCall[], externalId?: string): Message | null {
+    const sessionData = this.sessions.get(sessionId)
+    if (!sessionData) {
+      console.error(`Session ${sessionId} not found in memory`)
+      return null
+    }
+
+    // 如果提供了外部ID（来自前端），使用它；否则生成新的UUID
+    const messageId = externalId || uuidv4()
+    const message: Message = { id: messageId, sessionId, role, content, createdAt: new Date() }
+    if (role === 'assistant' && toolCalls && toolCalls.length > 0) {
+      message.toolCalls = toolCalls
+    }
+    sessionData.messages.push(message)
+    sessionData.dirty = true
+
+    this.scheduleSave(sessionId)
+
+    // 如果是用户消息且当前标题还是默认的"新对话"，就并行生成会话标题
+    console.log(`[SessionManager] addMessage: role=${role}, session.title="${sessionData.session.title}", sessionId=${sessionId}`)
+    if (role === 'user') {
+      if (sessionData.session.title === '新对话') {
+        // 使用序列号机制，支持并行生成，只保留最新请求的结果
+        const currentSeq = (this.titleGenSeq.get(sessionId) || 0) + 1
+        this.titleGenSeq.set(sessionId, currentSeq)
+        console.log(`[SessionManager] Detected first user message, generating title for session ${sessionId} (seq=${currentSeq})`)
+        this.generateAndUpdateSessionTitle(sessionId, content, currentSeq)
+      } else {
+        console.log(`[SessionManager] Session title is already set to "${sessionData.session.title}", skipping title generation`)
+      }
+    }
+
+    return message
+  }
+
+  /**
+   * 基于用户第一条消息生成会话标题并更新
+   * @param sessionId 会话ID
+   * @param userContent 用户消息内容
+   * @param genSeq 当前的生成序列号，用于并行场景下只保留最新请求的结果
+   */
+  private async generateAndUpdateSessionTitle(sessionId: string, userContent: string | any[], genSeq: number): Promise<void> {
+    const startTime = Date.now()
+    try {
+      console.log(`[SessionManager] generateAndUpdateSessionTitle called for session ${sessionId} (seq=${genSeq})`)
+
+      // 将内容转换为字符串（IDE 双轨消息仅取展示层生成标题）
+      const contentString = typeof userContent === 'string'
+        ? extractIdeUserDisplay(userContent)
+        : JSON.stringify(userContent)
+
+      console.log(`[SessionManager] Content string: "${contentString.substring(0, 50)}..."`)
+
+      // 检查当前会话状态
+      const sessionData = this.sessions.get(sessionId)
+      console.log(`[SessionManager] sessionData exists: ${!!sessionData}, current title: "${sessionData?.session?.title}"`)
+
+      if (!sessionData || sessionData.session.title !== '新对话') {
+        console.log(`[SessionManager] Skipping title update: session not found or title already set to "${sessionData?.session?.title}"`)
+        return
+      }
+
+      // 检查序列号是否仍是最新的，只有最新请求才能更新标题
+      const currentSeq = this.titleGenSeq.get(sessionId)
+      if (currentSeq !== genSeq) {
+        console.log(`[SessionManager] Title generation seq mismatch (expected=${genSeq}, current=${currentSeq}), discarding result`)
+        return
+      }
+
+      // 使用 LLM 生成标题
+      console.log(`[SessionManager] Calling LLM to generate title...`)
+      let title = await generateSessionTitleWithLLM(contentString)
+      console.log(`[SessionManager] LLM generated title: "${title}"`)
+
+      // LLM 生成失败时，使用内容前30字符作为兜底标题
+      if (!title || title === '新对话') {
+        console.log(`[SessionManager] LLM failed to generate valid title, falling back to content preview`)
+        title = contentString.substring(0, 30)
+      }
+
+      // 再次检查序列号（LLM 调用后可能已有新的请求）
+      const finalSeq = this.titleGenSeq.get(sessionId)
+      if (finalSeq !== genSeq) {
+        console.log(`[SessionManager] Title generation seq mismatch after LLM call (expected=${genSeq}, current=${finalSeq}), discarding result`)
+        return
+      }
+
+      // 强制更新标题，只要是第一个消息！
+      console.log(`[SessionManager] Updating title for session ${sessionId}: "${title}"`)
+
+      // 更新内存中的会话
+      sessionData.session.title = title
+
+      // 异步更新数据库
+      await this.sessionRepo.updateTitle(sessionId, title)
+      console.log(`[SessionManager] Title saved to database`)
+
+      // 通知前端会话标题已更新
+      if (this.onSessionTitleUpdated) {
+        console.log(`[SessionManager] Calling onSessionTitleUpdated callback`)
+        this.onSessionTitleUpdated(sessionId, title)
+      } else {
+        console.warn(`[SessionManager] onSessionTitleUpdated callback is not set, title updated but frontend not notified!`)
+      }
+
+      const duration = Date.now() - startTime
+      console.log(`[SessionManager] ✅ Title generation completed successfully in ${duration}ms for session ${sessionId}: "${title}"`)
+    } catch (error) {
+      const duration = Date.now() - startTime
+      console.error(`[SessionManager] ❌ Failed to generate/update session title after ${duration}ms:`, error)
+      console.error(`[SessionManager] Error details:`, {
+        sessionId,
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      })
+      // 标题生成失败不影响主要功能，但记录详细的错误信息以便排查
+    }
+  }
+
+  /**
+   * 添加工具结果到会话 (in-memory) - 使用正确的 Anthropic 格式
+   * 工具结果应该以特定的内容块格式添加，而不是简单的字符串消息
+   */
+  addToolResultMessage(
+    sessionId: string,
+    toolUseId: string,
+    toolName: string,
+    result?: unknown,
+    error?: string
+  ): Message | null {
+    const sessionData = this.sessions.get(sessionId)
+    if (!sessionData) {
+      console.error(`Session ${sessionId} not found in memory`)
+      return null
+    }
+
+    // 构建 Anthropic 格式的工具结果内容
+    const content = [
+      {
+        type: 'tool_result',
+        tool_use_id: toolUseId,
+        content: error 
+          ? JSON.stringify({ error: error })
+          : JSON.stringify(result)
+      }
+    ]
+
+    const message: Message = {
+      id: uuidv4(),
+      sessionId,
+      role: 'user',  // Anthropic API 要求工具结果用 user 角色，但内容是 tool_result 格式
+      content,
+      createdAt: new Date()
+    }
+
+    sessionData.messages.push(message)
+    sessionData.dirty = true
+
+    this.scheduleSave(sessionId)
+    
+    console.debug(`[SessionManager] Added tool result message for tool ${toolName} (${toolUseId}) to session ${sessionId}`)
+    return message
+  }
+
+  /**
+   * 更新内存中的消息内容
+   */
+  updateMessage(sessionId: string, messageId: string, content: string | any[], toolCalls?: ToolCall[]): Message | null {
+    const sessionData = this.sessions.get(sessionId)
+    if (!sessionData) {
+      console.error(`Session ${sessionId} not found in memory`)
+      return null
+    }
+
+    const message = sessionData.messages.find(m => m.id === messageId)
+    if (!message) {
+      console.error(`Message ${messageId} not found in session ${sessionId}`)
+      return null
+    }
+
+    message.content = content
+    if (toolCalls) {
+      message.toolCalls = toolCalls
+    }
+    sessionData.dirty = true
+
+    this.scheduleSave(sessionId)
+
+    return message
+  }
+
+  addToolCall(sessionId: string, toolCall: ToolCall): void {
+    const sessionData = this.sessions.get(sessionId)
+    if (!sessionData) {
+      console.error(`Session ${sessionId} not found in memory`)
+      return
+    }
+
+    sessionData.toolCalls.push(toolCall)
+    sessionData.dirty = true
+
+    this.scheduleSave(sessionId)
+  }
+
+  updateToolCall(sessionId: string, toolCallId: string, output: Record<string, unknown>, status: 'completed' | 'error'): void {
+    const sessionData = this.sessions.get(sessionId)
+    if (!sessionData) return
+
+    const toolCall = sessionData.toolCalls.find(tc => tc.id === toolCallId)
+    if (toolCall) {
+      toolCall.toolOutput = output
+      toolCall.status = status
+      sessionData.dirty = true
+      this.scheduleSave(sessionId)
+    }
+  }
+
+  /**
+   * 删除会话（始终落库；不再依赖内存缓存，否则仅 DB 有记录时会「删不掉」）
+   * @param requestingUserId 若传入则校验归属，防止跨用户删除
+   */
+  async deleteSession(sessionId: string, requestingUserId?: string): Promise<void> {
+    const existing = await this.sessionRepo.findById(sessionId)
+    if (!existing) {
+      throw new Error('Session not found')
+    }
+    if (requestingUserId && existing.userId !== requestingUserId) {
+      throw new Error('Forbidden: cannot delete another user\'s session')
+    }
+
+    await this.messageRepo.deleteBySessionId(sessionId)
+    await this.toolCallRepo.deleteBySessionId(sessionId)
+    await this.sessionRepo.delete(sessionId)
+
+    this.sessions.delete(sessionId)
+
+    const userSessionList = this.userSessions.get(existing.userId) || []
+    this.userSessions.set(
+      existing.userId,
+      userSessionList.filter((id) => id !== sessionId)
+    )
+  }
+
+  async renameSession(sessionId: string, title: string): Promise<void> {
+    await this.sessionRepo.updateTitle(sessionId, title)
+
+    const sessionData = this.sessions.get(sessionId)
+    if (sessionData) {
+      sessionData.session.title = title
+    }
+  }
+
+  async updateSession(sessionId: string, updates: { title?: string; model?: string; isPinned?: boolean }): Promise<Session | null> {
+    const session = await this.sessionRepo.update(sessionId, updates)
+
+    if (session) {
+      const sessionData = this.sessions.get(sessionId)
+      if (sessionData) {
+        sessionData.session = session
+      }
+    }
+
+    return session
+  }
+
+  /**
+   * 比较两个内容是否相等（处理字符串和数组两种情况）
+   */
+  private isContentEqual(content1: string | any[], content2: string | any[]): boolean {
+    if (typeof content1 === 'string' && typeof content2 === 'string') {
+      return content1 === content2
+    }
+    // 如果一个是字符串，一个是数组，肯定不相等
+    if (typeof content1 !== typeof content2) {
+      return false
+    }
+    // 两个都是数组，比较 JSON 字符串
+    return JSON.stringify(content1) === JSON.stringify(content2)
+  }
+
+  async saveSession(sessionId: string): Promise<void> {
+    const sessionData = this.sessions.get(sessionId)
+    if (!sessionData || !sessionData.dirty) return
+
+    console.log(`Saving session ${sessionId}, messages count: ${sessionData.messages.length}, toolCalls count: ${sessionData.toolCalls.length}`)
+
+    await this.sessionRepo.touch(sessionId)
+
+    // 策略：保存新增消息 + 更新已存在消息的内容
+    console.log(`[SessionManager] Saving/updating data for session ${sessionId}...`)
+
+    // 1. 获取数据库中已有的消息
+    const existingMessages = await this.messageRepo.findBySessionId(sessionId)
+    const existingMessageMap = new Map(existingMessages.map(m => [m.id, m]))
+    console.log(`[SessionManager] Existing messages in DB: ${Array.from(existingMessageMap.keys()).join(', ')}`)
+
+    // 2. 处理所有消息
+    for (const msg of sessionData.messages) {
+      if (!existingMessageMap.has(msg.id)) {
+        // 新增消息
+        console.log(`[SessionManager] Saving new message: ${msg.id}, role=${msg.role}`)
+        await this.messageRepo.createWithId(msg.id, sessionId, msg.role, msg.content)
+      } else {
+        // 检查内容是否有变化
+        const existingMsg = existingMessageMap.get(msg.id)!
+        if (!this.isContentEqual(existingMsg.content, msg.content)) {
+          console.log(`[SessionManager] Updating message content: ${msg.id}, role=${msg.role}`)
+          await this.messageRepo.updateContent(msg.id, msg.content)
+        } else {
+          console.log(`[SessionManager] Message content unchanged: ${msg.id}, skipping`)
+        }
+      }
+    }
+
+    // 3. 获取数据库中已有的工具调用
+    const existingToolCalls = await this.toolCallRepo.findBySessionId(sessionId)
+    const existingToolCallMap = new Map(existingToolCalls.map(t => [t.id, t]))
+    console.log(`[SessionManager] Existing tool calls in DB: ${Array.from(existingToolCallMap.keys()).join(', ')}`)
+
+    // 4. 处理所有工具调用
+    for (const toolCall of sessionData.toolCalls) {
+      if (!existingToolCallMap.has(toolCall.id)) {
+        // 新增工具调用
+        console.log(`[SessionManager] Saving new tool call: ${toolCall.id}, toolName=${toolCall.toolName}`)
+        await this.toolCallRepo.createWithId(
+          toolCall.id,
+          toolCall.messageId,
+          sessionId,
+          toolCall.toolName,
+          toolCall.toolInput,
+          toolCall.status,
+          toolCall.toolOutput
+        )
+      } else {
+        // 检查是否有变化（状态或输出）
+        const existingTc = existingToolCallMap.get(toolCall.id)!
+        const statusChanged = existingTc.status !== toolCall.status
+        const outputChanged = JSON.stringify(existingTc.toolOutput) !== JSON.stringify(toolCall.toolOutput)
+        
+        if (statusChanged || outputChanged) {
+          console.log(`[SessionManager] Updating tool call: ${toolCall.id}, status=${toolCall.status}`)
+          await this.toolCallRepo.updateOutput(toolCall.id, toolCall.toolOutput || {}, toolCall.status)
+        } else {
+          console.log(`[SessionManager] Tool call unchanged: ${toolCall.id}, skipping`)
+        }
+      }
+    }
+
+    sessionData.dirty = false
+    console.log(`[SessionManager] Session ${sessionId} saved successfully!`)
+  }
+
+  async clearSession(sessionId: string): Promise<void> {
+    await this.messageRepo.deleteBySessionId(sessionId)
+    await this.toolCallRepo.deleteBySessionId(sessionId)
+
+    const sessionData = this.sessions.get(sessionId)
+    if (sessionData) {
+      sessionData.messages = []
+      sessionData.toolCalls = []
+      sessionData.dirty = true
+    }
+  }
+
+  /**
+   * 从指定用户消息起截断会话（含该条及之后全部消息），并同步删除库内记录与关联 tool_calls。
+   * 用于 IDE/聊天时间线回滚。
+   */
+  async rollbackToUserMessage(
+    sessionId: string,
+    userId: string,
+    anchorMessageId: string,
+  ): Promise<InMemorySession> {
+    const sessionRow = await this.sessionRepo.findById(sessionId)
+    if (!sessionRow) {
+      throw new Error('Session not found')
+    }
+    if (sessionRow.userId !== userId) {
+      throw new Error('Forbidden: cannot rollback another user\'s session')
+    }
+
+    let sessionData = this.sessions.get(sessionId)
+    if (!sessionData || sessionData.needsHydration) {
+      const loaded = await this.loadSession(sessionId)
+      if (!loaded) {
+        throw new Error('Session not found')
+      }
+      sessionData = loaded
+    }
+
+    const msgs = sessionData.messages
+    const anchorIndex = msgs.findIndex((m) => m.id === anchorMessageId)
+    if (anchorIndex < 0) {
+      throw new Error('Message not found in session')
+    }
+    const anchor = msgs[anchorIndex]
+    if (anchor.role !== 'user') {
+      throw new Error('Rollback anchor must be a user message')
+    }
+    const content = anchor.content
+    if (Array.isArray(content) && content.some((b: any) => b && b.type === 'tool_result')) {
+      throw new Error('Cannot use tool-result message as rollback anchor')
+    }
+
+    const removed = msgs.slice(anchorIndex)
+    const removedIds = removed.map((m) => m.id)
+    const assistantRemovedIds = removed.filter((m) => m.role === 'assistant').map((m) => m.id)
+
+    await this.messageRepo.deleteByIdsForSession(sessionId, removedIds)
+    await this.toolCallRepo.deleteByMessageIds(assistantRemovedIds)
+
+    sessionData.messages = msgs.slice(0, anchorIndex)
+    const keptIds = new Set(sessionData.messages.map((m) => m.id))
+    sessionData.toolCalls = sessionData.toolCalls.filter((tc) => keptIds.has(tc.messageId))
+    sessionData.dirty = false
+
+    return sessionData
+  }
+
+  /**
+   * 立即保存会话到数据库
+   * 新消息会立即同步，不使用防抖延迟
+   */
+  private scheduleSave(sessionId: string): void {
+    // 立即保存，不使用防抖
+    this.saveSession(sessionId).catch(error => {
+      console.error(`[SessionManager] Failed to save session ${sessionId}:`, error)
+    })
+  }
+
+  /**
+   * 强制立即保存会话（不等待 debounce）
+   * 用于确保关键操作（如切换会话、发送消息后立即断开）不丢失数据
+   */
+  async forceSaveSession(sessionId: string): Promise<void> {
+    const existingTimer = this.saveDebounceTimers.get(sessionId)
+    if (existingTimer) {
+      clearTimeout(existingTimer)
+      this.saveDebounceTimers.delete(sessionId)
+    }
+    await this.saveSession(sessionId)
+  }
+
+  async saveAllDirtySessions(): Promise<void> {
+    const dirtySessionIds = Array.from(this.sessions.entries())
+      .filter(([_, data]) => data.dirty)
+      .map(([id, _]) => id)
+
+    console.log(`[SessionManager] Saving ${dirtySessionIds.length} dirty sessions on shutdown`)
+
+    // 依次保存所有脏会话，使用强制保存
+    for (const sessionId of dirtySessionIds) {
+      try {
+        await this.forceSaveSession(sessionId)
+        console.log(`[SessionManager] Successfully saved session ${sessionId}`)
+      } catch (error) {
+        console.error(`[SessionManager] Failed to save session ${sessionId}:`, error)
+      }
+    }
+  }
+
+}

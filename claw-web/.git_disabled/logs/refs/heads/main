@@ -1,0 +1,356 @@
+0000000000000000000000000000000000000000 430502e7bbe7e502d08619722ebc869b92bdd826 ChenfromChina123 <3301767269@qq.com> 1775039556 +0800	clone: from https://github.com/NanmiCoder/claude-code-haha.git
+430502e7bbe7e502d08619722ebc869b92bdd826 d85b6960d5e4f55f9c784627e928274e5488d0c0 ChenfromChina123 <3301767269@qq.com> 1775041240 +0800	commit: feat: 改造为Web服务架构，增加Vue前端
+d85b6960d5e4f55f9c784627e928274e5488d0c0 aa01d00e5efdd5d117049e418112ae77b3262fbd ChenfromChina123 <3301767269@qq.com> 1775053415 +0800	commit: 添加MySQL会话持久化功能，支持多用户多会话和工具调用记录
+aa01d00e5efdd5d117049e418112ae77b3262fbd e9450850c57d5d571e841afc63c0caa8b92e4880 ChenfromChina123 <3301767269@qq.com> 1775055224 +0800	commit: 添加MySQL会话持久化功能，支持多用户多会话和工具调用记录
+e9450850c57d5d571e841afc63c0caa8b92e4880 50a38749a451cd9d87903684a21031ebd43032bd ChenfromChina123 <3301767269@qq.com> 1775055671 +0800	commit: 实现流式输出功能
+50a38749a451cd9d87903684a21031ebd43032bd fe5350e0f4cf2b53ba0d19100798e62c380f1ae6 ChenfromChina123 <3301767269@qq.com> 1775055764 +0800	commit: 添加登录持久化：使用localStorage存储用户信息，刷新后自动恢复登录状态
+fe5350e0f4cf2b53ba0d19100798e62c380f1ae6 31c214f36e6ebd2e0e04ece7fbe616b6aff1cd91 ChenfromChina123 <3301767269@qq.com> 1775056671 +0800	commit: 修复多工具调用问题：使用数组跟踪所有待处理的工具调用，在message_stop时统一处理
+31c214f36e6ebd2e0e04ece7fbe616b6aff1cd91 4deae01f625bbde5a801f9c4bee25a736f6c7307 ChenfromChina123 <3301767269@qq.com> 1775056933 +0800	commit: 修复二次加载会话时工具调用结果未解析的问题
+4deae01f625bbde5a801f9c4bee25a736f6c7307 4c22f756c4f68a42785d1a328ce1a612078c18ec ChenfromChina123 <3301767269@qq.com> 1775057456 +0800	commit: 修复工具调用后直接停止的问题 - 正确传递toolCalls到助手消息
+4c22f756c4f68a42785d1a328ce1a612078c18ec 06e0514d8cb26150cef6299dbee5d8322dfa1704 ChenfromChina123 <3301767269@qq.com> 1775057767 +0800	commit: feat(web): 添加前端登录注册和找回密码功能
+06e0514d8cb26150cef6299dbee5d8322dfa1704 ac661f5690e0b13ec40d8e26cea05af8b94bcc91 ChenfromChina123 <3301767269@qq.com> 1775058506 +0800	commit: 重命名项目: Claude Code Haha -> Claude Code Web
+ac661f5690e0b13ec40d8e26cea05af8b94bcc91 87c9d6961a5be46b38fd01f56fbb83686ce44389 ChenfromChina123 <3301767269@qq.com> 1775058694 +0800	commit: 修复注册表单用户名和密码输入框被错误禁用的bug
+87c9d6961a5be46b38fd01f56fbb83686ce44389 4d3d3258917c7e0abb56f4c88132715735d63275 ChenfromChina123 <3301767269@qq.com> 1775059126 +0800	commit: 优化前端界面设计，符合AI Coding Assistant主题
+4d3d3258917c7e0abb56f4c88132715735d63275 563d8ec134391d30ccd911f21809be2811af7f87 ChenfromChina123 <3301767269@qq.com> 1775059242 +0800	commit: 在README中添加claw-web登录界面介绍和图片
+563d8ec134391d30ccd911f21809be2811af7f87 0b3d9bc1381e1b2b516eb42ab31e001046a2e3ed ChenfromChina123 <3301767269@qq.com> 1775059874 +0800	commit: 添加注册邮箱截图到README
+0b3d9bc1381e1b2b516eb42ab31e001046a2e3ed 4afb99a6fecd62810c4ab7a86974922e5aef4b49 ChenfromChina123 <3301767269@qq.com> 1775059959 +0800	commit: 缩小README中的图片尺寸
+4afb99a6fecd62810c4ab7a86974922e5aef4b49 0797d7751e42f2ba7bbf2bdfa7fe7878a76bd9ac ChenfromChina123 <3301767269@qq.com> 1775060091 +0800	commit: 添加聊天界面截图到README
+0797d7751e42f2ba7bbf2bdfa7fe7878a76bd9ac a9aece59eaf066256e858f5b62cfa7deb0ff33c9 ChenfromChina123 <3301767269@qq.com> 1775060130 +0800	commit: 缩小聊天界面截图尺寸
+a9aece59eaf066256e858f5b62cfa7deb0ff33c9 2ab05788726cef28f7f447f2ed7341f18a0811f5 ChenfromChina123 <3301767269@qq.com> 1775060458 +0800	commit: 增大聊天界面截图到700px
+2ab05788726cef28f7f447f2ed7341f18a0811f5 f38efb2dab513aded84901a470f08f9bed92513a ChenfromChina123 <3301767269@qq.com> 1775060568 +0800	commit: 删除顶部的运行截图
+f38efb2dab513aded84901a470f08f9bed92513a 223239a767f46240fdfda6b6b3c1c4cb522530bd ChenfromChina123 <3301767269@qq.com> 1775060727 +0800	commit: 同步更新英文 README，删除顶部截图并添加三张功能截图
+223239a767f46240fdfda6b6b3c1c4cb522530bd c0575db6ef6d769fac4d848c57dbb62bfdc90411 ChenfromChina123 <3301767269@qq.com> 1775098869 +0800	commit: 翻译 main.tsx 文件中的注释为中文
+c0575db6ef6d769fac4d848c57dbb62bfdc90411 5aabc75c435f29f690589186c46ad51d15260b4f ChenfromChina123 <3301767269@qq.com> 1775099323 +0800	commit: 继续翻译 main.tsx 中的注释为中文（第2部分）
+5aabc75c435f29f690589186c46ad51d15260b4f d224f3d94e7bb0d6b13a1dc7a32f375765aca4bd ChenfromChina123 <3301767269@qq.com> 1775099850 +0800	commit: 翻译 commands.ts 文件中的注释为中文
+d224f3d94e7bb0d6b13a1dc7a32f375765aca4bd 06baca0284bf291b7553228b362a01b4f430f8fe ChenfromChina123 <3301767269@qq.com> 1775103194 +0800	commit: 翻译 tools.ts 文件中的注释为中文
+06baca0284bf291b7553228b362a01b4f430f8fe e83a793c88aefab7059a3e749f45a6bf05d810e9 ChenfromChina123 <3301767269@qq.com> 1775103280 +0800	commit: 翻译 QueryEngine.ts 文件中的注释为中文
+e83a793c88aefab7059a3e749f45a6bf05d810e9 ee695bfd2410d0573f22f3d0a17036d0db044f40 ChenfromChina123 <3301767269@qq.com> 1775103506 +0800	commit: 翻译 tools 目录下部分文件的注释为中文
+ee695bfd2410d0573f22f3d0a17036d0db044f40 c57918c40109722139337e7e1ece508dcea1c3b8 ChenfromChina123 <3301767269@qq.com> 1775103598 +0800	commit: 继续翻译 BashTool 目录下文件的注释为中文
+c57918c40109722139337e7e1ece508dcea1c3b8 64bebbb9a428c05ce336f0249fdfe9842f645fb2 ChenfromChina123 <3301767269@qq.com> 1775104706 +0800	commit: 翻译 bashSecurity.ts 安全相关注释为中文
+64bebbb9a428c05ce336f0249fdfe9842f645fb2 11ec734d12fe7357be00944c9fad25ff78c8cd5c ChenfromChina123 <3301767269@qq.com> 1775104814 +0800	commit: 翻译 bashPermissions.ts 权限相关注释为中文
+11ec734d12fe7357be00944c9fad25ff78c8cd5c 17e602a0cf7b3210b86031d0314513b71597ee90 ChenfromChina123 <3301767269@qq.com> 1775104893 +0800	commit: 翻译 bashCommandHelpers.ts 命令辅助函数注释为中文
+17e602a0cf7b3210b86031d0314513b71597ee90 d2b11b0eb65cb9754096f45cfbc00f29416c9cfb ChenfromChina123 <3301767269@qq.com> 1775104983 +0800	commit: 翻译 FileReadTool.ts 设备路径相关注释为中文
+d2b11b0eb65cb9754096f45cfbc00f29416c9cfb c3499858bbd4aed452254b1fc593380e978237d0 ChenfromChina123 <3301767269@qq.com> 1775105119 +0800	commit: 翻译 commandSemantics.ts 命令语义注释为中文
+c3499858bbd4aed452254b1fc593380e978237d0 8bdbdf2d3c7c935f72c0c8338a7bc945132f35ba ChenfromChina123 <3301767269@qq.com> 1775105817 +0800	commit: 创建源码注释翻译任务分配表
+8bdbdf2d3c7c935f72c0c8338a7bc945132f35ba f458bda6654d6a7ac841f9f30152a4b14f74404e ChenfromChina123 <3301767269@qq.com> 1775106430 +0800	commit: 翻译任务3：Web相关工具目录注释为中文
+f458bda6654d6a7ac841f9f30152a4b14f74404e 53874e971c1e0484ff0fdfe0053fc1a9cd477290 ChenfromChina123 <3301767269@qq.com> 1775106439 +0800	commit: 翻译 src/cli/print.ts 和 src/main.tsx 注释为中文
+53874e971c1e0484ff0fdfe0053fc1a9cd477290 118025fe4fdae0803f3f7186321b16347d62ba21 ChenfromChina123 <3301767269@qq.com> 1775106675 +0800	commit: 翻译任务7：state/ 和 utils/ 目录注释为中文
+118025fe4fdae0803f3f7186321b16347d62ba21 5662b84b20fadfb95e42ab3f12debaf3a85c6953 ChenfromChina123 <3301767269@qq.com> 1775106855 +0800	commit: 翻译 BashTool、ScheduleCronTool 等工具目录注释为中文
+5662b84b20fadfb95e42ab3f12debaf3a85c6953 37c1e22db3498414a4455f13f2bc28fcab1603dd ChenfromChina123 <3301767269@qq.com> 1775106956 +0800	commit: 翻译 BashTool、EnterPlanModeTool、ExitWorktreeTool 注释为中文
+37c1e22db3498414a4455f13f2bc28fcab1603dd b42c3cf14e14203a891cfcbdfc362313900ef6be ChenfromChina123 <3301767269@qq.com> 1775106996 +0800	commit: 翻译 EnterPlanModeTool、EnterWorktreeTool 注释为中文
+b42c3cf14e14203a891cfcbdfc362313900ef6be 76e2b84ab382dd9097581c630aac0c70c411fd46 ChenfromChina123 <3301767269@qq.com> 1775107004 +0800	commit: 翻译任务2：文件操作工具目录注释为中文
+76e2b84ab382dd9097581c630aac0c70c411fd46 10244d9d57116f513ecaf3bf1e673a86d1274674 ChenfromChina123 <3301767269@qq.com> 1775107103 +0800	commit: 翻译 modeValidation.ts 注释为中文
+10244d9d57116f513ecaf3bf1e673a86d1274674 a10aef0ea2987bd478110b3564a11fddaec616e3 ChenfromChina123 <3301767269@qq.com> 1775110689 +0800	commit: 阶段一+二部分完成：类型系统、API客户端、WebSocket升级、消息组件
+a10aef0ea2987bd478110b3564a11fddaec616e3 3d09e59782a176b7663a506de4fe8ae8dc6100b0 ChenfromChina123 <3301767269@qq.com> 1775110930 +0800	commit: 深度UI优化：实现6套主题系统+专业级视觉效果
+3d09e59782a176b7663a506de4fe8ae8dc6100b0 6068a8a7b56265cd2422f44d9e21dc01c6e807cc ChenfromChina123 <3301767269@qq.com> 1775113787 +0800	commit: 修复后端重复导出和async语法错误
+6068a8a7b56265cd2422f44d9e21dc01c6e807cc ced68a79241a4e86b31ca4667b7e1cbe2ed70064 ChenfromChina123 <3301767269@qq.com> 1775113878 +0800	commit: 修复CSS导入路径错误
+ced68a79241a4e86b31ca4667b7e1cbe2ed70064 13753293c6a821fbdfdb684ef98771dffcf1e05e ChenfromChina123 <3301767269@qq.com> 1775127847 +0800	commit: 修复CSS导入路径使用绝对路径
+13753293c6a821fbdfdb684ef98771dffcf1e05e 7c7673d9c5d11d9be530436202720f1d62c1b6d2 ChenfromChina123 <3301767269@qq.com> 1775127990 +0800	commit: 修复登录页输入框宽度不一致问题
+7c7673d9c5d11d9be530436202720f1d62c1b6d2 e7ec3ac2c06da3136c444c1fd9f3062966d8e968 ChenfromChina123 <3301767269@qq.com> 1775128090 +0800	commit: 修复浮动标签被输入框盖住的问题
+e7ec3ac2c06da3136c444c1fd9f3062966d8e968 32e92e2a287648eca9e494aa7ac736b261075039 ChenfromChina123 <3301767269@qq.com> 1775128341 +0800	commit: 添加社交登录按钮点击功能
+32e92e2a287648eca9e494aa7ac736b261075039 2157acd6cfb5bc68ccbeb88418bfe29ae9d3eed2 ChenfromChina123 <3301767269@qq.com> 1775128667 +0800	commit: 移除注册页面的用户名输入框，使用邮箱前缀自动生成
+2157acd6cfb5bc68ccbeb88418bfe29ae9d3eed2 be777e3e14eae884cdb120d9454d4aa74a5afc50 ChenfromChina123 <3301767269@qq.com> 1775128835 +0800	commit: 后端自动生成随机用户名，前端注册表单移除用户名输入
+be777e3e14eae884cdb120d9454d4aa74a5afc50 c5dcf6b28d413b3408ba4fb7875e90eb1da6d135 ChenfromChina123 <3301767269@qq.com> 1775128899 +0800	commit: 添加忘记密码按钮跳转功能
+c5dcf6b28d413b3408ba4fb7875e90eb1da6d135 71cd3140678235343f80157b43c924d828614973 ChenfromChina123 <3301767269@qq.com> 1775129135 +0800	commit: 添加忘记密码页面和功能
+71cd3140678235343f80157b43c924d828614973 1cbf94ba45dd2bfe48b59f0c6dbb615bedb72be5 ChenfromChina123 <3301767269@qq.com> 1775129465 +0800	commit: 修复API响应格式问题，统一使用ApiResponse包装
+1cbf94ba45dd2bfe48b59f0c6dbb615bedb72be5 5a7e5edb64c564f6c120ee05536784a943a9ff40 ChenfromChina123 <3301767269@qq.com> 1775129631 +0800	commit: 修复FlowVisualizer.vue语法错误
+5a7e5edb64c564f6c120ee05536784a943a9ff40 d44286e172070d528cc0c26a417689b83fc724ce ChenfromChina123 <3301767269@qq.com> 1775129683 +0800	commit: 添加GitHub OAuth登录功能
+d44286e172070d528cc0c26a417689b83fc724ce 36c2161ccf7a93a861e1d53ab667f80e04455a6a ChenfromChina123 <3301767269@qq.com> 1775129758 +0800	commit: 更新README文档，添加GitHub OAuth配置说明
+36c2161ccf7a93a861e1d53ab667f80e04455a6a 4f7488fffe1a88677d7e671e5103d4abe7b4e8cf ChenfromChina123 <3301767269@qq.com> 1775129953 +0800	commit: 翻译 services/notifier.ts, preventSleep.ts 和 types/ 目录注释为中文
+4f7488fffe1a88677d7e671e5103d4abe7b4e8cf b4cae2dc024c4ac611508d4e5ed618d4b7ee5a60 ChenfromChina123 <3301767269@qq.com> 1775130072 +0800	commit: 翻译 services/compact/compact.ts 和 preventSleep.ts 注释为中文
+b4cae2dc024c4ac611508d4e5ed618d4b7ee5a60 bba6d2409890402fba935f4feaf5605a9a63260b ChenfromChina123 <3301767269@qq.com> 1775130182 +0800	commit: 翻译 services/compact/ 目录注释为中文
+bba6d2409890402fba935f4feaf5605a9a63260b bbab03cbc732e6d3d5d42de12d40f33cd70f1395 ChenfromChina123 <3301767269@qq.com> 1775130211 +0800	commit: 更新TRANSLATION_TASKS.md，记录任务8部分进度
+bbab03cbc732e6d3d5d42de12d40f33cd70f1395 7d65f61b01aeb8a4efd83d15f47293f831282e90 ChenfromChina123 <3301767269@qq.com> 1775130389 +0800	commit: 增强按钮样式优先级，修复消息列表底部边距
+7d65f61b01aeb8a4efd83d15f47293f831282e90 563438ec9b14149f7da6846fd4738841103bea12 ChenfromChina123 <3301767269@qq.com> 1775130589 +0800	commit: 修复输入框禁用问题，优化输入框底部固定布局
+563438ec9b14149f7da6846fd4738841103bea12 8cc4d907407d82b4c332f55ab0959b44642aef02 ChenfromChina123 <3301767269@qq.com> 1775130721 +0800	commit: 修复按钮样式，移除size属性，使用自定义样式类
+8cc4d907407d82b4c332f55ab0959b44642aef02 b4f1697c57782de7ab2fd385713b1a3997494058 ChenfromChina123 <3301767269@qq.com> 1775130868 +0800	commit: 修复 sendEvent 无限递归导致的栈溢出问题
+b4f1697c57782de7ab2fd385713b1a3997494058 c60ea0b05bc7d684f2c35e20eae9a7193d84aba3 ChenfromChina123 <3301767269@qq.com> 1775131044 +0800	commit: 修复 executedToolCalls 变量作用域问题
+c60ea0b05bc7d684f2c35e20eae9a7193d84aba3 b5a8b61dcc3c642ed1172c04e40ca0efeaad7f78 ChenfromChina123 <3301767269@qq.com> 1775131869 +0800	commit: 修复 WebSocket 连接时序问题
+b5a8b61dcc3c642ed1172c04e40ca0efeaad7f78 c5783bce944d7bf3c8b19d353cb098dfe8a207f2 ChenfromChina123 <3301767269@qq.com> 1775132033 +0800	commit: 添加 HTTP Session API 路由和 isPinned 字段支持
+c5783bce944d7bf3c8b19d353cb098dfe8a207f2 c51c8d9b8a4edd0dc3c5b775f5d7fb87507a3e9a ChenfromChina123 <3301767269@qq.com> 1775132280 +0800	commit: 修复前端 Store 异步方法，使其正确返回 Promise
+c51c8d9b8a4edd0dc3c5b775f5d7fb87507a3e9a 308b80829436c0e7a4fb4fd4108d92bf4505f365 ChenfromChina123 <3301767269@qq.com> 1775132564 +0800	commit: 优化 Chat.vue 初始化流程，添加错误处理和加载状态
+308b80829436c0e7a4fb4fd4108d92bf4505f365 2f882cb9d5e396ac85df3e5b3eb104e062064b27 ChenfromChina123 <3301767269@qq.com> 1775134592 +0800	commit: 实现前端会话创建限制功能：添加消息验证逻辑
+2f882cb9d5e396ac85df3e5b3eb104e062064b27 c7b9a72f29af6c2b55077a616005625eceb21bfb ChenfromChina123 <3301767269@qq.com> 1775134740 +0800	commit: 实现后端会话创建限制功能
+c7b9a72f29af6c2b55077a616005625eceb21bfb 352e7c53af3a88ad9fb2462525071bfa25262ffe ChenfromChina123 <3301767269@qq.com> 1775141828 +0800	commit: 优化流式消息处理逻辑：统一消息更新入口，确保响应式更新
+352e7c53af3a88ad9fb2462525071bfa25262ffe c288fa7142fbac80d8af0291724c25a2aa82102e ChenfromChina123 <3301767269@qq.com> 1775141916 +0800	commit: 完成会话创建限制和流式对话优化功能
+c288fa7142fbac80d8af0291724c25a2aa82102e 61bf0863ab52e3b3f02b6a74f3ef506a76ddc7ec ChenfromChina123 <3301767269@qq.com> 1775142613 +0800	commit: 修复消息显示问题：正确处理后端事件格式，支持强制创建会话
+61bf0863ab52e3b3f02b6a74f3ef506a76ddc7ec 94cfb61312012a8d33fb75d7b6b163772e51de91 ChenfromChina123 <3301767269@qq.com> 1775142658 +0800	commit: 完成消息显示和界面布局修复
+94cfb61312012a8d33fb75d7b6b163772e51de91 1d5bb48ec918878d1f00775656c7abd32345ead6 ChenfromChina123 <3301767269@qq.com> 1775142911 +0800	commit: 添加调试日志验证事件接收
+1d5bb48ec918878d1f00775656c7abd32345ead6 414c7b9376c1985518f91b5154bf75d38b0b2112 ChenfromChina123 <3301767269@qq.com> 1775143140 +0800	commit: 修复事件监听时序问题：在连接前设置监听器
+414c7b9376c1985518f91b5154bf75d38b0b2112 d7c3b2a2520f65227ab913b5906f81a12a94e3bb ChenfromChina123 <3301767269@qq.com> 1775143581 +0800	commit: 修复工具调用解析错误：处理空值情况，优化消息列表key
+d7c3b2a2520f65227ab913b5906f81a12a94e3bb 30c20ce40ce165c724f4f9d38a3653a83ff84573 ChenfromChina123 <3301767269@qq.com> 1775143947 +0800	commit: 添加完整的前后端 API 文档，包含所有 REST API 和 WebSocket API 详细说明
+30c20ce40ce165c724f4f9d38a3653a83ff84573 0416c27395c7407cf3fcdb1a06f7156016bc7f0b ChenfromChina123 <3301767269@qq.com> 1775144258 +0800	commit: 添加详细的前后端 API 文档
+0416c27395c7407cf3fcdb1a06f7156016bc7f0b c0bd48d99fdd75ea4c96ea0d9c446c12805f27bf ChenfromChina123 <3301767269@qq.com> 1775144573 +0800	commit: 修复WebSocket事件路由机制，使AI能够即时回复
+c0bd48d99fdd75ea4c96ea0d9c446c12805f27bf 7abc67e8d6d4fe8236d03ccef3b06c50264cd3a7 ChenfromChina123 <3301767269@qq.com> 1775144607 +0800	commit: 实现工具调用步骤化展示功能
+7abc67e8d6d4fe8236d03ccef3b06c50264cd3a7 df1894a390574dc40d93fd34c5e61a64caa82e1a ChenfromChina123 <3301767269@qq.com> 1775144717 +0800	commit: 完善时间轴样式系统：添加状态颜色、动画效果和交互反馈
+df1894a390574dc40d93fd34c5e61a64caa82e1a 81891221f94efbe6bf4b484a6fc9ebc8059cbc9d ChenfromChina123 <3301767269@qq.com> 1775144855 +0800	commit: 添加 ChatMessageList.vue 时间轴步骤条功能验证报告
+81891221f94efbe6bf4b484a6fc9ebc8059cbc9d aaa59eac42ebb92e18fcf3d70bd232aaeb839aa8 ChenfromChina123 <3301767269@qq.com> 1775144919 +0800	commit: 完成工具调用时间轴可视化优化：所有任务已完成并通过验证
+aaa59eac42ebb92e18fcf3d70bd232aaeb839aa8 0fe6b0c019a9d9bc4bee79a42fe3b40842182030 ChenfromChina123 <3301767269@qq.com> 1775145408 +0800	commit: 修复 ChatMessageList.vue 类型错误：使用 ToolCall 类型，修复模板中的属性访问
+0fe6b0c019a9d9bc4bee79a42fe3b40842182030 b05f87992cce523fada29fa955febf81c3a5aa27 ChenfromChina123 <3301767269@qq.com> 1775146429 +0800	commit: 修复前端所有 TypeScript 编译错误
+b05f87992cce523fada29fa955febf81c3a5aa27 16af7ceab5a454eace278374be6d6ee7c940bb52 ChenfromChina123 <3301767269@qq.com> 1775146650 +0800	commit: 修复前端所有 TypeScript 编译错误并添加登录检查
+16af7ceab5a454eace278374be6d6ee7c940bb52 ecde208325bf9f0fe87029a2b747ba2babefe2bc ChenfromChina123 <3301767269@qq.com> 1775146688 +0800	commit: 添加设置持久化功能：实现主题和用户信息的本地存储
+ecde208325bf9f0fe87029a2b747ba2babefe2bc e10d2a4600f3d4a33e56f810447171a2e3d16ad8 ChenfromChina123 <3301767269@qq.com> 1775146807 +0800	commit: 修复 Pinia 初始化前调用 store 的错误
+e10d2a4600f3d4a33e56f810447171a2e3d16ad8 556359581297b1acecd7053c5fce488811816290 ChenfromChina123 <3301767269@qq.com> 1775146960 +0800	commit: 修复 server 端所有 TypeScript 类型错误
+556359581297b1acecd7053c5fce488811816290 ff707ed89aad93354763336c48bd850afb4b45c3 ChenfromChina123 <3301767269@qq.com> 1775147196 +0800	commit: 修复 server 端 TypeScript 类型定义和配置问题
+ff707ed89aad93354763336c48bd850afb4b45c3 83ffc435a93b9697ff7902c622a7ff5a281c4ee8 ChenfromChina123 <3301767269@qq.com> 1775147467 +0800	commit: 配置 TypeScript ESLint 和 Prettier 实现代码实时检查
+83ffc435a93b9697ff7902c622a7ff5a281c4ee8 de113197e3c1b1108b0d814fcc831053699a5253 ChenfromChina123 <3301767269@qq.com> 1775147557 +0800	commit: 修复所有 TypeScript 类型错误
+de113197e3c1b1108b0d814fcc831053699a5253 7e4953d25663ba97bd4bd534633821e2270e53d1 ChenfromChina123 <3301767269@qq.com> 1775147724 +0800	commit: 修复剩余 TypeScript 类型错误
+7e4953d25663ba97bd4bd534633821e2270e53d1 f95d3e2b2b0fdd204e6f8c92c6454a10372ea5a3 ChenfromChina123 <3301767269@qq.com> 1775148087 +0800	commit: 修复所有 ESLint 错误
+f95d3e2b2b0fdd204e6f8c92c6454a10372ea5a3 81e09d4e299d955a02888d1a6f4fa99032e0c593 ChenfromChina123 <3301767269@qq.com> 1775187884 +0800	commit: 修复 useWebSocket.ts 中的 EventCallback 类型定义
+81e09d4e299d955a02888d1a6f4fa99032e0c593 67c9751f5305ef1d560303d6107e2005d5431b77 ChenfromChina123 <3301767269@qq.com> 1775188035 +0800	commit: 修复 WebSocket 登录/注册响应处理
+67c9751f5305ef1d560303d6107e2005d5431b77 78547a9ea08e7823486101b19d96fad1b8b6bca5 ChenfromChina123 <3301767269@qq.com> 1775188233 +0800	commit: 添加 WebSocket 消息处理调试日志
+78547a9ea08e7823486101b19d96fad1b8b6bca5 fcf4b6da4df5cd8c9a1b93dd3f9dcb850444ebd3 ChenfromChina123 <3301767269@qq.com> 1775188366 +0800	commit: 修复 session_list 等 WebSocket 消息处理
+fcf4b6da4df5cd8c9a1b93dd3f9dcb850444ebd3 92699b1531fcd0ce39d6f58bd07ee22f22ad770b ChenfromChina123 <3301767269@qq.com> 1775188456 +0800	commit: 在 WebSocketMessageType 中添加 'connected' 类型
+92699b1531fcd0ce39d6f58bd07ee22f22ad770b 46827e72d39efe8b36f71b9abd892492e86bcc76 ChenfromChina123 <3301767269@qq.com> 1775188563 +0800	commit: 添加 list_sessions 调试日志
+46827e72d39efe8b36f71b9abd892492e86bcc76 7f18b3bd1f21fb4bdab3049de9de6f6887a034a7 ChenfromChina123 <3301767269@qq.com> 1775188698 +0800	commit: 修复 Chat 页面初始化时 sessions 相关属性 undefined 的错误
+7f18b3bd1f21fb4bdab3049de9de6f6887a034a7 a5d500f54089a754fc6edb8b67a450fc17f5e45f ChenfromChina123 <3301767269@qq.com> 1775189370 +0800	commit: 修复 chat store 中 session_created 事件处理 sessions 未定义的错误
+a5d500f54089a754fc6edb8b67a450fc17f5e45f f9c8f5067c0a3c9fc5d8d9291cb5e93984f64138 ChenfromChina123 <3301767269@qq.com> 1775189433 +0800	commit: 修复 chat store 中 session_loaded 和 session_deleted 事件处理的空值错误
+f9c8f5067c0a3c9fc5d8d9291cb5e93984f64138 5d321ac955d0671c87fe2f18b45a2ec547052cbe ChenfromChina123 <3301767269@qq.com> 1775189941 +0800	commit: 修复会话列表加载问题：添加详细调试日志以便排查问题
+5d321ac955d0671c87fe2f18b45a2ec547052cbe 8c63e305f740595080deaebcb502cf2472fccb67 ChenfromChina123 <3301767269@qq.com> 1775190201 +0800	commit: 增强登录验证：添加 WebSocket 消息的认证检查
+8c63e305f740595080deaebcb502cf2472fccb67 fe4464b693a51122433ad67f0a1e012da545adeb ChenfromChina123 <3301767269@qq.com> 1775190421 +0800	commit: 增强登录验证：添加 Token 有效期检查和 WebSocket 认证
+fe4464b693a51122433ad67f0a1e012da545adeb b9beaf5fd3a74f9315e1b6b5e6ec00cfc3ad1880 ChenfromChina123 <3301767269@qq.com> 1775277667 +0800	commit: 统一监控面板 API 调用：使用 axios 替代 fetch
+b9beaf5fd3a74f9315e1b6b5e6ec00cfc3ad1880 9ab962021adb89fa71d044f9b00192a33b2c0ae2 ChenfromChina123 <3301767269@qq.com> 1775277752 +0800	commit: 新增技能市场组件 SkillMarket.vue
+9ab962021adb89fa71d044f9b00192a33b2c0ae2 717df243de3e5389c862e4722fb16144d36ec3a7 ChenfromChina123 <3301767269@qq.com> 1775277836 +0800	commit: 实现工具注册中心执行事件广播功能
+717df243de3e5389c862e4722fb16144d36ec3a7 84022e6e26f3065b88470bb795f52c5d64368d83 ChenfromChina123 <3301767269@qq.com> 1775278663 +0800	commit: 完成集成工作台 Phase 10：诊断面板、工具执行可视化、MCP 状态增强
+84022e6e26f3065b88470bb795f52c5d64368d83 fa154b7fe16f67b4fc14b4f3ce4b097c6c786d0d ChenfromChina123 <3301767269@qq.com> 1775315799 +0800	commit: 修复技能市场侧边栏展开收起按钮过小的问题
+fa154b7fe16f67b4fc14b4f3ce4b097c6c786d0d ea6ca74232f853d8fbd0e0d90f5b975ee59fa884 ChenfromChina123 <3301767269@qq.com> 1775315936 +0800	commit: 增大侧边栏折叠按钮尺寸，提高可见性
+ea6ca74232f853d8fbd0e0d90f5b975ee59fa884 ce5126810ac280fc96080e47bfc4490e4cdcd0b4 ChenfromChina123 <3301767269@qq.com> 1775316046 +0800	commit: 重新设计侧边栏折叠按钮 UI
+ce5126810ac280fc96080e47bfc4490e4cdcd0b4 1fed62bdd23ab4012b374c77021a9772d18ed48d ChenfromChina123 <3301767269@qq.com> 1775316476 +0800	commit: 优化左侧对话列表折叠按钮样式
+1fed62bdd23ab4012b374c77021a9772d18ed48d 0fcbe6d4bc16f08f7a856fb7512ae12d2811c24a ChenfromChina123 <3301767269@qq.com> 1775316553 +0800	commit: 使用自定义折叠按钮替代 Naive UI 内置按钮
+0fcbe6d4bc16f08f7a856fb7512ae12d2811c24a 2abd4efc960e4948dfb27bdcd121cc22dfd533cd ChenfromChina123 <3301767269@qq.com> 1775316739 +0800	commit: 修复 ChatSidebar 模板语法错误
+2abd4efc960e4948dfb27bdcd121cc22dfd533cd 10da4efe96ed754af1e77b35007615d01277b27e ChenfromChina123 <3301767269@qq.com> 1775316816 +0800	commit: 修复 ChatSidebar 模板结构，添加自定义折叠按钮
+10da4efe96ed754af1e77b35007615d01277b27e 591a4abe2468b91f1aed97199fe12d01492d27ee ChenfromChina123 <3301767269@qq.com> 1775316871 +0800	commit: 修复折叠按钮无法点击问题
+591a4abe2468b91f1aed97199fe12d01492d27ee 6eb939b6475b708672862eb381c9d5dba59879d0 ChenfromChina123 <3301767269@qq.com> 1775316946 +0800	commit: 重构折叠按钮 - 独立定位确保可点击
+6eb939b6475b708672862eb381c9d5dba59879d0 e334f92151b5d82831e560150a2af58d86edfc07 ChenfromChina123 <3301767269@qq.com> 1775317010 +0800	commit: 修复折叠按钮位置 - 使用绝对定位跟随侧边栏移动
+e334f92151b5d82831e560150a2af58d86edfc07 423ffb26cc1a6a38752f3597cb248b0048b62379 ChenfromChina123 <3301767269@qq.com> 1775317066 +0800	commit: 添加容器包裹侧边栏和折叠按钮
+423ffb26cc1a6a38752f3597cb248b0048b62379 60af41e32efff0ad8e64894497689ca3875be0f8 ChenfromChina123 <3301767269@qq.com> 1775317144 +0800	commit: 修复折叠按钮显示问题 - 使用固定颜色并提高 z-index
+60af41e32efff0ad8e64894497689ca3875be0f8 18b6485425e0b9a195af85c0bb1e66f78a9fc5ea ChenfromChina123 <3301767269@qq.com> 1775317242 +0800	commit: 修复模板标签缩进错误
+18b6485425e0b9a195af85c0bb1e66f78a9fc5ea 768e968b82c2fa18900e09c24537c2abbbc7a753 ChenfromChina123 <3301767269@qq.com> 1775317435 +0800	commit: 修复模板结构 - 所有元素放在 NLayoutSider 内部或外部容器中
+768e968b82c2fa18900e09c24537c2abbbc7a753 72d87b12bfd89eb256da885c3103c68d176e45d2 ChenfromChina123 <3301767269@qq.com> 1775317505 +0800	commit: 修改折叠按钮配色 - 使用主题色半透明设计
+72d87b12bfd89eb256da885c3103c68d176e45d2 b4ff9512fe06c3f4551d0b8b6bc1f3758b8b4b98 ChenfromChina123 <3301767269@qq.com> 1775317876 +0800	commit: 修复输入框宽度 - 侧边栏折叠时输入框自动扩展
+b4ff9512fe06c3f4551d0b8b6bc1f3758b8b4b98 93c92ffb9704c8566db04f62691f762c03d4b731 ChenfromChina123 <3301767269@qq.com> 1775318795 +0800	commit: 重构 SessionConversationManager: 优化 Agent Loop 结构并修复工具调用事件序列
+93c92ffb9704c8566db04f62691f762c03d4b731 961c6372f62a3f937a5f991f64a957e4575a5de8 ChenfromChina123 <3301767269@qq.com> 1775319096 +0800	commit: 优化前端工具调用状态管理系统，确保与后端新事件协议完全兼容
+961c6372f62a3f937a5f991f64a957e4575a5de8 ae7b63acf00a62f90d7ef1376931a16c58d3aef9 ChenfromChina123 <3301767269@qq.com> 1775319725 +0800	commit: 修复编译错误：移除ChatInput.vue中未使用的computed导入
+ae7b63acf00a62f90d7ef1376931a16c58d3aef9 0be9fb9325dacd8ca9ec89d5162c6ea5a339a6cf ChenfromChina123 <3301767269@qq.com> 1775319738 +0800	commit: 重构对话流程系统：修复工具调用循环中断和错误无反馈问题
+0be9fb9325dacd8ca9ec89d5162c6ea5a339a6cf 996885f2eaa34ad8abd069e82a3be8d2c54a26f5 ChenfromChina123 <3301767269@qq.com> 1775320726 +0800	commit: 修复两个问题：1. computed 属性错误使用 .value 导致响应式失效 2. 页面高度未固定导致布局问题
+996885f2eaa34ad8abd069e82a3be8d2c54a26f5 66ee707eddc9218ae0249791564c654b6b5042f9 ChenfromChina123 <3301767269@qq.com> 1775321005 +0800	commit: 完整修复页面高度固定问题：1. 修复 App.vue 根布局 overflow 2. 强化 Chat.vue 容器高度约束 3. 确保完整的 flex 拉伸链路
+66ee707eddc9218ae0249791564c654b6b5042f9 a4d42e6e09360069aeef6219b27cd445bae2a6c1 ChenfromChina123 <3301767269@qq.com> 1775321242 +0800	commit: 彻底修复页面高度布局：1. 移除输入框 fixed 定位 2. 简化 NLayoutContent 配置 3. 使用纯 flex 布局实现内部滚动
+a4d42e6e09360069aeef6219b27cd445bae2a6c1 1cfe0733ba218a172aadd4a49d1cb3d4d5cf6add ChenfromChina123 <3301767269@qq.com> 1775321473 +0800	commit: 修复侧栏高度约束：添加 min-height: 0 和 overflow: hidden 防止页面被拉长
+1cfe0733ba218a172aadd4a49d1cb3d4d5cf6add f83fc6ee50dbdd829aaab8186cef27f36b7a3fc6 ChenfromChina123 <3301767269@qq.com> 1775321684 +0800	commit: 按照建议彻底修复布局：1. 正确配置 NLayoutContent 2. 添加 input-wrapper 3. 修复消息列表滚动 4. 简化 ChatMessageList 高度约束
+f83fc6ee50dbdd829aaab8186cef27f36b7a3fc6 b86c6adba5297970577d4541993c392c320c185c ChenfromChina123 <3301767269@qq.com> 1775322192 +0800	commit: 实现侧栏会话分页显示：1. 默认最多显示10条会话 2. 添加加载更多按钮 3. 每次点击加载10条更多会话 4. 同时修复了页面高度布局问题
+b86c6adba5297970577d4541993c392c320c185c c8e873e70085a17f6fbd135768fafb85e18d9310 ChenfromChina123 <3301767269@qq.com> 1775322401 +0800	commit: 增大会话选择器组件尺寸：1. 会话项高度从48px增至64px 2. 标题字体从13px增至15px 3. 元数据字体从10px增至12px 4. 菜单按钮从40px增至48px 5. 增大内边距和间距
+c8e873e70085a17f6fbd135768fafb85e18d9310 a1179fa707262bab96454251b3e25aedec75db8b ChenfromChina123 <3301767269@qq.com> 1775322623 +0800	commit: 实现滚动到底部自动加载更多会话：1. 移除加载更多按钮 2. 滚动到底部自动加载 3. 使用 onMounted/onUnmounted 管理滚动监听器
+a1179fa707262bab96454251b3e25aedec75db8b cf6c789c77a343788aff31fc92068235f9982d9f ChenfromChina123 <3301767269@qq.com> 1775323268 +0800	commit: 添加 Agent 执行链路完整说明文档
+cf6c789c77a343788aff31fc92068235f9982d9f eb12703a46312548ae0dc57eaee7c1d881385f9b ChenfromChina123 <3301767269@qq.com> 1775357257 +0800	commit: 修复对话中第二次发送消息不显示的问题，优化消息界面布局和样式
+eb12703a46312548ae0dc57eaee7c1d881385f9b 974c3cc07fa905d7be53c0a3dceee875beda43f2 ChenfromChina123 <3301767269@qq.com> 1775357307 +0800	commit: 微调用户头像位置到最右边
+974c3cc07fa905d7be53c0a3dceee875beda43f2 eeeab8d9f7630a1d3d9b4ff35629c031bf3e4ca6 ChenfromChina123 <3301767269@qq.com> 1775357914 +0800	commit: 调整用户头像位置到消息右边
+eeeab8d9f7630a1d3d9b4ff35629c031bf3e4ca6 11c745c246bffdd97c35088b4dc0b54057689838 ChenfromChina123 <3301767269@qq.com> 1775357980 +0800	commit: 调整输入框宽度跟随聊天区域动态变化
+11c745c246bffdd97c35088b4dc0b54057689838 42cdefd80b62f8d315d10f4708268449f709de99 ChenfromChina123 <3301767269@qq.com> 1775358646 +0800	commit: 优化输入框和消息列表宽度一致，美化消息气泡
+42cdefd80b62f8d315d10f4708268449f709de99 fb083cbd599ce6d8b33dac0306ee095d60bdac9f ChenfromChina123 <3301767269@qq.com> 1775359399 +0800	commit: 实现内置 Agent 类型：通用、探索、规划、验证 Agent
+fb083cbd599ce6d8b33dac0306ee095d60bdac9f cf1f5137805e0a30824c4bc78119e94f53bfaf35 ChenfromChina123 <3301767269@qq.com> 1775359802 +0800	commit: 实现多 Agent 协调 UI 可视化：Agent 标签、任务流水线、状态面板
+cf1f5137805e0a30824c4bc78119e94f53bfaf35 cbf33f19457ccd1bb6e8843e5da568bf92ef7df7 ChenfromChina123 <3301767269@qq.com> 1775360295 +0800	commit: 集成 Agent 协调组件到聊天界面
+cbf33f19457ccd1bb6e8843e5da568bf92ef7df7 c12946911ed5482656358ff746d46be21feccb8b ChenfromChina123 <3301767269@qq.com> 1775360831 +0800	commit: 实现完整的 Agent 系统后端，包括类型定义、6个内置Agent、执行引擎、API路由和WebSocket支持
+c12946911ed5482656358ff746d46be21feccb8b 941a2a3f7441b3bc86ad1a76b20c20472dbca154 ChenfromChina123 <3301767269@qq.com> 1775363290 +0800	commit: 实现前端 Agent API 服务调用和集成
+941a2a3f7441b3bc86ad1a76b20c20472dbca154 ccfd5e9e8fcb058b628065c5365af02135d4acfd ChenfromChina123 <3301767269@qq.com> 1775373231 +0800	commit: 实现多 Agent 状态管理方案：按 traceId 和 agentId 隔离状态，确保数据流不会互相污染
+ccfd5e9e8fcb058b628065c5365af02135d4acfd a7f6bfcf39e58dd6a15ac7ad8e5e0ec81367bf5a ChenfromChina123 <3301767269@qq.com> 1775374352 +0800	commit: 修复：在 types/agent.ts 中添加缺失的类型定义和函数
+a7f6bfcf39e58dd6a15ac7ad8e5e0ec81367bf5a e4ce911c910a7dab06dd6d9d0552cafae5a484be ChenfromChina123 <3301767269@qq.com> 1775376999 +0800	commit: 固定消息气泡内容宽度
+e4ce911c910a7dab06dd6d9d0552cafae5a484be 167dc123da67b2098c8937114e82ec11dee82a77 ChenfromChina123 <3301767269@qq.com> 1775378599 +0800	commit: 更新实现进度文档：修正多处功能状态标记
+167dc123da67b2098c8937114e82ec11dee82a77 82f146f8df0bc3f4a7bcf0c50d42496d23e649e9 ChenfromChina123 <3301767269@qq.com> 1775378771 +0800	commit: 修正Agent Runner状态描述：区分executeAgent与callAI
+82f146f8df0bc3f4a7bcf0c50d42496d23e649e9 a265ee133180aa6bf0f7f3564ee0f0641d7ffdb3 ChenfromChina123 <3301767269@qq.com> 1775386725 +0800	commit: 修复 AgentWorkflowViewer.vue 模板字符串语法错误
+a265ee133180aa6bf0f7f3564ee0f0641d7ffdb3 82f25fa2a052c4c47a4c102fae2d05435dfaf762 ChenfromChina123 <3301767269@qq.com> 1775386978 +0800	commit: 添加 /api/tasks 端点并修复 AgentWorkflowViewer.vue 语法错误
+82f25fa2a052c4c47a4c102fae2d05435dfaf762 edccb6335f7e36b13dc7e0d4df894394aa330a33 ChenfromChina123 <3301767269@qq.com> 1775387624 +0800	commit: 修复会话记录重启后加载不完整的问题
+edccb6335f7e36b13dc7e0d4df894394aa330a33 95aef93c114d8fb7983ceadf8741396a9c36afb1 ChenfromChina123 <3301767269@qq.com> 1775388329 +0800	commit: 修复助手消息内容保存问题
+95aef93c114d8fb7983ceadf8741396a9c36afb1 786cbfc799b57dbe1baf7af24f5afc09ecc29e0f ChenfromChina123 <3301767269@qq.com> 1775391968 +0800	commit: 修复 agentApi.ts 中 API 响应未解包的问题
+786cbfc799b57dbe1baf7af24f5afc09ecc29e0f 689073e99192db84cfaa1180da911b2f260e3a8b ChenfromChina123 <3301767269@qq.com> 1775392307 +0800	commit: 修复 API 客户端响应拦截器返回格式问题
+689073e99192db84cfaa1180da911b2f260e3a8b a208f5e748e31e3d7d1513c80b84ab8b5184f595 ChenfromChina123 <3301767269@qq.com> 1775392382 +0800	commit: 更新 API 客户端方法返回类型为 ApiResponse
+a208f5e748e31e3d7d1513c80b84ab8b5184f595 acf7649cf8bfd7921b100d16c4b59a9b3df39646 ChenfromChina123 <3301767269@qq.com> 1775392647 +0800	commit: 集成后台任务管理器到 taskCreate 工具
+acf7649cf8bfd7921b100d16c4b59a9b3df39646 6cc28559bf50c41ecdfad43dcfa182cc83734cfc ChenfromChina123 <3301767269@qq.com> 1775392746 +0800	commit: 修复后台任务管理器实例共享问题
+6cc28559bf50c41ecdfad43dcfa182cc83734cfc eb3c81e57627a34b6a19d4daa22f79e40b698ca8 ChenfromChina123 <3301767269@qq.com> 1775392866 +0800	commit: 删除 Agent 面板切换按钮
+eb3c81e57627a34b6a19d4daa22f79e40b698ca8 b97645a59b87caf304b238c7faffac96e080640a ChenfromChina123 <3301767269@qq.com> 1775393081 +0800	commit: 修复 enhancedToolExecutor 中的 TaskCreate 和 TaskList 工具
+b97645a59b87caf304b238c7faffac96e080640a e9bfb8058fa2f827fb80ce6f299eee7e1ea1cf1b ChenfromChina123 <3301767269@qq.com> 1775394113 +0800	commit: 实现 Agent 状态面板后端服务集成
+e9bfb8058fa2f827fb80ce6f299eee7e1ea1cf1b 0047dce8f3afabb79109750452c531d60dad1a30 ChenfromChina123 <3301767269@qq.com> 1775395120 +0800	commit: feat: 完成 Agent 状态面板前后端集成
+0047dce8f3afabb79109750452c531d60dad1a30 42e1f34f03091a3ee3f63a46417c10638fe55b14 ChenfromChina123 <3301767269@qq.com> 1775396375 +0800	commit: 集成真实的多agent协同工作功能到前端
+42e1f34f03091a3ee3f63a46417c10638fe55b14 cec0bc6d1cf3580e051823eb0e34e1fe3b310111 ChenfromChina123 <3301767269@qq.com> 1775396792 +0800	commit: feat: 集成 worktree/remote 隔离技术到 Agent 执行系统
+cec0bc6d1cf3580e051823eb0e34e1fe3b310111 77ac858b8e2f7c8d16960744cddc9fd4b865a8bb ChenfromChina123 <3301767269@qq.com> 1775396824 +0800	commit: 优化任务管理工具提示，确保agent正确使用TaskUpdate更新任务状态而非TaskCreate
+77ac858b8e2f7c8d16960744cddc9fd4b865a8bb 733fdf5f4033c4bf4d24a0168ffbc59761252150 ChenfromChina123 <3301767269@qq.com> 1775397279 +0800	commit: 修复AgentStatusService的wsPush配置问题，添加setAgentStatusService函数
+733fdf5f4033c4bf4d24a0168ffbc59761252150 b6975b19c8006009cfce83c3e57dc1aa5592e1e5 ChenfromChina123 <3301767269@qq.com> 1775397767 +0800	commit: 在enhancedToolExecutor中添加TaskGet和TaskUpdate工具，优化TaskCreate描述
+b6975b19c8006009cfce83c3e57dc1aa5592e1e5 be6a9eeab18f04fd678fb10f6d43b3d6f97e1333 ChenfromChina123 <3301767269@qq.com> 1775399246 +0800	commit: 集成真实的子Agent执行和工作流可视化：添加workflowEventService，增强AgentTool，连接前后端WebSocket
+be6a9eeab18f04fd678fb10f6d43b3d6f97e1333 c19fcfd32698aa516d9698a7b8925356c0d94af4 ChenfromChina123 <3301767269@qq.com> 1775401104 +0800	commit: 修复登录问题：authApi错误解构apiClient返回值
+c19fcfd32698aa516d9698a7b8925356c0d94af4 f5534d37ddb1dc320b67d2c2cdd54bf46a6662b2 ChenfromChina123 <3301767269@qq.com> 1775403414 +0800	commit: 实现新对话中基于用户第一个问题并行生成标题并存储
+f5534d37ddb1dc320b67d2c2cdd54bf46a6662b2 084bba9c12c586f476542b7573b6841e2438b7ba ChenfromChina123 <3301767269@qq.com> 1775404077 +0800	commit: 修复标题生成判断逻辑：检查会话标题而非消息数量
+084bba9c12c586f476542b7573b6841e2438b7ba e787e8f40d623551084d1094f8611fcddced06e2 ChenfromChina123 <3301767269@qq.com> 1775404207 +0800	commit: 添加调试日志以排查标题生成问题
+e787e8f40d623551084d1094f8611fcddced06e2 29af98a7316f4c1d94ae6e1916f2ee66caac93e2 ChenfromChina123 <3301767269@qq.com> 1775405318 +0800	commit: 使用 LLM API 智能生成会话标题
+29af98a7316f4c1d94ae6e1916f2ee66caac93e2 99fc5a7db1acd0ef0f5c3befbe7934e70c8767d6 ChenfromChina123 <3301767269@qq.com> 1775406439 +0800	commit: 修复多个 TypeScript 类型错误
+99fc5a7db1acd0ef0f5c3befbe7934e70c8767d6 002edb373c28f61b727e1533ba7fe50f53e8dbbc ChenfromChina123 <3301767269@qq.com> 1775407097 +0800	commit: 修复sessionTitleGenerator语法错误和导出问题
+002edb373c28f61b727e1533ba7fe50f53e8dbbc b27ac59622f7452263db7c8a2e27b29a9dbd2a69 ChenfromChina123 <3301767269@qq.com> 1775407593 +0800	commit: 修复Agent Loop认证错误：添加dotenv加载.env环境变量
+b27ac59622f7452263db7c8a2e27b29a9dbd2a69 7ab379d91e39c5106cbdb3ec5c020be0ce994cc1 ChenfromChina123 <3301767269@qq.com> 1775407930 +0800	commit: 安装dotenv依赖包
+7ab379d91e39c5106cbdb3ec5c020be0ce994cc1 5b81cb9f04e5e3e5646f19342b6b66cdea7412f9 ChenfromChina123 <3301767269@qq.com> 1775408130 +0800	commit: 添加环境变量调试日志
+5b81cb9f04e5e3e5646f19342b6b66cdea7412f9 4db028fb9c52d5ad34d162a5e9d1f360c909f8dc ChenfromChina123 <3301767269@qq.com> 1775408531 +0800	commit: 修复WebSocket消息未JSON.stringify的问题
+4db028fb9c52d5ad34d162a5e9d1f360c909f8dc c3004caa5212c3e50d27705f33ab5cc3c2179bc4 ChenfromChina123 <3301767269@qq.com> 1775408754 +0800	commit: 修复登录API响应解析问题
+c3004caa5212c3e50d27705f33ab5cc3c2179bc4 14e20f153fdfaa8d86e0670fbf40266c3be62a5d ChenfromChina123 <3301767269@qq.com> 1775409058 +0800	commit: 修复会话标题生成问题，强制更新第一个消息的标题
+14e20f153fdfaa8d86e0670fbf40266c3be62a5d 178ca8469a67c214bb4d1d78a05687f0e1c76296 ChenfromChina123 <3301767269@qq.com> 1775409195 +0800	commit: 修复generateSimpleTitle导出问题
+178ca8469a67c214bb4d1d78a05687f0e1c76296 9d87e95dc5ab991dd43a6068a2dd648f716207f1 ChenfromChina123 <3301767269@qq.com> 1775409430 +0800	commit: 添加删除会话调试日志
+9d87e95dc5ab991dd43a6068a2dd648f716207f1 8f14873b64d09a70f912e168277d335ac0e88c3f ChenfromChina123 <3301767269@qq.com> 1775409875 +0800	commit: 修复会话列表滚动自动加载更多的问题，添加正确的滚动监听和加载状态
+8f14873b64d09a70f912e168277d335ac0e88c3f c5edd67a12d7718561f5377dd48bdd39698a09b5 ChenfromChina123 <3301767269@qq.com> 1775410205 +0800	commit: 修复会话标题不更新的问题，添加正确的响应式更新
+c5edd67a12d7718561f5377dd48bdd39698a09b5 fa2cfb415e0d74e54d148115e10ac95204e48283 ChenfromChina123 <3301767269@qq.com> 1775416864 +0800	commit: 修复 scrollbar..querySelector 错误，添加更好的错误处理和备用方案
+fa2cfb415e0d74e54d148115e10ac95204e48283 888ebcca6e67ed61eefbbf8537df6524cdaf4d46 ChenfromChina123 <3301767269@qq.com> 1775445269 +0800	commit: 优化会话列表滚动性能：使用 IntersectionObserver 替代滚动监听实现自动加载更多
+888ebcca6e67ed61eefbbf8537df6524cdaf4d46 1370cd5759784b5ef548f86b446bfa6a52deddc9 ChenfromChina123 <3301767269@qq.com> 1775445382 +0800	commit: 修复类型错误：WebSocket消息发送、API响应处理和组件类型问题
+1370cd5759784b5ef548f86b446bfa6a52deddc9 8d681db8f80a9e40cca01ec9d724ba44b8708b4a ChenfromChina123 <3301767269@qq.com> 1775446706 +0800	commit: 修复 agentPersistence 中 forceSaveAll 的 undefined 错误
+8d681db8f80a9e40cca01ec9d724ba44b8708b4a 059dd9728f204fed7da6d6c631b63cc6f84a28f3 ChenfromChina123 <3301767269@qq.com> 1775447047 +0800	commit: 修复前端登录响应数据解包问题
+059dd9728f204fed7da6d6c631b63cc6f84a28f3 ecb7f06bc1ec423c9f80535be35f3ec5136c60d3 ChenfromChina123 <3301767269@qq.com> 1775447224 +0800	commit: 添加开发环境自动登录功能
+ecb7f06bc1ec423c9f80535be35f3ec5136c60d3 3bcb0f601283f5a66795d4ad1e14722216fd33e0 ChenfromChina123 <3301767269@qq.com> 1775447441 +0800	commit: 修复开发环境自动登录：移至应用初始化阶段执行
+3bcb0f601283f5a66795d4ad1e14722216fd33e0 8ba039a0dc477a626ac6c41ce64b26b6949ed91f ChenfromChina123 <3301767269@qq.com> 1775447575 +0800	commit: 修复 unwrapApiData 参数错误：传入 response.data 而非 response
+8ba039a0dc477a626ac6c41ce64b26b6949ed91f 8c02c14915555562b74a187b7d30205e508bd3e4 ChenfromChina123 <3301767269@qq.com> 1775447661 +0800	commit: 修复 ChatSidebar.vue 中 hasMoreSessions 初始化顺序错误
+8c02c14915555562b74a187b7d30205e508bd3e4 e94733a37a4dcd3f4fe20f54ec74bd81e5d34cf1 ChenfromChina123 <3301767269@qq.com> 1775448575 +0800	commit: 集成沙箱/Worktree隔离功能，支持用户隔离
+e94733a37a4dcd3f4fe20f54ec74bd81e5d34cf1 3df80da3a62df22a613afb5214ef1c5d08cd0002 ChenfromChina123 <3301767269@qq.com> 1775448682 +0800	commit: 修复隔离API路由匹配问题
+3df80da3a62df22a613afb5214ef1c5d08cd0002 1a8275413649d3175bdf618eef413395362b7e4d ChenfromChina123 <3301767269@qq.com> 1775449081 +0800	commit: 修复聊天上下文保存逻辑，添加定时同步机制
+1a8275413649d3175bdf618eef413395362b7e4d 7894540ff913f6084def9e0dc97a1bf5ff1f8c04 ChenfromChina123 <3301767269@qq.com> 1775449539 +0800	commit: 修改消息保存为立即同步，移除定时同步机制
+7894540ff913f6084def9e0dc97a1bf5ff1f8c04 a1e4e30cabe373e3e2ceedc7f924b4b240ee28e5 ChenfromChina123 <3301767269@qq.com> 1775449835 +0800	commit: 修复消息重复插入问题，使用UPSERT避免并发冲突
+a1e4e30cabe373e3e2ceedc7f924b4b240ee28e5 1bc950a8e89e8ea5006c8204ee378d2ea2a8de1b ChenfromChina123 <3301767269@qq.com> 1775451282 +0800	commit: 集成沙箱环境到 Agent 执行流程
+1bc950a8e89e8ea5006c8204ee378d2ea2a8de1b 24869868cb0190a354eab8fe04d2631248e78346 ChenfromChina123 <3301767269@qq.com> 1775451983 +0800	commit: 修复 Anthropic SDK 鉴权错误
+24869868cb0190a354eab8fe04d2631248e78346 fa4bddb088834c8eeda3a65cdd64d02ad53668ff ChenfromChina123 <3301767269@qq.com> 1775453773 +0800	commit: feat: 实现 Agent 工作目录管理系统
+fa4bddb088834c8eeda3a65cdd64d02ad53668ff 1d3c06a75fd0d57f63372744f60b0987c87be6c6 ChenfromChina123 <3301767269@qq.com> 1775455166 +0800	commit: feat: 前端集成文件上传功能
+1d3c06a75fd0d57f63372744f60b0987c87be6c6 7d2389338f261f5f64ebb662f249150ee2bfc80a ChenfromChina123 <3301767269@qq.com> 1775455624 +0800	commit: fix: 修复 ChatInput 组件模板中的 TypeScript 语法错误
+7d2389338f261f5f64ebb662f249150ee2bfc80a 0636ec1516ab3b0223187dcb56341947717b7391 ChenfromChina123 <3301767269@qq.com> 1775455861 +0800	commit: fix: 修复图标名称错误
+0636ec1516ab3b0223187dcb56341947717b7391 c831ed4bd7c7c4727347cb237bcd23467a0716d3 ChenfromChina123 <3301767269@qq.com> 1775457431 +0800	commit: feat: 实现无感沙箱模式 - Agent 透明化工作目录
+c831ed4bd7c7c4727347cb237bcd23467a0716d3 0e6a44e35db86e292ee284a7d9bc62d4a2c37e55 ChenfromChina123 <3301767269@qq.com> 1775457788 +0800	commit: 新增Agent文件写入动态UI和文件输出卡片组件
+0e6a44e35db86e292ee284a7d9bc62d4a2c37e55 3ddb558e431c488495439896714d107fb789f98f ChenfromChina123 <3301767269@qq.com> 1775458999 +0800	commit: 添加 Agent 工作目录浏览器功能（高性能文件树 + Monaco Editor）
+3ddb558e431c488495439896714d107fb789f98f af68700082cc95bd4eb447ac8c9167364ff50f66 ChenfromChina123 <3301767269@qq.com> 1775459079 +0800	commit: 添加Agent主循环中断功能（参考claude-code-haha/src的AbortController机制）
+af68700082cc95bd4eb447ac8c9167364ff50f66 123c46d4ceb85707b620c652cdb694b2843bcb7d ChenfromChina123 <3301767269@qq.com> 1775460776 +0800	commit: 修复 ChatMessageList.vue 和 FileWriteToolInline.vue 的语法错误
+123c46d4ceb85707b620c652cdb694b2843bcb7d 45ccf11f276446f313e908e96eaa61c36a2e53db ChenfromChina123 <3301767269@qq.com> 1775460927 +0800	commit: 修复 AgentWorkDir.vue 图标导入错误：CodeOutlined -> FileCodeOutline
+45ccf11f276446f313e908e96eaa61c36a2e53db 7bfdcb5155a8aec1420431e882a0d1c977a55dd3 ChenfromChina123 <3301767269@qq.com> 1775461032 +0800	commit: 添加 Agent 图片查看工具 (ImageRead) 功能
+7bfdcb5155a8aec1420431e882a0d1c977a55dd3 2902f8a77a01a8a1472334fc074bae22159dd934 ChenfromChina123 <3301767269@qq.com> 1775461119 +0800	commit: 更新 README：添加 ImageRead 图片查看工具说明
+2902f8a77a01a8a1472334fc074bae22159dd934 e55f2ee26427fc52255833ffcc216dce7bfb100e ChenfromChina123 <3301767269@qq.com> 1775461475 +0800	commit: 修复 AgentWorkDir.vue 图标导入：使用正确的 ionicons5 图标名称
+e55f2ee26427fc52255833ffcc216dce7bfb100e 862627d4b833ca642f3d7aa92bdce693142fc068 ChenfromChina123 <3301767269@qq.com> 1775468195 +0800	commit: feat: 聊天消息列表默认滚动到底部
+862627d4b833ca642f3d7aa92bdce693142fc068 935b58d93cab503c5537fcfe2cc1de467dba76bd ChenfromChina123 <3301767269@qq.com> 1775468458 +0800	commit: fix: 修复图标组件语法错误
+935b58d93cab503c5537fcfe2cc1de467dba76bd f4611bda6c0ea49a839ab2fa920d8b66d136e4e1 ChenfromChina123 <3301767269@qq.com> 1775468707 +0800	commit: fix: 修复 AgentWorkDir 认证问题
+f4611bda6c0ea49a839ab2fa920d8b66d136e4e1 6e948abd022a4b923ff395e5ae05f1bf73e401dc ChenfromChina123 <3301767269@qq.com> 1775468810 +0800	commit: fix: 修复 AgentWorkDir API 路径重复问题
+6e948abd022a4b923ff395e5ae05f1bf73e401dc 6e49f8344f6920ea4639358efcda63150e22d148 ChenfromChina123 <3301767269@qq.com> 1775469036 +0800	commit: fix: 添加 path 模块导入以修复工作目录加载错误
+6e49f8344f6920ea4639358efcda63150e22d148 9f34f38890a33d239d2a73908197fccfe06ae416 ChenfromChina123 <3301767269@qq.com> 1775469301 +0800	commit: fix: 修复 AgentWorkDir 所有问题
+9f34f38890a33d239d2a73908197fccfe06ae416 4add3f7ca79fbe5ab78ea717c70e051df4e9a22c ChenfromChina123 <3301767269@qq.com> 1775469559 +0800	commit: Agent 真实化改造：接入真实 LLM 调用和工具执行链
+4add3f7ca79fbe5ab78ea717c70e051df4e9a22c 81afce4a14aea34c48ca2509616b75c100e8279f ChenfromChina123 <3301767269@qq.com> 1775470133 +0800	commit: 修复 LLMService 构造函数初始化顺序错误
+81afce4a14aea34c48ca2509616b75c100e8279f cd6a8a2db61e73f8e329eb604fad1fd3d610ca76 ChenfromChina123 <3301767269@qq.com> 1775470756 +0800	commit: fix: 修复 WorkDir API 中 path 变量遮蔽 path 模块的问题
+cd6a8a2db61e73f8e329eb604fad1fd3d610ca76 248a2b9eb39058dd828ffd52b9c4c61beb24477d ChenfromChina123 <3301767269@qq.com> 1775472358 +0800	commit: fix: 修复 WorkDir API 中 path.join 错误
+248a2b9eb39058dd828ffd52b9c4c61beb24477d 7936b6edc1988ecb66ae199ee9a57927749ad09c ChenfromChina123 <3301767269@qq.com> 1775472792 +0800	commit: fix: 统一变量名并修复 WorkDir path.join 错误
+7936b6edc1988ecb66ae199ee9a57927749ad09c 645621ddd7dbe361a1a9fed424c5f70fb3fb7df0 ChenfromChina123 <3301767269@qq.com> 1775473201 +0800	commit: fix: 修复 path.extname 错误
+645621ddd7dbe361a1a9fed424c5f70fb3fb7df0 2bbe9721b5858aab7dec7aae421686cb9e584336 ChenfromChina123 <3301767269@qq.com> 1775473675 +0800	commit: 修复工作目录持久化问题：添加自动创建和目录检查
+2bbe9721b5858aab7dec7aae421686cb9e584336 e190657aaf1c068d4c6fcedc40392267b3c32570 ChenfromChina123 <3301767269@qq.com> 1775483575 +0800	commit: 修复工作目录树点击目录无法展开的问题：分离懒加载和全局loading状态
+e190657aaf1c068d4c6fcedc40392267b3c32570 a8f783e28e29592d7f712d49f2d79563c65c5a64 ChenfromChina123 <3301767269@qq.com> 1775484160 +0800	commit: 修复 NTree 懒加载：移除 children 属性并添加调试日志
+a8f783e28e29592d7f712d49f2d79563c65c5a64 69fc71dfac06b69d38a51fde2a136d98347b35e1 ChenfromChina123 <3301767269@qq.com> 1775484722 +0800	commit: 修复 Monaco 编辑器初始化问题并添加 NTree 调试日志
+69fc71dfac06b69d38a51fde2a136d98347b35e1 daf3ffd03129c18a6345e4593ab2713c207aa575 ChenfromChina123 <3301767269@qq.com> 1775485266 +0800	commit: 将工作目录入口移至侧边栏底部，点击展开抽屉面板
+daf3ffd03129c18a6345e4593ab2713c207aa575 c6c21c2929d302ddb52a13798414d2ce783e4a33 ChenfromChina123 <3301767269@qq.com> 1775485604 +0800	commit: 修复 NTree 懒加载：使用 on-load 属性代替 load
+c6c21c2929d302ddb52a13798414d2ce783e4a33 e836486d39f04435457ccccf46d94b942da786a3 ChenfromChina123 <3301767269@qq.com> 1775485940 +0800	commit: 修复前端组件中的 JSX 语法错误和 h() 函数导入问题
+e836486d39f04435457ccccf46d94b942da786a3 9c27111706b088b13dfa6686bf479e4c10f5f43f ChenfromChina123 <3301767269@qq.com> 1775486330 +0800	commit: 修复 AgentWorkDir 组件的无限循环加载问题
+9c27111706b088b13dfa6686bf479e4c10f5f43f fb5561784df9412988634f9815c6224dbda48168 ChenfromChina123 <3301767269@qq.com> 1775487007 +0800	commit: 修复 AgentWorkDir 组件无限循环：为目录节点设置空 children 数组
+fb5561784df9412988634f9815c6224dbda48168 c17bb45f7e7fcdf49936850b21960c4bb18df341 ChenfromChina123 <3301767269@qq.com> 1775487905 +0800	commit: 重构工作目录架构：支持用户主目录和会话目录双轨制
+c17bb45f7e7fcdf49936850b21960c4bb18df341 eba16479a8c89fae1de566e8cd981651536da3a4 ChenfromChina123 <3301767269@qq.com> 1775488262 +0800	commit: 前端添加会话目录/用户主目录切换功能
+eba16479a8c89fae1de566e8cd981651536da3a4 af57ca960f752adbbd3e5d6be44478ee5769ec6f ChenfromChina123 <3301767269@qq.com> 1775488685 +0800	commit: 修复 AgentWorkDir 图标引用错误：FolderShared 替换为 Briefcase
+af57ca960f752adbbd3e5d6be44478ee5769ec6f 3687afa8ca507e43aca5f728515ed6339a5011ee ChenfromChina123 <3301767269@qq.com> 1775488828 +0800	commit: 修复 AgentWorkDir API 路径缺少 /api 前缀
+3687afa8ca507e43aca5f728515ed6339a5011ee b9f3288289a33370198d09b61cb75f48fd47cb23 ChenfromChina123 <3301767269@qq.com> 1775489429 +0800	commit: 修复 AgentWorkDir API 路径：axios 已自动添加 /api 前缀
+b9f3288289a33370198d09b61cb75f48fd47cb23 b159402d4d8177a4f5d146bc185a5ecdd6dcdb84 ChenfromChina123 <3301767269@qq.com> 1775489629 +0800	commit: 增强主目录 UI 标记：金色渐变背景 + 星标 + 功能说明
+b159402d4d8177a4f5d146bc185a5ecdd6dcdb84 3c3adf1c3451496e6f42d09d3a74e98a088ccec2 ChenfromChina123 <3301767269@qq.com> 1775489935 +0800	commit: 在会话列表顶部添加用户主目录金色入口
+3c3adf1c3451496e6f42d09d3a74e98a088ccec2 f78c0214546ed3f54978995d9735767d699680e7 ChenfromChina123 <3301767269@qq.com> 1775490076 +0800	commit: 撤销错误的主会话入口代码
+f78c0214546ed3f54978995d9735767d699680e7 f2905efddd28d1d6f9a38d7a916d87b74c50d7d8 ChenfromChina123 <3301767269@qq.com> 1775490340 +0800	commit: 添加主会话功能：Session 添加 isMaster 字段，UI 添加金色标记
+f2905efddd28d1d6f9a38d7a916d87b74c50d7d8 e6ed9567d985074f11c95df3aeb2fa230d30827c ChenfromChina123 <3301767269@qq.com> 1775490568 +0800	commit: 完善主会话功能：会话列表排序置顶 + master_session 事件处理
+e6ed9567d985074f11c95df3aeb2fa230d30827c bd7727d11285067f35b2a23405f8fea79418c626 ChenfromChina123 <3301767269@qq.com> 1775490823 +0800	commit: 修复主会话工作目录：确保主会话使用用户主目录
+bd7727d11285067f35b2a23405f8fea79418c626 da37aac11cfb2e064efd045f68b46448eafe69ad ChenfromChina123 <3301767269@qq.com> 1775491071 +0800	commit: 修复主会话工作目录问题
+da37aac11cfb2e064efd045f68b46448eafe69ad 1066f5c57cc2d64bdfa34a0eac8457efe48d9479 ChenfromChina123 <3301767269@qq.com> 1775491122 +0800	commit: 修复主会话重复创建的问题：确保每个用户只有一个主会话，并清理重复标记
+1066f5c57cc2d64bdfa34a0eac8457efe48d9479 a3c59401a0781321f88d056e06cf3d6eb799b985 ChenfromChina123 <3301767269@qq.com> 1775492048 +0800	commit: 添加用户主目录文件操作接口：/api/agent/userdir/content 和 /api/agent/userdir/save
+a3c59401a0781321f88d056e06cf3d6eb799b985 b9b09e03c817a8d7765b2f5c3ad4899b267bbc21 ChenfromChina123 <3301767269@qq.com> 1775492318 +0800	commit: 修复主会话重复创建问题：创建时直接设置 isMaster，添加清理重复主会话逻辑
+b9b09e03c817a8d7765b2f5c3ad4899b267bbc21 0462ec49be418235d849ef2e9fba47f11db28c09 ChenfromChina123 <3301767269@qq.com> 1775493850 +0800	commit: 修复主会话工作目录问题：主会话使用用户主目录而不是会话工作区
+0462ec49be418235d849ef2e9fba47f11db28c09 0f376d29ac34e17c37d03f1565788e7d27003b6a ChenfromChina123 <3301767269@qq.com> 1775494185 +0800	commit: 修复工具执行时的工作目录：主会话使用用户主目录
+0f376d29ac34e17c37d03f1565788e7d27003b6a 033b28b66a199dd50d2ab133e20a909b8f42396e ChenfromChina123 <3301767269@qq.com> 1775495289 +0800	commit: 集成markstream-vue流式渲染引擎，升级AI输出排版方案
+033b28b66a199dd50d2ab133e20a909b8f42396e 0b82a7b21df9ded6e2aa16c1ad7814796ba16627 ChenfromChina123 <3301767269@qq.com> 1775495381 +0800	commit: 修复新建会话标题生成问题：添加并发保护机制和事件类型修正
+0b82a7b21df9ded6e2aa16c1ad7814796ba16627 8fb9da9c9e79dcee7d877c4d5b76dca9c8b66c68 ChenfromChina123 <3301767269@qq.com> 1775495586 +0800	commit: 加强agent工作目录安全限制：禁止目录遍历和危险命令执行
+8fb9da9c9e79dcee7d877c4d5b76dca9c8b66c68 d26bdc451c5d397bd8d71246b705aa4ef1776c31 ChenfromChina123 <3301767269@qq.com> 1775496030 +0800	commit: 添加项目完整分析报告
+d26bdc451c5d397bd8d71246b705aa4ef1776c31 29490a5ab5f91832a943ff74bab6e09e74114918 ChenfromChina123 <3301767269@qq.com> 1775525513 +0800	commit: 新增6个高级工具桥接：NotebookEdit、LSP、PowerShell、DatabaseQuery、DockerManager、GitAdvanced
+29490a5ab5f91832a943ff74bab6e09e74114918 7b951eabfe22caab0760cba28c09b9e70351aa55 ChenfromChina123 <3301767269@qq.com> 1775525762 +0800	commit: 增强MCP Bridge：添加真实外部服务器连接能力和自动重连机制
+7b951eabfe22caab0760cba28c09b9e70351aa55 97c1304fbc0bf3c73aaf39a000769548a0da555f ChenfromChina123 <3301767269@qq.com> 1775525883 +0800	commit: 添加高级工具桥接的完整测试套件
+97c1304fbc0bf3c73aaf39a000769548a0da555f ee6acc62c6f3e71ebbd239421ecf8f08d19757ef ChenfromChina123 <3301767269@qq.com> 1775530526 +0800	commit: fix: 修复 mcpBridge.ts 中的语法错误（缺少右括号）
+ee6acc62c6f3e71ebbd239421ecf8f08d19757ef a24401156cc29dd1a10173a5ddfff4fe9621cf33 ChenfromChina123 <3301767269@qq.com> 1775534686 +0800	commit: 🔒 安全增强：实施路径隔离，禁止Agent访问上层目录
+a24401156cc29dd1a10173a5ddfff4fe9621cf33 19070549643363d1c559dce0dfe509777034533d ChenfromChina123 <3301767269@qq.com> 1775534952 +0800	commit: fix: 修复系统提示词中的特殊字符语法错误
+19070549643363d1c559dce0dfe509777034533d f083221e1e810187761528fe78e3fea68c0d4c06 ChenfromChina123 <3301767269@qq.com> 1775535207 +0800	commit: fix: 移除模板字符串中的转义反引号以修复语法错误
+f083221e1e810187761528fe78e3fea68c0d4c06 92355fb6089b64137ff1930c01af8db25e0fdd83 ChenfromChina123 <3301767269@qq.com> 1775535444 +0800	commit: 重构前端页面为IDEA风格的IDE布局，集成文件管理器、代码编辑器和AI对话框
+92355fb6089b64137ff1930c01af8db25e0fdd83 02218f31440b7e8701df6b04dff27c57ff87abbf ChenfromChina123 <3301767269@qq.com> 1775535630 +0800	commit: 修复ActivityBar.vue中的图标名称错误，使用正确的@vicons/ionicons5图标
+02218f31440b7e8701df6b04dff27c57ff87abbf c8de97f68361770dc9b84081ff1abd9a6ad8ff91 ChenfromChina123 <3301767269@qq.com> 1775535682 +0800	commit: 修复ActivityBar.vue中的图标名称，使用GearOutline替换CogsOutline
+c8de97f68361770dc9b84081ff1abd9a6ad8ff91 d5e860b7fa13ba5f5afaa82b34bc062e8196f098 ChenfromChina123 <3301767269@qq.com> 1775535808 +0800	commit: 修复IDE布局问题：ActivityBar固定定位、图标显示、分割线样式优化
+d5e860b7fa13ba5f5afaa82b34bc062e8196f098 4b49ba9e61f917af3c9e4e327b01a4c034de5ced ChenfromChina123 <3301767269@qq.com> 1775535863 +0800	commit: 修复ActivityBar.vue图标名称，使用项目中已验证的图标
+4b49ba9e61f917af3c9e4e327b01a4c034de5ced 5dfe10db5f143c6ae98fae17b0cb4fae3e55a3f7 ChenfromChina123 <3301767269@qq.com> 1775535912 +0800	commit: 修复ActivityBar图标名称，使用ChatbubblesOutline和ExpandOutline
+5dfe10db5f143c6ae98fae17b0cb4fae3e55a3f7 b9cf0e9ae37a65139878de82b0146c080ab6ac9a ChenfromChina123 <3301767269@qq.com> 1775553519 +0800	commit: 修复 NTree 组件目录展开时的死循环问题
+b9cf0e9ae37a65139878de82b0146c080ab6ac9a 165a90cc5857ae8762c919404e5513cbce378a8b ChenfromChina123 <3301767269@qq.com> 1775554618 +0800	commit: 撤销 children: [] 修改，恢复 uploads 懒加载功能
+165a90cc5857ae8762c919404e5513cbce378a8b 20f19b0e104c9e7f6e8d0e0c61ced6d4bcf819fb ChenfromChina123 <3301767269@qq.com> 1775689481 +0800	commit: feat: 添加 Docker 多租户用户隔离部署方案
+20f19b0e104c9e7f6e8d0e0c61ced6d4bcf819fb e27ac09cbcb89f8079398f55b75e0e14d47ba6d1 ChenfromChina123 <3301767269@qq.com> 1775689663 +0800	commit: feat: 添加完整的 Docker 内存优化配置方案和文档
+e27ac09cbcb89f8079398f55b75e0e14d47ba6d1 fcc1bdfcc3ebcd3db527e71c982fb290ba887340 ChenfromChina123 <3301767269@qq.com> 1775690172 +0800	commit: refactor: 移除 Redis 依赖，简化 Docker 部署配置
+fcc1bdfcc3ebcd3db527e71c982fb290ba887340 f8712166924f4837e88726cd30912d64154203e2 ChenfromChina123 <3301767269@qq.com> 1775692095 +0800	commit: fix: 修复 Docker 构建和部署问题，服务全部启动成功
+f8712166924f4837e88726cd30912d64154203e2 9758dca012a987a3957024f46f2019bdc67e184c ChenfromChina123 <3301767269@qq.com> 1775695417 +0800	commit: 强化 Agent 提示词系统：高度对齐 claude-code-haha/src 规范
+9758dca012a987a3957024f46f2019bdc67e184c 9a04e4c1864a5f0b1389f6b12389266b63accbcc ChenfromChina123 <3301767269@qq.com> 1775700674 +0800	commit: 修复 contextBuilder.ts 中的变量名拼写错误
+9a04e4c1864a5f0b1389f6b12389266b63accbcc f06864fecb3fa3ebdc6460c036afee1c3fbc62bf ChenfromChina123 <3301767269@qq.com> 1775711377 +0800	commit: 修复Monaco编辑器Web Worker配置和404错误处理
+f06864fecb3fa3ebdc6460c036afee1c3fbc62bf 7a74df0a50047006c04720d872e221875cebde50 ChenfromChina123 <3301767269@qq.com> 1775711849 +0800	commit: 修复文件不存在404警告和Monaco Web Worker配置
+7a74df0a50047006c04720d872e221875cebde50 9b1bc09de3b435b0f61129be6a7266ac6e3d3094 ChenfromChina123 <3301767269@qq.com> 1775715693 +0800	commit: 启用PTY终端功能和配置Docker镜像加速器
+9b1bc09de3b435b0f61129be6a7266ac6e3d3094 cc8e3a3c6dc20871b4221934aa45977518fef802 ChenfromChina123 <3301767269@qq.com> 1775732398 +0800	commit: 修复PTY终端问题：在后端Dockerfile中安装bash
+cc8e3a3c6dc20871b4221934aa45977518fef802 97c3f0b7db378ecb36bcd0ca6ee29804210d8c5a ChenfromChina123 <3301767269@qq.com> 1775734527 +0800	commit: 修复Monaco Editor Worker加载问题：安装vite-plugin-monaco-editor插件
+97c3f0b7db378ecb36bcd0ca6ee29804210d8c5a 104df69d7fbcbe38f51cd7ed75b1946868ae0397 ChenfromChina123 <3301767269@qq.com> 1775734974 +0800	commit: 修复终端shell配置：将默认shell从powershell改为bash
+104df69d7fbcbe38f51cd7ed75b1946868ae0397 da1965b6de5deac5db03fa9bf29231a02f34eccc ChenfromChina123 <3301767269@qq.com> 1775735746 +0800	commit: 修复终端PTYX连连接问题：初始化时直接连接后端PTY
+da1965b6de5deac5db03fa9bf29231a02f34eccc 5216933689fb55b7717748ee4e3db13ba5ba758e ChenfromChina123 <3301767269@qq.com> 1775736577 +0800	commit: 添加PTY写入调试日志
+5216933689fb55b7717748ee4e3db13ba5ba758e 35593f6d18ebfd86f9162f277ad848ba1614b5b6 ChenfromChina123 <3301767269@qq.com> 1775736983 +0800	commit: 修复：标签页文件路径唯一性，确保相同文件不会重复打开
+35593f6d18ebfd86f9162f277ad848ba1614b5b6 0e7c98e99a69c7ec4087452c2a57a224c5c1fabb ChenfromChina123 <3301767269@qq.com> 1775740759 +0800	commit: 修改生产环境后端默认端口为 3001，避免与开发环境冲突
+0e7c98e99a69c7ec4087452c2a57a224c5c1fabb 5094119db2effc6ce9bae89dc6cd9aa7f68d7b81 ChenfromChina123 <3301767269@qq.com> 1775741367 +0800	commit: 添加 node-pty 支持，修复终端无法输入问题
+5094119db2effc6ce9bae89dc6cd9aa7f68d7b81 641c356d6e89ce8222cc2f16611cc64b1ed97599 ChenfromChina123 <3301767269@qq.com> 1775742928 +0800	commit: 优化 Dockerfile：添加 node-pty 支持，配置国内镜像源加速
+641c356d6e89ce8222cc2f16611cc64b1ed97599 d996c1c8d5c839e4e6cea55920d0610059dcb6fb ChenfromChina123 <3301767269@qq.com> 1775743513 +0800	commit: 添加 PTY 特权模式支持，修复终端无法输入问题
+d996c1c8d5c839e4e6cea55920d0610059dcb6fb edaa500a962dfc8b3efd681ee9c5d9af5f4b9b5a ChenfromChina123 <3301767269@qq.com> 1775743905 +0800	commit: 修复 node-pty 环境变量处理，添加调试日志
+edaa500a962dfc8b3efd681ee9c5d9af5f4b9b5a f7892e830e0850e9362850d4062ee1d5f33cc423 ChenfromChina123 <3301767269@qq.com> 1775744247 +0800	commit: 修复 bash 立即退出问题：添加 -i 参数强制交互模式
+f7892e830e0850e9362850d4062ee1d5f33cc423 375939044e913ecb5ae9a40a4e255e834ffd79bf ChenfromChina123 <3301767269@qq.com> 1775745334 +0800	commit: 修复 bash 立即退出：覆盖被 Windows 污染的 HOME 等环境变量
+375939044e913ecb5ae9a40a4e255e834ffd79bf a71fa2b5cdf7f2bd825cbfeb448dea8081da7ebb ChenfromChina123 <3301767269@qq.com> 1775746844 +0800	commit: 修复 bash 立即退出：添加 --norc --noprofile 绕过启动文件
+a71fa2b5cdf7f2bd825cbfeb448dea8081da7ebb 41dc71c53747e1312373868ef2999f12000f4a34 ChenfromChina123 <3301767269@qq.com> 1775780881 +0800	commit: 添加 PTY 诊断日志，修复降级方案 bash 退出问题
+41dc71c53747e1312373868ef2999f12000f4a34 d85758666afb834a9200b2e318af5fa70e49b609 ChenfromChina123 <3301767269@qq.com> 1775781561 +0800	commit: 修复 bash 退出：添加 --noediting 禁用 readline
+d85758666afb834a9200b2e318af5fa70e49b609 dc1d09e4a35317ca2aa13d6e2fdad50aaf272845 ChenfromChina123 <3301767269@qq.com> 1775782020 +0800	commit: 添加 PTY 调试日志：打印运行时参数
+dc1d09e4a35317ca2aa13d6e2fdad50aaf272845 52dfe9ef7fe365d6b21ff83e687f0b69f6788f77 ChenfromChina123 <3301767269@qq.com> 1775782048 +0800	commit: 修复Web界面中同名文件无法区分的问题 - 智能标签显示
+52dfe9ef7fe365d6b21ff83e687f0b69f6788f77 4d5fc503600cbb9d03d07208f8ea53450072e8f7 ChenfromChina123 <3301767269@qq.com> 1775782484 +0800	commit: 修复 PTY 退出：优先使用 /bin/sh 替代 /bin/bash（Bun 兼容性更好）
+4d5fc503600cbb9d03d07208f8ea53450072e8f7 b57e1ed9e46d8c454b01215953acdbca3ed174f0 ChenfromChina123 <3301767269@qq.com> 1775782682 +0800	commit: 修复文件树同名文件同时高亮的问题 - 优化 handleSelect 逻辑
+b57e1ed9e46d8c454b01215953acdbca3ed174f0 6efdc3700027f01e4f302e830687f7e6438c4fab ChenfromChina123 <3301767269@qq.com> 1775783608 +0800	commit: 修复 PTY: 完善 resize 防御检查，修复 shell 检测逻辑
+6efdc3700027f01e4f302e830687f7e6438c4fab e3e192aabc88767ae43b9daeb425d5dc36b06ac8 ChenfromChina123 <3301767269@qq.com> 1775783693 +0800	commit: 添加 wsPTYBridge 业务防御，简化 bash 参数排查退出原因
+e3e192aabc88767ae43b9daeb425d5dc36b06ac8 525e4dbf8b29474e79931d09bcfe1903229d0abc ChenfromChina123 <3301767269@qq.com> 1775784759 +0800	commit: 修复 PTY: HOME 改到 /tmp，去掉 -i 参数测试
+525e4dbf8b29474e79931d09bcfe1903229d0abc f129b247b5ae94d70ff164334c9f677ef01cffbc ChenfromChina123 <3301767269@qq.com> 1775787220 +0800	commit: 修复 Docker 容器中 node-pty bash 立即退出的问题
+f129b247b5ae94d70ff164334c9f677ef01cffbc cf0752ea86ada6668abd8fa74688f14f7459f05b ChenfromChina123 <3301767269@qq.com> 1775790471 +0800	commit: 修复终端不显示路径信息的问题 - 添加 PS1 环境变量设置
+cf0752ea86ada6668abd8fa74688f14f7459f05b d9ff9d93523d1d0e763c0711aca76b50039448d4 ChenfromChina123 <3301767269@qq.com> 1775790766 +0800	commit: 修复 resize() 参数验证问题 - 添加 cols/rows 有效性检查
+d9ff9d93523d1d0e763c0711aca76b50039448d4 3c9de387cf56087aa7f140d3cce20e5fe4a864aa ChenfromChina123 <3301767269@qq.com> 1775791437 +0800	commit: 更换 Dockerfile 基础镜像为阿里云镜像源加速构建
+3c9de387cf56087aa7f140d3cce20e5fe4a864aa 57bb1fad78366bb45faf5e73f9f61f6c3deff13c ChenfromChina123 <3301767269@qq.com> 1775791508 +0800	commit: 更换 Bun 镜像为 DaoCloud 国内镜像源
+57bb1fad78366bb45faf5e73f9f61f6c3deff13c 59a1fd35061c2dcf727edb0d1e8c3068c43641b0 ChenfromChina123 <3301767269@qq.com> 1775791633 +0800	commit: 恢复使用官方 Bun 镜像
+59a1fd35061c2dcf727edb0d1e8c3068c43641b0 ba297f1bd5548991e758968c22ef4a2c0f9e4333 ChenfromChina123 <3301767269@qq.com> 1775791956 +0800	commit: 移除 Dockerfile 中的 apt 国内镜像源配置
+ba297f1bd5548991e758968c22ef4a2c0f9e4333 b0f45f35544e4d5553f1649c8673c86c4b486bc2 ChenfromChina123 <3301767269@qq.com> 1775805511 +0800	commit: 移除 node-pty 依赖（已使用 Bun.spawn 替代）
+b0f45f35544e4d5553f1649c8673c86c4b486bc2 8ab9b5517f9b413b33097d580ba654bd7a3b3105 ChenfromChina123 <3301767269@qq.com> 1775806100 +0800	commit: 修复 Bun.Terminal data 回调 - 将 Uint8Array 解码为字符串
+8ab9b5517f9b413b33097d580ba654bd7a3b3105 13234a82437a0376c24023663babed9b3b558803 ChenfromChina123 <3301767269@qq.com> 1775806518 +0800	commit: 修复 bash 作业控制警告 - 添加 --norc 选项
+13234a82437a0376c24023663babed9b3b558803 31dc18aec1a9be5cf5aec55b12ff4b4a6692abe7 ChenfromChina123 <3301767269@qq.com> 1775806744 +0800	commit: 修复 bash 作业控制警告 - 发送 set +m 命令
+31dc18aec1a9be5cf5aec55b12ff4b4a6692abe7 ccc9595187281da92803d3f49f212510f4622e9a ChenfromChina123 <3301767269@qq.com> 1775806955 +0800	commit: 修复 bash 作业控制警告 - 使用 --quiet 选项
+ccc9595187281da92803d3f49f212510f4622e9a 30d6587859faa9c6b8ce42bdb53076ec962dfba3 ChenfromChina123 <3301767269@qq.com> 1775807857 +0800	commit: 优化IDE聊天界面：增加用户消息气泡宽度、分离工具调用与Agent消息、紧凑化布局
+30d6587859faa9c6b8ce42bdb53076ec962dfba3 3f5c8d7ae96e1bdc7e42beb4d87ab8118c40b4d7 ChenfromChina123 <3301767269@qq.com> 1775808272 +0800	commit: fix: 修复同名文件在不同路径上的识别问题
+3f5c8d7ae96e1bdc7e42beb4d87ab8118c40b4d7 c5e10bb1b877d62b37064d42b088436dffa0863f ChenfromChina123 <3301767269@qq.com> 1775808483 +0800	commit: 增大文件树面板工具栏图标间距
+c5e10bb1b877d62b37064d42b088436dffa0863f 11e99d3e0684cc359ecbb56128bec71d93868ce4 ChenfromChina123 <3301767269@qq.com> 1775809282 +0800	commit: 修复并行生成标题功能：使用序列号机制替代 Set，添加 LLM 失败兜底处理
+11e99d3e0684cc359ecbb56128bec71d93868ce4 724d11eafc652213e8b04982d4aa6c524726598a ChenfromChina123 <3301767269@qq.com> 1775813590 +0800	commit: 修复：updateMessage 方法缺少 scheduleSave 调用导致助手消息保存失败
+724d11eafc652213e8b04982d4aa6c524726598a 28e319b5fbec84e65bb7d41dea4cce9c1c417c90 ChenfromChina123 <3301767269@qq.com> 1775818643 +0800	commit: 修复终端启动错误并优化新建会话体验
+28e319b5fbec84e65bb7d41dea4cce9c1c417c90 ecffff30039ae1bc9d7c98300043a79e9cb4c225 ChenfromChina123 <3301767269@qq.com> 1775818733 +0800	commit: fix: 修复文件树路径识别问题，使用完整相对路径
+ecffff30039ae1bc9d7c98300043a79e9cb4c225 a82c5ad932c148a563a8263d581732cd4e2d7df1 ChenfromChina123 <3301767269@qq.com> 1775819039 +0800	commit: style: 优化保存按钮为简洁圆形图标样式
+a82c5ad932c148a563a8263d581732cd4e2d7df1 c758d3f6a0b187fa9edcee3089bc1e7bc1d9c141 ChenfromChina123 <3301767269@qq.com> 1775819069 +0800	commit: 添加 +m 选项禁用 bash 作业控制警告
+c758d3f6a0b187fa9edcee3089bc1e7bc1d9c141 55027496c5c6244e179b2d968333b67dd59420fc ChenfromChina123 <3301767269@qq.com> 1775819656 +0800	commit: 过滤 bash 作业控制警告信息
+55027496c5c6244e179b2d968333b67dd59420fc 927d8b81766b273490c2aea7832cb0e1fc51c303 ChenfromChina123 <3301767269@qq.com> 1775819708 +0800	commit: debug: 添加文件点击调试日志
+927d8b81766b273490c2aea7832cb0e1fc51c303 e23d175c013acb471d1d5f27738be261a8e13840 ChenfromChina123 <3301767269@qq.com> 1775820209 +0800	commit: 优化终端体验：移除连接提示并支持复制粘贴
+e23d175c013acb471d1d5f27738be261a8e13840 c887749312e13d7449dff2d8c6ff0470c3a4d715 ChenfromChina123 <3301767269@qq.com> 1775820274 +0800	commit: feat: 实现终端隔离功能，包括路径沙箱、命令验证和审计日志
+c887749312e13d7449dff2d8c6ff0470c3a4d715 c26ad7e5872b876e24a483b26eddc8c00d45f62f ChenfromChina123 <3301767269@qq.com> 1775820356 +0800	commit: docs: 添加终端隔离使用指南和总结文档
+c26ad7e5872b876e24a483b26eddc8c00d45f62f 50739c9e1b8d3012f969f4b7caa0efcf6a20b3bf ChenfromChina123 <3301767269@qq.com> 1775820723 +0800	commit: 修复空格输入问题：后端输出过滤保留空格
+50739c9e1b8d3012f969f4b7caa0efcf6a20b3bf be63d23a0b563f66f8635d5228ca512b6201ab27 ChenfromChina123 <3301767269@qq.com> 1775820755 +0800	commit: 简化后端 PTY 模式输入处理
+be63d23a0b563f66f8635d5228ca512b6201ab27 4e72225d85a8cc3b67cb7714a18b3ba2fb1a1cd6 ChenfromChina123 <3301767269@qq.com> 1775822426 +0800	commit: 阶段 1: 完成性能监控和 Feature Flag 系统
+4e72225d85a8cc3b67cb7714a18b3ba2fb1a1cd6 16084384edf5968e08a5b32114d4e6d94422679e ChenfromChina123 <3301767269@qq.com> 1775822464 +0800	commit: 修复聊天气泡间距过大的问题
+16084384edf5968e08a5b32114d4e6d94422679e c3889a8a8038a592060f467656a209757daaac60 ChenfromChina123 <3301767269@qq.com> 1775822824 +0800	commit: 阶段 2: 完成 MCP 网关增强
+c3889a8a8038a592060f467656a209757daaac60 889de6788b4683a60b453534821a320a21cacdb3 ChenfromChina123 <3301767269@qq.com> 1775823210 +0800	commit: 阶段 4-5: 完成命令系统和工具执行器增强
+889de6788b4683a60b453534821a320a21cacdb3 94812e495fd93371c50e4df473af67ab1e031c94 ChenfromChina123 <3301767269@qq.com> 1775823248 +0800	commit: feat: 实现 Docker 容器层安全加固（第二阶段）
+94812e495fd93371c50e4df473af67ab1e031c94 6072c922596a4ccfc2fec03b29bf5f83ce9c1fda ChenfromChina123 <3301767269@qq.com> 1775823307 +0800	commit: 修复 enhancedToolExecutor 导入语句
+6072c922596a4ccfc2fec03b29bf5f83ce9c1fda b847a3a8f375b06f38c018ab2e50c27e3c8dcc77 ChenfromChina123 <3301767269@qq.com> 1775823806 +0800	commit: feat: 实现运行时监控和告警系统（第四阶段）
+b847a3a8f375b06f38c018ab2e50c27e3c8dcc77 40dd12620408f1013a45f989d26e0c6cd3fb98ee ChenfromChina123 <3301767269@qq.com> 1775824562 +0800	commit: feat: 配置国内镜像源加速 Docker 构建
+40dd12620408f1013a45f989d26e0c6cd3fb98ee ee41f10372e284c11fa505a54bce72f4edf0312f ChenfromChina123 <3301767269@qq.com> 1775824725 +0800	commit: feat: 配置前后端 Dockerfile 使用国内镜像源加速
+ee41f10372e284c11fa505a54bce72f4edf0312f 706ef78c3c0d9beb38b09f537c37d794b5e50ced ChenfromChina123 <3301767269@qq.com> 1775824801 +0800	commit: fix: 修复阿里云镜像源 SSL 证书验证问题（使用 HTTP 协议）
+706ef78c3c0d9beb38b09f537c37d794b5e50ced 4b0981a5aac24db860dfe2d7df56343afd02afa9 ChenfromChina123 <3301767269@qq.com> 1775825340 +0800	commit: docs: 添加 Docker 国内镜像配置完成报告
+4b0981a5aac24db860dfe2d7df56343afd02afa9 020d1b34e3d14b6366581a07f5ce81ceace62a90 ChenfromChina123 <3301767269@qq.com> 1775825424 +0800	commit: feat: 完成阶段 4-6 的集成方案并添加单元测试
+020d1b34e3d14b6366581a07f5ce81ceace62a90 fb9ecadaa090f7b45a7dd9c7b69b32b226a9ba1f ChenfromChina123 <3301767269@qq.com> 1775825790 +0800	commit: 优化聊天气泡间距，减少消息之间的空白区域
+fb9ecadaa090f7b45a7dd9c7b69b32b226a9ba1f 98af2798822ee11e1a457fa594018512296d992a ChenfromChina123 <3301767269@qq.com> 1775825922 +0800	commit: 修复右键菜单点击其他区域不消失的问题
+98af2798822ee11e1a457fa594018512296d992a ad0d1d50f18e77ac6db389edc58154b626e93986 ChenfromChina123 <3301767269@qq.com> 1775826087 +0800	commit: fix: 修复性能监控导入路径和 MCPConnectionManager 方法缺失
+ad0d1d50f18e77ac6db389edc58154b626e93986 c55fa24cb42d5e14fcfb990f087b7cde2637b6b8 ChenfromChina123 <3301767269@qq.com> 1775826364 +0800	commit: 修复右键菜单点击外部关闭问题，使用全局事件监听

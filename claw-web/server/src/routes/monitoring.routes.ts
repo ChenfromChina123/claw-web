@@ -1,0 +1,134 @@
+/**
+ * 监控路由 - 处理监控相关 API
+ */
+
+import { performanceMonitor } from '../integration/performanceMonitor'
+import { getPerformanceMonitor } from '../monitoring/PerformanceMonitor'
+import { wsManager } from '../integration/wsBridge'
+import { createSuccessResponse, createErrorResponse, createCorsPreflightResponse } from '../utils/response'
+
+const perfMonitor = getPerformanceMonitor()
+
+/**
+ * 处理监控相关的 HTTP 请求
+ */
+export async function handleMonitoringRoutes(req: Request): Promise<Response | null> {
+  const url = new URL(req.url)
+  const path = url.pathname
+  const method = req.method
+
+  // CORS 预检请求
+  if (method === 'OPTIONS') {
+    return createCorsPreflightResponse()
+  }
+
+  // ==================== 指标和日志 ====================
+
+  // GET /api/monitoring/metrics - 获取性能指标
+  if (path === '/api/monitoring/metrics' && method === 'GET') {
+    return createSuccessResponse(performanceMonitor.getMetrics())
+  }
+
+  // GET /api/monitoring/performance - 获取性能统计报告
+  if (path === '/api/monitoring/performance' && method === 'GET') {
+    const endpoint = url.searchParams.get('endpoint') || undefined
+    const report = perfMonitor.generateReport(endpoint)
+    return createSuccessResponse({ report })
+  }
+
+  // POST /api/monitoring/performance/clear - 清空监控数据
+  if (path === '/api/monitoring/performance/clear' && method === 'POST') {
+    const endpoint = url.searchParams.get('endpoint') || undefined
+    perfMonitor.clear(endpoint)
+    return createSuccessResponse({ message: 'Metrics cleared' })
+  }
+
+  // GET /api/monitoring/performance/alerts - 检查性能告警
+  if (path === '/api/monitoring/performance/alerts' && method === 'GET') {
+    const p95Ms = parseInt(url.searchParams.get('p95Ms') || '1000', 10)
+    const errorRatePercent = parseInt(url.searchParams.get('errorRatePercent') || '5', 10)
+    const alerts = perfMonitor.checkAlerts({ p95Ms, errorRatePercent })
+    return createSuccessResponse({ alerts, count: alerts.length })
+  }
+
+  // GET /api/monitoring/logs - 获取日志
+  if (path === '/api/monitoring/logs' && method === 'GET') {
+    const limit = parseInt(url.searchParams.get('limit') || '100', 10)
+    const level = url.searchParams.get('level') as 'debug' | 'info' | 'warn' | 'error' | 'fatal' | undefined
+    const logs = performanceMonitor.getLogs(limit, level)
+    return createSuccessResponse({ logs, count: logs.length })
+  }
+
+  // ==================== 告警管理 ====================
+
+  // GET /api/monitoring/alerts - 获取告警
+  if (path === '/api/monitoring/alerts' && method === 'GET') {
+    const unacknowledgedOnly = url.searchParams.get('unacknowledged') === 'true'
+    const alerts = performanceMonitor.getAlerts(undefined, unacknowledgedOnly)
+    return createSuccessResponse({ alerts, count: alerts.length })
+  }
+
+  // POST /api/monitoring/alerts/acknowledge - 确认告警
+  if (path === '/api/monitoring/alerts/acknowledge' && method === 'POST') {
+    try {
+      const body = await req.json() as { alertId: string }
+      const success = performanceMonitor.acknowledgeAlert(body.alertId)
+      return createSuccessResponse({ success, message: success ? 'Alert acknowledged' : 'Alert not found' })
+    } catch {
+      return createErrorResponse('INVALID_REQUEST', 'Failed to acknowledge alert', 400)
+    }
+  }
+
+  // ==================== 告警规则 ====================
+
+  // GET /api/monitoring/rules - 获取告警规则
+  if (path === '/api/monitoring/rules' && method === 'GET') {
+    const rules = performanceMonitor.getAlertRules()
+    return createSuccessResponse({ rules, count: rules.length })
+  }
+
+  // POST /api/monitoring/rules - 添加告警规则
+  if (path === '/api/monitoring/rules' && method === 'POST') {
+    try {
+      const body = await req.json() as {
+        name: string
+        condition: 'gt' | 'lt' | 'eq' | 'gte' | 'lte'
+        metric: string
+        threshold: number
+        enabled?: boolean
+        cooldown?: number
+      }
+      const rule = performanceMonitor.addAlertRule({
+        name: body.name,
+        condition: body.condition,
+        metric: body.metric,
+        threshold: body.threshold,
+        enabled: body.enabled ?? true,
+        cooldown: body.cooldown ?? 60000,
+      })
+      return createSuccessResponse({ rule })
+    } catch {
+      return createErrorResponse('INVALID_REQUEST', 'Failed to add alert rule', 400)
+    }
+  }
+
+  // POST /api/monitoring/record - 记录指标
+  if (path === '/api/monitoring/record' && method === 'POST') {
+    try {
+      const body = await req.json() as {
+        name: string
+        value: number
+        unit?: string
+        tags?: Record<string, string>
+      }
+      performanceMonitor.recordMetric(body.name, body.value, body.unit, body.tags)
+      return createSuccessResponse({ recorded: true })
+    } catch {
+      return createErrorResponse('INVALID_REQUEST', 'Failed to record metric', 400)
+    }
+  }
+
+  return null
+}
+
+export default handleMonitoringRoutes
