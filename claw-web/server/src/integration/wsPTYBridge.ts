@@ -174,6 +174,8 @@ export class WebSocketPTYBridge {
         errorIfDisabled()
         const { sessionId, data } = params
 
+        console.log(`[PTY Bridge] write called: sessionId=${sessionId}, data=${JSON.stringify(data)}`)
+
         // 归属校验：防止跨用户操作
         if (context.userId && !ptyManager.sessionBelongsToUser(sessionId as string, context.userId)) {
           console.warn(`[PTY] User ${context.userId} attempted to write to session ${sessionId} owned by another user`)
@@ -181,6 +183,7 @@ export class WebSocketPTYBridge {
         }
 
         const success = ptyManager.write(sessionId as string, data as string)
+        console.log(`[PTY Bridge] write result: success=${success}`)
         
         return {
           success,
