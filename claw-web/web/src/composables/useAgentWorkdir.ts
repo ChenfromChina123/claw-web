@@ -1424,6 +1424,26 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     await restoreOpenFiles()
   }
 
+  // ========== 监听 Agent 文件变更事件 ==========
+  // 当 Agent 通过工具修改文件后，后端会发送 workdir_changed 事件
+  // 这里监听全局事件并自动刷新文件树
+  if (typeof window !== 'undefined') {
+    window.addEventListener('workdir-changed', ((event: CustomEvent) => {
+      const detail = event.detail as { sessionId?: string; toolName?: string; timestamp?: string }
+      if (!detail?.sessionId) return
+
+      // 只处理当前会话的文件变更
+      if (detail.sessionId !== sessionIdRef.value) return
+
+      console.log('[useAgentWorkdir] 收到文件变更事件，准备刷新文件树:', detail.toolName)
+
+      // 延迟刷新，避免与工具执行冲突
+      setTimeout(() => {
+        void refreshTree({ silent: true })
+      }, 500)
+    }) as EventListener)
+  }
+
   // ========== 提供上下文 ==========
 
   const context: WorkdirContext = {

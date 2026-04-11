@@ -566,6 +566,17 @@ export class SessionConversationManager {
           duration,
         })
 
+        // 如果是文件操作工具，发送文件变更事件通知前端刷新文件树
+        const fileOperationTools = ['FileWrite', 'FileEdit', 'FileDelete', 'FileRename', 'Bash', 'PowerShell']
+        if (fileOperationTools.includes(tool.name)) {
+          sendEvent('workdir_changed', {
+            sessionId,
+            toolName: tool.name,
+            timestamp: new Date().toISOString(),
+          })
+          console.log(`[${sessionId}] 文件操作工具执行完成，已发送 workdir_changed 事件`)
+        }
+
         console.log(`[${sessionId}] Tool ${tool.name} completed in ${duration}ms`)
 
       } catch (error) {

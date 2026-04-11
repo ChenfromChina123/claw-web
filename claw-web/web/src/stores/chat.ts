@@ -381,15 +381,31 @@ export const useChatStore = defineStore('chat', () => {
     wsClient.on('message_saved', (data: unknown) => {
       const msg = data as { sessionId?: string; messageId?: string; role?: string }
       if (!msg?.sessionId || !msg?.messageId || !msg?.role) return
-      
+
       // 只处理当前会话的消息
       if (msg.sessionId !== currentSessionId.value) return
-      
+
       console.log('[ChatStore] Message saved:', msg.role, msg.messageId)
-      
+
       // 如果是用户消息且还没有在UI中（正常流程），不应该出现这种情况
       // 如果是助手消息，也已经通过 message_start 添加到UI了
       // 这里主要用于日志记录，不需要额外操作
+    })
+
+    // 工作目录变更事件 - Agent 修改文件后通知前端刷新文件树
+    wsClient.on('workdir_changed', (data: unknown) => {
+      const msg = data as { sessionId?: string; toolName?: string; timestamp?: string }
+      if (!msg?.sessionId) return
+
+      // 只处理当前会话的文件变更
+      if (msg.sessionId !== currentSessionId.value) return
+
+      console.log('[ChatStore] Workdir changed by tool:', msg.toolName, 'at', msg.timestamp)
+
+      // 触发全局事件，让 useAgentWorkdir 监听并刷新文件树
+      window.dispatchEvent(new CustomEvent('workdir-changed', {
+        detail: { sessionId: msg.sessionId, toolName: msg.toolName, timestamp: msg.timestamp }
+      }))
     })
   }
   
