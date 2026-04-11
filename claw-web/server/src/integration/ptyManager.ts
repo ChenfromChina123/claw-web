@@ -223,22 +223,33 @@ export class PTYSessionManager {
     try {
       if (isWindows) {
         // Windows 平台：使用 Node.js child_process.spawn
+        // 默认使用 PowerShell，因为它在非交互模式下表现更好
         console.log(`[PTY] Windows 平台：使用 Node.js child_process, shell: ${shell}`)
-        
+
         // 根据 shell 类型设置参数
         let shellArgs: string[] = []
-        if (shell.includes('powershell')) {
-          shellArgs = ['-NoLogo', '-NoProfile', '-Command', '-']
-        } else if (shell.includes('bash')) {
-          // bash 需要交互式模式才能接受输入
-          shellArgs = ['--login', '-i']
-        } else if (shell.includes('cmd')) {
+        let actualShell = shell
+
+        if (shell === 'auto' || shell === 'powershell' || shell === 'auto') {
+          // PowerShell 模式：无启动画面、无配置文件
+          shellArgs = ['-NoLogo', '-NoProfile']
+          actualShell = 'powershell.exe'
+        } else if (shell === 'cmd') {
           shellArgs = ['/K']
+          actualShell = 'cmd.exe'
+        } else if (shell.includes('bash')) {
+          // Git Bash 模式
+          shellArgs = ['--login', '-i']
+          actualShell = 'bash.exe'
+        } else {
+          // 默认 PowerShell
+          shellArgs = ['-NoLogo', '-NoProfile']
+          actualShell = 'powershell.exe'
         }
-        
-        console.log(`[PTY] Windows spawn: ${shell} ${shellArgs.join(' ')}`)
-        
-        const childProcess = spawn(shell, shellArgs, {
+
+        console.log(`[PTY] Windows spawn: ${actualShell} ${shellArgs.join(' ')}`)
+
+        const childProcess = spawn(actualShell, shellArgs, {
           cwd,
           env: envVars,
           stdio: ['pipe', 'pipe', 'pipe'],
