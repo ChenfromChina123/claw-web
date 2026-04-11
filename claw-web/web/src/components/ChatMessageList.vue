@@ -1421,8 +1421,8 @@ async function handleInterruptExecution() {
 
 /* 用户消息布局：编辑按钮在左侧 */
 .user-message .message-content {
-  flex-direction: row-reverse;
-  justify-content: flex-start;
+  flex-direction: row;
+  justify-content: flex-end;
 }
 
 /* 编辑按钮容器 - 放在气泡左侧 */
@@ -1432,7 +1432,8 @@ async function handleInterruptExecution() {
   justify-content: center;
   opacity: 0;
   transition: opacity 0.2s ease;
-  padding-right: 4px;
+  padding-right: 8px;
+  order: -1; /* 确保按钮在气泡左边 */
 }
 
 /* 鼠标悬停在消息上时显示编辑按钮 */
