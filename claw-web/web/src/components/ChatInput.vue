@@ -519,85 +519,45 @@ function handleImageClick() {
           @keydown="handleKeyDown"
           @focus="handleFocus"
         />
-        <!-- 底部工具栏 - 悬浮在输入框内部 -->
+        <!-- 底部工具栏 - 悬浮在输入框内部右下角 -->
         <div v-if="variant !== 'ide'" class="input-toolbar">
-          <div class="toolbar-left">
-            <!-- 表情按钮 -->
+          <!-- 提示词模板库按钮 -->
+          <button
+            type="button"
+            class="toolbar-btn toolbar-btn-text"
+            :disabled="!sessionId || disabled"
+            title="提示词模板"
+            @click="openPromptLibrary"
+          >
+            <NIcon :size="16">
+              <ReorderFourOutline />
+            </NIcon>
+            <span class="btn-text">模板</span>
+          </button>
+
+          <!-- 发送/停止按钮 -->
+          <template v-if="isGenerating">
             <button
               type="button"
-              class="toolbar-btn"
-              :disabled="disabled"
-              title="表情"
-              @click="handleEmojiClick"
-            >
-              <NIcon :size="18">
-                <HappyOutline />
-              </NIcon>
-            </button>
-            <!-- 话题按钮 -->
-            <button
-              type="button"
-              class="toolbar-btn"
-              :disabled="disabled"
-              title="话题"
-              @click="handleTopicClick"
-            >
-              <NIcon :size="18">
-                <ChatboxEllipsesOutline />
-              </NIcon>
-            </button>
-            <!-- 图片按钮 -->
-            <button
-              type="button"
-              class="toolbar-btn"
-              :disabled="disabled || !sessionId"
-              title="上传图片"
-              @click="handleImageClick"
-            >
-              <NIcon :size="18">
-                <ImageOutline />
-              </NIcon>
-            </button>
-          </div>
-          <div class="toolbar-right">
-            <!-- 提示词模板库按钮 -->
-            <button
-              type="button"
-              class="toolbar-btn toolbar-btn-text"
-              :disabled="!sessionId || disabled"
-              title="提示词模板"
-              @click="openPromptLibrary"
+              class="toolbar-btn toolbar-btn-send stop-btn"
+              @click="emit('stop')"
             >
               <NIcon :size="16">
-                <ReorderFourOutline />
+                <StopCircleOutline />
               </NIcon>
-              <span class="btn-text">模板</span>
+              <span class="btn-text">停止</span>
             </button>
-
-            <!-- 发送/停止按钮 -->
-            <template v-if="isGenerating">
-              <button
-                type="button"
-                class="toolbar-btn toolbar-btn-send stop-btn"
-                @click="emit('stop')"
-              >
-                <NIcon :size="16">
-                  <StopCircleOutline />
-                </NIcon>
-                <span class="btn-text">停止</span>
-              </button>
-            </template>
-            <template v-else>
-              <button
-                type="button"
-                class="toolbar-btn toolbar-btn-send"
-                :disabled="(!inputValue.trim() && !(variant === 'ide' && codeAttachments.length > 0)) || disabled || (variant !== 'ide' && uploading)"
-                @click="handleSend"
-              >
-                <span class="btn-text">发送</span>
-              </button>
-            </template>
-          </div>
+          </template>
+          <template v-else>
+            <button
+              type="button"
+              class="toolbar-btn toolbar-btn-send"
+              :disabled="(!inputValue.trim() && !(variant === 'ide' && codeAttachments.length > 0)) || disabled || (variant !== 'ide' && uploading)"
+              @click="handleSend"
+            >
+              <span class="btn-text">发送</span>
+            </button>
+          </template>
         </div>
       </div>
     </div>
@@ -848,12 +808,6 @@ function handleImageClick() {
   background: transparent;
   pointer-events: auto;
   z-index: 10;
-}
-
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .toolbar-btn {
