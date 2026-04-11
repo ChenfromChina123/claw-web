@@ -748,5 +748,11 @@ export class SessionManager {
       }
     }
   }
+}
 
+/**
+ * 获取会话管理器单例实例
+ */
+export function getSessionManager(): SessionManager {
+  return SessionManager.getInstance()
 }

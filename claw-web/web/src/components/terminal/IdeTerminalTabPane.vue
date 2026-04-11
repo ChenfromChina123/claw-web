@@ -120,15 +120,15 @@ const pty = usePTY({
       term.value.writeln(`\r\n\x1b[33m[Process exited with code ${exitCode ?? 0}]\x1b[0m`)
       connectionStatus.value = 'disconnected'
     } else {
-      // Windows 平台：过滤掉 prompt 命令回显和初始的路径显示
+      // Windows 平台：过滤掉不必要的输出
       if (isWindowsPlatform) {
         const lines = data.split('\n')
         const filteredLines = lines.filter((line: string) => {
           const trimmed = line.trim()
-          // 过滤掉 function prompt... 行
-          if (trimmed.startsWith('function prompt')) return false
-          // 过滤掉空行（PowerShell 启动时的多余空行）
-          if (trimmed === '') return false
+          // 过滤掉 function/prompt 相关行
+          if (trimmed.includes('function prompt') || trimmed.includes('Set-Variable')) return false
+          // 过滤掉只有空行和空白符的行
+          if (!trimmed) return false
           return true
         })
         if (filteredLines.length === 0) return

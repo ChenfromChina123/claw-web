@@ -29,6 +29,7 @@ import {
   createDockerManagerToolDefinition,
   createGitAdvancedToolDefinition,
   createSkillToolDefinition,
+  createSessionManagementToolDefinition,
 } from '../tools'
 import { executeImageRead } from '../tools/imageReadTool'
 import {
@@ -1625,6 +1626,18 @@ export class EnhancedToolExecutor {
         inputSchema: sleepTool.inputSchema,
         category: 'system',
         handler: sleepTool.handler,
+      })
+    }
+
+    // SessionManagement 工具 - 管理会话（列表、切换、创建、删除、重命名）
+    const sessionTool = createSessionManagementToolDefinition()
+    if ('handler' in sessionTool && typeof sessionTool.handler === 'function') {
+      this.registerTool({
+        name: sessionTool.name,
+        description: sessionTool.description,
+        inputSchema: sessionTool.inputSchema,
+        category: 'session',
+        handler: sessionTool.handler,
       })
     }
 

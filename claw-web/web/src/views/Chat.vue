@@ -10,6 +10,7 @@ import GlassPanel from '@/components/common/GlassPanel.vue'
 import AgentStatusPanel from '@/components/AgentStatusPanel.vue'
 import AgentActivitySidebar from '@/components/AgentActivitySidebar.vue'
 import IdeSessionsPanel from '@/views/IdeSessionsPanel.vue'
+import SessionSwitcher from '@/components/SessionSwitcher.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import { useAgentStore } from '@/stores/agent'
@@ -470,6 +471,21 @@ function handleAddTeamMember() {
   message.info('添加团队成员功能开发中')
   // TODO: 实现添加团队成员功能
 }
+
+/**
+ * 会话切换器关闭回调
+ */
+function handleSessionSwitcherClose() {
+  showSessionSwitcher.value = false
+}
+
+/**
+ * 会话切换器选择回调
+ */
+function handleSessionSwitcherSelect(sessionId: string) {
+  console.log('[Chat] 切换到会话:', sessionId)
+  message.success('已切换会话')
+}
 </script>
 
 <template>
@@ -614,6 +630,13 @@ function handleAddTeamMember() {
       default-tab="workflow"
       @step-click="(step) => console.log('Step clicked:', step)"
       @agent-click="(agentId) => console.log('Agent clicked:', agentId)"
+    />
+    
+    <!-- 会话切换器 -->
+    <SessionSwitcher
+      :show="showSessionSwitcher"
+      @close="handleSessionSwitcherClose"
+      @select="handleSessionSwitcherSelect"
     />
   </NLayout>
 </template>

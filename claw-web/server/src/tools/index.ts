@@ -14,6 +14,7 @@ export * from './toolAliases'
 export * from './toolValidator'
 export * from './advancedTools'
 export * from './skillTool'
+export * from './sessionManagementTool'
 
 // 重新导出工具类型
 export type { AgentToolInput, AgentToolOutput } from './agentTool'
