@@ -256,12 +256,14 @@ export class PTYSessionManager {
           windowsHide: false
         })
 
-        // PowerShell 启动后设置简化的提示符（只显示当前目录名）
+        // PowerShell 启动后设置简化的提示符（只显示用户目录名）
         childProcess.on('spawn', () => {
           // 延迟一点发送，确保 shell 已准备好
           setTimeout(() => {
-            // 设置简化的提示符：只显示当前目录名
-            const shortPrompt = `function prompt { 'PS $(Split-Path -Leaf $PWD)> ' }; Clear-Host`
+            // 获取当前目录的短名称（最后一级目录）
+            const shortDirName = cwd.split(/[/\\]/).pop() || 'workspaces'
+            // 设置简化的提示符
+            const shortPrompt = `function prompt { '${shortDirName}> ' }`
             childProcess.stdin?.write(shortPrompt + '\r\n')
           }, 100)
         })

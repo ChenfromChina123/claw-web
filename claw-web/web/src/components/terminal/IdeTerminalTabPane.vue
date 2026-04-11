@@ -57,6 +57,12 @@ const shellToolIds = new Set<string>()
 let inputBuffer = ''
 const isWindowsPlatform = navigator.platform.includes('Win')
 
+// 右键菜单状态
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const contextMenuRef = ref<HTMLElement | null>(null)
+
 // ==================== Agent 输出镜像 ====================
 
 async function setupAgentMirror() {
@@ -310,7 +316,55 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   disposeTerminal()
   window.removeEventListener('resize', onWindowResize)
+  document.removeEventListener('click', hideContextMenu)
 })
+
+// ==================== 右键菜单 ====================
+
+function showContextMenu(e: MouseEvent) {
+  contextMenuX.value = e.clientX
+  contextMenuY.value = e.clientY
+  contextMenuVisible.value = true
+  document.addEventListener('click', hideContextMenu)
+}
+
+function hideContextMenu() {
+  contextMenuVisible.value = false
+  document.removeEventListener('click', hideContextMenu)
+}
+
+function copySelectedText() {
+  const selection = term.value?.getSelection()
+  if (selection) {
+    navigator.clipboard.writeText(selection).catch(() => {})
+  }
+  hideContextMenu()
+}
+
+async function copyAllText() {
+  if (!term.value) return
+  const buffer = term.value.buffer
+  const text = buffer.activeBuffer.lines
+    .toString()
+    .replace(/\r?\n/g, '\r\n')
+  await navigator.clipboard.writeText(text).catch(() => {})
+  hideContextMenu()
+}
+
+async function pasteText() {
+  try {
+    const text = await navigator.clipboard.readText()
+    if (text) {
+      if (isWindowsPlatform) {
+        // Windows 平台：直接写入
+        await pty.write(text)
+      } else {
+        await pty.write(text)
+      }
+    }
+  } catch {}
+  hideContextMenu()
+}
 
 // cwd 变化时重建连接（从空变为有效目录时也触发首次连接）
 watch(
@@ -393,7 +447,20 @@ defineExpose({
 
 <template>
   <div class="terminal-tab-pane">
-    <div ref="mountRef" class="terminal-xterm-mount" />
+    <div ref="mountRef" class="terminal-xterm-mount" @contextmenu.prevent="showContextMenu" />
+    <!-- 自定义右键菜单 -->
+    <div
+      v-if="contextMenuVisible"
+      ref="contextMenuRef"
+      class="context-menu"
+      :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+      @click.stop
+    >
+      <div class="context-menu-item" @click="copySelectedText">复制选中内容</div>
+      <div class="context-menu-item" @click="copyAllText">复制全部</div>
+      <div class="context-menu-divider"></div>
+      <div class="context-menu-item" @click="pasteText">粘贴</div>
+    </div>
   </div>
 </template>
 
@@ -416,6 +483,35 @@ defineExpose({
 
 .terminal-xterm-mount :deep(.xterm) {
   height: 100%;
+}
+
+/* 右键菜单样式 */
+.context-menu {
+  position: absolute;
+  background: #2d2d2d;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 140px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+}
+
+.context-menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #ddd;
+}
+
+.context-menu-item:hover {
+  background: #4a4a4a;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: #555;
+  margin: 4px 0;
 }
 
 .terminal-xterm-mount :deep(.xterm-viewport) {
