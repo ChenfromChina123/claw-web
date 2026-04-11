@@ -2,11 +2,12 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import type { IdeAppendToChatOptions, IdeCodeRefPayload } from '@/composables/useIdeChatAppend'
 import { buildIdeLayeredUserMessage } from '@/utils/ideUserMessageMarkers'
-import { NInput, NButton, NIcon, NSpin, NTag, NSelect, useMessage } from 'naive-ui'
+import { NInput, NButton, NIcon, NSpin, NTag, NSelect, NModal, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
 import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline } from '@vicons/ionicons5'
 import { modelApi, type Model } from '@/api/modelApi'
 import { useChatStore } from '@/stores/chat'
+import PromptTemplateLibrary from './PromptTemplateLibrary.vue'
 
 const props = defineProps<{
   disabled?: boolean
@@ -89,6 +90,11 @@ interface IdeCodeAttachment extends IdeCodeRefPayload {
 }
 
 const codeAttachments = ref<IdeCodeAttachment[]>([])
+
+/**
+ * 模板库显示状态
+ */
+const showPromptLibrary = ref(false)
 
 function chipLang(fileName: string): string {
   const ext = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : ''
@@ -365,6 +371,43 @@ function appendToChatInput(text: string, options?: IdeAppendToChatOptions): void
   })
 }
 
+/**
+ * 打开提示词模板库
+ */
+function openPromptLibrary() {
+  showPromptLibrary.value = true
+}
+
+/**
+ * 处理使用模板事件，将模板内容插入输入框
+ */
+function handleUseTemplate(content: string) {
+  const cur = inputValue.value
+  if (cur && cur.trim()) {
+    inputValue.value = cur.replace(/\s+$/, '') + '\n\n' + content
+  } else {
+    inputValue.value = content
+  }
+  showPromptLibrary.value = false
+
+  void nextTick(() => {
+    inputRef.value?.focus()
+    const el = (inputRef.value as { $el?: HTMLElement } | null)?.$el
+    const textarea = el?.querySelector?.('textarea') as HTMLTextAreaElement | undefined
+    if (textarea) {
+      textarea.selectionStart = textarea.selectionEnd = textarea.value.length
+      textarea.scrollTop = textarea.scrollHeight
+    }
+  })
+}
+
+/**
+ * 关闭模板库
+ */
+function handleCloseTemplateLibrary() {
+  showPromptLibrary.value = false
+}
+
 defineExpose({
   focus: () => inputRef.value?.focus(),
   appendToChatInput,
@@ -545,7 +588,20 @@ defineExpose({
       </div>
     </div>
 
-
+    <!-- 提示词模板库弹窗 -->
+    <NModal
+      v-model:show="showPromptLibrary"
+      preset="card"
+      title="提示词模板库"
+      style="width: 700px; max-width: 95vw; max-height: 80vh;"
+      :mask-closable="true"
+    >
+      <PromptTemplateLibrary
+        :session-id="sessionId"
+        @use-template="handleUseTemplate"
+        @close="handleCloseTemplateLibrary"
+      />
+    </NModal>
   </div>
 </template>
 

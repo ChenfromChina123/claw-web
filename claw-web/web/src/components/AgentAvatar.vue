@@ -2,7 +2,6 @@
 /**
  * AgentAvatar - Agent 头像组件
  * 使用 Rive 动画显示动态头像
- * 支持全页面鼠标移动检测
  */
 
 import { ref, onMounted, onUnmounted, markRaw } from 'vue'
@@ -12,10 +11,6 @@ const canvasRef = ref<HTMLCanvasElement | null>(null)
 // 使用 markRaw 避免 Vue 响应式代理与 Rive 内部对象冲突
 const riveInstance = ref<any>(null)
 const isHovered = ref(false)
-
-// 鼠标输入状态机引用
-const mouseXInput = ref<any>(null)
-const mouseYInput = ref<any>(null)
 
 function initRive(): void {
   if (!canvasRef.value) {
@@ -49,13 +44,6 @@ function initRive(): void {
             if (input && input.type === 1) {
               input.value = true
             }
-            // 保存鼠标位置输入引用
-            if (input && input.name === 'mouseX') {
-              mouseXInput.value = input
-            }
-            if (input && input.name === 'mouseY') {
-              mouseYInput.value = input
-            }
           })
         }
       } catch (e) {
@@ -70,45 +58,15 @@ function initRive(): void {
   riveInstance.value = rive
 }
 
-/**
- * 处理整个页面的鼠标移动事件
- * 将鼠标位置映射到 Rive 状态机
- */
-function handleGlobalMouseMove(event: MouseEvent): void {
-  if (!canvasRef.value || !mouseXInput.value || !mouseYInput.value) return
-
-  // 获取 canvas 相对于视口的位置
-  const rect = canvasRef.value.getBoundingClientRect()
-  const centerX = rect.left + rect.width / 2
-  const centerY = rect.top + rect.height / 2
-
-  // 计算鼠标相对于头像中心的偏移
-  const deltaX = event.clientX - centerX
-  const deltaY = event.clientY - centerY
-
-  // 归一化到 -1 到 1 的范围（基于屏幕尺寸）
-  const normalizedX = Math.max(-1, Math.min(1, deltaX / (window.innerWidth / 2)))
-  const normalizedY = Math.max(-1, Math.min(1, deltaY / (window.innerHeight / 2)))
-
-  // 更新 Rive 状态机输入
-  mouseXInput.value.value = normalizedX
-  mouseYInput.value.value = normalizedY
-}
-
 function toggleHover(): void {
   isHovered.value = !isHovered.value
 }
 
 onMounted(() => {
   initRive()
-  // 监听整个页面的鼠标移动
-  document.addEventListener('mousemove', handleGlobalMouseMove)
 })
 
 onUnmounted(() => {
-  // 移除全局鼠标事件监听
-  document.removeEventListener('mousemove', handleGlobalMouseMove)
-
   if (riveInstance.value) {
     try {
       riveInstance.value.cleanup()
