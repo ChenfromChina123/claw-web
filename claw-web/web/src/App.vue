@@ -13,11 +13,20 @@ const naiveUiTheme = computed(() => currentTheme.value.isDark ? darkTheme : ligh
 /** 获取主题覆盖配置 */
 const themeOverrides = computed(() => getNaiveUiOverrides(currentTheme.value))
 
-onMounted(() => {
+onMounted(async () => {
   document.documentElement.classList.add(currentTheme.value.isDark ? 'dark' : 'light')
   authStore.syncUserFromToken()
   if (authStore.isLoggedIn) {
-    void authStore.fetchUser()
+    try {
+      await authStore.fetchUser()
+    } catch (error: any) {
+      // 如果 token 无效（401），自动登出并跳转到登录页
+      if (error?.response?.status === 401) {
+        console.log('[App] Token 已过期或无效，自动登出')
+        authStore.logout()
+        window.location.href = '/login'
+      }
+    }
   }
 })
 </script>
