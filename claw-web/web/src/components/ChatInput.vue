@@ -4,7 +4,7 @@ import type { IdeAppendToChatOptions, IdeCodeRefPayload } from '@/composables/us
 import { buildIdeLayeredUserMessage } from '@/utils/ideUserMessageMarkers'
 import { NInput, NButton, NIcon, NSpin, NTag, NSelect, useMessage, NDrawer, NDrawerContent } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
-import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline, ImageOutline, HappyOutline, ChatboxEllipsesOutline } from '@vicons/ionicons5'
+import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline } from '@vicons/ionicons5'
 import { modelApi, type Model } from '@/api/modelApi'
 import { useChatStore } from '@/stores/chat'
 import PromptTemplateLibrary from './PromptTemplateLibrary.vue'
@@ -383,42 +383,11 @@ function handleUseTemplate(content: string) {
     inputRef.value?.focus()
   })
 }
-
-// ========== 底部工具栏功能 ==========
-
-/**
- * 处理表情按钮点击
- */
-function handleEmojiClick() {
-  message.info('表情功能开发中...')
-}
-
-/**
- * 处理话题按钮点击
- */
-function handleTopicClick() {
-  message.info('话题功能开发中...')
-}
-
-/**
- * 处理图片按钮点击
- */
-function handleImageClick() {
-  // 触发文件选择，限制为图片类型
-  if (!currentSessionId.value) {
-    message.warning('请先创建或选择一个会话')
-    return
-  }
-  // 设置 accept 属性为图片类型
-  if (fileInputRef.value) {
-    fileInputRef.value.accept = 'image/*'
-  }
-  fileInputRef.value?.click()
-}
 </script>
 
 <template>
   <div class="chat-input" :class="`chat-input--${variant || 'default'}`">
+    <!-- IDE 变体：顶部工具栏（模型选择器） -->
     <div v-if="variant === 'ide'" class="ide-input-toolbar">
       <NSelect
         v-model:value="selectedModelId"
@@ -431,148 +400,212 @@ function handleImageClick() {
       />
     </div>
 
-    <div class="chat-input-body">
-    <!-- 左侧：文件上传区域（IDE 侧栏不展示上传） -->
-    <div v-if="variant !== 'ide'" class="upload-section">
-      <!-- 隐藏的文件输入框 -->
-      <input
-        ref="fileInputRef"
-        type="file"
-        multiple
-        style="display: none"
-        @change="handleFileChange"
-      />
-      
-      <!-- 上传按钮 -->
-      <div 
-        class="upload-button" 
-        :class="{ 'disabled': !sessionId || disabled }"
-        :title="sessionId ? '上传文件到工作区' : '请先选择会话'"
-        @click="triggerFileSelect"
-      >
-        <template v-if="uploading">
-          <NSpin size="18" stroke="#6366f1" />
-        </template>
-        <template v-else>
-          <NIcon :size="variant === 'ide' ? 18 : 22" :color="variant === 'ide' ? '#3b9eff' : '#6366f1'">
-            <CloudUploadOutline />
-          </NIcon>
-        </template>
-        
-        <!-- 已上传文件数量角标 -->
-        <span v-if="uploadedFiles.length > 0" class="upload-badge">
-          {{ uploadedFiles.length }}
-        </span>
+    <!-- 默认变体：输入框容器 -->
+    <div v-if="variant !== 'ide'" class="input-container">
+      <!-- 输入框 Header：AI角色标识 -->
+      <div class="input-header">
+        <div class="ai-icon">回</div>
+        <span>@SOLO Coder</span>
+        <div class="model-selector-wrapper" style="margin-left: auto;">
+          <NSelect
+            v-model:value="selectedModelId"
+            :options="modelOptions"
+            :disabled="disabled || modelOptions.length === 0"
+            size="small"
+            placeholder="选择模型"
+            class="model-selector"
+            :consistent-menu-width="false"
+          />
+        </div>
       </div>
 
-      <!-- 已上传文件预览列表 -->
-      <div v-if="uploadedFiles.length > 0" class="uploaded-files-list">
-        <div
-          v-for="file in uploadedFiles"
-          :key="file.id"
-          class="uploaded-file-item"
-          :title="`${file.name} (${formatFileSize(file.file?.size || 0)})`"
-        >
-          <NTag 
-            size="small" 
-            round 
-            closable 
-            type="info"
-            @close="removeFile(file.id)"
+      <!-- 中间：输入框 -->
+      <div class="input-main-wrapper">
+        <NInput
+          ref="inputRef"
+          v-model:value="inputValue"
+          type="textarea"
+          :placeholder="props.placeholder || '输入消息... (Shift+Enter 换行)'"
+          :autosize="{ minRows: 1, maxRows: 8 }"
+          :disabled="disabled"
+          @keydown="handleKeyDown"
+          @focus="handleFocus"
+        />
+      </div>
+
+      <!-- 底部：功能按钮栏 -->
+      <div class="input-footer">
+        <div class="left-tools">
+          <NButton
+            class="prompt-library-button"
+            :disabled="!sessionId || disabled"
+            @click="openPromptLibrary"
           >
-            <span class="file-name">{{ file.name }}</span>
-          </NTag>
+            <template #icon>
+              <NIcon><ReorderFourOutline /></NIcon>
+            </template>
+            模板
+          </NButton>
+        </div>
+
+        <div class="right-tools">
+          <template v-if="isGenerating">
+            <NButton
+              type="warning"
+              class="stop-button"
+              @click="emit('stop')"
+            >
+              <template #icon>
+                <NIcon><StopCircleOutline /></NIcon>
+              </template>
+            </NButton>
+          </template>
+          <template v-else>
+            <NButton
+              type="primary"
+              :disabled="!inputValue.trim() || disabled"
+              class="send-button"
+              @click="handleSend"
+            >
+              <template #icon>
+                <NIcon>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                  </svg>
+                </NIcon>
+              </template>
+            </NButton>
+          </template>
         </div>
       </div>
     </div>
 
-    <!-- 中间：输入框 -->
-    <div class="input-wrapper">
-      <div v-if="variant === 'ide' && codeAttachments.length > 0" class="ide-code-refs">
+    <!-- IDE 变体：原有布局 -->
+    <div v-if="variant === 'ide'" class="chat-input-body">
+      <!-- 左侧：文件上传区域 -->
+      <div class="upload-section">
+        <!-- 隐藏的文件输入框 -->
+        <input
+          ref="fileInputRef"
+          type="file"
+          multiple
+          style="display: none"
+          @change="handleFileChange"
+        />
+
+        <!-- 上传按钮 -->
         <div
-          v-for="a in codeAttachments"
-          :key="a.id"
-          class="ide-code-chip"
-          :title="a.filePath"
+          class="upload-button"
+          :class="{ 'disabled': !sessionId || disabled }"
+          :title="sessionId ? '上传文件到工作区' : '请先选择会话'"
+          @click="triggerFileSelect"
         >
-          <span class="ide-code-chip-lang">{{ chipLang(a.fileName) }}</span>
-          <span class="ide-code-chip-text">{{ a.fileName }} ({{ a.startLine }}-{{ a.endLine }})</span>
-          <button
-            type="button"
-            class="ide-code-chip-x"
-            aria-label="移除引用"
-            @click="removeCodeAttachment(a.id)"
+          <template v-if="uploading">
+            <NSpin size="18" stroke="#6366f1" />
+          </template>
+          <template v-else>
+            <NIcon :size="18" :color="'#3b9eff'">
+              <CloudUploadOutline />
+            </NIcon>
+          </template>
+
+          <!-- 已上传文件数量角标 -->
+          <span v-if="uploadedFiles.length > 0" class="upload-badge">
+            {{ uploadedFiles.length }}
+          </span>
+        </div>
+
+        <!-- 已上传文件预览列表 -->
+        <div v-if="uploadedFiles.length > 0" class="uploaded-files-list">
+          <div
+            v-for="file in uploadedFiles"
+            :key="file.id"
+            class="uploaded-file-item"
+            :title="`${file.name} (${formatFileSize(file.file?.size || 0)})`"
           >
-            ×
-          </button>
+            <NTag
+              size="small"
+              round
+              closable
+              type="info"
+              @close="removeFile(file.id)"
+            >
+              <span class="file-name">{{ file.name }}</span>
+            </NTag>
+          </div>
         </div>
       </div>
-      <div class="input-area" v-if="variant !== 'ide'">
+
+      <!-- 中间：输入框 -->
+      <div class="input-wrapper">
+        <div v-if="codeAttachments.length > 0" class="ide-code-refs">
+          <div
+            v-for="a in codeAttachments"
+            :key="a.id"
+            class="ide-code-chip"
+            :title="a.filePath"
+          >
+            <span class="ide-code-chip-lang">{{ chipLang(a.fileName) }}</span>
+            <span class="ide-code-chip-text">{{ a.fileName }} ({{ a.startLine }}-{{ a.endLine }})</span>
+            <button
+              type="button"
+              class="ide-code-chip-x"
+              aria-label="移除引用"
+              @click="removeCodeAttachment(a.id)"
+            >
+              ×
+            </button>
+          </div>
+        </div>
         <NInput
           ref="inputRef"
           v-model:value="inputValue"
           type="textarea"
           :placeholder="props.placeholder || '输入消息... (Shift+Enter 换行)'"
           :rows="3"
-          :autosize="{ minRows: 3, maxRows: 8 }"
+          :autosize="false"
           :disabled="disabled"
           @keydown="handleKeyDown"
           @focus="handleFocus"
         />
-        <div class="input-actions-inline">
-          <button type="button" class="action-btn" :disabled="!sessionId || disabled" @click="openPromptLibrary">
-            <NIcon :size="16"><ReorderFourOutline /></NIcon>
-            <span>模板</span>
-          </button>
-          <button
-            type="button"
-            class="action-btn send-btn"
-            :disabled="!inputValue.trim() || disabled || uploading"
-            @click="handleSend"
-          >
-            <span>发送</span>
-          </button>
-        </div>
       </div>
-    </div>
-    </div>
 
-    <!-- 右侧：发送 / 停止按钮 (仅 IDE 模式显示) -->
-    <div v-if="variant === 'ide'" class="input-actions">
-      <!-- 提示词模板库按钮 -->
-      <NButton
-        class="prompt-library-button"
-        :disabled="!sessionId || disabled"
-        @click="openPromptLibrary"
-      >
-        <template #icon>
-          <NIcon><ReorderFourOutline /></NIcon>
-        </template>
-        模板
-      </NButton>
-
-      <template v-if="isGenerating">
+      <!-- 右侧：操作按钮 -->
+      <div class="input-actions">
         <NButton
-          type="warning"
-          class="stop-button"
-          @click="emit('stop')"
+          class="prompt-library-button"
+          :disabled="!sessionId || disabled"
+          @click="openPromptLibrary"
         >
           <template #icon>
-            <NIcon><StopCircleOutline /></NIcon>
+            <NIcon><ReorderFourOutline /></NIcon>
           </template>
-          停止
+          模板
         </NButton>
-      </template>
-      <template v-else>
-        <NButton
-          type="primary"
-          :disabled="(!inputValue.trim() && !(variant === 'ide' && codeAttachments.length > 0)) || disabled || (variant !== 'ide' && uploading)"
-          class="send-button"
-          @click="handleSend"
-        >
-          发送
-        </NButton>
-      </template>
+
+        <template v-if="isGenerating">
+          <NButton
+            type="warning"
+            class="stop-button"
+            @click="emit('stop')"
+          >
+            <template #icon>
+              <NIcon><StopCircleOutline /></NIcon>
+            </template>
+            停止
+          </NButton>
+        </template>
+        <template v-else>
+          <NButton
+            type="primary"
+            :disabled="(!inputValue.trim() && !(codeAttachments.length > 0)) || disabled"
+            class="send-button"
+            @click="handleSend"
+          >
+            发送
+          </NButton>
+        </template>
+      </div>
     </div>
 
     <!-- 提示词模板库抽屉 -->
@@ -630,6 +663,150 @@ function handleImageClick() {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+}
+
+/* ========== 默认变体：输入框容器样式 ========== */
+.input-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-container:focus-within {
+  border-color: #444;
+  box-shadow: 0 0 0 1px #444;
+}
+
+.input-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #9b9b9b;
+  font-size: 13px;
+  user-select: none;
+}
+
+.ai-icon {
+  width: 18px;
+  height: 18px;
+  background: #333;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+.model-selector-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.model-selector-wrapper :deep(.n-base-selection) {
+  --n-height: 28px !important;
+  font-size: 13px !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.model-selector-wrapper :deep(.n-base-selection .n-base-selection__render) {
+  background: transparent !important;
+}
+
+.input-main-wrapper {
+  flex: 1;
+}
+
+.input-main-wrapper :deep(.n-input) {
+  background: transparent !important;
+  border: none !important;
+}
+
+.input-main-wrapper :deep(.n-input__input-el) {
+  padding: 4px 0 !important;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #ececec;
+}
+
+.input-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  border-top: 1px solid transparent;
+}
+
+.left-tools,
+.right-tools {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* 默认变体的发送按钮样式 - 绿色小按钮 */
+.input-footer .send-button {
+  width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  font-size: 13px !important;
+  font-weight: bold !important;
+  border-radius: 8px !important;
+  background: #19c37d !important;
+  color: white !important;
+  border: none !important;
+  box-shadow: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.input-footer .send-button:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: none !important;
+}
+
+.input-footer .send-button:active:not(:disabled) {
+  transform: scale(0.95) !important;
+}
+
+.input-footer .send-button:disabled {
+  opacity: 0.5 !important;
+  background: #19c37d !important;
+  box-shadow: none !important;
+}
+
+/* 默认变体的停止按钮样式 */
+.input-footer .stop-button {
+  width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  font-size: 13px !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+/* 默认变体的模板按钮样式 */
+.input-footer .prompt-library-button {
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+}
+
+/* 模板按钮在footer中的样式 */
+.input-footer .prompt-library-button :deep(.n-button__content) {
+  gap: 4px;
 }
 
 /* ====== 左侧上传区域样式 ====== */
@@ -737,127 +914,90 @@ function handleImageClick() {
   min-width: 0;
 }
 
-.input-area {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-
-/* 输入框容器 */
-.input-area {
-  position: relative;
-  width: 100%;
-}
-
-.input-area :deep(.n-input) {
+.input-wrapper :deep(.n-input) {
   background: var(--bg-secondary);
   border-radius: 12px;
 }
 
-.input-area :deep(.n-input__textarea-el) {
-  padding: 14px 180px 14px 18px !important;
+.input-wrapper :deep(.n-input__input-el) {
+  padding: 14px 18px !important;
   font-size: 15px;
   line-height: 1.6;
 }
 
-.input-actions-inline {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  font-size: 13px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.action-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.25);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.action-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.send-btn {
-  background: linear-gradient(135deg, #22c55e, #16a34a);
-  border: none;
-  color: #fff;
-}
-
-.send-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4ade80, #22c55e);
-}
-
-.send-btn:disabled {
-  background: linear-gradient(135deg, #6b7280, #4b5563);
-}
-
-/* ====== 右侧操作区样式（已移入输入框内部，保留 IDE 模式样式） ====== */
+/* ====== 右侧操作区样式 ====== */
 .input-actions {
-  display: none;
-}
-
-/* IDE 模式下保留右侧操作区 */
-.chat-input--ide .input-actions {
   display: flex;
   align-items: flex-end;
   flex-shrink: 0;
   padding-bottom: 2px;
-  gap: 8px;
 }
 
-/* IDE 模式下的按钮样式 */
-.chat-input--ide .send-button {
-  height: 36px !important;
-  min-height: 36px !important;
-  padding: 0 16px !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  border-radius: 8px !important;
+/* 发送按钮样式 - 绿色主题风格 */
+.send-button {
+  height: 56px !important;
+  min-height: 56px !important;
+  padding: 0 32px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  border-radius: 14px !important;
   background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
   color: #ffffff !important;
   border: none !important;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.send-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.send-button:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.send-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+}
+
+.send-button:active:not(:disabled) {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+  transform: translateY(0);
   box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
 }
 
-.chat-input--ide .send-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%) !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
-}
-
-.chat-input--ide .send-button:disabled {
+.send-button:disabled {
   background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
   color: rgba(255, 255, 255, 0.5) !important;
   cursor: not-allowed;
   box-shadow: none;
 }
 
-.chat-input--ide .stop-button {
-  height: 36px !important;
-  min-height: 36px !important;
-  padding: 0 14px !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  border-radius: 8px !important;
+/* 停止按钮 */
+.stop-button {
+  height: 56px !important;
+  min-height: 56px !important;
+  padding: 0 24px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  border-radius: 12px !important;
   background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
   color: #fff !important;
   border: none !important;
@@ -866,13 +1006,31 @@ function handleImageClick() {
   box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
 }
 
-.chat-input--ide .stop-button:hover {
+.stop-button:hover {
   background: linear-gradient(135deg, #fb923c 0%, #f97316 100%) !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(249, 115, 22, 0.4);
 }
 
-.chat-input--ide .prompt-library-button {
+.stop-button:active {
+  transform: translateY(0);
+}
+
+.chat-input--ide .stop-button {
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 14px !important;
+  font-size: 13px !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+.chat-input--ide .stop-button:hover {
+  transform: none;
+}
+
+/* 提示词模板库按钮 */
+.prompt-library-button {
   height: 36px !important;
   min-height: 36px !important;
   padding: 0 12px !important;
@@ -886,15 +1044,31 @@ function handleImageClick() {
   transition: all 0.2s ease;
 }
 
-.chat-input--ide .prompt-library-button:hover:not(:disabled) {
+.prompt-library-button:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08) !important;
   color: rgba(255, 255, 255, 0.9) !important;
   border-color: rgba(255, 255, 255, 0.25) !important;
 }
 
-.chat-input--ide .prompt-library-button:disabled {
+.prompt-library-button:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+.prompt-library-button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.chat-input--ide .prompt-library-button {
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+}
+
+.chat-input--ide .prompt-library-button:hover:not(:disabled) {
+  transform: none;
 }
 
 /* ========== IDE 侧栏变体 ========== */
