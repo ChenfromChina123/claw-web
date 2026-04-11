@@ -804,6 +804,54 @@ function handleUseTemplate(content: string) {
   transform: none;
 }
 
+/* 提示词模板库按钮 */
+.prompt-library-button {
+  height: 56px !important;
+  min-height: 56px !important;
+  padding: 0 20px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  margin-right: 8px;
+}
+
+.prompt-library-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+}
+
+.prompt-library-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.prompt-library-button:disabled {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.chat-input--ide .prompt-library-button {
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 12px !important;
+  font-size: 12px !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  margin-right: 0;
+}
+
+.chat-input--ide .prompt-library-button:hover:not(:disabled) {
+  transform: none;
+}
+
 /* ========== IDE 侧栏变体 ========== */
 .ide-input-toolbar {
   display: flex;

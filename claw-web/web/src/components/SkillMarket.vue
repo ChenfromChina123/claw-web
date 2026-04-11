@@ -463,6 +463,128 @@ onMounted(() => {
         </div>
       </div>
     </NModal>
+
+    <!-- 导入技能对话框 -->
+    <NModal
+      v-model:show="showImportModal"
+      preset="card"
+      title="导入技能"
+      style="width: 600px; max-width: 90vw"
+    >
+      <NTabs v-model:value="importTab" type="line" animated>
+        <NTabPane name="url" tab="从 URL 导入">
+          <NForm label-placement="top">
+            <NFormItem label="技能文件 URL">
+              <NInput
+                v-model:value="importUrl"
+                placeholder="https://example.com/SKILL.md"
+                :disabled="importLoading"
+                @keyup.enter="handleUrlPreview"
+              />
+            </NFormItem>
+            <NFormItem label=" ">
+              <NButton
+                type="info"
+                :loading="importLoading"
+                :disabled="!importUrl.trim()"
+                @click="handleUrlPreview"
+              >
+                验证
+              </NButton>
+            </NFormItem>
+          </NForm>
+        </NTabPane>
+
+        <NTabPane name="file" tab="上传文件">
+          <NForm label-placement="top">
+            <NFormItem label="选择 SKILL.md 文件">
+              <NUpload
+                :multiple="false"
+                accept=".md"
+                :max="1"
+                :disabled="importLoading"
+                :before-upload="beforeUpload"
+                @change="handleFileChange"
+              >
+                <NButton>选择文件</NButton>
+              </NUpload>
+            </NFormItem>
+          </NForm>
+        </NTabPane>
+      </NTabs>
+
+      <!-- 技能预览 -->
+      <div v-if="skillPreview" class="import-preview">
+        <NDescriptions bordered :column="2" size="small">
+          <NDescriptionsItem label="技能名称">
+            {{ skillPreview.name }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="版本">
+            v{{ skillPreview.version }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="作者" :span="2">
+            {{ skillPreview.author || '未知' }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="描述" :span="2">
+            {{ skillPreview.description || '无' }}
+          </NDescriptionsItem>
+          <NDescriptionsItem label="标签" :span="2">
+            <NSpace>
+              <NTag
+                v-for="tag in skillPreview.tags"
+                :key="tag"
+                size="small"
+                :type="getSkillTagColor(tag) as any"
+              >
+                {{ tag }}
+              </NTag>
+              <span v-if="skillPreview.tags.length === 0">无</span>
+            </NSpace>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="状态">
+            <NTag :type="skillPreview.isValid ? 'success' : 'error'">
+              {{ skillPreview.isValid ? '格式有效' : '格式无效' }}
+            </NTag>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="文件大小">
+            {{ (skillPreview.contentLength / 1024).toFixed(2) }} KB
+          </NDescriptionsItem>
+        </NDescriptions>
+
+        <div v-if="!skillPreview.isValid && skillPreview.errors.length > 0" class="import-errors">
+          <NTag type="error">格式错误</NTag>
+          <ul>
+            <li v-for="(err, idx) in skillPreview.errors" :key="idx">{{ err }}</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 导入进度 -->
+      <div v-if="importLoading" class="import-progress">
+        <NProgress
+          type="line"
+          :percentage="importProgress"
+          :indicator-placement="'inside'"
+        />
+      </div>
+
+      <!-- 操作按钮 -->
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="showImportModal = false" :disabled="importLoading">
+            取消
+          </NButton>
+          <NButton
+            type="primary"
+            :loading="importLoading"
+            :disabled="!skillPreview?.isValid"
+            @click="handleImport"
+          >
+            导入
+          </NButton>
+        </NSpace>
+      </template>
+    </NModal>
   </div>
 </template>
 
@@ -680,6 +802,34 @@ onMounted(() => {
 .detail-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.import-preview {
+  margin-top: 20px;
+  padding: 16px;
+  background: var(--n-color);
+  border-radius: 8px;
+}
+
+.import-errors {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(224, 49, 49, 0.1);
+  border-radius: 6px;
+}
+
+.import-errors ul {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+  color: #e03131;
+}
+
+.import-errors li {
+  margin-bottom: 4px;
+}
+
+.import-progress {
+  margin-top: 16px;
 }
 
 @media (max-width: 768px) {
