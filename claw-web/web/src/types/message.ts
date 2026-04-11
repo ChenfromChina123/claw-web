@@ -15,6 +15,7 @@ export interface BaseMessage {
   type: MessageType
   createdAt: Date | string
   updatedAt?: Date | string
+  sequence?: number  // 消息序号，用于确保消息顺序
 }
 
 export interface TextMessage extends BaseMessage {

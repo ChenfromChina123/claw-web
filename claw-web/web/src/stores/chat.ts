@@ -198,6 +198,16 @@ export const useChatStore = defineStore('chat', () => {
       const messageId = payload?.messageId || ''
       currentStreamingAssistantId.value = messageId
       console.log('[Chat] Before push - messages count:', messages.value.length)
+
+      // 确保助手消息总是在最后一条用户消息之后
+      // 如果最后一条消息不是用户消息，可能是编辑重发场景，需要找到正确的插入位置
+      const lastMsg = messages.value[messages.value.length - 1]
+      let insertIndex = messages.value.length
+
+      // 如果最后一条是助手消息，说明可能是新轮次，直接追加
+      // 如果最后一条是用户消息，也直接追加（助手消息应该在用户消息之后）
+      // 其他情况（如系统消息）也直接追加
+
       messages.value.push({
         id: messageId,
         sessionId: currentSessionId.value || '',

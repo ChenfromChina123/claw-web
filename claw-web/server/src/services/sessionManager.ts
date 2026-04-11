@@ -117,6 +117,7 @@ export class SessionManager {
     console.log(`[SessionManager] Retrieved from DB - messages: ${dbMessages.length}, toolCalls: ${dbToolCalls.length}`)
 
     // 标准化 createdAt 为 ISO 字符串格式，确保与前端兼容
+    // 同时包含 sequence 字段用于确保消息顺序
     const messages: Message[] = dbMessages.map(msg => {
       const normalized: Message = {
         id: msg.id,
@@ -124,6 +125,7 @@ export class SessionManager {
         role: msg.role,
         content: msg.content,
         createdAt: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : msg.createdAt,
+        sequence: msg.sequence,
         toolCalls: msg.toolCalls,
       }
       return normalized
@@ -162,6 +164,7 @@ export class SessionManager {
     const dbMessages = await this.messageRepo.findBySessionId(sessionId)
     if (dbMessages.length > 0) {
       // 标准化 createdAt 为 ISO 字符串格式，确保与前端兼容
+      // 同时包含 sequence 字段用于确保消息顺序
       cached.messages = dbMessages.map(msg => {
         const normalized: Message = {
           id: msg.id,
@@ -169,6 +172,7 @@ export class SessionManager {
           role: msg.role,
           content: msg.content,
           createdAt: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : msg.createdAt,
+          sequence: msg.sequence,
           toolCalls: msg.toolCalls,
         }
         return normalized

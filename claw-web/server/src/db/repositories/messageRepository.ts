@@ -4,6 +4,18 @@ import type { Message } from '../../models/types'
 
 export class MessageRepository {
   /**
+   * 获取下一个消息序号
+   */
+  private async getNextSequence(sessionId: string): Promise<number> {
+    const pool = getPool()
+    const [rows] = await pool.query(
+      'SELECT COALESCE(MAX(sequence), 0) + 1 as next_seq FROM messages WHERE session_id = ?',
+      [sessionId]
+    ) as [{ next_seq: number }[], unknown]
+    return rows[0]?.next_seq || 1
+  }
+
+  /**
    * 创建消息（使用指定ID）
    * 使用 UPSERT 避免重复插入错误
    */
@@ -19,11 +31,14 @@ export class MessageRepository {
 
     console.log(`[MessageRepository] Creating/updating message with id: ${id}, role=${role}`)
 
+    // 获取下一个序号
+    const sequence = await this.getNextSequence(sessionId)
+
     // 使用 INSERT ... ON DUPLICATE KEY UPDATE 避免重复插入错误
     await pool.query(
-      `INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE content = VALUES(content)`,
-      [id, sessionId, role, contentStr]
+      `INSERT INTO messages (id, session_id, role, content, sequence) VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE content = VALUES(content), sequence = VALUES(sequence)`,
+      [id, sessionId, role, contentStr, sequence]
     )
 
     const [rows] = await pool.query(
@@ -41,8 +56,13 @@ export class MessageRepository {
 
   async findBySessionId(sessionId: string): Promise<Message[]> {
     const pool = getPool()
+    // 使用 sequence 字段排序，如果没有则回退到 created_at
     const [rows] = await pool.query(
-      'SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC',
+      `SELECT * FROM messages WHERE session_id = ?
+       ORDER BY
+         CASE WHEN sequence IS NOT NULL AND sequence > 0 THEN 0 ELSE 1 END,
+         sequence ASC,
+         created_at ASC`,
       [sessionId]
     ) as [Message[], unknown]
 
@@ -216,6 +236,7 @@ export class MessageRepository {
       role: row.role,
       content: content,
       createdAt: row.created_at,
+      sequence: row.sequence,
     }
     
     console.log(`[MessageRepository] Mapped message:`, message)
