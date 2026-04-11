@@ -519,7 +519,7 @@ function handleImageClick() {
           @keydown="handleKeyDown"
           @focus="handleFocus"
         />
-        <!-- 底部工具栏 -->
+        <!-- 底部工具栏 - 悬浮在输入框内部 -->
         <div v-if="variant !== 'ide'" class="input-toolbar">
           <div class="toolbar-left">
             <!-- 表情按钮 -->
@@ -776,6 +776,20 @@ function handleImageClick() {
   flex-direction: column;
 }
 
+/* 输入框容器需要相对定位，以便工具栏绝对定位 */
+.input-area :deep(.n-input) {
+  position: relative;
+}
+
+.input-area :deep(.n-input__wrapper) {
+  position: relative;
+}
+
+/* 调整 textarea 的内边距，为底部工具栏留出空间 */
+.input-area :deep(.n-input__textarea-el) {
+  padding-bottom: 44px !important;
+}
+
 .input-wrapper :deep(.n-input) {
   background: var(--bg-secondary);
   border-radius: 12px;
@@ -787,14 +801,20 @@ function handleImageClick() {
   line-height: 1.6;
 }
 
-/* 底部工具栏样式 */
+/* 底部工具栏样式 - 悬浮在输入框内部 */
 .input-toolbar {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 6px 10px;
   background: transparent;
+  border-radius: 0 0 8px 8px;
+  pointer-events: auto;
+  z-index: 10;
 }
 
 .toolbar-left {

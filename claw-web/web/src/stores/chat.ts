@@ -230,13 +230,13 @@ export const useChatStore = defineStore('chat', () => {
         return
       }
 
-      const store = useChatStore()
-      const messages = store.messages
+      // 直接使用 messages ref，避免在事件处理中重新获取 store
       const lastIndex = messages.value.length - 1
       const lastMsg = messages.value[lastIndex]
 
       console.log('[Chat] Last message before update:', lastMsg)
       console.log('[Chat] lastIndex:', lastIndex)
+      console.log('[Chat] messages.value exists:', !!messages.value)
 
       if (lastMsg && lastMsg.role === 'assistant' && lastMsg.type === 'text') {
         const updatedMessages = [...messages.value]
