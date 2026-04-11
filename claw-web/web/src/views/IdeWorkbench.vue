@@ -32,6 +32,7 @@ import ChatMessageList from '@/components/ChatMessageList.vue'
 import ChatInput from '@/components/ChatInput.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import IdeTerminalTabs from '@/components/terminal/IdeTerminalTabs.vue'
+import FloatingPet from '@/components/FloatingPet.vue'
 import type { ComponentPublicInstance } from 'vue'
 
 import { useChatStore } from '@/stores/chat'

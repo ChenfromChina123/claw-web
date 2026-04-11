@@ -261,8 +261,8 @@ export class PTYSessionManager {
           setTimeout(() => {
             // 获取当前目录的短名称（最后一级目录）
             const shortDirName = cwd.split(/[/\\]/).pop() || 'workspaces'
-            // 使用 -c 参数静默设置 prompt（不显示命令本身）
-            const cmd = `-NoProfile -Command "& {function prompt { '${shortDirName}> ' }}"\r\n`
+            // 使用 -c 参数执行单行命令设置 prompt
+            const cmd = `-c "function prompt { '${shortDirName}> ' }" 2>nul\r\n`
             childProcess.stdin?.write(cmd)
           }, 300)
         })
