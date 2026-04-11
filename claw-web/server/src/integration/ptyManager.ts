@@ -10,12 +10,19 @@
  * 
  * 使用 Bun 原生 Bun.spawn() API（v1.3.5+）替代 node-pty
  * 解决 Bun 与 node-pty 的兼容性问题
+ * 
+ * Windows 平台支持：使用 Node.js child_process 作为替代方案
  */
 
 import { spawn, ChildProcess, execSync } from 'child_process'
 import { v4 as uuidv4 } from 'uuid'
 import type { WebSocketConnection } from './wsBridge'
 import { getSecureTerminalManager, type AuditEvent } from '../security'
+
+// ==================== Platform Detection ====================
+
+const isWindows = process.platform === 'win32'
+const isBunPTYAvailable = !isWindows && typeof Bun !== 'undefined' && Bun.Terminal
 
 // ==================== Types ====================
 
@@ -24,7 +31,7 @@ export interface PTYSession {
   connectionId: string
   userId: string | null   // 所属用户，Agent 终端工具需要
   process: ChildProcess | Bun.Subprocess | null
-  terminal: Bun.Terminal | null  // Bun.Terminal 实例
+  terminal: Bun.Terminal | null  // Bun.Terminal 实例（仅非 Windows）
   cwd: string
   shell: string
   createdAt: number
@@ -203,58 +210,107 @@ export class PTYSessionManager {
     delete envVars['SystemRoot']
     delete envVars['windir']
 
-    // 使用 Bun.spawn() 创建 PTY
-    // Bun v1.3.5+ 支持 terminal 选项
-    let subprocess: Bun.Subprocess
-    let terminal: Bun.Terminal
+    // ==================== 跨平台 PTY 创建 ====================
+    let subprocess: ChildProcess | Bun.Subprocess
+    let terminal: Bun.Terminal | null = null
 
     try {
-      // 创建 Bun.Terminal 实例
-      terminal = new Bun.Terminal({
-        cols,
-        rows,
-        data: (term, data) => {
-          // 输出数据回调 - data 是 Uint8Array，需要解码为字符串
-          const text = new TextDecoder().decode(data)
-          
-          // 过滤掉 bash 的作业控制警告信息
-          const filteredText = text
-            .replace(/^bash: cannot set terminal process group.*\r?\n?/gmi, '')
-            .replace(/^bash: no job control in this shell\r?\n?/gmi, '')
-          
-          // 只要有内容就发送（包括空格），只有完全为空才不发送
-          if (filteredText.length > 0) {
-            this.handleOutput(sessionId, 'stdout', filteredText)
+      if (isWindows) {
+        // Windows 平台：使用 Node.js child_process.spawn
+        console.log(`[PTY] Windows 平台：使用 Node.js child_process`)
+        
+        const shellArgs = shell.includes('powershell') 
+          ? ['-NoLogo', '-NoProfile', '-Command', '-'] 
+          : []
+        
+        const childProcess = spawn(shell, shellArgs, {
+          cwd,
+          env: envVars,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          windowsHide: false
+        })
+
+        // 监听 stdout
+        childProcess.stdout?.on('data', (data: Buffer) => {
+          const text = data.toString('utf8')
+          if (text.length > 0) {
+            this.handleOutput(sessionId, 'stdout', text)
           }
-        }
-      })
+        })
 
-      // 使用 Bun.spawn 启动 shell
-      // 为 bash 添加启动选项禁用配置文件和警告信息：
-      // --norc: 不读取 .bashrc
-      // --noprofile: 不读取 /etc/profile, ~/.bash_profile 等
-      // +m: 禁用作业控制（避免 "no job control" 警告）
-      const shellArgs = shell.includes('bash') ? ['--norc', '--noprofile', '+m'] : []
-      subprocess = Bun.spawn([shell, ...shellArgs], {
-        cwd,
-        env: envVars,
-        terminal,
-        stdio: ['pipe', 'pipe', 'pipe']
-      })
+        // 监听 stderr
+        childProcess.stderr?.on('data', (data: Buffer) => {
+          const text = data.toString('utf8')
+          if (text.length > 0) {
+            this.handleOutput(sessionId, 'stderr', text)
+          }
+        })
 
-      console.log(`[PTY] Bun.spawn success, pid: ${subprocess.pid}`)
+        // 监听进程退出
+        childProcess.on('exit', (exitCode) => {
+          console.log(`[PTY] Windows session ${sessionId} exited with code: ${exitCode}`)
+          this.handleOutput(sessionId, 'exit', '', exitCode ?? undefined)
+        })
 
-      // 监听进程退出
-      subprocess.exited.then((exitCode) => {
-        console.log(`[PTY] Session ${sessionId} exited with code: ${exitCode}`)
-        this.handleOutput(sessionId, 'exit', '', exitCode)
-      }).catch((err) => {
-        console.error(`[PTY] Session ${sessionId} error:`, err)
-        this.handleOutput(sessionId, 'stderr', `Error: ${err.message}\r\n`)
-      })
+        childProcess.on('error', (err) => {
+          console.error(`[PTY] Windows session ${sessionId} error:`, err)
+          this.handleOutput(sessionId, 'stderr', `Error: ${err.message}\r\n`)
+        })
+
+        subprocess = childProcess
+        console.log(`[PTY] Windows spawn success, pid: ${childProcess.pid}`)
+        
+      } else {
+        // Unix/Linux/macOS 平台：使用 Bun.Terminal
+        console.log(`[PTY] Unix 平台：使用 Bun.Terminal`)
+        
+        // 创建 Bun.Terminal 实例
+        terminal = new Bun.Terminal({
+          cols,
+          rows,
+          data: (term, data) => {
+            // 输出数据回调 - data 是 Uint8Array，需要解码为字符串
+            const text = new TextDecoder().decode(data)
+            
+            // 过滤掉 bash 的作业控制警告信息
+            const filteredText = text
+              .replace(/^bash: cannot set terminal process group.*\r?\n?/gmi, '')
+              .replace(/^bash: no job control in this shell\r?\n?/gmi, '')
+            
+            // 只要有内容就发送（包括空格），只有完全为空才不发送
+            if (filteredText.length > 0) {
+              this.handleOutput(sessionId, 'stdout', filteredText)
+            }
+          }
+        })
+
+        // 使用 Bun.spawn 启动 shell
+        // 为 bash 添加启动选项禁用配置文件和警告信息：
+        // --norc: 不读取 .bashrc
+        // --noprofile: 不读取 /etc/profile, ~/.bash_profile 等
+        // +m: 禁用作业控制（避免 "no job control" 警告）
+        const shellArgs = shell.includes('bash') ? ['--norc', '--noprofile', '+m'] : []
+        subprocess = Bun.spawn([shell, ...shellArgs], {
+          cwd,
+          env: envVars,
+          terminal,
+          stdio: ['pipe', 'pipe', 'pipe']
+        })
+
+        console.log(`[PTY] Bun.spawn success, pid: ${subprocess.pid}`)
+
+        // 监听进程退出
+        subprocess.exited.then((exitCode) => {
+          console.log(`[PTY] Session ${sessionId} exited with code: ${exitCode}`)
+          this.handleOutput(sessionId, 'exit', '', exitCode)
+        }).catch((err) => {
+          console.error(`[PTY] Session ${sessionId} error:`, err)
+          this.handleOutput(sessionId, 'stderr', `Error: ${err.message}\r\n`)
+        })
+      }
 
     } catch (err) {
-      console.error(`[PTY] Failed to create Bun PTY:`, err)
+      console.error(`[PTY] Failed to create PTY:`, err)
       throw err
     }
 
@@ -387,9 +443,18 @@ export class PTYSessionManager {
 
     try {
       if (session.terminal) {
-        // Bun.Terminal 模式
+        // Unix/Linux/macOS: Bun.Terminal 模式
         session.terminal.write(data)
         return true
+      } else if (isWindows && session.process) {
+        // Windows: Node.js ChildProcess 模式
+        const childProcess = session.process as ChildProcess
+        if (childProcess.stdin && !childProcess.stdin.destroyed) {
+          childProcess.stdin.write(data, 'utf8')
+          return true
+        }
+        console.warn(`[PTY] Cannot write to Windows session ${sessionId}: stdin not available`)
+        return false
       }
       
       console.warn(`[PTY] Cannot write to session ${sessionId}: terminal not available`)
@@ -407,8 +472,20 @@ export class PTYSessionManager {
     const session = this.sessions.get(sessionId)
 
     // 防御性检查：如果 session 不存在或进程已退出，直接跳过
-    if (!session || !session.isAlive || !session.terminal) {
+    if (!session || !session.isAlive) {
       console.warn(`[PTY] Skip resize for session ${sessionId}: session not alive`)
+      return false
+    }
+
+    // Windows 平台不支持终端尺寸调整
+    if (isWindows) {
+      console.log(`[PTY] Windows platform: resize not supported, skipping`)
+      return true
+    }
+
+    // 非 Windows 平台需要 Bun.Terminal
+    if (!session.terminal) {
+      console.warn(`[PTY] Skip resize for session ${sessionId}: terminal not available`)
       return false
     }
 
@@ -425,7 +502,7 @@ export class PTYSessionManager {
     session.lastActiveAt = Date.now()
 
     try {
-      // Bun.Terminal 调整尺寸
+      // Bun.Terminal 调整尺寸（仅非 Windows）
       session.terminal.resize(validCols, validRows)
       console.log(`[PTY] Resized session ${sessionId} to ${validCols}x${validRows}`)
       return true
@@ -496,18 +573,41 @@ export class PTYSessionManager {
     // 终止进程
     if (session.process) {
       try {
-        const subprocess = session.process as Bun.Subprocess
-        // 尝试优雅关闭
-        if (session.terminal) {
-          session.terminal.write('exit\r\n')
+        if (isWindows) {
+          // Windows: 使用 Node.js ChildProcess 终止
+          const childProcess = session.process as ChildProcess
+          // 尝试优雅关闭
+          if (childProcess.stdin && !childProcess.stdin.destroyed) {
+            childProcess.stdin.write('exit\r\n')
+          }
+          
+          // 等待一小段时间后强制终止
+          setTimeout(() => {
+            try {
+              childProcess.kill('SIGTERM')
+              // 如果进程仍然存在，强制杀死
+              setTimeout(() => {
+                try {
+                  childProcess.kill('SIGKILL')
+                } catch {}
+              }, 1000)
+            } catch {}
+          }, 500)
+        } else {
+          // Unix/Linux/macOS: 使用 Bun.Subprocess 终止
+          const subprocess = session.process as Bun.Subprocess
+          // 尝试优雅关闭
+          if (session.terminal) {
+            session.terminal.write('exit\r\n')
+          }
+          
+          // 等待一小段时间后强制终止
+          setTimeout(() => {
+            try {
+              subprocess.kill()
+            } catch {}
+          }, 500)
         }
-        
-        // 等待一小段时间后强制终止
-        setTimeout(() => {
-          try {
-            subprocess.kill()
-          } catch {}
-        }, 500)
       } catch (error) {
         console.error(`[PTY] Error destroying session ${sessionId}:`, error)
       }
