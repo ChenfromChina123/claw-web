@@ -225,7 +225,8 @@ export class PTYSessionManager {
           shellArgs = ['-NoLogo', '-NoProfile', '-Command', '-']
         } else if (shell.includes('bash')) {
           // bash 需要交互式模式才能接受输入
-          shellArgs = ['--login', '-i']
+          // --no-editing 禁用行编辑，避免 Windows 上的换行问题
+          shellArgs = ['--login', '-i', '--no-editing']
         } else if (shell.includes('cmd')) {
           shellArgs = ['/K']
         }
