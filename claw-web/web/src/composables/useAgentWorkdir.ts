@@ -83,6 +83,9 @@ export interface WorkdirContext {
   /** 新建条目时作为父目录的路径（以 / 开头） */
   getNewItemParentPath: () => string
 
+  /** 删除文件或文件夹 */
+  deleteWorkdirEntry: (path: string, isDirectory: boolean) => Promise<boolean>
+
   // 计算属性
   panelTitle: { value: string }
 }

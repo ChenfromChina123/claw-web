@@ -752,6 +752,60 @@ export async function handleAgentWorkdirRoutes(req: Request): Promise<Response |
     }
   }
 
+  // DELETE /api/agent/workdir/delete - 删除文件或文件夹
+  if (pathName === '/api/agent/workdir/delete' && method === 'DELETE') {
+    try {
+      const auth = await authMiddleware(req)
+      if (!auth.userId) {
+        return createErrorResponse('UNAUTHORIZED', '用户未登录', 401)
+      }
+
+      const body = await req.json() as { sessionId: string; path: string }
+      const { sessionId, path: targetPath } = body
+
+      if (!sessionId || !targetPath) {
+        return createErrorResponse('INVALID_PARAMS', '缺少必需参数: sessionId, path', 400)
+      }
+
+      const workspace = await ensureWorkspace(sessionId, auth.userId)
+      if (!workspace) {
+        return createErrorResponse('WORKSPACE_NOT_FOUND', '工作区创建失败，请重试', 500)
+      }
+
+      const resolved = resolveWorkdirFullPath(workspace.path, targetPath)
+      if (!resolved.ok) {
+        return createErrorResponse(resolved.code || 'ERROR', resolved.message || '解析路径失败', resolved.code === 'FORBIDDEN' ? 403 : 400)
+      }
+
+      const fs = await import('fs/promises')
+      const fsExtra = await import('fs')
+
+      if (!fsExtra.existsSync(resolved.fullPath)) {
+        return createErrorResponse('NOT_FOUND', '文件或文件夹不存在', 404)
+      }
+
+      const stat = await fs.stat(resolved.fullPath)
+
+      if (stat.isDirectory()) {
+        // 删除文件夹（递归删除）
+        await fs.rm(resolved.fullPath, { recursive: true, force: true })
+      } else {
+        // 删除文件
+        await fs.unlink(resolved.fullPath)
+      }
+
+      return createSuccessResponse({
+        success: true,
+        message: stat.isDirectory() ? '文件夹已删除' : '文件已删除',
+        path: targetPath,
+        isDirectory: stat.isDirectory()
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '删除失败'
+      return createErrorResponse('DELETE_FAILED', message, 500)
+    }
+  }
+
   return null
 }
 

@@ -571,7 +571,7 @@ async function handleRetry(): Promise<void> {
                     @mouseleave="quickNavShow = false"
                   >
                     <div class="quick-nav-header">
-                      <span>📍 快速导航</span>
+                      <span>快速导航</span>
                       <span class="quick-nav-total">共 {{ userMessageCount }} 条</span>
                     </div>
                     <div class="quick-nav-list">
@@ -919,7 +919,7 @@ async function handleRetry(): Promise<void> {
   top: calc(100% + 8px);
   right: 0;
   width: 280px;
-  max-height: 320px;
+  max-height: 240px;
   background-color: #252525;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
