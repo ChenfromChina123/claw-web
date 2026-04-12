@@ -418,13 +418,20 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
    */
   async function activateOpenFile(fileId: string, options?: { silent?: boolean }): Promise<boolean> {
     const silent = options?.silent ?? false
+    console.log('[activateOpenFile] >>> 开始，fileId:', fileId)
+    console.log('[activateOpenFile] 当前 activeFileId.value:', activeFileId.value)
+    console.log('[activateOpenFile] openFiles:', openFiles.value.map(f => f.id))
+
     let entry = openFiles.value.find(f => f.id === fileId)
+    console.log('[activateOpenFile] entry:', entry ? `找到，path=${entry.path}` : '未找到')
     if (!entry) return false
 
     await revealPathInTree(entry.path)
     currentFilePath.value = entry.path
     activeFileId.value = fileId
     fileContent.value = ''
+    console.log('[activateOpenFile] 设置 currentFilePath.value:', currentFilePath.value)
+    console.log('[activateOpenFile] 设置 activeFileId.value:', activeFileId.value)
 
     // Clean up previous Blob URL if any
     if (activeBlobUrl.value) {
@@ -578,16 +585,19 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
       }
     }
 
-    console.log('[activateOpenFile] 设置模型到编辑器, fileId:', fileId, 'model 内容长度:', model.getValue()?.length || 0)
+    console.log('[activateOpenFile] 设置模型到编辑器，fileId:', fileId, 'model 内容长度:', model.getValue()?.length || 0)
     editorInstance.setModel(model)
     fileLanguage.value = model.getLanguageId()
     syncActiveDirtyState()
+    console.log('[activateOpenFile] 设置 model 完成')
 
     // 强制刷新编辑器布局，确保内容正确显示
     requestAnimationFrame(() => {
+      console.log('[activateOpenFile] 调用 editorInstance.layout()')
       editorInstance?.layout()
     })
 
+    console.log('[activateOpenFile] <<< 完成，返回 true')
     return true
   }
 
