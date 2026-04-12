@@ -1086,8 +1086,7 @@ defineExpose({
 
 /* 1. 基础容器 */
 .model-select-integrated {
-  width: auto;
-  min-width: 100px;
+  width: 180px;
   height: 24px;
 }
 
