@@ -128,10 +128,12 @@ const userMessageCount = computed(() => {
 // 用户消息导航项
 const userMessageNavItems = computed(() => {
   const items: Array<{ id: string; preview: string }> = []
+  let userIndex = 0
 
   for (const m of chatStore.messages) {
     if (m.role !== 'user') continue
 
+    userIndex++
     // 获取消息预览
     let preview = ''
     const content = (m as { content?: unknown }).content
@@ -151,7 +153,8 @@ const userMessageNavItems = computed(() => {
       preview = preview + '...'
     }
 
-    items.unshift({
+    // 按顺序添加，第一条在最上面
+    items.push({
       id: m.id,
       preview: preview || '（空消息）',
     })
@@ -566,14 +569,14 @@ async function handleRetry(): Promise<void> {
                     </div>
                     <div class="quick-nav-list">
                       <div
-                        v-for="(entry, idx) in userMessageNavItems"
-                        :key="entry.id"
-                        class="quick-nav-item"
-                        @click="handleQuickNavClick(entry.id)"
-                      >
-                        <span class="quick-nav-index">#{{ userMessageCount - idx }}</span>
-                        <span class="quick-nav-preview" :title="entry.preview">{{ entry.preview }}</span>
-                      </div>
+                      v-for="(entry, idx) in userMessageNavItems"
+                      :key="entry.id"
+                      class="quick-nav-item"
+                      @click="handleQuickNavClick(entry.id)"
+                    >
+                      <span class="quick-nav-index">#{{ idx + 1 }}</span>
+                      <span class="quick-nav-preview" :title="entry.preview">{{ entry.preview }}</span>
+                    </div>
                     </div>
                   </div>
                 </Transition>
