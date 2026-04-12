@@ -1086,7 +1086,8 @@ defineExpose({
 
 /* 1. 基础容器 */
 .model-select-integrated {
-  width: 180px;
+  width: auto;
+  min-width: 100px;
   height: 24px;
 }
 
@@ -1137,11 +1138,12 @@ defineExpose({
 :global(.n-select-menu) {
   background-color: #1e1e1e !important;
   border: 1px solid #333 !important;
-  border-radius: 6px !important;
+  border-radius: 0 !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
-  padding: 4px 0 !important;
+  padding: 0 !important;
   width: 100% !important;
   min-width: 100px !important;
+  margin: 0 !important;
 }
 
 :global(.n-base-select-option) {
@@ -1149,14 +1151,16 @@ defineExpose({
   box-sizing: border-box !important;
   color: #aaa !important;
   font-size: 13px !important;
-  padding: 6px 12px !important;
+  padding: 8px 12px !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
 }
 
 :global(.n-base-select-option:hover) {
-  background-color: transparent !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
   color: #fff !important;
-  border: 1px solid #555 !important;
-  border-radius: 4px !important;
+  border: none !important;
+  border-radius: 0 !important;
 }
 
 :global(.n-base-select-option--selected) {
