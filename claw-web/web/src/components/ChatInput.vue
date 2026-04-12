@@ -948,41 +948,113 @@ defineExpose({
   opacity: 1;
 }
 
-/* 6. 模型选择器：融入背景，彻底去掉药丸样式 */
+/* 6. 模型选择器：深色主题药丸样式，与整体风格协调 */
 .model-select-integrated {
   width: auto;
-  min-width: 100px;
-  max-width: 160px;
+  min-width: 120px;
+  max-width: 180px;
 }
 
-/* 彻底抹平 Naive NSelect 的默认样式 */
+/* 模型选择器：深色药丸样式 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection) {
-  background-color: transparent !important; /* 彻底透明背景 */
-  border: none !important; /* 去掉所有边框 */
-  box-shadow: none !important; /* 去掉阴影 */
-  --n-height: 24px !important; /* 更矮一点 */
-  transition: color 0.2s;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 14px !important;
+  box-shadow: none !important;
+  --n-height: 28px !important;
+  transition: all 0.2s ease;
+  padding: 0 8px !important;
 }
 
-/* 调整未展开时的文字样式：低调、灰色、等宽 */
+/* 模型选择器悬停状态 */
+.chat-input--ide .model-select-integrated:hover :deep(.n-base-selection) {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 模型选择器聚焦状态 */
+.chat-input--ide .model-select-integrated.n-select--focus :deep(.n-base-selection) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(0, 122, 204, 0.5) !important;
+  box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.15) !important;
+}
+
+/* 调整未展开时的文字样式 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection__render) {
-  color: #888 !important; /* 灰色文本，不突兀 */
+  color: #b0b0b0 !important;
   font-size: 12px !important;
-  font-family: var(--font-family-mono, 'Consolas', monospace);
-  padding: 0 4px !important; /* 精简内边距 */
-  justify-content: flex-end; /* 文字靠右对齐，靠近发送按钮 */
+  font-weight: 500;
+  padding: 0 4px !important;
+  justify-content: flex-start;
+}
+
+/* 悬停和聚焦时文字变亮 */
+.chat-input--ide .model-select-integrated:hover :deep(.n-base-selection__render),
+.chat-input--ide .model-select-integrated.n-select--focus :deep(.n-base-selection__render) {
+  color: #e0e0e0 !important;
 }
 
 /* 调整右侧箭头颜色 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection-arrow) {
-  color: #666 !important;
-  right: 0 !important;
+  color: #888 !important;
+  right: 4px !important;
+  transition: color 0.2s ease;
 }
 
-/* 悬停时：弱化高亮，只让文字颜色变亮一点 */
-.chat-input--ide .model-select-integrated:hover :deep(.n-base-selection__render),
-.chat-input--ide .model-select-integrated.n-select--focus :deep(.n-base-selection__render) {
-  color: #d1d1d1 !important; /* 文字变为灰白色 */
+.chat-input--ide .model-select-integrated:hover :deep(.n-base-selection-arrow) {
+  color: #aaa !important;
+}
+
+/* 模型选择器下拉菜单样式 */
+.chat-input--ide .model-select-integrated :deep(.n-base-selection-menu) {
+  background-color: #252526 !important;
+  border: 1px solid #3c3c3c !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+  padding: 4px !important;
+}
+
+/* 下拉选项样式 */
+.chat-input--ide .model-select-integrated :deep(.n-base-select-option) {
+  color: #cccccc !important;
+  font-size: 12px !important;
+  padding: 8px 12px !important;
+  border-radius: 4px !important;
+  margin: 2px 0 !important;
+  transition: all 0.15s ease;
+}
+
+/* 下拉选项悬停状态 */
+.chat-input--ide .model-select-integrated :deep(.n-base-select-option:hover) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+
+/* 下拉选项选中状态 */
+.chat-input--ide .model-select-integrated :deep(.n-base-select-option--selected) {
+  background-color: rgba(0, 122, 204, 0.2) !important;
+  color: #4fc3f7 !important;
+  font-weight: 500;
+}
+
+/* 选中标记颜色 */
+.chat-input--ide .model-select-integrated :deep(.n-base-select-option--selected .n-base-select-option__check) {
+  color: #4fc3f7 !important;
+}
+
+/* 下拉菜单分割线 */
+.chat-input--ide .model-select-integrated :deep(.n-base-select-menu__divider) {
+  background-color: #3c3c3c !important;
+  margin: 4px 0 !important;
+}
+
+/* 下拉菜单分组标题 */
+.chat-input--ide .model-select-integrated :deep(.n-base-select-group-header) {
+  color: #888 !important;
+  font-size: 11px !important;
+  padding: 4px 12px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* ========== 默认变体：输入框容器样式 ========== */

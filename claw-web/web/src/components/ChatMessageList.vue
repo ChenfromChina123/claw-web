@@ -881,36 +881,47 @@ async function handleInterruptExecution() {
                     
                     <!-- 其他工具 - 使用通用组件 -->
                     <template v-else>
-                      <!-- 工具头部（可折叠） -->
+                      <!-- 工具头部（可折叠） - 优化版 -->
                       <div class="tool-call-header" @click="handleStepClick(toolCall.id)">
-                        <span class="tool-call-icon">{{ getToolIcon(toolCall.toolName) }}</span>
-                        <span class="tool-call-name">{{ toolCall.toolName }}</span>
-                        <NTag size="small" :type="getStatusType(toolCall.status) as any">
-                          {{ toolCall.status === 'pending' ? '等待中' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
-                        </NTag>
-                        <NTooltip v-if="isShellToolName(toolCall.toolName)" trigger="hover">
-                          <template #trigger>
-                            <button
-                              type="button"
-                              class="tool-call-terminal-link"
-                              aria-label="在终端查看"
-                              @click="handleFocusTerminalClick"
-                            >
-                              <span class="tool-call-terminal-icon" aria-hidden="true">⎘</span>
-                              终端
-                            </button>
-                          </template>
-                          跳转到底部终端面板并聚焦（与 Agent Shell 输出同一区域）
-                        </NTooltip>
-                        <span class="tool-call-expand-icon">{{ activeStep === toolCall.id ? '▼' : '▶' }}</span>
+                        <div class="tool-call-main">
+                          <span class="tool-call-icon">{{ getToolIcon(toolCall.toolName) }}</span>
+                          <span class="tool-call-name">{{ toolCall.toolName }}</span>
+                          <span class="tool-call-status-badge" :class="toolCall.status">
+                            <span class="status-dot"></span>
+                            {{ toolCall.status === 'pending' ? '等待' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
+                          </span>
+                        </div>
+                        <div class="tool-call-actions">
+                          <NTooltip v-if="isShellToolName(toolCall.toolName)" trigger="hover">
+                            <template #trigger>
+                              <button
+                                type="button"
+                                class="tool-call-terminal-link"
+                                aria-label="在终端查看"
+                                @click.stop="handleFocusTerminalClick"
+                              >
+                                <span class="tool-call-terminal-icon">⌘</span>
+                                <span class="tool-call-terminal-text">终端</span>
+                              </button>
+                            </template>
+                            跳转到底部终端面板并聚焦
+                          </NTooltip>
+                          <span class="tool-call-expand-icon">{{ activeStep === toolCall.id ? '▼' : '▶' }}</span>
+                        </div>
                       </div>
                       
-                      <!-- 展开内容 -->
+                      <!-- 展开内容 - 优化版 -->
                       <Transition name="slide-toggle">
                         <div v-if="activeStep === toolCall.id" class="tool-call-result">
-                          <div class="result-title">执行结果</div>
-                          <div class="result-content">
-                            <pre>{{ formatToolOutput(toolCall.toolOutput) }}</pre>
+                          <div class="result-header">
+                            <span class="result-label">执行结果</span>
+                            <span v-if="toolCall.toolOutput" class="result-meta">
+                              {{ formatToolOutput(toolCall.toolOutput).length }} 字符
+                            </span>
+                          </div>
+                          <div class="result-content" :class="{ 'has-output': toolCall.toolOutput }">
+                            <pre v-if="toolCall.toolOutput">{{ formatToolOutput(toolCall.toolOutput) }}</pre>
+                            <div v-else class="result-empty">暂无输出</div>
                           </div>
                           
                           <!-- 错误提示 -->
@@ -2966,182 +2977,333 @@ async function handleInterruptExecution() {
   margin-left: 52px;
   margin-top: 2px;
   margin-bottom: 4px;
+  display: flex;
+  justify-content: center;
+}
+
+.tool-calls-container {
+  width: 100%;
+  max-width: 720px;
 }
 
 /* 工具调用容器 */
 .tool-calls-container {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
-/* 单个工具调用项 */
+/* 单个工具调用项 - 优化版 */
 .tool-call-item {
-  background: rgba(30, 30, 60, 0.4);
-  border: 1px solid rgba(99, 102, 241, 0.2);
-  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(35, 35, 45, 0.8) 0%, rgba(28, 28, 38, 0.9) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
   overflow: hidden;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .tool-call-item:hover {
-  border-color: rgba(99, 102, 241, 0.4);
+  border-color: rgba(99, 102, 241, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
 }
 
-/* 不同状态的工具调用 */
+/* 不同状态的工具调用 - 优化版 */
 .tool-call-item.completed {
   border-left: 3px solid #22c55e;
+}
+
+.tool-call-item.completed .tool-call-status-badge {
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.tool-call-item.completed .status-dot {
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
 }
 
 .tool-call-item.error {
   border-left: 3px solid #ef4444;
 }
 
+.tool-call-item.error .tool-call-status-badge {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+}
+
+.tool-call-item.error .status-dot {
+  background: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
+}
+
 .tool-call-item.executing {
   border-left: 3px solid #f59e0b;
 }
 
-/* 工具调用头部 */
+.tool-call-item.executing .tool-call-status-badge {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+}
+
+.tool-call-item.executing .status-dot {
+  background: #f59e0b;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.9); }
+}
+
+.tool-call-item.pending .tool-call-status-badge {
+  background: rgba(107, 114, 128, 0.12);
+  color: #9ca3af;
+}
+
+.tool-call-item.pending .status-dot {
+  background: #6b7280;
+}
+
+/* 工具调用头部 - 优化版 */
 .tool-call-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
   cursor: pointer;
-  background: rgba(40, 40, 80, 0.2);
-  transition: background 0.2s ease;
+  background: transparent;
+  transition: all 0.2s ease;
 }
 
 .tool-call-header:hover {
-  background: rgba(40, 40, 80, 0.4);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .tool-call-header.legacy {
   cursor: default;
 }
 
+.tool-call-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.tool-call-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .tool-call-icon {
-  font-size: 14px;
+  font-size: 16px;
+  filter: grayscale(0.3);
+  transition: filter 0.2s;
+}
+
+.tool-call-item:hover .tool-call-icon {
+  filter: grayscale(0);
 }
 
 .tool-call-name {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: #e5e7eb;
-  flex: 1;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  letter-spacing: -0.3px;
+}
+
+/* 状态徽章 - 优化版 */
+.tool-call-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
 }
 
 .tool-call-expand-icon {
   font-size: 10px;
   color: #6b7280;
-  transition: transform 0.2s ease;
+  transition: all 0.2s ease;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
 }
 
-.tool-call-status {
-  font-size: 11px;
-  color: #6b7280;
-  margin-left: auto;
+.tool-call-header:hover .tool-call-expand-icon {
+  color: #9ca3af;
+  background: rgba(255, 255, 255, 0.05);
 }
 
-/* 终端链接按钮 */
+/* 终端链接按钮 - 优化版 */
 .tool-call-terminal-link {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 8px;
-  border: 1px solid rgba(34, 197, 94, 0.4);
-  border-radius: 4px;
-  background: rgba(34, 197, 94, 0.1);
-  color: #86efac;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid rgba(35, 209, 139, 0.3);
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(35, 209, 139, 0.08) 0%, rgba(35, 209, 139, 0.04) 100%);
+  color: #6ee7b7;
   font-size: 11px;
   font-weight: 500;
   line-height: 1.2;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .tool-call-terminal-link:hover {
-  background: rgba(34, 197, 94, 0.2);
-  border-color: rgba(34, 197, 94, 0.65);
-  color: #bbf7d0;
+  background: linear-gradient(135deg, rgba(35, 209, 139, 0.15) 0%, rgba(35, 209, 139, 0.08) 100%);
+  border-color: rgba(35, 209, 139, 0.5);
+  color: #a7f3d0;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(35, 209, 139, 0.15);
 }
 
 .tool-call-terminal-icon {
   font-size: 12px;
-  opacity: 0.95;
+  opacity: 0.9;
 }
 
-/* 工具调用结果区域 */
-.tool-call-result {
-  padding: 8px 10px;
-  border-top: 1px solid rgba(99, 102, 241, 0.1);
+.tool-call-terminal-text {
   font-size: 11px;
-  max-height: 250px;
-  overflow-y: auto;
 }
 
-.tool-call-result .result-title {
+/* 工具调用结果区域 - 优化版 */
+.tool-call-result {
+  padding: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  max-height: 350px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.result-label {
   font-size: 11px;
   font-weight: 600;
-  color: #888;
-  padding: 0 0 6px;
+  color: #9ca3af;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
 }
 
-.tool-call-result .result-content pre {
-  background: rgba(15, 15, 30, 0.8);
-  padding: 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-family: 'Monaco', 'Menlo', monospace;
-  color: #a5b4fc;
+.result-meta {
+  font-size: 10px;
+  color: #6b7280;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.result-content {
+  padding: 12px 14px;
+}
+
+.result-content.has-output {
+  padding: 0;
+}
+
+.result-content pre {
+  background: rgba(15, 15, 20, 0.6);
+  padding: 14px;
+  border-radius: 0;
+  font-size: 12px;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  color: #d4d4d4;
   overflow-x: auto;
   margin: 0;
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 180px;
+  max-height: 280px;
   overflow-y: auto;
-  line-height: 1.5;
+  line-height: 1.6;
+  border-left: 2px solid rgba(99, 102, 241, 0.3);
 }
 
-/* 工具调用错误提示 */
+.result-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: #6b7280;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* 工具调用错误提示 - 优化版 */
 .tool-call-error-alert {
-  margin-top: 8px;
-  padding: 8px 10px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 6px;
-  font-size: 11px;
+  margin: 12px 14px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.04) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1);
 }
 
 .tool-call-error-alert .error-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 6px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tool-call-error-alert .error-icon {
+  font-size: 14px;
 }
 
 .tool-call-error-alert .error-title {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  color: #ef4444;
+  color: #fca5a5;
+  flex: 1;
 }
 
 .tool-call-error-alert .error-message {
-  font-size: 11px;
-  color: #fca5a5;
-  margin-bottom: 6px;
+  font-size: 12px;
+  color: #fdbaba;
+  margin-bottom: 10px;
   word-break: break-word;
+  line-height: 1.5;
+  padding-left: 22px;
 }
 
 .tool-call-error-alert .error-suggestion {
   font-size: 11px;
-  color: #9ca3af;
-  padding: 6px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
+  color: #d1d5db;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  border-left: 2px solid rgba(245, 158, 11, 0.5);
+  line-height: 1.5;
 }
 
 /* 旧版工具调用样式 */
