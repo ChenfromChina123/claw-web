@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick, h } from 'vue'
+import type { VNode } from 'vue'
 import type { IdeAppendToChatOptions, IdeCodeRefPayload, IdeTerminalRefPayload } from '@/composables/useIdeChatAppend'
 import { buildIdeLayeredUserMessage, buildTerminalRefMarker, type TerminalRefInMessage } from '@/utils/ideUserMessageMarkers'
 import { saveTerminalReference } from '@/composables/useIdeTerminalPersistence'
@@ -1905,4 +1906,15 @@ defineExpose({
 
   .upload-section {
     width: 100%;
-    justify-content: fl
+    justify-content: flex-start;
+  }
+
+  .uploaded-files-list {
+    max-width: 100%;
+  }
+
+  .send-button {
+    width: 100%;
+  }
+}
+</style>
