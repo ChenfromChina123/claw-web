@@ -105,6 +105,12 @@ const isLoadingTemplates = ref(false)
 const openPromptLibraryInEditor = useOpenPromptLibrary()
 
 /**
+ * Skills 列表相关状态
+ */
+const skills = ref<SkillDefinition[]>([])
+const isLoadingSkills = ref(false)
+
+/**
  * 加载模板列表
  */
 async function loadTemplates(): Promise<void> {
@@ -116,6 +122,21 @@ async function loadTemplates(): Promise<void> {
     console.error('加载模板失败:', error)
   } finally {
     isLoadingTemplates.value = false
+  }
+}
+
+/**
+ * 加载 Skills 列表
+ */
+async function loadSkills(): Promise<void> {
+  isLoadingSkills.value = true
+  try {
+    const result = await skillApi.listSkills()
+    skills.value = result.skills || []
+  } catch (error) {
+    console.error('加载 Skills 失败:', error)
+  } finally {
+    isLoadingSkills.value = false
   }
 }
 
@@ -178,6 +199,58 @@ const templateDropdownOptions = computed(() => {
   })
 
   return options
+}
+
+/**
+ * Skills 下拉选项
+ */
+const skillDropdownOptions = computed(() => {
+  const options: Array<{
+    key: string
+    label: string
+    type?: 'group' | 'divider'
+    children?: Array<{ key: string; label: string }>
+  }> = []
+
+  const skillList = skills.value || []
+
+  if (skillList.length === 0) {
+    options.push({
+      key: 'no-skills',
+      label: '暂无可用 Skills',
+    })
+    return options
+  }
+
+  // 按类别分组
+  const grouped = new Map<string, SkillDefinition[]>()
+  skillList.forEach(skill => {
+    const category = skill.category?.name || '其他'
+    if (!grouped.has(category)) {
+      grouped.set(category, [])
+    }
+    grouped.get(category)!.push(skill)
+  })
+
+  let isFirst = true
+  grouped.forEach((categorySkills, categoryName) => {
+    if (!isFirst) {
+      options.push({ key: `divider-${categoryName}`, label: '', type: 'divider' })
+    }
+    isFirst = false
+
+    options.push({
+      key: `group-${categoryName}`,
+      label: categoryName,
+      type: 'group',
+      children: categorySkills.map(skill => ({
+        key: `skill:${skill.id}`,
+        label: skill.name,
+      })),
+    })
+  })
+
+  return options
 })
 
 /**
@@ -204,9 +277,25 @@ function handleTemplateSelect(key: string): void {
   }
 }
 
-// 组件挂载时加载模板
+/**
+ * 处理 Skill 选择
+ */
+function handleSkillSelect(key: string): void {
+  if (key.startsWith('skill:')) {
+    const skillId = key.replace('skill:', '')
+    const skill = skills.value.find(s => s.id === skillId)
+    if (skill) {
+      const skillContent = `【使用 Skill: ${skill.name}】\n${skill.description}`
+      handleUseTemplate(skillContent)
+      message.success(`已选择 Skill: ${skill.name}`)
+    }
+  }
+}
+
+// 组件挂载时加载模板和 Skills
 onMounted(() => {
   void loadTemplates()
+  void loadSkills()
   if (props.variant === 'ide') {
     void loadModels().then(() => syncModelFromSession())
   }
@@ -687,6 +776,26 @@ defineExpose({
                 <NIcon><ReorderFourOutline /></NIcon>
               </template>
               模板
+            </NButton>
+          </NDropdown>
+
+          <!-- Skills 选择器 -->
+          <NDropdown
+            :options="skillDropdownOptions"
+            :disabled="disabled || isLoadingSkills"
+            trigger="click"
+            placement="top-start"
+            @select="handleSkillSelect"
+          >
+            <NButton
+              class="skill-selector-button"
+              :disabled="disabled || isLoadingSkills"
+              :loading="isLoadingSkills"
+            >
+              <template #icon>
+                <NIcon><FlashOutline /></NIcon>
+              </template>
+              Skills
             </NButton>
           </NDropdown>
         </div>
@@ -1597,6 +1706,48 @@ defineExpose({
 }
 
 .chat-input--ide .prompt-library-button:hover:not(:disabled) {
+  transform: none;
+}
+
+/* Skills 选择器按钮：与模板按钮样式一致 */
+.skill-selector-button {
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 8px !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  color: #888 !important;
+  border: none !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.skill-selector-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #ccc !important;
+}
+
+.skill-selector-button:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.skill-selector-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* IDE 变体 Skills 按钮 */
+.chat-input--ide .skill-selector-button {
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 6px !important;
+  font-size: 12px !important;
+  border-radius: 4px !important;
+}
+
+.chat-input--ide .skill-selector-button:hover:not(:disabled) {
   transform: none;
 }
 
