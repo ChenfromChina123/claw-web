@@ -401,6 +401,7 @@ async function pasteText() {
 /**
  * 获取终端选中的文本并添加到对话
  * 如果文本过长，则进行截断并在末尾添加省略号
+ * 以芯片（chip）形式显示在输入框中
  */
 function appendSelectionToChat(): void {
   const t = term.value
@@ -427,15 +428,25 @@ function appendSelectionToChat(): void {
   // 清理文本：移除 ANSI 转义序列
   let cleanedText = selection.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
 
+  const originalLength = cleanedText.length
+
   // 截断过长的文本
+  let finalContent = cleanedText
   if (cleanedText.length > MAX_APPEND_LENGTH) {
-    cleanedText = cleanedText.slice(0, MAX_APPEND_LENGTH) + '\n\n...（内容已截断，原文较长）'
+    finalContent = cleanedText.slice(0, MAX_APPEND_LENGTH) + '\n\n...（内容已截断，原文较长）'
   }
 
-  // 调用注入的函数将文本添加到对话
+  // 生成预览文本（取前80字符用于芯片显示）
+  const preview = cleanedText.slice(0, 80).replace(/\n/g, ' ') + (cleanedText.length > 80 ? '...' : '')
+
+  // 调用注入的函数将文本添加到对话（以芯片形式）
   if (appendToChat) {
-    appendToChat(cleanedText, {
-      sourceLabel: '终端输出',
+    appendToChat(finalContent, {
+      terminalRef: {
+        preview,
+        content: finalContent,
+        originalLength,
+      },
     })
   }
 }

@@ -10,10 +10,21 @@ export interface IdeCodeRefPayload {
   snippet: string
 }
 
+/** 终端输出 → 对话：结构化引用（输入框显示芯片，发送时带完整内容） */
+export interface IdeTerminalRefPayload {
+  /** 终端内容预览（用于芯片显示） */
+  preview: string
+  /** 完整的终端内容（可能被截断） */
+  content: string
+  /** 原始字符数（截断前） */
+  originalLength: number
+}
+
 export interface IdeAppendToChatOptions {
   language?: string
   sourceLabel?: string
   codeRef?: IdeCodeRefPayload
+  terminalRef?: IdeTerminalRefPayload
 }
 
 export type IdeAppendToChatFn = (text: string, options?: IdeAppendToChatOptions) => void

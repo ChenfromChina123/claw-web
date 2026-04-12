@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import type { IdeAppendToChatOptions, IdeCodeRefPayload } from '@/composables/useIdeChatAppend'
+import type { IdeAppendToChatOptions, IdeCodeRefPayload, IdeTerminalRefPayload } from '@/composables/useIdeChatAppend'
 import { buildIdeLayeredUserMessage } from '@/utils/ideUserMessageMarkers'
 import { NInput, NButton, NIcon, NSpin, NTag, NSelect, NDropdown, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
@@ -84,7 +84,16 @@ interface IdeCodeAttachment extends IdeCodeRefPayload {
   id: string
 }
 
+/** 终端输出附件（以芯片形式显示） */
+interface IdeTerminalAttachment {
+  id: string
+  preview: string
+  content: string
+  originalLength: number
+}
+
 const codeAttachments = ref<IdeCodeAttachment[]>([])
+const terminalAttachments = ref<IdeTerminalAttachment[]>([])
 
 /**
  * 模板列表相关状态
@@ -221,6 +230,12 @@ function chipLang(fileName: string): string {
   return 'TXT'
 }
 
+/** 格式化字符数显示 */
+function formatCharCount(count: number): string {
+  if (count >= 10000) return `${(count / 1000).toFixed(1)}k`
+  return count.toString()
+}
+
 function guessLangFromName(name: string): string {
   const ext = name.includes('.') ? name.split('.').pop()?.toLowerCase() || '' : ''
   if (ext === 'vue') return 'vue'
@@ -258,6 +273,12 @@ function buildAgentBodyFromRefs(userText: string, refs: IdeCodeAttachment[]): st
 function removeCodeAttachment(id: string): void {
   codeAttachments.value = codeAttachments.value.filter(a => a.id !== id)
 }
+
+/** 移除终端输出附件 */
+function removeTerminalAttachment(id: string): void {
+  terminalAttachments.value = terminalAttachments.value.filter(a => a.id !== id)
+}
+
 const uploadedFiles = ref<UploadFileInfo[]>([])
 const uploading = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -273,18 +294,39 @@ const currentSessionId = computed(() => props.sessionId || '')
 function handleSend() {
   const text = inputValue.value.trim()
   const hasIdeRefs = props.variant === 'ide' && codeAttachments.value.length > 0
-  if ((!text && !hasIdeRefs) || props.disabled) return
+  const hasTerminalRefs = props.variant === 'ide' && terminalAttachments.value.length > 0
+  if ((!text && !hasIdeRefs && !hasTerminalRefs) || props.disabled) return
 
   if (props.variant === 'ide') {
-    const payload =
-      hasIdeRefs
-        ? buildIdeLayeredUserMessage(
-            buildDisplayFromRefs(text, codeAttachments.value),
-            buildAgentBodyFromRefs(text, codeAttachments.value),
-          )
-        : text
+    /** 构建终端输出部分 */
+    const terminalParts = terminalAttachments.value.map(t => {
+      const truncated = t.originalLength > t.content.length
+        ? `\n\n> ⚠️ 原文 ${t.originalLength} 字符，已截断显示`
+        : ''
+      return `### 终端输出\n\`\`\`terminal\n${t.content}\n\`\`\`${truncated}`
+    })
+
+    /** 构建代码引用部分 */
+    const codeParts = codeAttachments.value.map(r => {
+      const lang =
+        r.language && r.language !== 'plaintext' ? r.language : guessLangFromName(r.fileName)
+      return `### 工作区代码引用\n- 路径: \`${r.filePath}\`\n- 行号: ${r.startLine}–${r.endLine}\n\n\`\`\`${lang}\n${r.snippet}\n\`\`\``
+    })
+
+    const allParts = []
+    if (text) allParts.push(text)
+    allParts.push(...codeParts, ...terminalParts)
+
+    const payload = (hasIdeRefs || hasTerminalRefs)
+      ? buildIdeLayeredUserMessage(
+          buildDisplayFromRefs(text, codeAttachments.value),
+          allParts.join('\n\n'),
+        )
+      : text
+
     emit('send', payload, selectedModelId.value || undefined)
     codeAttachments.value = []
+    terminalAttachments.value = []
   } else {
     emit('send', inputValue.value)
   }
@@ -422,6 +464,29 @@ function formatFileSize(bytes: number): string {
  * 将选中文本插入输入框（供 IDE「引用到对话」），不自动发送
  */
 function appendToChatInput(text: string, options?: IdeAppendToChatOptions): void {
+  if (props.variant === 'ide' && options?.terminalRef) {
+    /** 处理终端输出引用：以芯片形式添加 */
+    const tr = options.terminalRef
+    const id = `terminal:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`
+    const attachment: IdeTerminalAttachment = {
+      id,
+      preview: tr.preview,
+      content: tr.content,
+      originalLength: tr.originalLength,
+    }
+    terminalAttachments.value.push(attachment)
+    void nextTick(() => {
+      inputRef.value?.focus()
+      const el = (inputRef.value as { $el?: HTMLElement } | null)?.$el
+      const textarea = el?.querySelector?.('textarea') as HTMLTextAreaElement | undefined
+      if (textarea) {
+        textarea.selectionStart = textarea.selectionEnd = textarea.value.length
+        textarea.scrollTop = textarea.scrollHeight
+      }
+    })
+    return
+  }
+
   if (props.variant === 'ide' && options?.codeRef) {
     const cr = options.codeRef
     const snippet = text.trim() || cr.snippet.trim()
@@ -515,6 +580,28 @@ defineExpose({
 
       <!-- 中间：输入框 + 代码引用 -->
       <div class="input-main-wrapper">
+        <!-- 终端输出引用显示 -->
+        <div v-if="terminalAttachments.length > 0" class="ide-terminal-refs">
+          <div
+            v-for="t in terminalAttachments"
+            :key="t.id"
+            class="ide-terminal-chip"
+            :title="`终端输出 (${formatCharCount(t.originalLength)}字符)`"
+          >
+            <span class="ide-terminal-chip-icon">⌘</span>
+            <span class="ide-terminal-chip-text">{{ t.preview }}</span>
+            <span v-if="t.originalLength > t.content.length" class="ide-terminal-chip-truncated">已截断</span>
+            <button
+              type="button"
+              class="ide-terminal-chip-x"
+              aria-label="移除终端输出"
+              @click="removeTerminalAttachment(t.id)"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
         <!-- 代码引用显示 -->
         <div v-if="codeAttachments.length > 0" class="ide-code-refs">
           <div
@@ -587,8 +674,8 @@ defineExpose({
           <!-- 发送/停止按钮 -->
           <button
             class="send-btn-minimal"
-            :class="{ 'can-send': inputValue.trim() || codeAttachments.length > 0, 'is-generating': isGenerating }"
-            :disabled="(!inputValue.trim() && !(codeAttachments.length > 0)) || disabled"
+            :class="{ 'can-send': inputValue.trim() || codeAttachments.length > 0 || terminalAttachments.length > 0, 'is-generating': isGenerating }"
+            :disabled="(!inputValue.trim() && !(codeAttachments.length > 0) && !(terminalAttachments.length > 0)) || disabled"
             @click="isGenerating ? emit('stop') : handleSend()"
           >
             <NIcon v-if="!isGenerating" :size="16">
@@ -951,6 +1038,86 @@ defineExpose({
 
 /* 优化代码引用（Chip）的间距 */
 .ide-code-refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 10px 0;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+/* 终端输出引用芯片样式 */
+.ide-terminal-refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 10px 0;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.ide-terminal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px 4px 6px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #1a3a2a 0%, #1e2d2a 100%);
+  border: 1px solid #23d18b33;
+  font-size: 12px;
+  color: #a7f3d0;
+}
+
+.ide-terminal-chip-icon {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #23d18b;
+}
+
+.ide-terminal-chip-text {
+  flex: 1;
+  min-width: 0;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-family-mono, 'Consolas', monospace);
+  font-size: 11px;
+}
+
+.ide-terminal-chip-truncated {
+  flex-shrink: 0;
+  font-size: 9px;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.15);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.ide-terminal-chip-x {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #6ee7b7;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ide-terminal-chip-x:hover {
+  background: rgba(35, 209, 139, 0.15);
+  color: #fff;
+}
   margin-top: 4px;
   padding: 0;
 }
