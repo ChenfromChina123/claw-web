@@ -576,6 +576,12 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     editorInstance.setModel(model)
     fileLanguage.value = model.getLanguageId()
     syncActiveDirtyState()
+
+    // 强制刷新编辑器布局，确保内容正确显示
+    setTimeout(() => {
+      editorInstance?.layout()
+    }, 0)
+
     return true
   }
 

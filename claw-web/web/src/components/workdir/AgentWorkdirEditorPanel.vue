@@ -151,9 +151,9 @@ function closeSpecialTab(tabId: string): void {
 /**
  * 选择文件标签（同时清除特殊标签选择）
  */
-function selectFileTab(fileId: string): void {
+async function selectFileTab(fileId: string): Promise<void> {
   activeSpecialTabId.value = null
-  ctx.selectOpenFile(fileId)
+  await ctx.selectOpenFile(fileId)
 }
 
 /**

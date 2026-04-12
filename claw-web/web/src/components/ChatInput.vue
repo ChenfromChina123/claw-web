@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick, h } from 'vue'
-import type { VNode } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import type { IdeAppendToChatOptions, IdeCodeRefPayload, IdeTerminalRefPayload } from '@/composables/useIdeChatAppend'
 import { buildIdeLayeredUserMessage, buildTerminalRefMarker, type TerminalRefInMessage } from '@/utils/ideUserMessageMarkers'
 import { saveTerminalReference } from '@/composables/useIdeTerminalPersistence'
@@ -112,6 +111,7 @@ const openPromptLibraryInEditor = useOpenPromptLibrary()
  */
 const skills = ref<SkillDefinition[]>([])
 const isLoadingSkills = ref(false)
+const isSkillsDropdownOpen = ref(false)
 
 /**
  * 加载模板列表
@@ -792,9 +792,11 @@ defineExpose({
             trigger="click"
             placement="top-start"
             @select="handleSkillSelect"
+            @update:show="(show: boolean) => isSkillsDropdownOpen = show"
           >
             <NButton
               class="skill-selector-button"
+              :class="{ 'is-active': isSkillsDropdownOpen }"
               :disabled="disabled || isLoadingSkills"
               :loading="isLoadingSkills"
               title="选择 Skill"
