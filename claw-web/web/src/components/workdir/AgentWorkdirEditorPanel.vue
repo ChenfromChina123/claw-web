@@ -34,6 +34,7 @@ import { useIdeAppendToChat } from '@/composables/useIdeChatAppend'
 import PreviewPanel from './PreviewPanel.vue'
 import MarkdownPreviewPane from './MarkdownPreviewPane.vue'
 import PromptTemplateLibrary from '@/components/PromptTemplateLibrary.vue'
+import Settings from '@/views/Settings.vue'
 import { provideOpenPromptLibrary } from '@/composables/usePromptTemplateLibrary'
 
 const ctx = useWorkdirContext()
@@ -47,7 +48,7 @@ let containerObserver: MutationObserver | null = null
 /**
  * 特殊标签页管理
  */
-type SpecialTabType = 'prompt-library'
+type SpecialTabType = 'prompt-library' | 'settings'
 interface SpecialTab {
   id: string
   type: SpecialTabType
@@ -78,6 +79,13 @@ const showPromptLibraryTab = computed(() => {
 })
 
 /**
+ * 是否显示设置页面
+ */
+const showSettingsTab = computed(() => {
+  return activeSpecialTabId.value?.startsWith('settings') ?? false
+})
+
+/**
  * 打开提示词模板库标签页
  */
 function openPromptLibraryTab(): void {
@@ -88,6 +96,25 @@ function openPromptLibraryTab(): void {
       id: tabId,
       type: 'prompt-library',
       title: '提示词模板',
+    })
+  }
+  // 激活该标签
+  activeSpecialTabId.value = tabId
+  // 清除文件选择
+  ctx.activeFileId.value = null
+}
+
+/**
+ * 打开设置标签页
+ */
+function openSettingsTab(): void {
+  const tabId = 'settings'
+  // 检查是否已存在
+  if (!specialTabs.value.find(t => t.id === tabId)) {
+    specialTabs.value.push({
+      id: tabId,
+      type: 'settings',
+      title: '设置',
     })
   }
   // 激活该标签
@@ -427,6 +454,7 @@ onBeforeUnmount(() => {
  */
 defineExpose({
   openPromptLibraryTab,
+  openSettingsTab,
 })
 </script>
 
@@ -474,7 +502,7 @@ defineExpose({
               </button>
             </div>
 
-            <!-- 特殊标签（如提示词模板库） -->
+            <!-- 特殊标签（如提示词模板库、设置） -->
             <div
               v-for="tab in specialTabs"
               :key="tab.id"
@@ -482,7 +510,9 @@ defineExpose({
               :class="{ active: activeSpecialTabId === tab.id }"
               @click="selectSpecialTab(tab.id)"
             >
-              <span class="file-icon special-icon">📋</span>
+              <span class="file-icon special-icon">
+                {{ tab.type === 'settings' ? '⚙️' : '📋' }}
+              </span>
               <span class="file-name">{{ tab.title }}</span>
               <button
                 type="button"
@@ -514,11 +544,11 @@ defineExpose({
         </div>
       </div>
 
-      <div v-if="breadcrumbText && !showPromptLibraryTab" class="breadcrumb-bar">
+      <div v-if="breadcrumbText && !showPromptLibraryTab && !showSettingsTab" class="breadcrumb-bar">
         {{ breadcrumbText }}
       </div>
 
-      <div v-if="isActiveMarkdown && !showPromptLibraryTab" class="md-toolbar">
+      <div v-if="isActiveMarkdown && !showPromptLibraryTab && !showSettingsTab" class="md-toolbar">
         <NText depth="3" class="md-toolbar-label">Markdown</NText>
         <NSpace :size="6" class="md-toolbar-btns">
           <NButton
@@ -547,7 +577,7 @@ defineExpose({
 
       <!-- 文本：Monaco ± Markdown 预览（v-show 避免切到二进制标签时卸载 Monaco） -->
       <div
-        v-show="!showPreview && !showPromptLibraryTab"
+        v-show="!showPreview && !showPromptLibraryTab && !showSettingsTab"
         class="editor-main"
         :class="{
           'md-split': isActiveMarkdown && mdViewMode === 'split',

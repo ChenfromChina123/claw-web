@@ -41,6 +41,12 @@ console.log('[Env] ANTHROPIC_BASE_URL:', process.env.ANTHROPIC_BASE_URL)
 
 // 导入服务器启动函数
 import { startServer } from './server/httpServer'
+import { initializeSkills } from './skills'
+
+// 初始化技能系统
+initializeSkills().catch((error) => {
+  console.error('[Skills] Failed to initialize:', error)
+})
 
 // 启动服务器
 startServer().catch((error) => {

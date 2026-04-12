@@ -15,6 +15,7 @@
 import { createSuccessResponse, createErrorResponse, createCorsPreflightResponse } from '../utils/response'
 import { authMiddleware } from '../utils/auth'
 import { parseFrontmatter, type ParsedMarkdown, getSkillDirCommands } from '../integrations/skillsAdapter'
+import { getAllSkills, getSkillDetail, type SkillSource } from '../skills'
 import { existsSync } from 'fs'
 import { writeFile, mkdir, readdir, readFile } from 'fs/promises'
 import { join, basename, dirname } from 'path'
@@ -171,6 +172,7 @@ export async function handleSkillRoutes(req: Request): Promise<Response | null> 
 
 /**
  * 处理列出技能请求
+ * 现在支持内置技能、文件技能和动态技能
  */
 async function handleListSkills(req: Request, url: URL): Promise<Response> {
   try {
@@ -186,8 +188,33 @@ async function handleListSkills(req: Request, url: URL): Promise<Response> {
     // 获取工作空间目录
     const workspaceDir = await getWorkspaceDir(auth.userId)
 
-    // 加载技能
-    const skills = await loadSkills(workspaceDir)
+    // 使用新的技能系统获取所有技能（包括内置技能）
+    const allSkills = await getAllSkills(workspaceDir || process.cwd())
+
+    // 转换为 SkillDefinition 格式
+    let skills: SkillDefinition[] = allSkills.map(skill => ({
+      id: generateSkillId(skill.name),
+      name: skill.name,
+      description: skill.description,
+      category: getSkillCategory(skill),
+      tags: skill.loadedFrom === 'bundled' ? ['内置'] : ['自定义'],
+      version: '1.0.0',
+      filePath: skill.loadedFrom === 'bundled' ? `builtin://${skill.name}` : (skill.skillRoot || ''),
+      isEnabled: skill.isEnabled?.() ?? true,
+      loadedAt: Date.now(),
+    }))
+
+    // 合并内置技能（从旧系统加载）
+    const workspaceSkills = await loadSkills(workspaceDir)
+    skills = [...skills, ...workspaceSkills]
+
+    // 去重（按名称）
+    const seen = new Set<string>()
+    skills = skills.filter(s => {
+      if (seen.has(s.name)) return false
+      seen.add(s.name)
+      return true
+    })
 
     // 过滤技能
     let filteredSkills = skills
@@ -221,7 +248,33 @@ async function handleListSkills(req: Request, url: URL): Promise<Response> {
 }
 
 /**
+ * 获取技能类别
+ */
+function getSkillCategory(skill: { loadedFrom?: string; name: string }): SkillCategory {
+  // 内置技能分类
+  const bundledCategories: Record<string, string> = {
+    'debug': 'debug',
+    'simplify': 'refactor',
+    'batch': 'code',
+    'verify': 'test',
+    'remember': 'docs',
+    'stuck': 'debug',
+    'lorem-ipsum': 'other',
+    'update-config': 'other',
+    'skillify': 'other',
+    'keybindings': 'other',
+  }
+
+  const categoryId = skill.loadedFrom === 'bundled'
+    ? (bundledCategories[skill.name] || 'other')
+    : 'other'
+
+  return DEFAULT_CATEGORIES.find(c => c.id === categoryId) || DEFAULT_CATEGORIES[DEFAULT_CATEGORIES.length - 1]
+}
+
+/**
  * 处理获取技能详情请求
+ * 现在支持内置技能
  */
 async function handleGetSkill(req: Request, skillId: string): Promise<Response> {
   try {
@@ -231,14 +284,41 @@ async function handleGetSkill(req: Request, skillId: string): Promise<Response> 
     }
 
     const workspaceDir = await getWorkspaceDir(auth.userId)
+
+    // 1. 先尝试从旧系统获取
     const skills = await loadSkills(workspaceDir)
     const skill = skills.find(s => s.id === skillId)
 
-    if (!skill) {
-      return createErrorResponse('SKILL_NOT_FOUND', '技能不存在', 404)
+    if (skill) {
+      return createSuccessResponse(skill)
     }
 
-    return createSuccessResponse(skill)
+    // 2. 尝试从新技能系统获取（支持内置技能）
+    // 从 skillId 反推技能名称
+    const skillName = skillId.replace(/-/g, ' ')
+
+    // 尝试获取技能详情
+    const skillDetail = await getSkillDetail(skillName, workspaceDir || process.cwd())
+
+    if (skillDetail) {
+      // 获取技能内容
+      const content = skillDetail.content
+
+      return createSuccessResponse({
+        id: skillId,
+        name: skillDetail.name,
+        description: skillDetail.description,
+        category: getSkillCategory({ loadedFrom: skillDetail.source, name: skillDetail.name }),
+        tags: skillDetail.source === 'bundled' ? ['内置'] : ['自定义'],
+        version: '1.0.0',
+        filePath: skillDetail.source === 'bundled' ? `builtin://${skillDetail.name}` : '',
+        content: content,
+        isEnabled: true,
+        loadedAt: Date.now(),
+      })
+    }
+
+    return createErrorResponse('SKILL_NOT_FOUND', '技能不存在', 404)
   } catch (error) {
     console.error('[skills.routes] Failed to get skill:', error)
     return createErrorResponse('GET_FAILED', '获取技能详情失败', 500)

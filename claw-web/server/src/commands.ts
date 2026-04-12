@@ -2,6 +2,7 @@
  * Skills系统统一入口
  *
  * 仿照原项目commands.ts，提供统一的技能命令导出
+ * 现在整合内置技能系统
  */
 
 import memoize from 'lodash-es/memoize'
@@ -12,6 +13,7 @@ import {
   getDynamicSkills,
   type Command,
 } from './integrations/skillsAdapter'
+import { getAllSkills, getBundledSkills } from './skills'
 
 // 导出类型
 export type { Command, LoadedFrom } from './integrations/skillsAdapter'
@@ -19,10 +21,12 @@ export type { Command, LoadedFrom } from './integrations/skillsAdapter'
 /**
  * 获取所有技能命令（带缓存）
  * 这是SkillTool使用的主要入口函数
+ * 现在包括内置技能、文件技能和动态技能
  */
 export const getSkillToolCommands = memoize(
   async (cwd: string): Promise<Command[]> => {
-    const allCommands = await getSkillDirCommands(cwd)
+    // 使用新的统一接口获取所有技能
+    const allCommands = await getAllSkills(cwd)
 
     // 过滤出可用于SkillTool的prompt类型命令
     return allCommands.filter(
@@ -43,8 +47,7 @@ export const getSkillToolCommands = memoize(
  * 获取所有可用的技能命令（包括禁用的）
  */
 export async function getAllSkillCommands(cwd: string): Promise<Command[]> {
-  const allCommands = await getSkillDirCommands(cwd)
-  return allCommands.filter(cmd => cmd.type === 'prompt')
+  return getAllSkills(cwd)
 }
 
 /**
@@ -67,6 +70,13 @@ export function clearCommandsCache(): void {
  */
 export function getSkills(): Command[] {
   return getDynamicSkills()
+}
+
+/**
+ * 获取内置技能
+ */
+export function getBundledSkillCommands(): Command[] {
+  return getBundledSkills()
 }
 
 /**
