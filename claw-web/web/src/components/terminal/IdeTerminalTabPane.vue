@@ -545,7 +545,7 @@ defineExpose({
       @click.stop
     >
       <div class="context-menu-item" @click="copySelectedText">复制选中内容</div>
-      <div class="context-menu-item" @click="appendSelectionToChat">添加到对话</div>
+      <div class="context-menu-item" @click="appendSelectionToChat(); hideContextMenu()">添加到对话</div>
       <div class="context-menu-item" @click="copyAllText">复制全部</div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" @click="pasteText">粘贴</div>
