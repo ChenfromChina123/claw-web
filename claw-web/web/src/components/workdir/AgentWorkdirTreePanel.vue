@@ -135,7 +135,31 @@ function handleDeleteSelected(): void {
   }
   const node = findNodeByKey(ctx.treeData.value, key)
   const isDirectory = node ? node.isLeaf === false : false
-  void ctx.deleteWorkdirEntry(key, isDirectory)
+  showDeleteConfirm(key, isDirectory)
+}
+
+/**
+ * 显示删除确认对话框
+ */
+function showDeleteConfirm(path: string, isDirectory: boolean): void {
+  const fileName = path.split(/[/\\]/).pop() || path
+  const title = isDirectory ? '删除文件夹' : '删除文件'
+  const content = isDirectory
+    ? `确定要删除文件夹 "${fileName}" 及其所有内容吗？此操作不可恢复。`
+    : `确定要删除文件 "${fileName}" 吗？此操作不可恢复。`
+
+  dialog.warning({
+    title,
+    content,
+    positiveText: '确定删除',
+    negativeText: '取消',
+    positiveButtonProps: {
+      type: 'error',
+    },
+    onPositiveClick: async () => {
+      await ctx.deleteWorkdirEntry(path, isDirectory)
+    },
+  })
 }
 
 /**
@@ -180,7 +204,7 @@ function onCtxMenuSelect(key: string | number): void {
       void ctx.downloadFile(t.path, base)
     }
   } else if (key === 'delete') {
-    void ctx.deleteWorkdirEntry(t.path, t.isDirectory)
+    showDeleteConfirm(t.path, t.isDirectory)
   }
 }
 
