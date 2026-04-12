@@ -34,8 +34,8 @@ export { handleWorkspaceRoutes, default as workspaceRoutes } from './workspace.r
 // 提示词模板路由
 export { handlePromptTemplateRoutes, default as promptTemplateRoutes } from './promptTemplate.routes'
 
-// 技能导入路由
-export { handleSkillImportRoutes, default as skillImportRoutes } from './skills.routes'
+// Skills 路由
+export { handleSkillRoutes, handleSkillImportRoutes, default as skillRoutes } from './skills.routes'
 
 import type { Request, Response } from 'express'
 
