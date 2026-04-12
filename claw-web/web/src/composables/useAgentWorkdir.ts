@@ -1425,8 +1425,8 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
   }
 
   // ========== 监听 Agent 文件变更事件 ==========
-  // 当 Agent 通过工具修改文件后，后端会发送 workdir_changed 事件
-  // 这里监听全局事件并自动刷新文件树
+  // 当 Agent 通过工具修改文件后，后端会发送 workdir-changed 事件
+  // 这里监听全局事件并自动刷新文件树和已打开的文件内容
   if (typeof window !== 'undefined') {
     window.addEventListener('workdir-changed', ((event: CustomEvent) => {
       const detail = event.detail as { sessionId?: string; toolName?: string; timestamp?: string }
@@ -1435,11 +1435,37 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
       // 只处理当前会话的文件变更
       if (detail.sessionId !== sessionIdRef.value) return
 
-      console.log('[useAgentWorkdir] 收到文件变更事件，准备刷新文件树:', detail.toolName)
+      console.log('[useAgentWorkdir] 收到文件变更事件，准备刷新:', detail.toolName)
 
       // 延迟刷新，避免与工具执行冲突
-      setTimeout(() => {
-        void refreshTree({ silent: true })
+      setTimeout(async () => {
+        // 1. 刷新文件树
+        await refreshTree({ silent: true })
+
+        // 2. 检查并刷新当前活跃文件的内容（如果该文件可能被修改）
+        const activeId = activeFileId.value
+        if (activeId && editorInstance) {
+          const activeEntry = openFiles.value.find(f => f.id === activeId)
+          if (activeEntry && activeEntry.mode === 'text') {
+            // 对于文本文件，检查是否有未保存的更改
+            const model = modelMap.get(activeId)
+            if (model && !isModelDirty(activeId)) {
+              // 文件没有未保存的更改，可以安全地重新加载
+              console.log('[useAgentWorkdir] 重新加载当前活跃文件内容:', activeId)
+              try {
+                await activateOpenFile(activeId, { silent: true })
+              } catch (error) {
+                console.warn('[useAgentWorkdir] 重新加载文件失败:', error)
+              }
+            } else if (model && isModelDirty(activeId)) {
+              // 文件有未保存的更改，提示用户
+              console.warn('[useAgentWorkdir] 当前文件有未保存的更改，跳过自动重新加载')
+              // 可以选择性地显示一个提示消息，但为了避免打扰用户，暂时只记录日志
+            }
+          }
+        }
+
+        console.log('[useAgentWorkdir] 文件变更处理完成')
       }, 500)
     }) as EventListener)
   }
