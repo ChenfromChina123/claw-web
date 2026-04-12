@@ -1147,14 +1147,63 @@ defineExpose({
 }
 
 /* ========== 下拉菜单样式：深色背景风格 ========== */
-:global(.n-select-menu) {
-  background-color: #1e1e1e !important;
-  border: 1px solid #333 !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+
+/* NDropdown 菜单容器 - 与 NSelect 一致的紧凑风格 */
+.chat-input--ide :global(.n-dropdown-menu) {
+  background-color: #252526 !important;
+  border: 1px solid #3c3c3c !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
   padding: 4px 0 !important;
+  max-height: 280px !important;
+  overflow-y: auto !important;
+}
+
+/* NDropdown 选项 - 紧凑样式 */
+.chat-input--ide :global(.n-dropdown-option) {
+  color: #ccc !important;
+  font-size: 13px !important;
+  padding: 6px 12px !important;
+  min-height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+/* NDropdown 选项悬停 */
+.chat-input--ide :global(.n-dropdown-option:hover) {
+  background-color: rgba(0, 122, 204, 0.15) !important;
+  color: #fff !important;
+}
+
+/* NDropdown 分组标题 */
+.chat-input--ide :global(.n-dropdown-option-group-label) {
+  color: #666 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 6px 12px 4px !important;
+  text-transform: none !important;
+  letter-spacing: 0.5px !important;
+}
+
+/* NDropdown 分割线 */
+.chat-input--ide :global(.n-dropdown-menu .n-dropdown-divider) {
+  height: 1px !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  margin: 4px 8px !important;
+}
+
+/* NSelect 菜单容器 */
+:global(.n-select-menu) {
+  background-color: #252526 !important;
+  border: 1px solid #3c3c3c !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+  padding: 4px 0 !important;
+  max-height: 280px !important;
+  overflow-y: auto !important;
   width: 100% !important;
-  min-width: 100px !important;
+  min-width: 120px !important;
 }
 
 :global(.n-base-select-option) {

@@ -1135,29 +1135,43 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
    * 处理树节点选中
    */
   function handleSelect(keys: Array<string | number>) {
+    console.log('[handleSelect] 开始处理，keys:', keys)
+    console.log('[handleSelect] 当前 selectedKey.value:', selectedKey.value)
+    console.log('[handleSelect] 当前 activeFileId.value:', activeFileId.value)
+    console.log('[handleSelect] 当前 openFiles:', openFiles.value.map(f => f.id))
+
     // 确保只选中一个节点，避免同名文件同时高亮
     if (!keys || keys.length === 0) {
+      console.log('[handleSelect] keys 为空，清空选中')
       selectedKey.value = null
       return
     }
 
     const key = String(keys[0])
+    console.log('[handleSelect] key:', key)
     if (!key) return
 
     // 如果 key 与当前选中项相同，但文件已经打开，则切换到该文件标签页并刷新编辑器
     if (selectedKey.value === key) {
+      console.log('[handleSelect] key 与当前选中项相同')
       const alreadyOpen = openFiles.value.find(f => f.id === key)
+      console.log('[handleSelect] alreadyOpen:', alreadyOpen ? '文件已打开' : '文件未打开')
       if (alreadyOpen) {
         console.log('[handleSelect] 文件已打开，强制激活:', key)
-        void activateOpenFile(key)
+        console.log('[handleSelect] 调用 activateOpenFile 之前，activeFileId.value:', activeFileId.value)
+        void activateOpenFile(key).then(result => {
+          console.log('[handleSelect] activateOpenFile 完成，result:', result)
+          console.log('[handleSelect] activateOpenFile 之后，activeFileId.value:', activeFileId.value)
+        })
       }
       return
     }
 
     selectedKey.value = key
+    console.log('[handleSelect] 设置 selectedKey.value:', selectedKey.value)
     const node = findNodeByKey(treeData.value, key)
 
-    console.log('[handleSelect] key:', key, 'node:', node ? { label: node.label, isLeaf: node.isLeaf } : null)
+    console.log('[handleSelect] node:', node ? { label: node.label, isLeaf: node.isLeaf } : null)
 
     // 只有当节点是叶子节点（文件）时才加载内容
     if (node && node.isLeaf === true) {
