@@ -40,31 +40,53 @@
 
 /* ============================================
    全局统一的右键菜单样式 - 复用终端样式
+   与终端 .context-menu 样式完全一致
    ============================================ */
-.n-dropdown {
-  --n-border-radius: 6px !important;
-  --n-color: #2d2d2d !important;
-  --n-option-color-hover: #4a4a4a !important;
-  --n-option-text-color: #ddd !important;
-  --n-option-text-color-hover: #ddd !important;
-  --n-padding: 4px 0 !important;
-  --n-font-size: 13px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+
+/* 下拉菜单容器 */
+.n-dropdown-menu {
+  background: #2d2d2d !important;
   border: 1px solid #555 !important;
+  border-radius: 6px !important;
+  padding: 4px 0 !important;
+  min-width: 140px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
 }
 
+/* 菜单选项基础样式 */
 .n-dropdown-option {
   padding: 8px 16px !important;
-  min-width: 140px !important;
+  font-size: 13px !important;
+  color: #ddd !important;
   cursor: pointer !important;
+  background: transparent !important;
   transition: none !important;
 }
 
-.n-dropdown-option__content {
-  font-weight: 400 !important;
+/* 菜单项悬停效果 - 与终端一致 */
+.n-dropdown-option:hover,
+.n-dropdown-option-body__hover {
+  background: #4a4a4a !important;
 }
 
-.n-dropdown-divider {
-  background-color: #555 !important;
+/* 菜单选项内容文字 */
+.n-dropdown-option-body__label {
+  color: #ddd !important;
+}
+
+.n-dropdown-option:hover .n-dropdown-option-body__label {
+  color: #ddd !important;
+}
+
+/* 分割线样式 */
+.n-dropdown-menu-divider-wrapper {
+  padding: 0 !important;
   margin: 4px 0 !important;
+}
+
+.n-dropdown-menu-divider-wrapper::after {
+  content: '';
+  display: block;
+  height: 1px;
+  background: #555;
 }
