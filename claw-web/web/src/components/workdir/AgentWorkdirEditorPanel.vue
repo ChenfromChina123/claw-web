@@ -609,6 +609,15 @@ defineExpose({
           @close="closeSpecialTab('prompt-library')"
         />
       </div>
+
+      <!-- 设置标签页 -->
+      <div v-show="showSettingsTab" class="special-tab-content">
+        <Settings
+          v-if="showSettingsTab"
+          :key="'settings-' + activeSpecialTabId"
+          :embedded="true"
+        />
+      </div>
     </template>
 
     <div v-else class="no-file-selected">

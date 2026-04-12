@@ -6,6 +6,13 @@ import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
 import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 
+/**
+ * 是否为内嵌模式（在编辑器标签页中显示）
+ */
+const props = defineProps<{
+  embedded?: boolean
+}>()
+
 const router = useRouter()
 const message = useMessage()
 const authStore = useAuthStore()
@@ -56,8 +63,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <NLayout has-sider class="settings-layout">
+  <NLayout :has-sider="!embedded" :class="['settings-layout', { 'settings-embedded': embedded }]">
     <NLayoutSider
+      v-if="!embedded"
       bordered
       content-style="padding: 20px;"
       :width="220"
@@ -83,14 +91,27 @@ onMounted(() => {
     </NLayoutSider>
     
     <NLayoutContent class="settings-content">
-      <NCard v-show="activeSection === 'general'" title="通用设置">
-        <NForm label-placement="left" label-width="120">
+      <!-- 内嵌模式下的顶部导航 -->
+      <div v-if="embedded" class="settings-embedded-nav">
+        <button
+          v-for="item in navItems"
+          :key="item.key"
+          class="settings-embedded-nav-btn"
+          :class="{ active: activeSection === item.key }"
+          @click="activeSection = item.key"
+        >
+          {{ item.label }}
+        </button>
+      </div>
+
+      <NCard v-show="activeSection === 'general'" title="通用设置" :size="embedded ? 'small' : 'medium'">
+        <NForm :label-placement="embedded ? 'top' : 'left'" :label-width="embedded ? undefined : 120">
           <NFormItem label="主题" class="settings-theme-item">
             <ThemeSwitcher variant="settings" />
           </NFormItem>
 
           <NFormItem label="语言">
-            <NInput v-model:value="preferences.language" style="width: 200px" />
+            <NInput v-model:value="preferences.language" :style="embedded ? 'width: 100%' : 'width: 200px'" />
           </NFormItem>
 
           <NFormItem label="流式响应">
@@ -103,20 +124,20 @@ onMounted(() => {
         </NForm>
       </NCard>
 
-      <NCard v-show="activeSection === 'model'" title="模型设置">
-        <NForm label-placement="left" label-width="120">
+      <NCard v-show="activeSection === 'model'" title="模型设置" :size="embedded ? 'small' : 'medium'">
+        <NForm :label-placement="embedded ? 'top' : 'left'" :label-width="embedded ? undefined : 120">
           <NFormItem label="默认模型">
             <NSelect
               v-model:value="modelSettings.model"
               :options="modelOptions"
-              style="width: 200px"
+              :style="embedded ? 'width: 100%' : 'width: 200px'"
             />
           </NFormItem>
 
           <NFormItem label="温度">
             <NInputNumber
               v-model:value="modelSettings.temperature"
-              style="width: 100px"
+              :style="embedded ? 'width: 100%' : 'width: 100px'"
               :min="0"
               :max="2"
               :step="0.1"
@@ -126,7 +147,7 @@ onMounted(() => {
           <NFormItem label="最大 Token">
             <NInputNumber
               v-model:value="modelSettings.maxTokens"
-              style="width: 120px"
+              :style="embedded ? 'width: 100%' : 'width: 120px'"
               :min="100"
               :max="100000"
               :step="100"
@@ -135,8 +156,8 @@ onMounted(() => {
         </NForm>
       </NCard>
 
-      <NCard v-show="activeSection === 'visualization'" title="可视化设置">
-        <NForm label-placement="left" label-width="140">
+      <NCard v-show="activeSection === 'visualization'" title="可视化设置" :size="embedded ? 'small' : 'medium'">
+        <NForm :label-placement="embedded ? 'top' : 'left'" :label-width="embedded ? undefined : 140">
           <NFormItem label="显示流程图">
             <NSwitch v-model:value="preferences.showFlowVisualization" />
           </NFormItem>
@@ -151,7 +172,7 @@ onMounted(() => {
         </NForm>
       </NCard>
 
-      <NCard v-show="activeSection === 'account'" title="账户">
+      <NCard v-show="activeSection === 'account'" title="账户" :size="embedded ? 'small' : 'medium'">
         <NSpace vertical :size="16">
           <template v-if="authStore.isLoggedIn && authStore.user">
             <div>
@@ -182,6 +203,11 @@ onMounted(() => {
 .settings-layout {
   height: 100vh;
   background: var(--bg-primary);
+}
+
+.settings-layout.settings-embedded {
+  height: 100%;
+  background: #1e1e1e;
 }
 
 .settings-nav h3 {
@@ -217,6 +243,42 @@ onMounted(() => {
   overflow-y: auto;
 }
 
+/* 内嵌模式样式 */
+.settings-layout.settings-embedded .settings-content {
+  padding: 12px;
+}
+
+/* 内嵌模式顶部导航 */
+.settings-embedded-nav {
+  display: flex;
+  gap: 4px;
+  padding: 8px 0 12px;
+  border-bottom: 1px solid #333;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-embedded-nav-btn {
+  padding: 6px 12px;
+  border: none;
+  background: #2d2d2d;
+  color: #aaa;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.settings-embedded-nav-btn:hover {
+  background: #383838;
+  color: #fff;
+}
+
+.settings-embedded-nav-btn.active {
+  background: #007acc;
+  color: #fff;
+}
+
 .account-hint {
   margin: 0;
   color: var(--text-secondary);
@@ -226,5 +288,11 @@ onMounted(() => {
 /* 主题切换控件贴表单内容区左侧，避免被拉伸到整行最右 */
 .settings-theme-item :deep(.n-form-item-blank) {
   justify-content: flex-start;
+}
+
+/* 内嵌模式下卡片样式 */
+.settings-embedded :deep(.n-card) {
+  background: #252526;
+  border: 1px solid #3c3c3c;
 }
 </style>

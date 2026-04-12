@@ -170,6 +170,19 @@ function handleOpenPromptLibrary(): void {
 }
 
 /**
+ * 在编辑器中打开设置页面
+ * 通过 ref 调用 AgentWorkdirEditorPanel 的方法
+ */
+function handleOpenSettings(): void {
+  if (!editorPanelRef.value) {
+    message.warning('编辑器未就绪，请稍后再试')
+    return
+  }
+  // 调用编辑器面板的打开设置页面方法
+  editorPanelRef.value.openSettingsTab()
+}
+
+/**
  * 提供打开模板库的方法给 ChatInput 使用
  */
 provideOpenPromptLibrary(handleOpenPromptLibrary)
@@ -407,8 +420,8 @@ async function handleRetry(): Promise<void> {
       <div class="activity-bottom">
         <div
           class="activity-icon"
-          title="Settings"
-          @click="router.push('/settings')"
+          title="设置"
+          @click="handleOpenSettings"
         >
           <NIcon size="22"><SettingsOutline /></NIcon>
         </div>
