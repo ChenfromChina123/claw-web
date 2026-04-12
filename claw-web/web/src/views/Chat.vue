@@ -498,22 +498,6 @@ function handleSessionSwitcherClose() {
 }
 
 /**
- * 处理快速导航
- */
-function handleQuickNav(messageId: string) {
-  // 滚动到指定消息
-  const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
-  if (messageElement) {
-    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    // 高亮显示
-    messageElement.classList.add('highlight-message')
-    setTimeout(() => {
-      messageElement.classList.remove('highlight-message')
-    }, 2000)
-  }
-}
-
-/**
  * 会话切换器选择回调
  */
 function handleSessionSwitcherSelect(sessionId: string) {
@@ -531,14 +515,32 @@ function handleMessageSearchSelect(messageId: string, sessionId: string) {
   if (sessionId !== chatStore.currentSessionId) {
     chatStore.loadSession(sessionId).then(() => {
       message.success('已定位到消息')
-      // TODO: 滚动到指定消息
+      // 滚动到指定消息
+      handleQuickNavNavigate(messageId)
     }).catch((error) => {
       console.error('加载会话失败:', error)
       message.error('加载会话失败')
     })
   } else {
     message.success('已定位到消息')
-    // TODO: 滚动到指定消息
+    // 滚动到指定消息
+    handleQuickNavNavigate(messageId)
+  }
+}
+
+/**
+ * 处理快速导航
+ */
+function handleQuickNavNavigate(messageId: string) {
+  // 滚动到指定的消息
+  const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
+  if (messageElement) {
+    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // 高亮显示
+    messageElement.classList.add('highlight-message')
+    setTimeout(() => {
+      messageElement.classList.remove('highlight-message')
+    }, 2000)
   }
 }
 </script>
@@ -652,14 +654,7 @@ function handleMessageSearchSelect(messageId: string, sessionId: string) {
         <template v-else>
           <!-- 聊天区域 -->
           <div class="chat-area">
-            <!-- 快速导航按钮 - 悬浮在右上角 -->
-          <QuickNavButton
-            v-if="sidebarCollapsed"
-            :visible="chatStore.messages.length > 0"
-            @navigate="(type) => console.log('Quick nav:', type)"
-          />
-          
-          <!-- 消息列表 -->
+            <!-- 消息列表 -->
             <ChatMessageList
               :messages="chatStore.messages"
               :tool-calls="chatStore.toolCalls"
@@ -741,6 +736,12 @@ function handleMessageSearchSelect(messageId: string, sessionId: string) {
     <!-- 导出/分享弹窗 -->
     <ExportShareModal
       v-model:show="showExportShareModal"
+    />
+    
+    <!-- 快速导航按钮 - 悬浮在聊天框右上角 -->
+    <QuickNavButton
+      :visible="true"
+      @navigate="handleQuickNavNavigate"
     />
   </NLayout>
 </template>

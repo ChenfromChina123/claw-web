@@ -156,7 +156,7 @@ function handleNavMouseLeave() {
 
 .quick-nav-popup {
   position: absolute;
-  bottom: calc(100% + 12px);
+  top: calc(100% + 12px);
   right: 0;
   width: 300px;
   max-height: 360px;
@@ -248,7 +248,7 @@ function handleNavMouseLeave() {
   color: #ccc;
 }
 
-/* 快速导航动画 */
+/* 快速导航动画 - 向下展开 */
 .quick-nav-fade-enter-active,
 .quick-nav-fade-leave-active {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -257,7 +257,7 @@ function handleNavMouseLeave() {
 .quick-nav-fade-enter-from,
 .quick-nav-fade-leave-to {
   opacity: 0;
-  transform: translateY(10px) scale(0.98);
+  transform: translateY(-10px) scale(0.98);
 }
 
 /* 响应式适配 */

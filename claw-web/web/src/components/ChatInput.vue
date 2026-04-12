@@ -5,7 +5,7 @@ import { buildIdeLayeredUserMessage, buildTerminalRefMarker, type TerminalRefInM
 import { saveTerminalReference } from '@/composables/useIdeTerminalPersistence'
 import { NInput, NButton, NIcon, NSpin, NTag, NSelect, NDropdown, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
-import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline, FlashOutline } from '@vicons/ionicons5'
+import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline, FlashOutline, ListOutline, ChevronUpOutline } from '@vicons/ionicons5'
 import { modelApi, type Model } from '@/api/modelApi'
 import { useChatStore } from '@/stores/chat'
 import { promptTemplateApi, type PromptTemplate } from '@/api/promptTemplateApi'
@@ -29,11 +29,64 @@ const emit = defineEmits<{
   focus: []
   /** 用户点击停止按钮，中断正在进行的生成 */
   stop: []
+  /** 导航到指定消息 */
+  navigateToMessage: [messageId: string]
 }>()
 
 const chatStore = useChatStore()
 const models = ref<Model[]>([])
 const selectedModelId = ref<string>('')
+
+// ==================== 快速导航 ====================
+const quickNavShow = ref(false)
+const quickNavHover = ref(false)
+
+// 用户消息导航条目
+const userNavEntries = computed(() => {
+  const entries: Array<{ id: string; index: number; preview: string }> = []
+  const messages = chatStore.messages
+  let userIndex = 0
+
+  for (const message of messages) {
+    if (message.role === 'user') {
+      userIndex++
+      const content = typeof message.content === 'string'
+        ? message.content
+        : JSON.stringify(message.content)
+      const preview = content.slice(0, 50).replace(/\n/g, ' ') || '（空消息）'
+      entries.push({
+        id: message.id,
+        index: userIndex,
+        preview: preview.length > 50 ? preview + '...' : preview,
+      })
+    }
+  }
+
+  return entries.reverse() // 最新的在前面
+})
+
+// 处理导航点击
+function handleNavClick(messageId: string) {
+  // 触发父组件滚动到指定消息
+  emit('navigateToMessage', messageId)
+  quickNavShow.value = false
+}
+
+// 处理鼠标进入
+function handleNavMouseEnter() {
+  quickNavHover.value = true
+  quickNavShow.value = true
+}
+
+// 处理鼠标离开
+function handleNavMouseLeave() {
+  quickNavHover.value = false
+  setTimeout(() => {
+    if (!quickNavHover.value) {
+      quickNavShow.value = false
+    }
+  }, 100)
+}
 
 const modelOptions = computed(() =>
   (models.value ?? []).map(m => ({ label: m.name, value: m.id })),
@@ -697,9 +750,49 @@ defineExpose({
   <div class="chat-input" :class="`chat-input--${variant || 'default'}`">
     <!-- IDE 变体：输入框容器（所有组件都在输入框内部） -->
     <div v-if="variant === 'ide'" class="input-container">
-      <!-- 输入框 Header：AI角色标识 -->
+      <!-- 输入框 Header：AI角色标识 + 快速导航 -->
       <div class="input-header">
         <span>claw-code</span>
+        
+        <!-- 快速导航按钮 - 悬浮在右上角 -->
+        <div
+          v-if="userNavEntries.length > 0"
+          class="quick-nav-wrapper"
+          @mouseenter="handleNavMouseEnter"
+          @mouseleave="handleNavMouseLeave"
+        >
+          <button type="button" class="quick-nav-trigger">
+            <NIcon :size="14"><ListOutline /></NIcon>
+            <span class="quick-nav-count">{{ userNavEntries.length }}</span>
+            <NIcon :size="12" class="quick-nav-arrow"><ChevronUpOutline /></NIcon>
+          </button>
+          
+          <!-- 快速导航弹出层 -->
+          <Transition name="quick-nav-fade">
+            <div
+              v-show="quickNavShow"
+              class="quick-nav-popup"
+              @mouseenter="handleNavMouseEnter"
+              @mouseleave="handleNavMouseLeave"
+            >
+              <div class="quick-nav-header">
+                <span>📍 快速导航</span>
+                <span class="quick-nav-total">共 {{ userNavEntries.length }} 条</span>
+              </div>
+              <div class="quick-nav-list">
+                <div
+                  v-for="entry in userNavEntries"
+                  :key="entry.id"
+                  class="quick-nav-item"
+                  @click="handleNavClick(entry.id)"
+                >
+                  <span class="quick-nav-index">#{{ entry.index }}</span>
+                  <span class="quick-nav-preview" :title="entry.preview">{{ entry.preview }}</span>
+                </div>
+              </div>
+            </div>
+          </Transition>
+        </div>
       </div>
 
       <!-- 中间：输入框 + 代码引用 -->
@@ -1200,6 +1293,136 @@ defineExpose({
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 600;
+}
+
+/* ========== 快速导航样式 ========== */
+.quick-nav-wrapper {
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 100;
+}
+
+.quick-nav-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #888;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quick-nav-trigger:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #aaa;
+}
+
+.quick-nav-count {
+  font-weight: 500;
+  color: #f2c97d;
+}
+
+.quick-nav-arrow {
+  transition: transform 0.2s ease;
+}
+
+.quick-nav-wrapper:hover .quick-nav-arrow {
+  transform: rotate(180deg);
+}
+
+.quick-nav-popup {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  max-height: 320px;
+  background-color: #1e1e1e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.quick-nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 13px;
+  color: #aaa;
+}
+
+.quick-nav-total {
+  font-size: 11px;
+  color: #666;
+}
+
+.quick-nav-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.quick-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quick-nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.quick-nav-index {
+  flex-shrink: 0;
+  width: 24px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(242, 201, 125, 0.15);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #f2c97d;
+}
+
+.quick-nav-preview {
+  flex: 1;
+  font-size: 12px;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-nav-item:hover .quick-nav-preview {
+  color: #ccc;
+}
+
+/* 快速导航动画 */
+.quick-nav-fade-enter-active,
+.quick-nav-fade-leave-active {
+  transition: all 0.2s ease;
+}
+
+.quick-nav-fade-enter-from,
+.quick-nav-fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 
 /* ========== 默认变体：输入框容器样式 ========== */
