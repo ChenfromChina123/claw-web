@@ -1141,9 +1141,13 @@ defineExpose({
   border-radius: 6px !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
   padding: 4px 0 !important;
+  width: 100% !important;
+  min-width: 100px !important;
 }
 
 :global(.n-base-select-option) {
+  width: 100% !important;
+  box-sizing: border-box !important;
   color: #aaa !important;
   font-size: 13px !important;
   padding: 6px 12px !important;
