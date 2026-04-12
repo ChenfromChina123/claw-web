@@ -21,6 +21,8 @@ import {
   DesktopOutline,
   ChatbubblesOutline,
   Add,
+  ListOutline,
+  ChevronDownOutline,
 } from '@vicons/ionicons5'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
@@ -114,6 +116,64 @@ const inputRef = ref<InstanceType<typeof ChatInput> | null>(null)
 const editorPanelRef = ref<InstanceType<typeof AgentWorkdirEditorPanel> | null>(null)
 /** 左侧边栏视图：资源管理器 vs 会话列表（释放右侧 AI 栏垂直空间） */
 const leftSidebarView = ref<'explorer' | 'sessions'>('explorer')
+
+// ========== 快速导航状态 ==========
+const quickNavShow = ref(false)
+
+// 用户消息数量
+const userMessageCount = computed(() => {
+  return chatStore.messages.filter(m => m.role === 'user').length
+})
+
+// 用户消息导航项
+const userMessageNavItems = computed(() => {
+  const items: Array<{ id: string; preview: string }> = []
+
+  for (const m of chatStore.messages) {
+    if (m.role !== 'user') continue
+
+    // 获取消息预览
+    let preview = ''
+    const content = (m as { content?: unknown }).content
+    if (typeof content === 'string') {
+      preview = content.slice(0, 40).replace(/\n/g, ' ')
+    } else if (Array.isArray(content)) {
+      const textContent = content
+        .filter((b: unknown) => (b as { type?: string })?.type === 'text')
+        .map((b: unknown) => String((b as { text?: string }).text || ''))
+        .join(' ')
+      preview = textContent.slice(0, 40).replace(/\n/g, ' ')
+    } else {
+      preview = String(content).slice(0, 40).replace(/\n/g, ' ')
+    }
+
+    if (preview.length > 40) {
+      preview = preview + '...'
+    }
+
+    items.unshift({
+      id: m.id,
+      preview: preview || '（空消息）',
+    })
+  }
+
+  return items
+})
+
+// 处理快速导航点击
+function handleQuickNavClick(messageId: string) {
+  quickNavShow.value = false
+  // 滚动到指定消息
+  const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
+  if (messageElement) {
+    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // 高亮显示
+    messageElement.classList.add('highlight-message')
+    setTimeout(() => {
+      messageElement.classList.remove('highlight-message')
+    }, 2000)
+  }
+}
 
 // ========== 会话 ID ref ==========
 const sessionIdRef = computed(() => chatStore.currentSessionId || '')
@@ -476,15 +536,59 @@ async function handleRetry(): Promise<void> {
         <Pane :size="safeSize(ideLayout.rootSizes[2], 28)" min-size="20" class="right-column-pane chat-pane-full">
           <div class="pane-header chat-pane-header">
             <span>AI AGENT</span>
-            <button
-              type="button"
-              class="chat-new-session-btn"
-              title="新建会话"
-              aria-label="新建会话"
-              @click="handleActivityBarNewSession"
-            >
-              <NIcon :size="18"><Add /></NIcon>
-            </button>
+            <div class="chat-header-actions">
+              <!-- 快速导航按钮 -->
+              <div
+                v-if="userMessageCount > 0"
+                class="quick-nav-wrapper"
+                @mouseenter="quickNavShow = true"
+                @mouseleave="quickNavShow = false"
+              >
+                <button type="button" class="quick-nav-trigger">
+                  <NIcon :size="14"><ListOutline /></NIcon>
+                  <span class="quick-nav-count">{{ userMessageCount }}</span>
+                  <NIcon :size="12" class="quick-nav-arrow" :class="{ 'is-open': quickNavShow }">
+                    <ChevronDownOutline />
+                  </NIcon>
+                </button>
+
+                <!-- 快速导航弹出层 - 向下展开 -->
+                <Transition name="quick-nav-fade">
+                  <div
+                    v-show="quickNavShow"
+                    class="quick-nav-popup"
+                    @mouseenter="quickNavShow = true"
+                    @mouseleave="quickNavShow = false"
+                  >
+                    <div class="quick-nav-header">
+                      <span>📍 快速导航</span>
+                      <span class="quick-nav-total">共 {{ userMessageCount }} 条</span>
+                    </div>
+                    <div class="quick-nav-list">
+                      <div
+                        v-for="(entry, idx) in userMessageNavItems"
+                        :key="entry.id"
+                        class="quick-nav-item"
+                        @click="handleQuickNavClick(entry.id)"
+                      >
+                        <span class="quick-nav-index">#{{ userMessageCount - idx }}</span>
+                        <span class="quick-nav-preview" :title="entry.preview">{{ entry.preview }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </Transition>
+              </div>
+
+              <button
+                type="button"
+                class="chat-new-session-btn"
+                title="新建会话"
+                aria-label="新建会话"
+                @click="handleActivityBarNewSession"
+              >
+                <NIcon :size="18"><Add /></NIcon>
+              </button>
+            </div>
           </div>
           <div class="pane-content chat-content">
             <div v-if="isInitializing" class="initialization-container">
@@ -751,6 +855,159 @@ async function handleRetry(): Promise<void> {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+/* ========== 快速导航样式 ========== */
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-nav-wrapper {
+  position: relative;
+}
+
+.quick-nav-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #888;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quick-nav-trigger:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #aaa;
+}
+
+.quick-nav-count {
+  font-weight: 600;
+  color: #f2c97d;
+  min-width: 14px;
+  text-align: center;
+}
+
+.quick-nav-arrow {
+  transition: transform 0.2s ease;
+  opacity: 0.6;
+}
+
+.quick-nav-arrow.is-open {
+  transform: rotate(180deg);
+}
+
+.quick-nav-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  max-height: 320px;
+  background-color: #252525;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+}
+
+.quick-nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 13px;
+  color: #aaa;
+  font-weight: 500;
+}
+
+.quick-nav-total {
+  font-size: 11px;
+  color: #666;
+  font-weight: 400;
+}
+
+.quick-nav-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.quick-nav-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.quick-nav-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.quick-nav-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.quick-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quick-nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.quick-nav-index {
+  flex-shrink: 0;
+  width: 24px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(242, 201, 125, 0.15);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #f2c97d;
+}
+
+.quick-nav-preview {
+  flex: 1;
+  font-size: 12px;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.quick-nav-item:hover .quick-nav-preview {
+  color: #ccc;
+}
+
+/* 快速导航动画 - 向下展开 */
+.quick-nav-fade-enter-active,
+.quick-nav-fade-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.quick-nav-fade-enter-from,
+.quick-nav-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
 }
 
 .explorer-or-sessions-body {
