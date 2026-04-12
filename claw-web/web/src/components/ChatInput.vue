@@ -1082,83 +1082,73 @@ defineExpose({
   gap: 4px;
 }
 
-/* ========== 模型选择器：调整为与其他按钮一致的样式 ========== */
+/* ========== 彻底重定义模型选择器样式 ========== */
+
+/* 1. 基础容器：保持高度一致 */
 .model-select-integrated {
   width: auto;
-  min-width: 100px;
-  /* 移除原有的过度扁平化设置，对齐左侧按钮高度 */
+  min-width: 110px;
   height: 24px;
 }
 
-/* 调整选择器主体，使其匹配按钮的外观 */
+/* 2. 深度覆盖 Naive UI 内部组件 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection) {
   --n-height: 24px !important;
-  --n-border: 1px solid #3f4252 !important; /* 统一边框色 */
+  --n-border: 1px solid #3f4252 !important; /* 统一边框颜色 */
   --n-border-hover: 1px solid #555 !important;
-  --n-border-active: 1px solid #007acc !important;
-  --n-border-focus: 1px solid #007acc !important;
-  --n-color: #2a2d3a !important; /* 统一背景色 */
+  --n-border-active: 1px solid #3f4252 !important; /* 取消激活时的蓝色 */
+  --n-border-focus: 1px solid #3f4252 !important;  /* 取消聚焦时的蓝色 */
+  --n-box-shadow-hover: none !important;
+  --n-box-shadow-active: none !important;
+  --n-box-shadow-focus: none !important;           /* 彻底移除蓝色外发光 */
+  --n-color: #2a2d3a !important;                   /* 统一背景颜色 */
   --n-color-active: #2a2d3a !important;
-  --n-text-color: #888 !important;
   --n-border-radius: 4px !important;
-  --n-box-shadow-focus: none !important;
   background-color: #2a2d3a !important;
-  border: 1px solid #3f4252 !important;
-  transition: all 0.2s ease;
 }
 
-/* 悬停效果 */
-.chat-input--ide .model-select-integrated:hover :deep(.n-base-selection) {
-  border-color: #555 !important;
-  background-color: rgba(255, 255, 255, 0.06) !important;
-}
-
-/* 文字样式对齐 */
+/* 3. 内部文字样式调整 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection-label) {
   height: 24px !important;
   line-height: 24px !important;
-  padding: 0 8px !important;
+  padding: 0 6px !important;
 }
 
 .chat-input--ide .model-select-integrated :deep(.n-base-selection__render) {
   font-size: 12px !important;
-  color: #888 !important;
-  justify-content: center !important; /* 居中对齐文字 */
+  color: #bbbbbb !important; /* 文字颜色调亮一点，更易读 */
+  justify-content: center !important;
 }
 
-/* 箭头图标颜色 */
+/* 4. 箭头颜色 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection-arrow) {
-  color: #666 !important;
-  right: 6px !important;
+  color: #888 !important;
 }
 
-/* ========== 强制下拉菜单为黑色风格 ========== */
-:deep(.n-select-menu) {
-  background-color: #1e1e1e !important; /* 纯黑/深黑背景 */
-  border: 1px solid #333 !important;
-  border-radius: 6px !important;
+/* 5. 悬停状态（模拟左侧按钮的 Hover 效果） */
+.chat-input--ide .model-select-integrated:hover :deep(.n-base-selection) {
+  background-color: #35394b !important; /* 稍微亮一点的深灰 */
+  border-color: #555 !important;
+}
+
+/* ========== 下拉菜单（弹出层）样式 ========== */
+/* 注意：下拉菜单通常挂载在 body 下，所以去掉 scoped 限制或使用全局覆盖 */
+:global(.n-select-menu) {
+  background-color: #2a2d3a !important; /* 与输入框底部条一致的深色 */
+  border: 1px solid #3f4252 !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
 }
 
-/* 选项的基础样式 */
-:deep(.n-base-select-option) {
-  --n-option-text-color: #aaa !important;
-  --n-option-color-pending: rgba(255, 255, 255, 0.08) !important;
-  --n-option-text-color-active: #fff !important;
-  --n-option-color-active: rgba(0, 122, 204, 0.2) !important;
-  font-size: 13px !important;
-  padding: 6px 12px !important;
+:global(.n-base-select-option) {
+  color: #aaa !important;
 }
 
-/* 鼠标悬停时的状态 */
-:deep(.n-base-select-option:hover) {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  color: #fff !important;
+:global(.n-base-select-option--pending::before) {
+  background-color: rgba(255, 255, 255, 0.08) !important; /* 悬停选项背景 */
 }
 
-/* 选中项的钩子颜色 */
-:deep(.n-base-select-option .n-base-select-option__check) {
-  color: #f2c97d !important; /* 金色的勾选标记 */
+:global(.n-base-select-option--selected) {
+  color: #f2c97d !important; /* 选中项文字颜色 */
 }
 
 /* 选中项：左侧蓝色指示条 + 微弱背景 */
