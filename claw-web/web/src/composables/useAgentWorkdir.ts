@@ -893,7 +893,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
   }
 
   /**
-   * 删除文件或文件夹
+   * 删除文件或文件夹（不包含确认逻辑）
    * @param path 要删除的路径
    * @param isDirectory 是否是文件夹
    * @returns 是否删除成功
@@ -901,14 +901,6 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
   async function deleteWorkdirEntry(path: string, isDirectory: boolean): Promise<boolean> {
     if (!sessionIdRef.value) {
       message.warning('请先选择或创建会话后再试')
-      return false
-    }
-
-    const confirmMessage = isDirectory
-      ? '确定要删除这个文件夹及其所有内容吗？此操作不可恢复。'
-      : '确定要删除这个文件吗？此操作不可恢复。'
-
-    if (!window.confirm(confirmMessage)) {
       return false
     }
 

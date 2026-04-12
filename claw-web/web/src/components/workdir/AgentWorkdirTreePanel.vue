@@ -15,6 +15,8 @@ import {
   NModal,
   NInput,
   NDropdown,
+  NDialog,
+  useDialog,
   type TreeOption,
 } from 'naive-ui'
 import {
@@ -33,6 +35,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useWorkdirContext } from '@/composables/useAgentWorkdir'
 
 const ctx = useWorkdirContext()
+const dialog = useDialog()
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const dragActive = ref(false)

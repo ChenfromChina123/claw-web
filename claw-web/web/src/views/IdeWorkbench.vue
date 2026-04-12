@@ -129,9 +129,8 @@ const userMessageCount = computed(() => {
 const userMessageNavItems = computed(() => {
   const items: Array<{ id: string; preview: string; index: number }> = []
   let userIndex = 0
-  const totalCount = chatStore.messages.filter(m => m.role === 'user').length
 
-  // 按顺序遍历所有用户消息（最早的消息在前）
+  // 先收集所有用户消息
   for (const m of chatStore.messages) {
     if (m.role !== 'user') continue
 
@@ -155,16 +154,14 @@ const userMessageNavItems = computed(() => {
       preview = preview + '...'
     }
 
-    // 序号：最新的消息（userIndex == totalCount）为1，最早的为 totalCount
-    const index = totalCount - userIndex + 1
-
     items.push({
       id: m.id,
       preview: preview || '（空消息）',
-      index,
+      index: userIndex,
     })
   }
 
+  // 第一条消息在最上面，序号为1
   return items
 })
 
