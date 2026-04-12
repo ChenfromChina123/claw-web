@@ -3344,13 +3344,18 @@ async function handleInterruptExecution() {
 
 /* ========== IDE 窄栏：独立工具调用样式 ========== */
 .message-list-wrapper--ide .tool-calls-wrapper {
-  margin-left: 48px;
-  margin-top: 4px;
+  margin-left: 0;
+  margin-top: 8px;
   margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
 .message-list-wrapper--ide .tool-calls-container {
-  gap: 4px;
+  gap: 6px;
+  width: 100%;
+  max-width: 720px;
 }
 
 .message-list-wrapper--ide .tool-call-item {
