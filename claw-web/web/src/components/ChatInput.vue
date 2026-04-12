@@ -1222,42 +1222,24 @@ defineExpose({
 :global(.n-base-select-option) {
   width: 100% !important;
   box-sizing: border-box !important;
-  color: #aaa !important;
-  font-size: 13px !important;
-  padding: 6px 12px !important;
+  color: #ccc !important;
+  font-size: 12px !important;
+  padding: 4px 10px !important;
+  line-height: 22px !important;
 }
 
 :global(.n-base-select-option:hover) {
-  background-color: transparent !important;
+  background-color: rgba(56, 139, 253, 0.15) !important;
   color: #fff !important;
-  border: 1px solid #555 !important;
-  border-radius: 4px !important;
+  border-radius: 3px !important;
 }
 
 :global(.n-base-select-option--selected) {
-  color: #f2c97d !important;
+  color: #58a6ff !important;
 }
 
 :global(.n-base-select-option--selected .n-base-select-option__check) {
-  color: #f2c97d !important;
-}
-
-/* 选中项左侧 2px 蓝色指示条 */
-.chat-input--ide .model-select-integrated :deep(.n-base-select-option--selected::before) {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 2px;
-  height: 12px;
-  background-color: #0078d4;
-  border-radius: 0 1px 1px 0;
-}
-
-/* 选中标记 */
-.chat-input--ide .model-select-integrated :deep(.n-base-select-option--selected .n-base-select-option__check) {
-  color: #0078d4 !important;
+  color: #58a6ff !important;
 }
 
 /* 分割线 */
@@ -1266,14 +1248,15 @@ defineExpose({
   margin: 3px 0 !important;
 }
 
-/* 分组标题 */
+/* 分组标题 - 类型标签区分 */
 .chat-input--ide .model-select-integrated :deep(.n-base-select-group-header) {
-  color: #555 !important;
+  color: #888 !important;
   font-size: 10px !important;
+  font-weight: 500 !important;
   padding: 4px 10px 2px !important;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 600;
+  text-transform: none !important;
+  letter-spacing: 0.3px !important;
+  user-select: none !important;
 }
 
 /* ========== 默认变体：输入框容器样式 ========== */
