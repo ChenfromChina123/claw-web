@@ -1109,53 +1109,6 @@ async function handleInterruptExecution() {
       class="chat-nav-floating"
       :class="{ 'chat-nav-floating--ide': ideDensity }"
     >
-      <!-- 快速导航到用户消息 -->
-      <NPopover
-        v-model:show="userNavPopoverShow"
-        trigger="click"
-        :show-arrow="false"
-        placement="left-end"
-        raw
-        class="chat-timeline-popover-wrap"
-      >
-        <template #trigger>
-          <button
-            type="button"
-            class="chat-nav-btn chat-nav-btn--primary"
-            title="快速导航到用户消息"
-            aria-label="用户消息导航"
-          >
-            <NIcon :size="ideDensity ? 18 : 20"><PersonOutline /></NIcon>
-            <span v-if="userTimelineEntries.length > 0" class="nav-badge">{{ userTimelineEntries.length }}</span>
-          </button>
-        </template>
-        <div class="chat-user-nav-panel" :class="{ 'chat-user-nav-panel--ide': ideDensity }">
-          <div class="chat-user-nav-head">
-            <span>📍 用户提问导航</span>
-            <span class="chat-user-nav-count">共 {{ userTimelineEntries.length }} 条</span>
-          </div>
-          <div v-if="userTimelineEntries.length === 0" class="chat-user-nav-empty">暂无用户提问</div>
-          <div v-else class="chat-user-nav-list">
-            <div
-              v-for="(entry, idx) in userTimelineEntries"
-              :key="entry.id"
-              class="chat-user-nav-item"
-              :class="{ 'chat-user-nav-item--active': isMessageHighlighted(entry.id) }"
-              @click="highlightAndScrollToUserMessage(entry.id)"
-            >
-              <div class="chat-user-nav-item-index">#{{ idx + 1 }}</div>
-              <div class="chat-user-nav-item-content">
-                <div class="chat-user-nav-item-preview" :title="entry.preview">{{ entry.preview }}</div>
-                <div v-if="entry.timeLabel" class="chat-user-nav-item-time">{{ entry.timeLabel }}</div>
-              </div>
-              <div class="chat-user-nav-item-action">
-                <NIcon :size="14"><ChevronDownOutline /></NIcon>
-              </div>
-            </div>
-          </div>
-        </div>
-      </NPopover>
-
       <!-- 原有的时间线导航（编辑/回滚） -->
       <NPopover
         v-model:show="timelinePopoverShow"

@@ -161,8 +161,13 @@ const userMessageNavItems = computed(() => {
     })
   }
 
-  // 反转数组，让第一条消息在最上面
-  return items.reverse()
+  // 反转数组，让最新的消息在最上面，序号为1
+  const reversed = items.reverse()
+  // 重新设置序号，最新的为1
+  return reversed.map((item, idx) => ({
+    ...item,
+    index: idx + 1,
+  }))
 })
 
 // 处理快速导航点击
