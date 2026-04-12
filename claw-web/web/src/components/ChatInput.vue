@@ -1082,91 +1082,83 @@ defineExpose({
   gap: 4px;
 }
 
-/* ========== 模型选择器：彻底扁平化，零边框 ========== */
+/* ========== 模型选择器：调整为与其他按钮一致的样式 ========== */
 .model-select-integrated {
   width: auto;
-  min-width: 80px;
-  max-width: 150px;
+  min-width: 100px;
+  /* 移除原有的过度扁平化设置，对齐左侧按钮高度 */
+  height: 24px;
 }
 
-/* 模型选择器：透明背景，零边框，纯文字交互 */
+/* 调整选择器主体，使其匹配按钮的外观 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection) {
-  background-color: transparent !important;
-  border: none !important;
-  border-radius: 4px !important;
-  box-shadow: none !important;
   --n-height: 24px !important;
-  transition: background-color 0.2s ease, color 0.2s ease;
-  padding: 0 4px !important;
+  --n-border: 1px solid #3f4252 !important; /* 统一边框色 */
+  --n-border-hover: 1px solid #555 !important;
+  --n-border-active: 1px solid #007acc !important;
+  --n-border-focus: 1px solid #007acc !important;
+  --n-color: #2a2d3a !important; /* 统一背景色 */
+  --n-color-active: #2a2d3a !important;
+  --n-text-color: #888 !important;
+  --n-border-radius: 4px !important;
+  --n-box-shadow-focus: none !important;
+  background-color: #2a2d3a !important;
+  border: 1px solid #3f4252 !important;
+  transition: all 0.2s ease;
 }
 
-/* 悬停：微弱背景显现 */
+/* 悬停效果 */
 .chat-input--ide .model-select-integrated:hover :deep(.n-base-selection) {
+  border-color: #555 !important;
   background-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-/* 聚焦/激活：更明显的背景 */
-.chat-input--ide .model-select-integrated.n-select--focus :deep(.n-base-selection),
-.chat-input--ide .model-select-integrated.n-select--active :deep(.n-base-selection) {
-  background-color: rgba(255, 255, 255, 0.08) !important;
+/* 文字样式对齐 */
+.chat-input--ide .model-select-integrated :deep(.n-base-selection-label) {
+  height: 24px !important;
+  line-height: 24px !important;
+  padding: 0 8px !important;
 }
 
-/* 文字：低调灰色，系统字体 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection__render) {
+  font-size: 12px !important;
   color: #888 !important;
-  font-size: 12px !important;
-  font-weight: 400;
-  padding: 0 !important;
-  justify-content: flex-start;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  justify-content: center !important; /* 居中对齐文字 */
 }
 
-/* 悬停/聚焦文字变亮 */
-.chat-input--ide .model-select-integrated:hover :deep(.n-base-selection__render),
-.chat-input--ide .model-select-integrated.n-select--focus :deep(.n-base-selection__render) {
-  color: #ccc !important;
-}
-
-/* 箭头：极细 chevron */
+/* 箭头图标颜色 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection-arrow) {
-  color: #555 !important;
-  right: 0 !important;
-  font-size: 10px !important;
-  transition: color 0.2s ease;
+  color: #666 !important;
+  right: 6px !important;
 }
 
-.chat-input--ide .model-select-integrated:hover :deep(.n-base-selection-arrow) {
-  color: #777 !important;
-}
-
-/* 模型选择器下拉菜单：毛玻璃 + 紧凑 */
-.chat-input--ide .model-select-integrated :deep(.n-base-selection-menu) {
-  background: rgba(30, 30, 30, 0.95) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+/* ========== 强制下拉菜单为黑色风格 ========== */
+:deep(.n-select-menu) {
+  background-color: #1e1e1e !important; /* 纯黑/深黑背景 */
+  border: 1px solid #333 !important;
   border-radius: 6px !important;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
-  padding: 4px !important;
-  margin-top: 4px !important;
-  min-width: 140px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
 }
 
-/* 下拉选项 */
-.chat-input--ide .model-select-integrated :deep(.n-base-select-option) {
-  color: #999 !important;
-  font-size: 12px !important;
-  padding: 5px 10px !important;
-  border-radius: 3px !important;
-  margin: 1px 0 !important;
-  transition: all 0.15s ease;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+/* 选项的基础样式 */
+:deep(.n-base-select-option) {
+  --n-option-text-color: #aaa !important;
+  --n-option-color-pending: rgba(255, 255, 255, 0.08) !important;
+  --n-option-text-color-active: #fff !important;
+  --n-option-color-active: rgba(0, 122, 204, 0.2) !important;
+  font-size: 13px !important;
+  padding: 6px 12px !important;
 }
 
-/* 悬停 */
-.chat-input--ide .model-select-integrated :deep(.n-base-select-option:hover) {
-  background-color: rgba(255, 255, 255, 0.08) !important;
+/* 鼠标悬停时的状态 */
+:deep(.n-base-select-option:hover) {
+  background-color: rgba(255, 255, 255, 0.1) !important;
   color: #fff !important;
+}
+
+/* 选中项的钩子颜色 */
+:deep(.n-base-select-option .n-base-select-option__check) {
+  color: #f2c97d !important; /* 金色的勾选标记 */
 }
 
 /* 选中项：左侧蓝色指示条 + 微弱背景 */
