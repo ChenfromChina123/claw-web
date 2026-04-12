@@ -1082,80 +1082,79 @@ defineExpose({
   gap: 4px;
 }
 
-/* ========== 彻底重定义模型选择器样式 ========== */
+/* ========== 模型选择器：与模板/Skills按钮一致的扁平化风格 ========== */
 
-/* 1. 基础容器：保持高度一致 */
+/* 1. 基础容器 */
 .model-select-integrated {
   width: auto;
-  min-width: 110px;
+  min-width: 100px;
   height: 24px;
 }
 
-/* 2. 深度覆盖 Naive UI 内部组件 - 纯黑风格 */
+/* 2. 扁平化透明风格 - 与左侧按钮保持一致 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection) {
   --n-height: 24px !important;
-  --n-border: 1px solid #333 !important; /* 纯黑边框 */
-  --n-border-hover: 1px solid #555 !important;
-  --n-border-active: 1px solid #333 !important;
-  --n-border-focus: 1px solid #333 !important;
+  --n-border: none !important;
+  --n-border-hover: none !important;
+  --n-border-active: none !important;
+  --n-border-focus: none !important;
   --n-box-shadow-hover: none !important;
   --n-box-shadow-active: none !important;
   --n-box-shadow-focus: none !important;
-  --n-color: #000000 !important;                   /* 纯黑背景 */
-  --n-color-active: #000000 !important;
+  --n-color: transparent !important;
+  --n-color-active: transparent !important;
+  --n-color-hover: rgba(255, 255, 255, 0.06) !important;
   --n-border-radius: 4px !important;
-  background-color: #000000 !important;
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 4px !important;
 }
 
-/* 3. 内部文字样式调整 */
+/* 3. 文字样式 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection-label) {
   height: 24px !important;
   line-height: 24px !important;
-  padding: 0 6px !important;
+  padding: 0 4px !important;
 }
 
 .chat-input--ide .model-select-integrated :deep(.n-base-selection__render) {
   font-size: 12px !important;
-  color: #bbbbbb !important;
-  justify-content: center !important;
+  color: #888 !important;
+  justify-content: flex-start !important;
 }
 
 /* 4. 箭头颜色 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection-arrow) {
-  color: #888 !important;
+  color: #666 !important;
+  right: 2px !important;
 }
 
-/* 5. 悬停状态 */
+/* 5. 悬停状态 - 微弱背景 */
 .chat-input--ide .model-select-integrated:hover :deep(.n-base-selection) {
-  background-color: #1a1a1a !important; /* 悬停时稍微亮一点 */
-  border-color: #555 !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-/* ========== 下拉菜单（弹出层）样式 - 纯黑 ========== */
+/* ========== 下拉菜单样式 ========== */
 :global(.n-select-menu) {
-  background-color: #000000 !important; /* 纯黑背景 */
-  border: 1px solid #333 !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8) !important;
+  background-color: #2a2d3a !important;
+  border: 1px solid #3f4252 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
 }
 
 :global(.n-base-select-option) {
   color: #aaa !important;
+  font-size: 13px !important;
+  padding: 6px 12px !important;
 }
 
-:global(.n-base-select-option--pending::before) {
-  background-color: rgba(255, 255, 255, 0.1) !important;
+:global(.n-base-select-option:hover) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #fff !important;
 }
 
 :global(.n-base-select-option--selected) {
   color: #f2c97d !important;
-}
-
-/* 选中项样式 */
-.chat-input--ide .model-select-integrated :deep(.n-base-select-option--selected) {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  color: #fff !important;
-  position: relative;
-  padding-left: 14px !important;
 }
 
 /* 选中项左侧 2px 蓝色指示条 */
