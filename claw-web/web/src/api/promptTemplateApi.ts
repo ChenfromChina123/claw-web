@@ -28,20 +28,20 @@ export const promptTemplateApi = {
    * 获取所有分类
    */
   async getCategories(): Promise<PromptTemplateCategory[]> {
-    const { data } = await apiClient.get<{ categories: PromptTemplateCategory[] }>('/prompt-templates/categories')
-    return data.categories
+    const response = await apiClient.get<{ categories: PromptTemplateCategory[] }>('/prompt-templates/categories')
+    return response.data?.categories || []
   },
 
   /**
    * 创建分类
    */
   async createCategory(name: string, icon?: string, sortOrder?: number): Promise<PromptTemplateCategory> {
-    const { data } = await apiClient.post<PromptTemplateCategory>('/prompt-templates/categories', {
+    const response = await apiClient.post<{ category: PromptTemplateCategory }>('/prompt-templates/categories', {
       name,
       icon,
       sortOrder
     })
-    return data
+    return response.data?.category!
   },
 
   /**
@@ -71,18 +71,18 @@ export const promptTemplateApi = {
     if (options?.keyword) params.append('keyword', options.keyword)
     if (options?.favorites) params.append('favorites', 'true')
 
-    const { data } = await apiClient.get<{ templates: PromptTemplate[] }>(
+    const response = await apiClient.get<{ templates: PromptTemplate[] }>(
       `/prompt-templates${params.toString() ? `?${params.toString()}` : ''}`
     )
-    return data.templates
+    return response.data?.templates || []
   },
 
   /**
    * 获取单个模板
    */
   async getTemplate(id: string): Promise<PromptTemplate> {
-    const { data } = await apiClient.get<{ template: PromptTemplate }>(`/prompt-templates/${id}`)
-    return data.template
+    const response = await apiClient.get<{ template: PromptTemplate }>(`/prompt-templates/${id}`)
+    return response.data?.template!
   },
 
   /**
@@ -95,8 +95,8 @@ export const promptTemplateApi = {
     description?: string
     tags?: string[]
   }): Promise<PromptTemplate> {
-    const { data } = await apiClient.post<PromptTemplate>('/prompt-templates', request)
-    return data
+    const response = await apiClient.post<{ template: PromptTemplate }>('/prompt-templates', request)
+    return response.data?.template!
   },
 
   /**

@@ -7,18 +7,20 @@ export const IDE_USER_DISPLAY_END = '<!--/haha-ide-display-->'
 export const TERMINAL_REF_START = '<!--haha-terminal-ref-->'
 export const TERMINAL_REF_END = '<!--/haha-terminal-ref-->'
 
-const WRAP_RE = new RegExp(
-  `^${escapeRe(IDE_USER_DISPLAY_START)}\\n([\\s\\S]*?)\\n${escapeRe(IDE_USER_DISPLAY_END)}\\n([\\s\\S]*)$`,
-)
+/** 规范化换行符为 LF (Unix 风格)，兼容 Windows/macOS */
+function normalizeLineBreaks(str: string): string {
+  return str.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+}
 
-/** 终端引用正则：匹配标记内的内容 */
-const TERMINAL_REF_RE = new RegExp(
-  `${escapeRe(TERMINAL_REF_START)}\\n([\\s\\S]*?)\\n${escapeRe(TERMINAL_REF_END)}`,
-  'g'
-)
-
-function escapeRe(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** 使用字符串查找提取两个标记之间的内容（更可靠的正则替代方案） */
+function extractBetweenMarkers(text: string, startMarker: string, endMarker: string): string | null {
+  const normalized = normalizeLineBreaks(text)
+  const startIdx = normalized.indexOf(startMarker)
+  if (startIdx === -1) return null
+  const contentStart = startIdx + startMarker.length
+  const endIdx = normalized.indexOf(endMarker, contentStart)
+  if (endIdx === -1) return null
+  return normalized.slice(contentStart, endIdx)
 }
 
 /** 终端引用数据结构 */
@@ -31,18 +33,28 @@ export interface TerminalRefInMessage {
 }
 
 /**
- * 从消息内容中提取终端引用
+ * 从消息内容中提取终端引用（使用字符串查找，更可靠）
  */
 export function extractTerminalRefs(content: string): TerminalRefInMessage[] {
   const refs: TerminalRefInMessage[] = []
-  let match
-  while ((match = TERMINAL_REF_RE.exec(content)) !== null) {
+  const normalized = normalizeLineBreaks(content)
+  let searchStart = 0
+
+  while (true) {
+    const startIdx = normalized.indexOf(TERMINAL_REF_START, searchStart)
+    if (startIdx === -1) break
+    const contentStart = startIdx + TERMINAL_REF_START.length
+    const endIdx = normalized.indexOf(TERMINAL_REF_END, contentStart)
+    if (endIdx === -1) break
+
+    const jsonContent = normalized.slice(contentStart, endIdx)
     try {
-      const refData = JSON.parse(match[1]) as TerminalRefInMessage
+      const refData = JSON.parse(jsonContent) as TerminalRefInMessage
       refs.push(refData)
     } catch {
       // 忽略解析失败的引用
     }
+    searchStart = endIdx + TERMINAL_REF_END.length
   }
   return refs
 }
@@ -51,7 +63,20 @@ export function extractTerminalRefs(content: string): TerminalRefInMessage[] {
  * 从消息内容中移除终端引用标记，返回纯文本
  */
 export function stripTerminalRefs(content: string): string {
-  return content.replace(TERMINAL_REF_RE, '').trim()
+  const normalized = normalizeLineBreaks(content)
+  let result = normalized
+  let searchStart = 0
+
+  while (true) {
+    const startIdx = result.indexOf(TERMINAL_REF_START, searchStart)
+    if (startIdx === -1) break
+    const endIdx = result.indexOf(TERMINAL_REF_END, startIdx + TERMINAL_REF_START.length)
+    if (endIdx === -1) break
+    result = result.slice(0, startIdx) + result.slice(endIdx + TERMINAL_REF_END.length)
+    searchStart = startIdx
+  }
+
+  return result.replace(/\n+/g, '\n').trim()
 }
 
 /**
@@ -62,26 +87,40 @@ export function buildTerminalRefMarker(ref: TerminalRefInMessage): string {
 }
 
 export function buildIdeLayeredUserMessage(displayText: string, agentBody: string): string {
-  const d = displayText.trimEnd()
-  const a = agentBody.trim()
+  const d = normalizeLineBreaks(displayText).trimEnd()
+  const a = normalizeLineBreaks(agentBody).trim()
   return `${IDE_USER_DISPLAY_START}\n${d}\n${IDE_USER_DISPLAY_END}\n${a}`
 }
 
+/**
+ * 使用字符串查找提取 IDE 显示层内容
+ */
 export function extractIdeUserDisplay(stored: string): string {
   if (typeof stored !== 'string') return String(stored)
-  const m = stored.match(WRAP_RE)
-  if (m) return m[1]
-  return stored
+  const content = extractBetweenMarkers(stored, IDE_USER_DISPLAY_START, IDE_USER_DISPLAY_END)
+  return content !== null ? content : stored
 }
 
-/** 发给模型时去掉展示层，只保留 agent 正文 */
+/**
+ * 发给模型时去掉展示层，只保留 agent 正文（使用字符串查找，更可靠）
+ */
 export function stripIdeUserDisplayLayer(stored: string): string {
   if (typeof stored !== 'string') return stored
-  const m = stored.match(WRAP_RE)
-  if (m) return m[2].trim()
-  return stored
+  const normalized = normalizeLineBreaks(stored)
+
+  const startIdx = normalized.indexOf(IDE_USER_DISPLAY_START)
+  if (startIdx === -1) return stored
+
+  const contentStart = startIdx + IDE_USER_DISPLAY_START.length
+  const endIdx = normalized.indexOf(IDE_USER_DISPLAY_END, contentStart)
+  if (endIdx === -1) return stored
+
+  const afterEnd = endIdx + IDE_USER_DISPLAY_END.length
+  return normalized.slice(afterEnd).trim()
 }
 
 export function isIdeLayeredUserMessage(stored: string): boolean {
-  return typeof stored === 'string' && WRAP_RE.test(stored)
+  if (typeof stored !== 'string') return false
+  const normalized = normalizeLineBreaks(stored)
+  return normalized.includes(IDE_USER_DISPLAY_START) && normalized.includes(IDE_USER_DISPLAY_END)
 }
