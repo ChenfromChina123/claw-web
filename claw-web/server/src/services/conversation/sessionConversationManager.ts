@@ -314,6 +314,17 @@ export class SessionConversationManager {
           }
           
           console.log(`[${sessionId}] Tool execution completed, continuing to next iteration...`)
+
+          // 发送 message_stop 事件，让前端正确完成当前轮次
+          sendEvent('message_stop', { stop_reason: 'tool_use', iteration: actualIterations })
+
+          // 发送 message_saved 事件确认消息已保存
+          sendEvent('message_saved', {
+            sessionId,
+            messageId: assistantMessageId,
+            role: 'assistant',
+          })
+
           continue
         }
 
