@@ -1132,8 +1132,15 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     const key = String(keys[0])
     if (!key) return
 
-    // 避免重复触发（当 key 与当前选中项相同时）
-    if (selectedKey.value === key) return
+    // 如果 key 与当前选中项相同，但文件已经打开，则切换到该文件标签页
+    if (selectedKey.value === key) {
+      const alreadyOpen = openFiles.value.find(f => f.id === key)
+      if (alreadyOpen && activeFileId.value !== key) {
+        console.log('[handleSelect] 文件已打开，切换到标签页:', key)
+        void selectOpenFile(key)
+      }
+      return
+    }
 
     selectedKey.value = key
     const node = findNodeByKey(treeData.value, key)

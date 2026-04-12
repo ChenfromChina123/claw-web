@@ -793,11 +793,9 @@ defineExpose({
             trigger="click"
             placement="top-start"
             @select="handleSkillSelect"
-            @visible-change="(visible: boolean) => isSkillsDropdownOpen = visible"
           >
             <NButton
               class="skill-selector-button"
-              :class="{ 'is-active': isSkillsDropdownOpen }"
               :disabled="disabled || isLoadingSkills"
               :loading="isLoadingSkills"
               title="选择 Skill"
