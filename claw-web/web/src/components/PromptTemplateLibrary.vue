@@ -538,7 +538,7 @@ onUnmounted(() => {
                 <template #label>
                   <span class="ptl-form-label">
                     提示词内容
-                    <span class="ptl-label-hint">使用 {{ '{{变量名}}' }} 定义变量</span>
+                    <span class="ptl-label-hint">使用 <code v-pre>{{变量名}}</code> 定义变量</span>
                   </span>
                 </template>
                 <NInput

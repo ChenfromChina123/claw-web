@@ -1036,16 +1036,6 @@ defineExpose({
   color: #444 !important;
 }
 
-/* 优化代码引用（Chip）的间距 */
-.ide-code-refs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 6px 10px 0;
-  max-height: 80px;
-  overflow-y: auto;
-}
-
 /* 终端输出引用芯片样式 */
 .ide-terminal-refs {
   display: flex;
@@ -1117,9 +1107,6 @@ defineExpose({
 .ide-terminal-chip-x:hover {
   background: rgba(35, 209, 139, 0.15);
   color: #fff;
-}
-  margin-top: 4px;
-  padding: 0;
 }
 
 .input-footer {
