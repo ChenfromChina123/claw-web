@@ -13,7 +13,6 @@ import AgentActivitySidebar from '@/components/AgentActivitySidebar.vue'
 import IdeSessionsPanel from '@/views/IdeSessionsPanel.vue'
 import SessionSwitcher from '@/components/SessionSwitcher.vue'
 import MessageSearch from '@/components/MessageSearch.vue'
-import QuickNavButton from '@/components/QuickNavButton.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import { useAgentStore } from '@/stores/agent'
@@ -736,12 +735,6 @@ function handleQuickNavNavigate(messageId: string) {
     <!-- 导出/分享弹窗 -->
     <ExportShareModal
       v-model:show="showExportShareModal"
-    />
-    
-    <!-- 快速导航按钮 - 悬浮在聊天框右上角 -->
-    <QuickNavButton
-      :visible="true"
-      @navigate="handleQuickNavNavigate"
     />
   </NLayout>
 </template>
