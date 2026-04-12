@@ -66,7 +66,7 @@ const iconMap: Record<string, typeof FolderOutline> = {
 // 分类选项
 const categoryOptions = computed(() => [
   { label: '全部分类', value: null },
-  ...categories.value.map(c => ({
+  ...(categories.value || []).map(c => ({
     label: c.name,
     value: c.id,
     icon: iconMap[c.icon] || FolderOutline
