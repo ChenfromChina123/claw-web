@@ -534,7 +534,7 @@ onMounted(() => {
                   </span>
                 </template>
                 <div class="ptl-content-hint">
-                  使用 <code>{{ '{{变量名}}' }}</code> 来定义变量，使用时可以动态替换
+                  使用 <code v-pre>{{变量名}}</code> 来定义变量，使用时可以动态替换
                 </div>
                 <NInput
                   v-model:value="formData.content"
