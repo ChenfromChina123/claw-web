@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import {
   NButton, NIcon, NInput, NSelect, NTag, NForm, NFormItem,
   NEmpty, NScrollbar, NPopconfirm, useMessage
@@ -338,6 +338,18 @@ function goBackToList() {
 
 onMounted(() => {
   void loadData()
+})
+
+/**
+ * 组件卸载时重置视图状态
+ */
+onUnmounted(() => {
+  activeView.value = 'list'
+  resetForm()
+  useFormData.value = { template: null, variables: {} }
+  searchKeyword.value = ''
+  selectedCategoryId.value = null
+  showFavoritesOnly.value = false
 })
 </script>
 

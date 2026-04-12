@@ -309,6 +309,16 @@ async function initTerminal(): Promise<void> {
     }
   })
 
+  // 添加快捷键支持
+  t.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+    // 支持 Ctrl+U 添加选中的内容到对话
+    if (event.ctrlKey && event.key === 'u') {
+      appendSelectionToChat()
+      return false
+    }
+    return true
+  })
+
   resizeObserver = new ResizeObserver(() => {
     fit.fit()
     if (connectionStatus.value === 'connected') {
@@ -388,6 +398,48 @@ async function pasteText() {
   hideContextMenu()
 }
 
+/**
+ * 获取终端选中的文本并添加到对话
+ * 如果文本过长，则进行截断并在末尾添加省略号
+ */
+function appendSelectionToChat(): void {
+  const t = term.value
+  if (!t) return
+
+  // 获取选中的文本
+  let selection = t.getSelection()
+
+  // 如果没有选中文本，尝试获取全部可见内容
+  if (!selection || !selection.trim()) {
+    const buffer = t.buffer
+    const lines: string[] = []
+    for (let i = 0; i < buffer.activeBuffer.length; i++) {
+      const line = buffer.activeBuffer.getLine(i)
+      if (line) {
+        lines.push(line.translateToString(true))
+      }
+    }
+    selection = lines.join('\n').trim()
+  }
+
+  if (!selection || !selection.trim()) return
+
+  // 清理文本：移除 ANSI 转义序列
+  let cleanedText = selection.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+
+  // 截断过长的文本
+  if (cleanedText.length > MAX_APPEND_LENGTH) {
+    cleanedText = cleanedText.slice(0, MAX_APPEND_LENGTH) + '\n\n...（内容已截断，原文较长）'
+  }
+
+  // 调用注入的函数将文本添加到对话
+  if (appendToChat) {
+    appendToChat(cleanedText, {
+      sourceLabel: '终端输出',
+    })
+  }
+}
+
 // cwd 变化时重建连接（从空变为有效目录时也触发首次连接）
 watch(
   () => props.defaultCwd,
@@ -464,6 +516,9 @@ defineExpose({
       term.value?.focus()
     })
   },
+
+  /** 添加选中内容到对话 */
+  appendSelectionToChat,
 })
 </script>
 
@@ -479,6 +534,7 @@ defineExpose({
       @click.stop
     >
       <div class="context-menu-item" @click="copySelectedText">复制选中内容</div>
+      <div class="context-menu-item" @click="appendSelectionToChat">添加到对话</div>
       <div class="context-menu-item" @click="copyAllText">复制全部</div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" @click="pasteText">粘贴</div>

@@ -571,8 +571,10 @@ defineExpose({
       <PreviewPanel v-if="showPreview" />
 
       <!-- 提示词模板库标签页 -->
-      <div v-if="showPromptLibraryTab" class="special-tab-content">
+      <div v-show="showPromptLibraryTab" class="special-tab-content">
         <PromptTemplateLibrary
+          v-if="showPromptLibraryTab"
+          :key="'prompt-library-' + activeSpecialTabId"
           @use-template="handleUseTemplate"
           @close="closeSpecialTab('prompt-library')"
         />

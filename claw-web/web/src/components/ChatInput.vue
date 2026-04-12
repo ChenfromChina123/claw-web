@@ -4,7 +4,7 @@ import type { IdeAppendToChatOptions, IdeCodeRefPayload } from '@/composables/us
 import { buildIdeLayeredUserMessage } from '@/utils/ideUserMessageMarkers'
 import { NInput, NButton, NIcon, NSpin, NTag, NSelect, NDropdown, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
-import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline, ChevronDownOutline } from '@vicons/ionicons5'
+import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline } from '@vicons/ionicons5'
 import { modelApi, type Model } from '@/api/modelApi'
 import { useChatStore } from '@/stores/chat'
 import { promptTemplateApi, type PromptTemplate } from '@/api/promptTemplateApi'
@@ -33,100 +33,14 @@ const chatStore = useChatStore()
 const models = ref<Model[]>([])
 const selectedModelId = ref<string>('')
 
-/**
- * 获取模型简称
- */
-function getModelShortName(name: string): string {
-  // 通义千问系列
-  if (name.includes('通义千问') || name.includes('Qwen')) {
-    if (name.includes('Plus') || name.includes('plus')) return 'Qwen+'
-    if (name.includes('Max') || name.includes('max')) return 'Qwen Max'
-    if (name.includes('Turbo') || name.includes('turbo')) return 'Qwen Turbo'
-    return 'Qwen'
-  }
-  // Claude 系列
-  if (name.includes('Claude')) {
-    if (name.includes('3.5') || name.includes('3-5')) {
-      if (name.includes('Sonnet')) return 'C 3.5 Sonnet'
-      if (name.includes('Haiku')) return 'C 3.5 Haiku'
-      return 'C 3.5'
-    }
-    if (name.includes('3') && name.includes('Opus')) return 'C 3 Opus'
-    if (name.includes('3') && name.includes('Sonnet')) return 'C 3 Sonnet'
-    return 'Claude'
-  }
-  // GPT 系列
-  if (name.includes('GPT') || name.includes('gpt')) {
-    if (name.includes('4o')) return 'GPT-4o'
-    if (name.includes('4')) return 'GPT-4'
-    if (name.includes('3.5')) return 'GPT-3.5'
-    return 'GPT'
-  }
-  // Gemini 系列
-  if (name.includes('Gemini')) {
-    if (name.includes('Pro')) return 'Gemini Pro'
-    if (name.includes('Ultra')) return 'Gemini Ultra'
-    return 'Gemini'
-  }
-  // 默认返回原名（截断）
-  return name.length > 12 ? name.slice(0, 12) + '...' : name
-}
+const modelOptions = computed(() =>
+  (models.value ?? []).map(m => ({ label: m.name, value: m.id })),
+)
 
-/**
- * 获取模型图标/颜色标识
- */
-function getModelIcon(provider: string): { icon: string; color: string } {
-  const map: Record<string, { icon: string; color: string }> = {
-    aliyun: { icon: '🔷', color: '#1677ff' },
-    openai: { icon: '🟢', color: '#10a37f' },
-    anthropic: { icon: '🟠', color: '#d97757' },
-    google: { icon: '🔴', color: '#ea4335' },
-    moonshot: { icon: '🌙', color: '#8b5cf6' },
-    deepseek: { icon: '🔮', color: '#4f46e5' },
-  }
-  return map[provider] || { icon: '🤖', color: '#888' }
-}
-
-// 按提供商分组的模型选项
-const modelOptionsByProvider = computed(() => {
-  const grouped: Record<string, Model[]> = {}
-  for (const model of models.value) {
-    if (!grouped[model.provider]) {
-      grouped[model.provider] = []
-    }
-    grouped[model.provider].push(model)
-  }
-
-  // 提供商显示名称映射
-  const providerNames: Record<string, string> = {
-    aliyun: '通义千问',
-    openai: 'OpenAI',
-    anthropic: 'Claude',
-    google: 'Gemini',
-    moonshot: 'Moonshot',
-    deepseek: 'DeepSeek',
-  }
-
-  return Object.entries(grouped).map(([provider, providerModels]) => ({
-    type: 'group',
-    label: providerNames[provider] || provider,
-    key: provider,
-    children: providerModels.map(m => ({
-      label: m.name,
-      key: m.id,
-      provider: m.provider,
-    })),
-  }))
-})
-
-// 当前选中模型的显示标签（精简版）
-const selectedModelDisplay = computed(() => {
+// 当前选中模型的显示标签
+const selectedModelLabel = computed(() => {
   const model = models.value.find(m => m.id === selectedModelId.value)
-  if (!model) return { name: '', icon: '🤖', color: '#888' }
-  return {
-    name: getModelShortName(model.name),
-    ...getModelIcon(model.provider),
-  }
+  return model?.name || ''
 })
 
 async function loadModels(): Promise<void> {
@@ -659,25 +573,16 @@ defineExpose({
         </div>
 
         <div class="right-tools">
-          <!-- 模型选择下拉 - 极简风格 -->
-          <NDropdown
+          <!-- 模型选择下拉 -->
+          <NSelect
             v-if="variant === 'ide'"
-            :options="modelOptionsByProvider"
-            :disabled="disabled || models.length === 0"
-            trigger="click"
-            placement="top-end"
-            @select="(key: string) => selectedModelId = key"
-          >
-            <button class="model-selector-minimal">
-              <span class="model-icon" :style="{ color: selectedModelDisplay.color }">
-                {{ selectedModelDisplay.icon }}
-              </span>
-              <span class="model-name">{{ selectedModelDisplay.name }}</span>
-              <NIcon :size="12" class="model-chevron">
-                <ChevronDownOutline />
-              </NIcon>
-            </button>
-          </NDropdown>
+            v-model:value="selectedModelId"
+            :options="modelOptions"
+            :disabled="disabled || modelOptions.length === 0"
+            size="small"
+            class="model-select-integrated"
+            :consistent-menu-width="false"
+          />
 
           <!-- 发送/停止按钮 -->
           <button
@@ -925,130 +830,41 @@ defineExpose({
   opacity: 1;
 }
 
-/* ========== 极简模型选择器样式 ========== */
-.model-selector-minimal {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 12px;
-  color: #888;
-}
-
-.model-selector-minimal:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #ccc;
-}
-
-.model-selector-minimal .model-icon {
-  font-size: 14px;
-  line-height: 1;
-}
-
-.model-selector-minimal .model-name {
-  font-family: var(--font-family-mono, 'Consolas', monospace);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.model-selector-minimal .model-chevron {
-  color: #666;
-  transition: transform 0.2s ease;
-}
-
-.model-selector-minimal:hover .model-chevron {
-  color: #888;
-}
-
-/* 下拉菜单样式优化 */
-.chat-input--ide :deep(.n-dropdown-menu) {
-  background: rgba(30, 30, 30, 0.95) !important;
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 6px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-/* 分组标题 */
-.chat-input--ide :deep(.n-dropdown-option-group__title) {
-  font-size: 11px;
-  font-weight: 600;
-  color: #666;
-  padding: 8px 12px 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* 选项样式 */
-.chat-input--ide :deep(.n-dropdown-option) {
-  border-radius: 6px;
-  margin: 2px 0;
-}
-
-.chat-input--ide :deep(.n-dropdown-option-content) {
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #ccc;
-}
-
-/* 悬停效果 */
-.chat-input--ide :deep(.n-dropdown-option:hover) {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-/* 选中态 - 左侧小圆点 */
-.chat-input--ide :deep(.n-dropdown-option.n-dropdown-option--selected) {
-  background: rgba(0, 122, 204, 0.12);
-}
-
-.chat-input--ide :deep(.n-dropdown-option.n-dropdown-option--selected .n-dropdown-option-content) {
-  color: #4fc3f7;
-  font-weight: 500;
-}
-
-/* 分隔线 */
-.chat-input--ide :deep(.n-dropdown-divider) {
-  background: rgba(255, 255, 255, 0.08);
-  margin: 6px 0;
-}
-
-/* 旧的选择器样式（保留兼容） */
+/* 6. 模型选择器：融入背景，彻底去掉药丸样式 */
 .model-select-integrated {
   width: auto;
   min-width: 100px;
   max-width: 160px;
 }
 
+/* 彻底抹平 Naive NSelect 的默认样式 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection) {
-  background-color: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  --n-height: 24px !important;
+  background-color: transparent !important; /* 彻底透明背景 */
+  border: none !important; /* 去掉所有边框 */
+  box-shadow: none !important; /* 去掉阴影 */
+  --n-height: 24px !important; /* 更矮一点 */
   transition: color 0.2s;
 }
 
+/* 调整未展开时的文字样式：低调、灰色、等宽 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection__render) {
-  color: #888 !important;
+  color: #888 !important; /* 灰色文本，不突兀 */
   font-size: 12px !important;
   font-family: var(--font-family-mono, 'Consolas', monospace);
-  padding: 0 4px !important;
-  justify-content: flex-end;
+  padding: 0 4px !important; /* 精简内边距 */
+  justify-content: flex-end; /* 文字靠右对齐，靠近发送按钮 */
 }
 
+/* 调整右侧箭头颜色 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection-arrow) {
   color: #666 !important;
   right: 0 !important;
 }
 
+/* 悬停时：弱化高亮，只让文字颜色变亮一点 */
 .chat-input--ide .model-select-integrated:hover :deep(.n-base-selection__render),
 .chat-input--ide .model-select-integrated.n-select--focus :deep(.n-base-selection__render) {
-  color: #d1d1d1 !important;
+  color: #d1d1d1 !important; /* 文字变为灰白色 */
 }
 
 /* ========== 默认变体：输入框容器样式 ========== */
