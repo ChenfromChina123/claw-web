@@ -57,29 +57,27 @@ const ctxMenuTarget = ref<{ path: string; isDirectory: boolean } | null>(null)
 const ctxMenuOptions = computed(() => {
   if (!ctxMenuTarget.value) return []
   const dir = ctxMenuTarget.value.isDirectory
-  const options: Array<{ label: string; key: string; icon?: any }> = []
+  const options: Array<{ label: string; key: string }> = []
   
   // 文件夹特有功能
   if (dir) {
     options.push(
-      { label: '新建文件', key: 'new-file', icon: CreateOutline },
-      { label: '新建文件夹', key: 'new-folder', icon: FolderOpenOutline }
+      { label: '新建文件', key: 'new-file' },
+      { label: '新建文件夹', key: 'new-folder' }
     )
   }
   
   // 通用功能
   options.push(
-    { label: dir ? '下载文件夹 (ZIP)' : '下载文件', key: 'download', icon: DownloadOutline },
-    { label: '删除', key: 'delete', icon: TrashOutline }
+    { label: dir ? '下载文件夹 (ZIP)' : '下载文件', key: 'download' },
+    { label: '删除', key: 'delete' }
   )
   
-  // 上传和刷新（只在空白处或根目录显示）
-  if (!dir || ctxMenuTarget.value.path === '/') {
-    options.push(
-      { label: '上传文件', key: 'upload', icon: CloudUploadOutline },
-      { label: '刷新', key: 'refresh', icon: Refresh }
-    )
-  }
+  // 上传和刷新
+  options.push(
+    { label: '上传文件', key: 'upload' },
+    { label: '刷新', key: 'refresh' }
+  )
   
   return options
 })

@@ -97,8 +97,17 @@ interface IdeTerminalAttachment {
   originalLength: number
 }
 
+/** Skill 引用附件（以芯片形式显示） */
+interface IdeSkillAttachment {
+  id: string
+  skillId: string
+  name: string
+  description: string
+}
+
 const codeAttachments = ref<IdeCodeAttachment[]>([])
 const terminalAttachments = ref<IdeTerminalAttachment[]>([])
+const skillAttachments = ref<IdeSkillAttachment[]>([])
 
 /**
  * 模板列表相关状态
@@ -286,18 +295,48 @@ function handleTemplateSelect(key: string): void {
 }
 
 /**
- * 处理 Skill 选择
+ * 处理 Skill 选择 - 以芯片形式显示
  */
 function handleSkillSelect(key: string): void {
   if (key.startsWith('skill:')) {
     const skillId = key.replace('skill:', '')
     const skill = skills.value.find(s => s.id === skillId)
     if (skill) {
-      const skillContent = `【使用 Skill: ${skill.name}】\n${skill.description}`
-      handleUseTemplate(skillContent)
+      // 检查是否已添加相同的 Skill
+      const exists = skillAttachments.value.some(s => s.skillId === skillId)
+      if (exists) {
+        message.warning(`Skill "${skill.name}" 已添加`)
+        return
+      }
+
+      // 以芯片形式添加 Skill 引用
+      const id = `skill:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`
+      const attachment: IdeSkillAttachment = {
+        id,
+        skillId: skill.id,
+        name: skill.name,
+        description: skill.description || '',
+      }
+      skillAttachments.value.push(attachment)
+
+      void nextTick(() => {
+        inputRef.value?.focus()
+        const el = (inputRef.value as { $el?: HTMLElement } | null)?.$el
+        const textarea = el?.querySelector?.('textarea') as HTMLTextAreaElement | undefined
+        if (textarea) {
+          textarea.selectionStart = textarea.selectionEnd = textarea.value.length
+          textarea.scrollTop = textarea.scrollHeight
+        }
+      })
+
       message.success(`已选择 Skill: ${skill.name}`)
     }
   }
+}
+
+/** 移除 Skill 引用附件 */
+function removeSkillAttachment(id: string): void {
+  skillAttachments.value = skillAttachments.value.filter(a => a.id !== id)
 }
 
 // 组件挂载时加载模板和 Skills
