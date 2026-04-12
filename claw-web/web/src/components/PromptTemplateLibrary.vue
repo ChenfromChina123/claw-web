@@ -7,7 +7,8 @@ import {
 import {
   AddOutline, SearchOutline, StarOutline, Star,
   CreateOutline, TrashOutline, CodeOutline,
-  PencilOutline, AnalyticsOutline, LanguageOutline, BulbOutline, FolderOutline
+  PencilOutline, AnalyticsOutline, LanguageOutline, BulbOutline, FolderOutline,
+  SaveOutline, PricetagsOutline as TagOutline
 } from '@vicons/ionicons5'
 import { promptTemplateApi, type PromptTemplate, type PromptTemplateCategory } from '@/api/promptTemplateApi'
 
@@ -468,48 +469,110 @@ onMounted(() => {
       <!-- ========== 新建/编辑视图 ========== -->
       <template v-else-if="activeView === 'create' || activeView === 'edit'">
         <NScrollbar class="ptl-form-content">
-          <NForm label-placement="top" class="ptl-form">
-            <NFormItem label="标题" required>
-              <NInput v-model:value="formData.title" placeholder="请输入模板标题" />
-            </NFormItem>
+          <div class="ptl-form-wrapper">
+            <!-- 页面标题 -->
+            <div class="ptl-form-header">
+              <h2 class="ptl-form-title">{{ activeView === 'create' ? '新建模板' : '编辑模板' }}</h2>
+              <p class="ptl-form-subtitle">{{ activeView === 'create' ? '创建一个新的提示词模板' : '修改模板内容和设置' }}</p>
+            </div>
 
-            <NFormItem label="分类">
-              <NSelect
-                v-model:value="formData.categoryId"
-                :options="categoryOptions.filter(o => o.value !== null)"
-                placeholder="选择分类"
-                clearable
-              />
-            </NFormItem>
+            <NForm label-placement="top" class="ptl-form">
+              <!-- 标题 -->
+              <NFormItem required>
+                <template #label>
+                  <span class="ptl-form-label">
+                    <NIcon :size="14"><CreateOutline /></NIcon>
+                    模板标题
+                  </span>
+                </template>
+                <NInput
+                  v-model:value="formData.title"
+                  placeholder="给你的模板起个名字"
+                  size="large"
+                />
+              </NFormItem>
 
-            <NFormItem label="描述">
-              <NInput
-                v-model:value="formData.description"
-                type="textarea"
-                placeholder="简要描述模板用途"
-                :rows="2"
-              />
-            </NFormItem>
+              <!-- 分类 -->
+              <NFormItem>
+                <template #label>
+                  <span class="ptl-form-label">
+                    <NIcon :size="14"><FolderOutline /></NIcon>
+                    分类
+                  </span>
+                </template>
+                <NSelect
+                  v-model:value="formData.categoryId"
+                  :options="categoryOptions.filter(o => o.value !== null)"
+                  placeholder="选择模板分类"
+                  size="large"
+                  clearable
+                />
+              </NFormItem>
 
-            <NFormItem label="内容" required>
-              <NInput
-                v-model:value="formData.content"
-                type="textarea"
-                placeholder="输入提示词内容，使用 {{variable}} 表示变量"
-                :rows="8"
-              />
-            </NFormItem>
+              <!-- 描述 -->
+              <NFormItem>
+                <template #label>
+                  <span class="ptl-form-label">
+                    <NIcon :size="14"><AnalyticsOutline /></NIcon>
+                    描述
+                  </span>
+                </template>
+                <NInput
+                  v-model:value="formData.description"
+                  type="textarea"
+                  placeholder="简要描述这个模板的用途和适用场景"
+                  :rows="2"
+                />
+              </NFormItem>
 
-            <NFormItem label="标签（逗号分隔）">
-              <NInput v-model:value="formData.tags" placeholder="如：代码, 优化, 助手" />
-            </NFormItem>
-          </NForm>
+              <!-- 内容 -->
+              <NFormItem required>
+                <template #label>
+                  <span class="ptl-form-label">
+                    <NIcon :size="14"><CodeOutline /></NIcon>
+                    提示词内容
+                  </span>
+                </template>
+                <div class="ptl-content-hint">
+                  使用 <code>{{ '{{变量名}}' }}</code> 来定义变量，使用时可以动态替换
+                </div>
+                <NInput
+                  v-model:value="formData.content"
+                  type="textarea"
+                  placeholder="输入提示词内容..."
+                  :rows="10"
+                  class="ptl-content-input"
+                />
+              </NFormItem>
+
+              <!-- 标签 -->
+              <NFormItem>
+                <template #label>
+                  <span class="ptl-form-label">
+                    <NIcon :size="14"><TagOutline /></NIcon>
+                    标签
+                  </span>
+                </template>
+                <NInput
+                  v-model:value="formData.tags"
+                  placeholder="输入标签，用逗号分隔，如：代码, 优化, 助手"
+                />
+              </NFormItem>
+            </NForm>
+          </div>
         </NScrollbar>
 
         <div class="ptl-form-footer">
-          <NButton @click="goBackToList">取消</NButton>
-          <NButton type="primary" @click="activeView === 'create' ? handleCreate() : handleUpdate()">
-            {{ activeView === 'create' ? '创建' : '保存' }}
+          <NButton size="large" @click="goBackToList">取消</NButton>
+          <NButton
+            size="large"
+            type="primary"
+            @click="activeView === 'create' ? handleCreate() : handleUpdate()"
+          >
+            <template #icon>
+              <NIcon><SaveOutline /></NIcon>
+            </template>
+            {{ activeView === 'create' ? '创建模板' : '保存修改' }}
           </NButton>
         </div>
       </template>
@@ -782,21 +845,83 @@ onMounted(() => {
 /* ========== 表单视图 ========== */
 .ptl-form-content {
   flex: 1;
-  padding: 16px;
   min-height: 0;
+  background: #1a1a1a;
+}
+
+.ptl-form-wrapper {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.ptl-form-header {
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #333;
+}
+
+.ptl-form-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 8px 0;
+}
+
+.ptl-form-subtitle {
+  font-size: 14px;
+  color: #888;
+  margin: 0;
 }
 
 .ptl-form {
-  max-width: 550px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ptl-form-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #ccc;
+}
+
+.ptl-content-hint {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: #252526;
+  border-radius: 6px;
+  border-left: 3px solid #007acc;
+}
+
+.ptl-content-hint code {
+  background: #333;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #4fc3f7;
+  font-family: 'Consolas', monospace;
+  font-size: 12px;
+}
+
+.ptl-content-input {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .ptl-form-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 12px 16px;
-  border-top: 1px solid #3c3c3c;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #333;
   flex-shrink: 0;
+  background: #1e1e1e;
 }
 
 /* ========== 使用模板视图 ========== */
