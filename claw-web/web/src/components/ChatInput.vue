@@ -1134,27 +1134,33 @@ defineExpose({
   background-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-/* ========== 下拉菜单样式 ========== */
+/* ========== 下拉菜单样式：极简透明风格 ========== */
 :global(.n-select-menu) {
-  background-color: #2a2d3a !important;
-  border: 1px solid #3f4252 !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 4px 0 !important;
 }
 
 :global(.n-base-select-option) {
-  color: #aaa !important;
-  font-size: 13px !important;
-  padding: 6px 12px !important;
+  color: #888 !important;
+  font-size: 14px !important;
+  padding: 4px 12px !important;
+  background-color: transparent !important;
 }
 
 :global(.n-base-select-option:hover) {
-  background-color: rgba(255, 255, 255, 0.08) !important;
+  background-color: transparent !important;
   color: #fff !important;
 }
 
 :global(.n-base-select-option--selected) {
-  color: #f2c97d !important;
+  color: #fff !important;
+  font-weight: 500 !important;
+}
+
+:global(.n-base-select-option--selected .n-base-select-option__check) {
+  color: #888 !important;
 }
 
 /* 选中项左侧 2px 蓝色指示条 */
