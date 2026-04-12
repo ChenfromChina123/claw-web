@@ -129,8 +129,9 @@ const userMessageCount = computed(() => {
 const userMessageNavItems = computed(() => {
   const items: Array<{ id: string; preview: string; index: number }> = []
   let userIndex = 0
+  const totalCount = chatStore.messages.filter(m => m.role === 'user').length
 
-  // 先收集所有用户消息
+  // 按顺序遍历所有用户消息（最早的消息在前）
   for (const m of chatStore.messages) {
     if (m.role !== 'user') continue
 
@@ -154,20 +155,17 @@ const userMessageNavItems = computed(() => {
       preview = preview + '...'
     }
 
+    // 序号：最新的消息（userIndex == totalCount）为1，最早的为 totalCount
+    const index = totalCount - userIndex + 1
+
     items.push({
       id: m.id,
       preview: preview || '（空消息）',
-      index: userIndex,
+      index,
     })
   }
 
-  // 反转数组，让最新的消息在最上面，序号为1
-  const reversed = items.reverse()
-  // 重新设置序号，最新的为1
-  return reversed.map((item, idx) => ({
-    ...item,
-    index: idx + 1,
-  }))
+  return items
 })
 
 // 处理快速导航点击

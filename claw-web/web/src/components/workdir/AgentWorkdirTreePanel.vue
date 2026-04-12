@@ -23,6 +23,7 @@ import {
   CreateOutline,
   FolderOpenOutline,
   DownloadOutline,
+  TrashOutline,
 } from '@vicons/ionicons5'
 import {
   ChatbubblesOutline,
@@ -53,7 +54,10 @@ const ctxMenuTarget = ref<{ path: string; isDirectory: boolean } | null>(null)
 const ctxMenuOptions = computed(() => {
   if (!ctxMenuTarget.value) return []
   const dir = ctxMenuTarget.value.isDirectory
-  return [{ label: dir ? '下载文件夹 (ZIP)' : '下载文件', key: 'download' }]
+  return [
+    { label: dir ? '下载文件夹 (ZIP)' : '下载文件', key: 'download' },
+    { label: '删除', key: 'delete' }
+  ]
 })
 
 const createParentHint = computed(() => ctx.getNewItemParentPath() || '/')
@@ -118,6 +122,33 @@ async function handleCreateConfirm(): Promise<boolean> {
   return ok
 }
 
+/**
+ * 删除选中的文件或文件夹
+ */
+function handleDeleteSelected(): void {
+  const key = ctx.selectedKey.value
+  if (!key) {
+    return
+  }
+  const node = findNodeByKey(ctx.treeData.value, key)
+  const isDirectory = node ? node.isLeaf === false : false
+  void ctx.deleteWorkdirEntry(key, isDirectory)
+}
+
+/**
+ * 在树中查找节点
+ */
+function findNodeByKey(nodes: any[], key: string): any {
+  for (const node of nodes) {
+    if (node.key === key) return node
+    if (node.children && node.children.length > 0) {
+      const found = findNodeByKey(node.children, key)
+      if (found) return found
+    }
+  }
+  return null
+}
+
 function workdirTreeNodeProps({ option }: { option: TreeOption }) {
   return {
     onContextmenu(e: MouseEvent) {
@@ -136,12 +167,17 @@ function workdirTreeNodeProps({ option }: { option: TreeOption }) {
 function onCtxMenuSelect(key: string | number): void {
   const t = ctxMenuTarget.value
   ctxMenuShow.value = false
-  if (!t || key !== 'download') return
-  if (t.isDirectory) {
-    void ctx.downloadFolderZip(t.path)
-  } else {
-    const base = t.path.split('/').pop() || 'download'
-    void ctx.downloadFile(t.path, base)
+  if (!t) return
+  
+  if (key === 'download') {
+    if (t.isDirectory) {
+      void ctx.downloadFolderZip(t.path)
+    } else {
+      const base = t.path.split('/').pop() || 'download'
+      void ctx.downloadFile(t.path, base)
+    }
+  } else if (key === 'delete') {
+    void ctx.deleteWorkdirEntry(t.path, t.isDirectory)
   }
 }
 
@@ -258,6 +294,21 @@ onUnmounted(() => {
             </NButton>
           </template>
           下载选中项（文件直接下载，文件夹打包为 ZIP）
+        </NTooltip>
+        <NTooltip placement="bottom">
+          <template #trigger>
+            <NButton
+              text
+              size="small"
+              :disabled="ctx.uploading.value || !ctx.selectedKey.value"
+              @click="handleDeleteSelected"
+            >
+              <template #icon>
+                <NIcon><TrashOutline /></NIcon>
+              </template>
+            </NButton>
+          </template>
+          删除选中项
         </NTooltip>
         <NTooltip placement="bottom">
           <template #trigger>

@@ -892,6 +892,56 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     }
   }
 
+  /**
+   * 删除文件或文件夹
+   * @param path 要删除的路径
+   * @param isDirectory 是否是文件夹
+   * @returns 是否删除成功
+   */
+  async function deleteWorkdirEntry(path: string, isDirectory: boolean): Promise<boolean> {
+    if (!sessionIdRef.value) {
+      message.warning('请先选择或创建会话后再试')
+      return false
+    }
+
+    const confirmMessage = isDirectory
+      ? '确定要删除这个文件夹及其所有内容吗？此操作不可恢复。'
+      : '确定要删除这个文件吗？此操作不可恢复。'
+
+    if (!window.confirm(confirmMessage)) {
+      return false
+    }
+
+    try {
+      await apiClient.delete(`${API_WORKDIR_BASE}/delete`, {
+        data: {
+          sessionId: sessionIdRef.value,
+          path,
+        },
+      })
+      message.success(isDirectory ? '文件夹已删除' : '文件已删除')
+
+      // 如果删除的是当前打开的文件，关闭它
+      const fileToClose = openFiles.value.find(f => f.path === path)
+      if (fileToClose) {
+        await closeOpenFile(fileToClose.id)
+      }
+
+      // 清除选中状态
+      if (selectedKey.value === path) {
+        selectedKey.value = null
+      }
+
+      await refreshTree({ silent: true })
+      return true
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: { message?: string } } } }
+      console.error('[useAgentWorkdir] 删除失败:', error)
+      message.error(err.response?.data?.error?.message || '删除失败')
+      return false
+    }
+  }
+
   // ========== 核心方法 ==========
 
   /**
@@ -1512,6 +1562,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     downloadSelected,
     createWorkdirEntry,
     getNewItemParentPath,
+    deleteWorkdirEntry,
     panelTitle
   }
 
