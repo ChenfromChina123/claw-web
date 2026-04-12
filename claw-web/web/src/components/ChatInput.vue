@@ -1150,8 +1150,10 @@ defineExpose({
 }
 
 :global(.n-base-select-option:hover) {
-  background-color: rgba(255, 255, 255, 0.08) !important;
+  background-color: transparent !important;
   color: #fff !important;
+  border: 1px solid #555 !important;
+  border-radius: 4px !important;
 }
 
 :global(.n-base-select-option--selected) {
