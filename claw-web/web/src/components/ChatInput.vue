@@ -1733,6 +1733,14 @@ defineExpose({
   transform: none;
 }
 
+/* Skills 按钮激活状态（下拉菜单打开时） */
+.chat-input--ide .skill-selector-button.is-active {
+  background: rgba(0, 122, 204, 0.15) !important;
+  border: 1px solid rgba(0, 122, 204, 0.5) !important;
+  color: #58a6ff !important;
+  box-shadow: 0 0 0 1px rgba(0, 122, 204, 0.2) !important;
+}
+
 /* ========== IDE 侧栏变体 ========== */
 
 .chat-input--ide .upload-section {
