@@ -112,7 +112,6 @@ const openPromptLibraryInEditor = useOpenPromptLibrary()
  */
 const skills = ref<SkillDefinition[]>([])
 const isLoadingSkills = ref(false)
-const isSkillsDropdownOpen = ref(false)
 
 /**
  * 加载模板列表
@@ -1730,14 +1729,6 @@ defineExpose({
 .chat-input--ide .prompt-library-button:hover:not(:disabled),
 .chat-input--ide .skill-selector-button:hover:not(:disabled) {
   transform: none;
-}
-
-/* Skills 按钮激活状态（下拉菜单打开时） */
-.chat-input--ide .skill-selector-button.is-active {
-  background: rgba(0, 122, 204, 0.15) !important;
-  border: 1px solid rgba(0, 122, 204, 0.5) !important;
-  color: #58a6ff !important;
-  box-shadow: 0 0 0 1px rgba(0, 122, 204, 0.2) !important;
 }
 
 /* ========== IDE 侧栏变体 ========== */
