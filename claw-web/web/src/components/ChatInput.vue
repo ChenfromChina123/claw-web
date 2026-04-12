@@ -1050,16 +1050,16 @@ defineExpose({
 
 /* AI Icon 已彻底去掉 */
 
-/* 4. Footer：VS Code 状态栏风格 */
+/* 4. 调整页脚整体间距 */
 .chat-input--ide .input-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 8px;
-  padding-top: 0;
+  margin-top: 10px;
+  padding: 0 2px; /* 稍微留点侧边边距 */
   border-top: none !important;
   background: transparent;
-  /* 确保垂直居中对齐 */
+  /* 固定页脚高度 */
   height: 28px;
 }
 
@@ -1082,63 +1082,37 @@ defineExpose({
   gap: 4px;
 }
 
-/* 2. 统一模型选择器样式 (NSelect) */
+/* 3. 针对模型选择器 (NSelect) 的微调 */
 .model-select-integrated {
   width: auto !important;
-  min-width: 100px;
-  height: 28px;
+  min-width: 120px;
 }
 
+/* 移除 NSelect 内部干扰样式 */
 .model-select-integrated :deep(.n-base-selection) {
-  --n-height: 28px !important;
   --n-border: none !important;
   --n-border-hover: none !important;
-  --n-border-active: none !important;
   --n-border-focus: none !important;
-  --n-box-shadow-hover: none !important;
-  --n-box-shadow-active: none !important;
   --n-box-shadow-focus: none !important;
   --n-color: transparent !important;
-  --n-color-active: transparent !important;
-  --n-color-hover: rgba(255, 255, 255, 0.06) !important;
-  --n-placeholder-color: #888 !important;
-  --n-border-radius: 4px !important;
-  background-color: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0 4px !important;
 }
 
-/* 3. 文字样式 */
-.chat-input--ide .model-select-integrated :deep(.n-base-selection-label) {
-  height: 28px !important;
-  line-height: 28px !important;
-  padding: 0 4px !important;
+/* 统一文字颜色和对齐 */
+.model-select-integrated :deep(.n-base-selection-label) {
+  height: 26px !important; /* 减去 2px 边框高度 */
+  line-height: 26px !important;
 }
 
-/* 统一选择器内的文字颜色 */
-.chat-input--ide .model-select-integrated :deep(.n-base-selection__render),
-.chat-input--ide .model-select-integrated :deep(.n-base-selection-label__render-label) {
-  font-size: 12px !important;
-  color: #888 !important;
-  line-height: 28px !important;
-  justify-content: flex-start !important;
+.model-select-integrated :deep(.n-base-selection-label__render-label) {
+  color: #ccc !important;
+  font-size: 12px;
+  padding: 0 4px;
 }
 
-/* 4. 箭头颜色 */
-.chat-input--ide .model-select-integrated :deep(.n-base-selection-arrow) {
+/* 箭头颜色 */
+.model-select-integrated :deep(.n-base-selection-arrow) {
   color: #666 !important;
   right: 2px !important;
-}
-
-/* 5. 悬停状态 - 微弱背景 */
-.chat-input--ide .model-select-integrated:hover :deep(.n-base-selection) {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-.chat-input--ide .model-select-integrated:hover :deep(.n-base-selection__render),
-.chat-input--ide .model-select-integrated:hover :deep(.n-base-selection-label__render-label) {
-  color: #ccc !important;
 }
 
 /* ========== 下拉菜单样式：深色背景风格 ========== */
@@ -1676,58 +1650,50 @@ defineExpose({
   transform: none;
 }
 
-/* 1. 统一按钮样式（模板 & Skills） */
+/* 1. 核心：将三个组件的容器样式完全合并 */
+.prompt-library-button,
+.skill-selector-button,
+.model-select-integrated :deep(.n-base-selection) {
+  /* 统一高度 */
+  height: 28px !important;
+  /* 统一背景色：深色模式下的微亮背景 */
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  /* 统一边框：极细的半透明边框 */
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  /* 统一圆角 */
+  border-radius: 6px !important;
+  /* 统一过渡动画 */
+  transition: all 0.2s ease-in-out;
+  /* 确保内部内容居中 */
+  display: flex;
+  align-items: center;
+}
+
+/* 2. 针对两个 NButton (模板 & Skills) 的文字和交互调整 */
 .prompt-library-button,
 .skill-selector-button {
-  height: 28px !important;
-  min-height: 28px !important;
-  padding: 0 8px !important;
-  font-size: 12px !important;
-  font-weight: 400 !important;
-  border-radius: 4px !important;
-  border: none !important;
-  box-shadow: none !important;
-  --n-border: none !important;
-  background: transparent !important;
-  /* 使用与模型选择器一致的灰度颜色 */
-  color: #888 !important;
-  cursor: pointer;
-  transition: color 0.2s ease;
-}
-
-.prompt-library-button:hover:not(:disabled),
-.skill-selector-button:hover:not(:disabled) {
+  padding: 0 10px !important;
   color: #ccc !important;
-  background: rgba(255, 255, 255, 0.05) !important;
+  font-size: 12px;
+  /* 彻底禁用 Naive UI 按钮自带的各种边框状态 */
+  --n-border: none !important;
+  --n-border-hover: none !important;
+  --n-border-pressed: none !important;
+  --n-border-focus: none !important;
+  --n-ripple-color: transparent !important;
 }
 
-.prompt-library-button:active:not(:disabled),
-.skill-selector-button:active:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1) !important;
+/* 悬浮效果：稍微增亮边框和背景 */
+.prompt-library-button:hover,
+.skill-selector-button:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
 }
 
 .prompt-library-button:disabled,
 .skill-selector-button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
-}
-
-/* IDE 变体按钮 */
-.chat-input--ide .prompt-library-button,
-.chat-input--ide .skill-selector-button {
-  height: 28px !important;
-  min-height: 28px !important;
-  padding: 0 8px !important;
-  font-size: 12px !important;
-  border-radius: 4px !important;
-  border: none !important;
-  box-shadow: none !important;
-  --n-border: none !important;
-}
-
-.chat-input--ide .prompt-library-button:hover:not(:disabled),
-.chat-input--ide .skill-selector-button:hover:not(:disabled) {
-  transform: none;
 }
 
 /* ========== IDE 侧栏变体 ========== */
