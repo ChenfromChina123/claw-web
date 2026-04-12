@@ -158,9 +158,22 @@ export class SessionConversationManager {
     sessionManager: SessionManager,
     sendEvent: EventSender
   ): Promise<void> {
-    const sessionDataTemp = sessionManager.getInMemorySession(sessionId)
+    // 首先尝试从内存获取会话，如果不存在则从数据库加载
+    let sessionDataTemp = sessionManager.getInMemorySession(sessionId)
+
+    if (!sessionDataTemp) {
+      console.log(`[SessionConversationManager] Session ${sessionId} not in memory, loading from database...`)
+      sessionDataTemp = await sessionManager.loadSession(sessionId)
+      if (!sessionDataTemp) {
+        console.error(`[SessionConversationManager] Session ${sessionId} not found in database`)
+        sendEvent('error', { message: 'Session not found' })
+        return
+      }
+      console.log(`[SessionConversationManager] Session ${sessionId} loaded from database`)
+    }
+
     const userId = sessionDataTemp?.session.userId
-    
+
     console.log(`[SessionConversationManager] processMessage called: sessionId=${sessionId}, userId=${userId}, isolationManager=${!!this.isolationManager}`)
 
     // 1. 初始化隔离上下文

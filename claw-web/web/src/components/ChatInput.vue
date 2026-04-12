@@ -111,6 +111,7 @@ const openPromptLibraryInEditor = useOpenPromptLibrary()
  */
 const skills = ref<SkillDefinition[]>([])
 const isLoadingSkills = ref(false)
+const isSkillsDropdownOpen = ref(false)
 
 /**
  * 加载模板列表
@@ -214,7 +215,8 @@ const skillDropdownOptions = computed(() => {
     key: string
     label: string
     type?: 'group' | 'divider'
-    children?: Array<{ key: string; label: string }>
+    children?: Array<{ key: string; label: string; icon?: () => VNode }>
+    icon?: () => VNode
   }> = []
 
   const skillList = skills.value || []
@@ -251,6 +253,7 @@ const skillDropdownOptions = computed(() => {
       children: categorySkills.map(skill => ({
         key: `skill:${skill.id}`,
         label: skill.name,
+        icon: () => h(NIcon, null, { default: () => h(FlashOutline) }),
       })),
     })
   })
@@ -791,9 +794,11 @@ defineExpose({
             trigger="click"
             placement="top-start"
             @select="handleSkillSelect"
+            @visible-change="(visible: boolean) => isSkillsDropdownOpen = visible"
           >
             <NButton
               class="skill-selector-button"
+              :class="{ 'is-active': isSkillsDropdownOpen }"
               :disabled="disabled || isLoadingSkills"
               :loading="isLoadingSkills"
               title="选择 Skill"
@@ -1730,6 +1735,14 @@ defineExpose({
   transform: none;
 }
 
+/* Skills 按钮激活状态（下拉菜单打开时） */
+.chat-input--ide .skill-selector-button.is-active {
+  background: rgba(0, 122, 204, 0.15) !important;
+  border: 1px solid rgba(0, 122, 204, 0.5) !important;
+  color: #58a6ff !important;
+  box-shadow: 0 0 0 1px rgba(0, 122, 204, 0.2) !important;
+}
+
 /* ========== IDE 侧栏变体 ========== */
 
 .chat-input--ide .upload-section {
@@ -1892,15 +1905,4 @@ defineExpose({
 
   .upload-section {
     width: 100%;
-    justify-content: flex-start;
-  }
-
-  .uploaded-files-list {
-    max-width: 100%;
-  }
-
-  .send-button {
-    width: 100%;
-  }
-}
-</style>
+    justify-content: fl
