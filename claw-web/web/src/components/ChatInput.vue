@@ -131,10 +131,13 @@ async function loadTemplates(): Promise<void> {
 async function loadSkills(): Promise<void> {
   isLoadingSkills.value = true
   try {
+    console.log('[ChatInput] 开始加载 Skills...')
     const result = await skillApi.listSkills()
+    console.log('[ChatInput] Skills 加载结果:', result)
     skills.value = result.skills || []
+    console.log('[ChatInput] Skills 加载完成:', skills.value.length, '个技能')
   } catch (error) {
-    console.error('加载 Skills 失败:', error)
+    console.error('[ChatInput] 加载 Skills 失败:', error)
   } finally {
     isLoadingSkills.value = false
   }
@@ -199,7 +202,7 @@ const templateDropdownOptions = computed(() => {
   })
 
   return options
-}
+})
 
 /**
  * Skills 下拉选项
@@ -791,11 +794,12 @@ defineExpose({
               class="skill-selector-button"
               :disabled="disabled || isLoadingSkills"
               :loading="isLoadingSkills"
+              title="选择 Skill"
             >
               <template #icon>
                 <NIcon><FlashOutline /></NIcon>
               </template>
-              Skills
+              <span class="skill-btn-text">Skills</span>
             </NButton>
           </NDropdown>
         </div>
@@ -1063,7 +1067,12 @@ defineExpose({
 .chat-input--ide .left-tools {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
+}
+
+/* Skills 按钮文字 */
+.skill-btn-text {
+  margin-left: 4px;
 }
 
 /* 6. 右侧工具栏 */
