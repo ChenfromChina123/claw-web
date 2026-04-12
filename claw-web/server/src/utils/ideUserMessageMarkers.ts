@@ -15,14 +15,16 @@ function escapeRe(s: string): string {
 
 export function stripIdeUserDisplayLayer(stored: string): string {
   if (typeof stored !== 'string') return stored
-  const m = stored.match(WRAP_RE)
+  const normalized = stored.replace(/\r\n/g, '\n')
+  const m = normalized.match(WRAP_RE)
   if (m) return m[2].trim()
   return stored
 }
 
 export function extractIdeUserDisplay(stored: string): string {
   if (typeof stored !== 'string') return String(stored)
-  const m = stored.match(WRAP_RE)
+  const normalized = stored.replace(/\r\n/g, '\n')
+  const m = normalized.match(WRAP_RE)
   if (m) return m[1]
   return stored
 }
