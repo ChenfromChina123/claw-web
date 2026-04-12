@@ -102,7 +102,7 @@ export class SessionManager {
 
   async loadSession(sessionId: string): Promise<InMemorySession | null> {
     console.log(`[SessionManager] loadSession called for session ${sessionId}`)
-    
+
     // 无论是否有缓存，都从数据库重新加载完整数据
     // 这样可以确保始终获取到最新、最完整的数据
     const session = await this.sessionRepo.findById(sessionId)
@@ -116,9 +116,13 @@ export class SessionManager {
 
     console.log(`[SessionManager] Retrieved from DB - messages: ${dbMessages.length}, toolCalls: ${dbToolCalls.length}`)
 
+    // 过滤掉内部的 tool_result 消息（这些是工具调用的返回值，不应显示给用户）
+    const visibleMessages = this.filterVisibleMessages(dbMessages)
+    console.log(`[SessionManager] After filtering tool_result messages: ${visibleMessages.length} (removed ${dbMessages.length - visibleMessages.length} internal messages)`)
+
     // 标准化 createdAt 为 ISO 字符串格式，确保与前端兼容
     // 同时包含 sequence 字段用于确保消息顺序
-    const messages: Message[] = dbMessages.map(msg => {
+    const messages: Message[] = visibleMessages.map(msg => {
       const normalized: Message = {
         id: msg.id,
         sessionId: msg.sessionId,
@@ -163,9 +167,13 @@ export class SessionManager {
     console.log(`[SessionManager] Hydrating session ${sessionId} from DB...`)
     const dbMessages = await this.messageRepo.findBySessionId(sessionId)
     if (dbMessages.length > 0) {
+      // 过滤掉内部的 tool_result 消息
+      const visibleMessages = this.filterVisibleMessages(dbMessages)
+      console.log(`[SessionManager] Hydrated ${visibleMessages.length} visible messages for session ${sessionId} (filtered ${dbMessages.length - visibleMessages.length} tool_result messages)`)
+
       // 标准化 createdAt 为 ISO 字符串格式，确保与前端兼容
       // 同时包含 sequence 字段用于确保消息顺序
-      cached.messages = dbMessages.map(msg => {
+      cached.messages = visibleMessages.map(msg => {
         const normalized: Message = {
           id: msg.id,
           sessionId: msg.sessionId,
@@ -177,7 +185,6 @@ export class SessionManager {
         }
         return normalized
       })
-      console.log(`[SessionManager] Hydrated ${dbMessages.length} messages for session ${sessionId}`)
     }
     const dbToolCalls = await this.toolCallRepo.findBySessionId(sessionId)
     if (dbToolCalls.length > 0) {
@@ -409,6 +416,28 @@ export class SessionManager {
       })
       // 标题生成失败不影响主要功能，但记录详细的错误信息以便排查
     }
+  }
+
+  /**
+   * 过滤掉内部的 tool_result 消息
+   * 这些消息是工具调用的返回值，用于 AI 上下文，但不应显示给用户
+   * @param messages 原始消息列表
+   * @returns 过滤后的可见消息列表
+   */
+  private filterVisibleMessages(messages: Message[]): Message[] {
+    return messages.filter(msg => {
+      // 如果内容是数组，检查是否包含 tool_result 类型的块
+      if (Array.isArray(msg.content)) {
+        const hasToolResult = msg.content.some(
+          (block: any) => block && block.type === 'tool_result'
+        )
+        if (hasToolResult) {
+          console.log(`[SessionManager] Filtering out tool_result message: ${msg.id}`)
+          return false
+        }
+      }
+      return true
+    })
   }
 
   /**
