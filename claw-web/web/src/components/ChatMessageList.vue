@@ -311,9 +311,14 @@ function formatToolOutput(output: unknown): string {
   return String(output)
 }
 
-// 获取当前正在进行的工具调用
+// 获取当前正在进行的工具调用（排除 FileWrite 类型，避免与专用组件重复显示）
 const activeToolCalls = computed(() => {
-  return props.toolCalls.filter(tc => tc.status === 'pending' || tc.status === 'executing')
+  return props.toolCalls.filter(tc => {
+    const isActive = tc.status === 'pending' || tc.status === 'executing'
+    const name = tc.toolName.toLowerCase()
+    const isFileWrite = name === 'filewrite' || name === 'file_write' || name === 'write'
+    return isActive && !isFileWrite
+  })
 })
 
 // 获取已完成的工具调用

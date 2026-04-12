@@ -706,7 +706,7 @@ defineExpose({
           <button
             class="send-btn-minimal"
             :class="{ 'can-send': inputValue.trim() || codeAttachments.length > 0 || terminalAttachments.length > 0, 'is-generating': isGenerating }"
-            :disabled="(!inputValue.trim() && !(codeAttachments.length > 0) && !(terminalAttachments.length > 0)) || disabled"
+            :disabled="isGenerating ? false : ((!inputValue.trim() && !(codeAttachments.length > 0) && !(terminalAttachments.length > 0)) || disabled)"
             @click="isGenerating ? emit('stop') : handleSend()"
           >
             <NIcon v-if="!isGenerating" :size="16">
