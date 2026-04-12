@@ -1029,7 +1029,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
 
       savedVersionId.set(entry.id, model.getAlternativeVersionId())
       hasUnsavedChanges.value = false
-      message.success('✅ 文件已保存')
+      message.success('文件已保存')
     } catch (error: unknown) {
       console.error('[useAgentWorkdir] 保存文件失败:', error)
       const err = error as { response?: { data?: { error?: { message?: string } } } }
