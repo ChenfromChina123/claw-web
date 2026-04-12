@@ -1989,6 +1989,79 @@ defineExpose({
   color: #f1f5f9;
 }
 
+/* Skill 引用芯片样式 */
+.ide-skill-refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+  max-height: 80px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
+.ide-skill-refs::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ide-skill-refs::-webkit-scrollbar-thumb {
+  background: #4a4d5c;
+  border-radius: 3px;
+}
+
+.ide-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px 4px 6px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #1a2744 0%, #1e2a3a 100%);
+  border: 1px solid rgba(56, 139, 253, 0.35);
+  font-size: 12px;
+  color: #93c5fd;
+}
+
+.ide-skill-chip-icon {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #60a5fa;
+}
+
+.ide-skill-chip-text {
+  flex: 1;
+  min-width: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.ide-skill-chip-x {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ide-skill-chip-x:hover {
+  background: rgba(96, 165, 250, 0.15);
+  color: #f1f5f9;
+}
+
 .chat-input--ide .input-actions {
   align-self: flex-end;
 }
