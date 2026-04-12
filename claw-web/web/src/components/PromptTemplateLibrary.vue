@@ -34,7 +34,6 @@ const categories = ref<PromptTemplateCategory[]>([])
 const templates = ref<PromptTemplate[]>([])
 const selectedCategoryId = ref<string | null>(null)
 const searchKeyword = ref('')
-const showFavoritesOnly = ref(false)
 const isLoading = ref(false)
 
 // 新建/编辑表单
@@ -73,10 +72,13 @@ const categoryOptions = computed(() => [
   }))
 ])
 
+// 收藏筛选类型
+const favoriteFilterType = ref<'all' | 'favorite'>('all')
+
 // 收藏选项
 const favoriteOptions = [
-  { label: '全部模板', value: false },
-  { label: '我的收藏', value: true }
+  { label: '全部模板', value: 'all' },
+  { label: '我的收藏', value: 'favorite' }
 ]
 
 // 当前视图标题
@@ -97,7 +99,7 @@ const filteredTemplates = computed(() => {
     result = result.filter(t => t.categoryId === selectedCategoryId.value)
   }
 
-  if (showFavoritesOnly.value) {
+  if (favoriteFilterType.value === 'favorite') {
     result = result.filter(t => t.isFavorite)
   }
 
@@ -162,15 +164,19 @@ function renderCategoryLabel(option: { label: string; value: string | null; icon
 async function loadData() {
   isLoading.value = true
   try {
+    console.log('[PromptTemplateLibrary] 开始加载数据...')
     const [cats, tpls] = await Promise.all([
       promptTemplateApi.getCategories(),
       promptTemplateApi.getTemplates()
     ])
+    console.log('[PromptTemplateLibrary] 分类数据:', cats)
+    console.log('[PromptTemplateLibrary] 模板数据:', tpls)
     categories.value = cats
     templates.value = tpls
+    console.log('[PromptTemplateLibrary] 数据已赋值，模板数量:', templates.value.length)
   } catch (error) {
     message.error('加载数据失败')
-    console.error(error)
+    console.error('[PromptTemplateLibrary] 加载数据错误:', error)
   } finally {
     isLoading.value = false
   }
@@ -353,6 +359,16 @@ onMounted(() => {
   void loadData()
 })
 
+// 调试：监视 templates 变化
+watch(templates, (newVal) => {
+  console.log('[PromptTemplateLibrary] templates 变化:', newVal.length, newVal)
+})
+
+// 调试：监视 filteredTemplates
+watch(filteredTemplates, (newVal) => {
+  console.log('[PromptTemplateLibrary] filteredTemplates 变化:', newVal.length)
+})
+
 /**
  * 组件卸载时重置视图状态
  */
@@ -362,7 +378,7 @@ onUnmounted(() => {
   useFormData.value = { template: null, variables: {} }
   searchKeyword.value = ''
   selectedCategoryId.value = null
-  showFavoritesOnly.value = false
+  favoriteFilterType.value = 'all'
 })
 </script>
 
@@ -394,7 +410,7 @@ onUnmounted(() => {
           />
 
           <NSelect
-            v-model:value="showFavoritesOnly"
+            v-model:value="favoriteFilterType"
             :options="favoriteOptions"
             size="small"
             placeholder="筛选"
