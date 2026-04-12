@@ -1157,6 +1157,7 @@ async function handleInterruptExecution() {
       </NPopover>
 
       <!-- 原有的时间线导航（编辑/回滚） -->
+      <NPopover
         v-model:show="timelinePopoverShow"
         trigger="click"
         :show-arrow="false"
