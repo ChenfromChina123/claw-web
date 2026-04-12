@@ -1149,97 +1149,102 @@ defineExpose({
 /* ========== 下拉菜单样式：深色背景风格 ========== */
 
 /* NDropdown 菜单容器 - 与 NSelect 一致的紧凑风格 */
-.chat-input--ide :deep(.n-dropdown-menu),
-.chat-input--ide .n-dropdown-menu {
+.chat-input--ide :global(.n-dropdown-menu) {
   background-color: #252526 !important;
   border: 1px solid #3c3c3c !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
-  padding: 2px 0 !important;
-  max-height: 240px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+  padding: 4px 0 !important;
+  max-height: 280px !important;
   overflow-y: auto !important;
 }
 
 /* NDropdown 选项 - 紧凑样式 */
-.chat-input--ide :deep(.n-dropdown-option),
-.chat-input--ide .n-dropdown-option {
+.chat-input--ide :global(.n-dropdown-option) {
   color: #ccc !important;
-  font-size: 12px !important;
-  padding: 4px 10px !important;
-  line-height: 22px !important;
+  font-size: 13px !important;
+  padding: 6px 12px !important;
+  min-height: 32px !important;
   display: flex !important;
   align-items: center !important;
-  gap: 6px !important;
-}
-
-/* NDropdown 选项图标 */
-.chat-input--ide :deep(.n-dropdown-option .n-icon),
-.chat-input--ide .n-dropdown-option .n-icon {
-  color: #58a6ff !important;
-  font-size: 14px !important;
+  gap: 8px !important;
 }
 
 /* NDropdown 选项悬停 */
-.chat-input--ide :deep(.n-dropdown-option:hover),
-.chat-input--ide .n-dropdown-option:hover {
-  background-color: rgba(56, 139, 253, 0.15) !important;
+.chat-input--ide :global(.n-dropdown-option:hover) {
+  background-color: rgba(0, 122, 204, 0.15) !important;
   color: #fff !important;
 }
 
-/* NDropdown 分组标签（类型标题）- 区分样式 */
-.chat-input--ide :deep(.n-dropdown-option-group-label),
-.chat-input--ide .n-dropdown-option-group-label {
-  color: #888 !important;
-  font-size: 10px !important;
-  font-weight: 500 !important;
-  padding: 4px 12px 2px !important;
+/* NDropdown 分组标题 */
+.chat-input--ide :global(.n-dropdown-option-group-label) {
+  color: #666 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 6px 12px 4px !important;
   text-transform: none !important;
-  letter-spacing: 0.3px !important;
-  user-select: none !important;
+  letter-spacing: 0.5px !important;
 }
 
 /* NDropdown 分割线 */
-.chat-input--ide :deep(.n-dropdown-menu .n-dropdown-divider),
-.chat-input--ide .n-dropdown-menu .n-dropdown-divider {
+.chat-input--ide :global(.n-dropdown-menu .n-dropdown-divider) {
   height: 1px !important;
-  background-color: rgba(255, 255, 255, 0.06) !important;
-  margin: 2px 8px !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  margin: 4px 8px !important;
 }
 
-/* NSelect 菜单容器 - 模型选择器 */
+/* NSelect 菜单容器 */
 :global(.n-select-menu) {
   background-color: #252526 !important;
   border: 1px solid #3c3c3c !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
-  padding: 2px 0 !important;
-  max-height: 240px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+  padding: 4px 0 !important;
+  max-height: 280px !important;
   overflow-y: auto !important;
-  width: auto !important;
-  min-width: 100px !important;
+  width: 100% !important;
+  min-width: 120px !important;
 }
 
 :global(.n-base-select-option) {
   width: 100% !important;
   box-sizing: border-box !important;
-  color: #ccc !important;
-  font-size: 12px !important;
-  padding: 4px 10px !important;
-  line-height: 22px !important;
+  color: #aaa !important;
+  font-size: 13px !important;
+  padding: 6px 12px !important;
 }
 
 :global(.n-base-select-option:hover) {
-  background-color: rgba(56, 139, 253, 0.15) !important;
+  background-color: transparent !important;
   color: #fff !important;
-  border-radius: 3px !important;
+  border: 1px solid #555 !important;
+  border-radius: 4px !important;
 }
 
 :global(.n-base-select-option--selected) {
-  color: #58a6ff !important;
+  color: #f2c97d !important;
 }
 
 :global(.n-base-select-option--selected .n-base-select-option__check) {
-  color: #58a6ff !important;
+  color: #f2c97d !important;
+}
+
+/* 选中项左侧 2px 蓝色指示条 */
+.chat-input--ide .model-select-integrated :deep(.n-base-select-option--selected::before) {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 12px;
+  background-color: #0078d4;
+  border-radius: 0 1px 1px 0;
+}
+
+/* 选中标记 */
+.chat-input--ide .model-select-integrated :deep(.n-base-select-option--selected .n-base-select-option__check) {
+  color: #0078d4 !important;
 }
 
 /* 分割线 */
@@ -1248,15 +1253,14 @@ defineExpose({
   margin: 3px 0 !important;
 }
 
-/* 分组标题 - 类型标签区分 */
+/* 分组标题 */
 .chat-input--ide .model-select-integrated :deep(.n-base-select-group-header) {
-  color: #888 !important;
+  color: #555 !important;
   font-size: 10px !important;
-  font-weight: 500 !important;
   padding: 4px 10px 2px !important;
-  text-transform: none !important;
-  letter-spacing: 0.3px !important;
-  user-select: none !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
 }
 
 /* ========== 默认变体：输入框容器样式 ========== */

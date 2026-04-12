@@ -57,10 +57,31 @@ const ctxMenuTarget = ref<{ path: string; isDirectory: boolean } | null>(null)
 const ctxMenuOptions = computed(() => {
   if (!ctxMenuTarget.value) return []
   const dir = ctxMenuTarget.value.isDirectory
-  return [
-    { label: dir ? '下载文件夹 (ZIP)' : '下载文件', key: 'download' },
-    { label: '删除', key: 'delete' }
-  ]
+  const options: Array<{ label: string; key: string; icon?: any }> = []
+  
+  // 文件夹特有功能
+  if (dir) {
+    options.push(
+      { label: '新建文件', key: 'new-file', icon: CreateOutline },
+      { label: '新建文件夹', key: 'new-folder', icon: FolderOpenOutline }
+    )
+  }
+  
+  // 通用功能
+  options.push(
+    { label: dir ? '下载文件夹 (ZIP)' : '下载文件', key: 'download', icon: DownloadOutline },
+    { label: '删除', key: 'delete', icon: TrashOutline }
+  )
+  
+  // 上传和刷新（只在空白处或根目录显示）
+  if (!dir || ctxMenuTarget.value.path === '/') {
+    options.push(
+      { label: '上传文件', key: 'upload', icon: CloudUploadOutline },
+      { label: '刷新', key: 'refresh', icon: Refresh }
+    )
+  }
+  
+  return options
 })
 
 const createParentHint = computed(() => ctx.getNewItemParentPath() || '/')
@@ -196,7 +217,11 @@ function onCtxMenuSelect(key: string | number): void {
   ctxMenuShow.value = false
   if (!t) return
   
-  if (key === 'download') {
+  if (key === 'new-file') {
+    openCreateModal('file')
+  } else if (key === 'new-folder') {
+    openCreateModal('directory')
+  } else if (key === 'download') {
     if (t.isDirectory) {
       void ctx.downloadFolderZip(t.path)
     } else {
@@ -205,6 +230,10 @@ function onCtxMenuSelect(key: string | number): void {
     }
   } else if (key === 'delete') {
     showDeleteConfirm(t.path, t.isDirectory)
+  } else if (key === 'upload') {
+    triggerFilePicker()
+  } else if (key === 'refresh') {
+    void ctx.refreshTree()
   }
 }
 

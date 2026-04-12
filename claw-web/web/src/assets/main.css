@@ -37,3 +37,49 @@
 .n-input__textarea-el:-webkit-autofill {
   transition: background-color 99999s ease-out 0s;
 }
+
+/* ============================================
+   全局统一的右键菜单样式
+   ============================================ */
+.n-dropdown {
+  --n-border-radius: 8px !important;
+  --n-color: #2a2a2a !important;
+  --n-option-color-hover: rgba(99, 102, 241, 0.15) !important;
+  --n-option-text-color: rgba(255, 255, 255, 0.85) !important;
+  --n-option-text-color-hover: #6366f1 !important;
+  --n-divider-color: rgba(255, 255, 255, 0.08) !important;
+  --n-padding: 6px 0 !important;
+  --n-font-size: 13px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+
+.n-dropdown-option {
+  padding: 8px 16px !important;
+  min-width: 140px !important;
+}
+
+.n-dropdown-option__prefix {
+  margin-right: 8px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.n-dropdown-option__prefix .n-icon {
+  font-size: 16px !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+.n-dropdown-option:hover .n-dropdown-option__prefix .n-icon {
+  color: #6366f1 !important;
+}
+
+.n-dropdown-option__content {
+  letter-spacing: 0.3px !important;
+}
+
+/* 分割线样式 */
+.n-dropdown-divider {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  margin: 4px 0 !important;
+}
