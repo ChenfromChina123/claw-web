@@ -14,7 +14,6 @@ import {
   NTooltip,
   NModal,
   NInput,
-  NDropdown,
   NDialog,
   useDialog,
   type TreeOption,
@@ -26,10 +25,6 @@ import {
   FolderOpenOutline,
   DownloadOutline,
   TrashOutline,
-} from '@vicons/ionicons5'
-import {
-  ChatbubblesOutline,
-  ListOutline,
 } from '@vicons/ionicons5'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useWorkdirContext } from '@/composables/useAgentWorkdir'
@@ -48,38 +43,47 @@ const showCreateModal = ref(false)
 const createKind = ref<'file' | 'directory'>('file')
 const createNameDraft = ref('')
 
-/** 右键菜单 */
+/** 右键菜单 - 与终端使用相同的自定义HTML菜单 */
 const ctxMenuShow = ref(false)
 const ctxMenuX = ref(0)
 const ctxMenuY = ref(0)
 const ctxMenuTarget = ref<{ path: string; isDirectory: boolean } | null>(null)
 
-const ctxMenuOptions = computed(() => {
+/** 计算当前右键菜单选项 */
+const ctxMenuItems = computed(() => {
   if (!ctxMenuTarget.value) return []
   const dir = ctxMenuTarget.value.isDirectory
-  const options: Array<{ label: string; key: string }> = []
+  const items: Array<{ label: string; key: string }> = []
   
   // 文件夹特有功能
   if (dir) {
-    options.push(
+    items.push(
       { label: '新建文件', key: 'new-file' },
       { label: '新建文件夹', key: 'new-folder' }
     )
   }
   
   // 通用功能
-  options.push(
+  items.push(
     { label: dir ? '下载文件夹 (ZIP)' : '下载文件', key: 'download' },
     { label: '删除', key: 'delete' }
   )
   
   // 上传和刷新
-  options.push(
+  items.push(
     { label: '上传文件', key: 'upload' },
     { label: '刷新', key: 'refresh' }
   )
   
-  return options
+  return items
+})
+
+/** 是否显示分割线（在删除和上传之间） */
+const hasDividerBeforeIndex = computed(() => {
+  if (!ctxMenuTarget.value) return -1
+  const dir = ctxMenuTarget.value.isDirectory
+  // 删除是第3或第2个选项，分割线在其后
+  return dir ? 3 : 1
 })
 
 const createParentHint = computed(() => ctx.getNewItemParentPath() || '/')
@@ -195,24 +199,31 @@ function findNodeByKey(nodes: any[], key: string): any {
   return null
 }
 
-function workdirTreeNodeProps({ option }: { option: TreeOption }) {
-  return {
-    onContextmenu(e: MouseEvent) {
-      e.preventDefault()
-      ctxMenuTarget.value = {
-        path: String(option.key),
-        isDirectory: option.isLeaf === false,
-      }
-      ctxMenuX.value = e.clientX
-      ctxMenuY.value = e.clientY
-      ctxMenuShow.value = true
-    },
-  }
+/**
+ * 显示右键菜单 - 与终端相同的方式
+ */
+function showContextMenu(e: MouseEvent) {
+  e.preventDefault()
+  ctxMenuX.value = e.clientX
+  ctxMenuY.value = e.clientY
+  ctxMenuShow.value = true
+  document.addEventListener('click', hideContextMenu)
 }
 
-function onCtxMenuSelect(key: string | number): void {
-  const t = ctxMenuTarget.value
+/**
+ * 隐藏右键菜单
+ */
+function hideContextMenu() {
   ctxMenuShow.value = false
+  document.removeEventListener('click', hideContextMenu)
+}
+
+/**
+ * 处理右键菜单项点击
+ */
+function handleCtxMenuItemClick(key: string): void {
+  const t = ctxMenuTarget.value
+  hideContextMenu()
   if (!t) return
   
   if (key === 'new-file') {
@@ -235,34 +246,20 @@ function onCtxMenuSelect(key: string | number): void {
   }
 }
 
-function onCtxMenuShowUpdate(show: boolean): void {
-  ctxMenuShow.value = show
-  if (!show) {
-    ctxMenuTarget.value = null
+function workdirTreeNodeProps({ option }: { option: TreeOption }) {
+  return {
+    onContextmenu(e: MouseEvent) {
+      ctxMenuTarget.value = {
+        path: String(option.key),
+        isDirectory: option.isLeaf === false,
+      }
+      showContextMenu(e)
+    },
   }
 }
-
-// 点击外部关闭菜单
-function handleClickOutside(e: MouseEvent): void {
-  if (!ctxMenuShow.value) return
-  
-  const target = e.target as HTMLElement
-  const dropdownEl = document.querySelector('.n-dropdown')
-  
-  // 如果点击的不是下拉菜单本身，则关闭菜单
-  if (dropdownEl && !dropdownEl.contains(target)) {
-    ctxMenuShow.value = false
-    ctxMenuTarget.value = null
-  }
-}
-
-// 挂载和卸载时添加/移除全局点击监听
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-})
 
 onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('click', hideContextMenu)
 })
 </script>
 
@@ -279,19 +276,28 @@ onUnmounted(() => {
       <span>松开鼠标上传到 {{ DEFAULT_UPLOAD_DIR }}/</span>
     </div>
 
-    <NDropdown
-      trigger="manual"
-      placement="bottom-start"
-      :show="ctxMenuShow"
-      :x="ctxMenuX"
-      :y="ctxMenuY"
-      :options="ctxMenuOptions"
-      to="body"
-      @select="onCtxMenuSelect"
-      @update:show="onCtxMenuShowUpdate"
+    <!-- 自定义右键菜单 - 与终端样式完全一致 -->
+    <div
+      v-if="ctxMenuShow"
+      class="context-menu"
+      :style="{ left: ctxMenuX + 'px', top: ctxMenuY + 'px' }"
+      @click.stop
     >
-      <div class="ctx-menu-anchor" aria-hidden="true" />
-    </NDropdown>
+      <template v-for="(item, index) in ctxMenuItems" :key="item.key">
+        <!-- 分割线 -->
+        <div
+          v-if="index === hasDividerBeforeIndex"
+          class="context-menu-divider"
+        />
+        <!-- 菜单项 -->
+        <div
+          class="context-menu-item"
+          @click="handleCtxMenuItemClick(item.key)"
+        >
+          {{ item.label }}
+        </div>
+      </template>
+    </div>
 
     <!-- 面板头部 -->
     <div class="panel-header">
@@ -482,14 +488,33 @@ onUnmounted(() => {
   letter-spacing: 0.3px;
 }
 
-.ctx-menu-anchor {
+/* 右键菜单样式 - 与终端完全一致 */
+.context-menu {
   position: fixed;
-  width: 1px;
+  background: #2d2d2d;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 140px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 10000;
+}
+
+.context-menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #ddd;
+}
+
+.context-menu-item:hover {
+  background: #4a4a4a;
+}
+
+.context-menu-divider {
   height: 1px;
-  left: 0;
-  top: 0;
-  pointer-events: none;
-  opacity: 0;
+  background: #555;
+  margin: 4px 0;
 }
 
 .panel-header {
