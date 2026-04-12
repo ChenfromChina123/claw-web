@@ -1091,20 +1091,20 @@ defineExpose({
   height: 24px;
 }
 
-/* 2. 深度覆盖 Naive UI 内部组件 */
+/* 2. 深度覆盖 Naive UI 内部组件 - 纯黑风格 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection) {
   --n-height: 24px !important;
-  --n-border: 1px solid #3f4252 !important; /* 统一边框颜色 */
+  --n-border: 1px solid #333 !important; /* 纯黑边框 */
   --n-border-hover: 1px solid #555 !important;
-  --n-border-active: 1px solid #3f4252 !important; /* 取消激活时的蓝色 */
-  --n-border-focus: 1px solid #3f4252 !important;  /* 取消聚焦时的蓝色 */
+  --n-border-active: 1px solid #333 !important;
+  --n-border-focus: 1px solid #333 !important;
   --n-box-shadow-hover: none !important;
   --n-box-shadow-active: none !important;
-  --n-box-shadow-focus: none !important;           /* 彻底移除蓝色外发光 */
-  --n-color: #2a2d3a !important;                   /* 统一背景颜色 */
-  --n-color-active: #2a2d3a !important;
+  --n-box-shadow-focus: none !important;
+  --n-color: #000000 !important;                   /* 纯黑背景 */
+  --n-color-active: #000000 !important;
   --n-border-radius: 4px !important;
-  background-color: #2a2d3a !important;
+  background-color: #000000 !important;
 }
 
 /* 3. 内部文字样式调整 */
@@ -1116,7 +1116,7 @@ defineExpose({
 
 .chat-input--ide .model-select-integrated :deep(.n-base-selection__render) {
   font-size: 12px !important;
-  color: #bbbbbb !important; /* 文字颜色调亮一点，更易读 */
+  color: #bbbbbb !important;
   justify-content: center !important;
 }
 
@@ -1125,18 +1125,17 @@ defineExpose({
   color: #888 !important;
 }
 
-/* 5. 悬停状态（模拟左侧按钮的 Hover 效果） */
+/* 5. 悬停状态 */
 .chat-input--ide .model-select-integrated:hover :deep(.n-base-selection) {
-  background-color: #35394b !important; /* 稍微亮一点的深灰 */
+  background-color: #1a1a1a !important; /* 悬停时稍微亮一点 */
   border-color: #555 !important;
 }
 
-/* ========== 下拉菜单（弹出层）样式 ========== */
-/* 注意：下拉菜单通常挂载在 body 下，所以去掉 scoped 限制或使用全局覆盖 */
+/* ========== 下拉菜单（弹出层）样式 - 纯黑 ========== */
 :global(.n-select-menu) {
-  background-color: #2a2d3a !important; /* 与输入框底部条一致的深色 */
-  border: 1px solid #3f4252 !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+  background-color: #000000 !important; /* 纯黑背景 */
+  border: 1px solid #333 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8) !important;
 }
 
 :global(.n-base-select-option) {
@@ -1144,16 +1143,16 @@ defineExpose({
 }
 
 :global(.n-base-select-option--pending::before) {
-  background-color: rgba(255, 255, 255, 0.08) !important; /* 悬停选项背景 */
+  background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 :global(.n-base-select-option--selected) {
-  color: #f2c97d !important; /* 选中项文字颜色 */
+  color: #f2c97d !important;
 }
 
-/* 选中项：左侧蓝色指示条 + 微弱背景 */
+/* 选中项样式 */
 .chat-input--ide .model-select-integrated :deep(.n-base-select-option--selected) {
-  background-color: rgba(0, 120, 212, 0.12) !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
   color: #fff !important;
   position: relative;
   padding-left: 14px !important;
