@@ -1,0 +1,96 @@
+# Claw-Web - Worker 容器 Dockerfile（单用户隔离模式）
+#
+# 优化特性：
+# ✅ 轻量化设计：专为单用户场景优化
+# ✅ 内存优化：降低V8堆内存和线程池大小
+# ✅ 快速启动：精简依赖和初始化流程
+# ✅ 健康检查：支持容器编排器的健康探测
+#
+# 使用场景：
+# - 作为容器池中的Worker实例
+# - 每个容器只服务一个用户
+# - 由Master服务统一调度和管理
+
+FROM oven/bun:1 AS worker
+
+LABEL maintainer="Claude Code HAHA Team"
+LABEL description="Worker container for single-user isolation"
+LABEL version="1.0.0"
+LABEL role="worker"
+
+# 使用国内镜像源加速
+RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's|http://security.debian.org-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources
+
+# 安装最小化系统依赖（移除编译工具以减小镜像体积）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    default-mysql-client \
+    curl \
+    tzdata \
+    && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/cache/apt/archives/* \
+    && apt-get clean \
+    && rm -rf /tmp/* /var/tmp/*
+
+WORKDIR /app
+
+# 复制依赖文件并安装（利用Docker缓存层）
+COPY server/package.json ./
+
+# 使用国内镜像源加速
+ENV BUN_CONFIG_REGISTRY=https://registry.npmmirror.com
+RUN bun install --production  # 生产环境跳过开发依赖
+
+# 复制源代码
+COPY server/ .
+
+# 清理环境变量文件（防止覆盖docker-compose设置）
+RUN rm -f .env .env.local .env.*.local 2>/dev/null || true && \
+    echo "# Environment variables set by container orchestrator" > .env
+
+# 设置环境变量（针对单用户优化的配置）
+ENV NODE_ENV=production \
+    PORT=3000 \
+    WORKSPACE_BASE_DIR=/app/workspaces \
+    TZ=Asia/Shanghai \
+    # 内存优化：单用户场景降低内存占用
+    NODE_OPTIONS="--max-old-space-size=256 \
+                 --optimize-for-size \
+                 --gc-interval=100" \
+    # 线程池优化：单用户减少并发线程
+    UV_THREADPOOL_SIZE=2 \
+    # 租户隔离配置
+    TENANT_ISOLATION_ENABLED=true \
+    MAX_USERS=1 \
+    USER_STORAGE_QUOTA_MB=200 \
+    USER_SESSION_LIMIT=5 \
+    USER_PTY_LIMIT=2 \
+    MAX_FILE_SIZE_MB=10 \
+    MAX_FILES_PER_USER=500 \
+    API_TIMEOUT_MS=300000 \
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
+    DISABLE_TELEMETRY=1 \
+    # 容器标识
+    CONTAINER_ROLE=worker
+
+# 创建工作区目录结构
+RUN mkdir -p /app/workspaces/users /app/workspaces/sessions && \
+    chown -R bun:bun /app/workspaces
+
+# 暴露端口
+EXPOSE 3000
+
+# 健康检查（更频繁的检查间隔，便于编排器快速发现故障）
+HEALTHCHECK --interval=15s --timeout=5s --start_period=10s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
+# 停止信号（优雅关闭）
+STOPSIGNAL SIGINT
+
+# 以非root用户运行（安全最佳实践）
+USER bun
+
+# 启动命令
+CMD ["bun", "--bun", "run", "src/index.ts"]
