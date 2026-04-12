@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import type { IdeAppendToChatOptions, IdeCodeRefPayload, IdeTerminalRefPayload } from '@/composables/useIdeChatAppend'
-import { buildIdeLayeredUserMessage } from '@/utils/ideUserMessageMarkers'
+import { buildIdeLayeredUserMessage, buildTerminalRefMarker, type TerminalRefInMessage } from '@/utils/ideUserMessageMarkers'
+import { saveTerminalReference } from '@/composables/useIdeTerminalPersistence'
 import { NInput, NButton, NIcon, NSpin, NTag, NSelect, NDropdown, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
 import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline } from '@vicons/ionicons5'
@@ -298,6 +299,29 @@ function handleSend() {
   if ((!text && !hasIdeRefs && !hasTerminalRefs) || props.disabled) return
 
   if (props.variant === 'ide') {
+    /** 保存终端引用到持久化存储，并构建引用标记 */
+    const terminalRefMarkers: string[] = []
+    for (const t of terminalAttachments.value) {
+      // 保存到 localStorage
+      saveTerminalReference(props.sessionId, {
+        id: t.id,
+        preview: t.preview,
+        content: t.content,
+        originalLength: t.originalLength,
+      })
+      // 构建行号范围显示（如 "971-986"）
+      const lineCount = t.content.split('\n').length
+      const lineRange = lineCount > 1 ? `1-${lineCount}` : '1'
+      const refData: TerminalRefInMessage = {
+        id: t.id,
+        preview: t.preview.slice(0, 50),
+        lineRange,
+        content: t.content,
+        originalLength: t.originalLength,
+      }
+      terminalRefMarkers.push(buildTerminalRefMarker(refData))
+    }
+
     /** 构建终端输出部分 */
     const terminalParts = terminalAttachments.value.map(t => {
       const truncated = t.originalLength > t.content.length
@@ -317,9 +341,16 @@ function handleSend() {
     if (text) allParts.push(text)
     allParts.push(...codeParts, ...terminalParts)
 
+    /** 构建显示文本（包含终端引用标记） */
+    const displayParts = [text]
+    if (terminalRefMarkers.length > 0) {
+      displayParts.push(...terminalRefMarkers)
+    }
+    const displayText = displayParts.filter(Boolean).join('\n')
+
     const payload = (hasIdeRefs || hasTerminalRefs)
       ? buildIdeLayeredUserMessage(
-          buildDisplayFromRefs(text, codeAttachments.value),
+          displayText,
           allParts.join('\n\n'),
         )
       : text

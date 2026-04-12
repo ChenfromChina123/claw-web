@@ -32,8 +32,9 @@ import FileWriteToolInline from './FileWriteToolInline.vue'
 import FileOutputCard from './FileOutputCard.vue'
 import { StopCircleOutline, ChevronDownOutline, ListOutline, ArrowUndoOutline, CreateOutline, CheckmarkOutline, CloseOutline } from '@vicons/ionicons5'
 import { interruptAgent } from '@/api/agentApi'
-import { extractIdeUserDisplay } from '@/utils/ideUserMessageMarkers'
+import { extractIdeUserDisplay, extractTerminalRefs, stripTerminalRefs, type TerminalRefInMessage } from '@/utils/ideUserMessageMarkers'
 import { isUserTimelineAnchor, userMessageTimelinePreview } from '@/utils/chatTimeline'
+import { loadTerminalReferences } from '@/composables/useIdeTerminalPersistence'
 import { useChatStore } from '@/stores/chat'
 import AgentAvatar from './AgentAvatar.vue'
 
@@ -70,6 +71,26 @@ const chatStore = useChatStore()
 const message = useMessage()
 /** 中断按钮加载状态 */
 const isInterrupting = ref(false)
+
+/** 当前展开的终端引用 ID */
+const expandedTerminalRef = ref<string | null>(null)
+
+/**
+ * 切换终端引用的展开/收起状态
+ */
+function toggleTerminalRef(refId: string) {
+  expandedTerminalRef.value = expandedTerminalRef.value === refId ? null : refId
+}
+
+/**
+ * 从消息内容中提取并合并终端引用（包括持久化的）
+ */
+function getTerminalRefsFromMessage(content: unknown): TerminalRefInMessage[] {
+  const text = getMessageText(content)
+  // 从消息内容中提取内联引用
+  const inlineRefs = extractTerminalRefs(text)
+  return inlineRefs
+}
 
 const effectiveTimelineNav = computed(() =>
   props.showTimelineNav !== undefined ? props.showTimelineNav : !!props.ideDensity,
@@ -744,7 +765,35 @@ async function handleInterruptExecution() {
                     </div>
                     <!-- 显示模式 -->
                     <template v-else>
-                      <div class="message-text">{{ formatUserMessageForBubble((message as any).content) }}</div>
+                      <div class="message-text">{{ stripTerminalRefs(formatUserMessageForBubble((message as any).content)) }}</div>
+                      <!-- 终端引用气泡列表 -->
+                      <div v-if="getTerminalRefsFromMessage((message as any).content).length > 0" class="terminal-refs-bubbles">
+                        <div
+                          v-for="ref in getTerminalRefsFromMessage((message as any).content)"
+                          :key="ref.id"
+                          class="terminal-ref-bubble"
+                          :class="{ 'is-expanded': expandedTerminalRef === ref.id }"
+                          @click="toggleTerminalRef(ref.id)"
+                        >
+                          <span class="terminal-ref-icon">⌘</span>
+                          <span class="terminal-ref-label">Terminal</span>
+                          <span class="terminal-ref-range">{{ ref.lineRange }}</span>
+                          <!-- 展开的内容 -->
+                          <div v-if="expandedTerminalRef === ref.id" class="terminal-ref-content" @click.stop>
+                            <div class="terminal-ref-header">
+                              <span>终端输出 ({{ ref.originalLength }} 字符)</span>
+                              <button
+                                type="button"
+                                class="terminal-ref-close"
+                                @click="toggleTerminalRef(ref.id)"
+                              >
+                                ×
+                              </button>
+                            </div>
+                            <pre class="terminal-ref-code"><code>{{ ref.content }}</code></pre>
+                          </div>
+                        </div>
+                      </div>
                     </template>
                   </div>
 
@@ -1599,6 +1648,137 @@ async function handleInterruptExecution() {
 }
 .user-bubble::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* 终端引用气泡列表 */
+.terminal-refs-bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* 终端引用气泡 */
+.terminal-ref-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #1a3a2a 0%, #1e2d2a 100%);
+  border: 1px solid rgba(35, 209, 139, 0.3);
+  border-radius: 12px;
+  font-size: 12px;
+  color: #a7f3d0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.terminal-ref-bubble:hover {
+  background: linear-gradient(135deg, #1e4a35 0%, #223d2f 100%);
+  border-color: rgba(35, 209, 139, 0.5);
+  transform: translateY(-1px);
+}
+
+.terminal-ref-bubble.is-expanded {
+  border-radius: 12px 12px 0 0;
+}
+
+.terminal-ref-icon {
+  font-size: 11px;
+  color: #23d18b;
+}
+
+.terminal-ref-label {
+  font-weight: 500;
+  color: #6ee7b7;
+}
+
+.terminal-ref-range {
+  color: #a7f3d0;
+  opacity: 0.8;
+}
+
+/* 展开的终端引用内容 */
+.terminal-ref-content {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 100;
+  min-width: 400px;
+  max-width: 600px;
+  background: #1e1e1e;
+  border: 1px solid rgba(35, 209, 139, 0.3);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.terminal-ref-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(35, 209, 139, 0.1);
+  border-bottom: 1px solid rgba(35, 209, 139, 0.2);
+  font-size: 11px;
+  color: #6ee7b7;
+}
+
+.terminal-ref-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: #6ee7b7;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.terminal-ref-close:hover {
+  background: rgba(35, 209, 139, 0.2);
+  color: #fff;
+}
+
+.terminal-ref-code {
+  margin: 0;
+  padding: 12px;
+  max-height: 300px;
+  overflow: auto;
+  background: #1a1a1a;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #d4d4d4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.terminal-ref-code::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.terminal-ref-code::-webkit-scrollbar-thumb {
+  background: #3f4252;
+  border-radius: 3px;
 }
 
 /* 编辑模式输入框优化 */
