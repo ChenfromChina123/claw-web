@@ -127,9 +127,10 @@ const userMessageCount = computed(() => {
 
 // 用户消息导航项
 const userMessageNavItems = computed(() => {
-  const items: Array<{ id: string; preview: string }> = []
+  const items: Array<{ id: string; preview: string; index: number }> = []
   let userIndex = 0
 
+  // 先收集所有用户消息
   for (const m of chatStore.messages) {
     if (m.role !== 'user') continue
 
@@ -153,14 +154,15 @@ const userMessageNavItems = computed(() => {
       preview = preview + '...'
     }
 
-    // 按顺序添加，第一条在最上面
     items.push({
       id: m.id,
       preview: preview || '（空消息）',
+      index: userIndex,
     })
   }
 
-  return items
+  // 反转数组，让第一条消息在最上面
+  return items.reverse()
 })
 
 // 处理快速导航点击
@@ -569,12 +571,12 @@ async function handleRetry(): Promise<void> {
                     </div>
                     <div class="quick-nav-list">
                       <div
-                      v-for="(entry, idx) in userMessageNavItems"
+                      v-for="entry in userMessageNavItems"
                       :key="entry.id"
                       class="quick-nav-item"
                       @click="handleQuickNavClick(entry.id)"
                     >
-                      <span class="quick-nav-index">#{{ idx + 1 }}</span>
+                      <span class="quick-nav-index">#{{ entry.index }}</span>
                       <span class="quick-nav-preview" :title="entry.preview">{{ entry.preview }}</span>
                     </div>
                     </div>
