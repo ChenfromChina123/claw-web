@@ -91,7 +91,7 @@ const viewTitle = computed(() => {
 
 // 过滤后的模板
 const filteredTemplates = computed(() => {
-  let result = templates.value
+  let result = templates.value || []
 
   if (selectedCategoryId.value) {
     result = result.filter(t => t.categoryId === selectedCategoryId.value)
@@ -107,7 +107,7 @@ const filteredTemplates = computed(() => {
       t.title.toLowerCase().includes(keyword) ||
       t.description?.toLowerCase().includes(keyword) ||
       t.content.toLowerCase().includes(keyword) ||
-      t.tags.some(tag => tag.toLowerCase().includes(keyword))
+      (t.tags || []).some((tag: string) => tag.toLowerCase().includes(keyword))
     )
   }
 
