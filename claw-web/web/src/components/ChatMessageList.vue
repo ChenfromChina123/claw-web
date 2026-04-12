@@ -30,7 +30,7 @@ import ToolUseEnhanced from './ToolUseEnhanced.vue'
 import TaskPipeline from './TaskPipeline.vue'
 import FileWriteToolInline from './FileWriteToolInline.vue'
 import FileOutputCard from './FileOutputCard.vue'
-import { StopCircleOutline, ChevronDownOutline, ListOutline, ArrowUndoOutline, CreateOutline, CheckmarkOutline, CloseOutline, PersonOutline } from '@vicons/ionicons5'
+import { StopCircleOutline, ChevronDownOutline, ListOutline, ArrowUndoOutline, CreateOutline, CheckmarkOutline, CloseOutline } from '@vicons/ionicons5'
 import { interruptAgent } from '@/api/agentApi'
 import { extractIdeUserDisplay, extractTerminalRefs, stripTerminalRefs, type TerminalRefInMessage } from '@/utils/ideUserMessageMarkers'
 import { isUserTimelineAnchor, userMessageTimelinePreview } from '@/utils/chatTimeline'
@@ -78,13 +78,6 @@ const expandedTerminalRef = ref<string | null>(null)
 /** 用户消息导航相关状态 */
 const highlightedMessageId = ref<string | null>(null)
 const userNavPopoverShow = ref(false)
-
-/**
- * 获取用户消息的序号（用于显示）
- */
-function getUserMessageIndex(messageId: string): number {
-  return props.messages.findIndex(m => m.id === messageId && m.role === 'user') + 1
-}
 
 /**
  * 高亮并滚动到指定用户消息
@@ -788,12 +781,6 @@ async function handleInterruptExecution() {
             <div v-if="message.role === 'user'" class="message user-message" :class="{ 'message--highlighted': isMessageHighlighted(message.id) }">
               <div class="message-content">
                 <div class="message-bubble-column">
-                  <!-- 用户消息序号标签 -->
-                  <div class="user-message-index-badge">
-                    <NIcon :size="12"><PersonOutline /></NIcon>
-                    <span>{{ getUserMessageIndex(message.id) }}</span>
-                  </div>
-                  
                   <!-- 气泡主体 -->
                   <div class="message-bubble user-bubble">
                     <!-- 编辑模式 -->
@@ -1249,29 +1236,6 @@ async function handleInterruptExecution() {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-/* 用户消息序号标签 */
-.user-message-index-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #a5b4fc;
-  margin-bottom: 6px;
-  width: fit-content;
-  transition: all 0.2s ease;
-}
-
-.user-message-index-badge:hover {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(139, 92, 246, 0.25) 100%);
-  border-color: rgba(99, 102, 241, 0.5);
-  transform: scale(1.05);
-}
-
 /* 消息高亮效果 */
 .message--highlighted {
   animation: messageHighlight 3s ease-out;
@@ -1291,12 +1255,6 @@ async function handleInterruptExecution() {
     background: transparent;
     box-shadow: none;
   }
-}
-
-.message--highlighted .user-message-index-badge {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.35) 0%, rgba(139, 92, 246, 0.35) 100%);
-  border-color: rgba(99, 102, 241, 0.6);
-  color: #fff;
 }
 
 /* 快速用户导航面板 */
