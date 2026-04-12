@@ -1236,9 +1236,9 @@ defineExpose({
   gap: 8px !important;
 }
 
-/* NDropdown 选项悬停 */
+/* NDropdown 选项悬停 - 无背景气泡，仅变色 */
 .chat-input--ide :global(.n-dropdown-option:hover) {
-  background-color: rgba(0, 122, 204, 0.15) !important;
+  background-color: transparent !important;
   color: #fff !important;
 }
 
