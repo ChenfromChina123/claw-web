@@ -91,27 +91,32 @@ export async function handlePromptTemplateRoutes(req: Request): Promise<Response
 
   // ==================== 模板管理 ====================
 
-  // GET /api/prompt-templates - 获取用户的模板列表
+  // GET /api/prompt-templates - 获取模板列表（支持未登录用户查看内置模板）
   if (path === '/api/prompt-templates' && method === 'GET') {
     try {
       const auth = await authMiddleware(req)
-      if (!auth.userId) {
-        return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
-      }
+      const userId = auth.userId
 
       const categoryId = url.searchParams.get('categoryId')
       const keyword = url.searchParams.get('keyword')
       const favoritesOnly = url.searchParams.get('favorites') === 'true'
 
-      let templates
-      if (categoryId) {
-        templates = await promptTemplateRepository.findByCategoryId(categoryId)
-      } else if (keyword) {
-        templates = await promptTemplateRepository.searchTemplates(auth.userId, keyword)
-      } else if (favoritesOnly) {
-        templates = await promptTemplateRepository.findFavorites(auth.userId)
+      let templates: any[] = []
+
+      // 未登录用户只能查看内置模板
+      if (!userId) {
+        templates = await promptTemplateRepository.getBuiltins()
       } else {
-        templates = await promptTemplateRepository.getAllForUser(auth.userId)
+        // 登录用户根据条件查询
+        if (categoryId) {
+          templates = await promptTemplateRepository.findByCategoryId(categoryId)
+        } else if (keyword) {
+          templates = await promptTemplateRepository.searchTemplates(userId, keyword)
+        } else if (favoritesOnly) {
+          templates = await promptTemplateRepository.findFavorites(userId)
+        } else {
+          templates = await promptTemplateRepository.findByUserId(userId)
+        }
       }
 
       return createSuccessResponse({ templates })
