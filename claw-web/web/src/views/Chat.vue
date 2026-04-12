@@ -13,6 +13,7 @@ import AgentActivitySidebar from '@/components/AgentActivitySidebar.vue'
 import IdeSessionsPanel from '@/views/IdeSessionsPanel.vue'
 import SessionSwitcher from '@/components/SessionSwitcher.vue'
 import MessageSearch from '@/components/MessageSearch.vue'
+import QuickNavButton from '@/components/QuickNavButton.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import { useAgentStore } from '@/stores/agent'
@@ -497,6 +498,22 @@ function handleSessionSwitcherClose() {
 }
 
 /**
+ * 处理快速导航
+ */
+function handleQuickNav(messageId: string) {
+  // 滚动到指定消息
+  const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
+  if (messageElement) {
+    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // 高亮显示
+    messageElement.classList.add('highlight-message')
+    setTimeout(() => {
+      messageElement.classList.remove('highlight-message')
+    }, 2000)
+  }
+}
+
+/**
  * 会话切换器选择回调
  */
 function handleSessionSwitcherSelect(sessionId: string) {
@@ -635,7 +652,14 @@ function handleMessageSearchSelect(messageId: string, sessionId: string) {
         <template v-else>
           <!-- 聊天区域 -->
           <div class="chat-area">
-            <!-- 消息列表 -->
+            <!-- 快速导航按钮 - 悬浮在右上角 -->
+          <QuickNavButton
+            v-if="sidebarCollapsed"
+            :visible="chatStore.messages.length > 0"
+            @navigate="(type) => console.log('Quick nav:', type)"
+          />
+          
+          <!-- 消息列表 -->
             <ChatMessageList
               :messages="chatStore.messages"
               :tool-calls="chatStore.toolCalls"
