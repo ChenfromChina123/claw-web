@@ -12,6 +12,7 @@ import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
 import { usePTY } from '@/composables/usePTY'
 import { featureConfig } from '@/config/features'
+import { useIdeAppendToChat } from '@/composables/useIdeChatAppend'
 
 const props = withDefaults(
   defineProps<{
@@ -62,6 +63,12 @@ const contextMenuVisible = ref(false)
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
 const contextMenuRef = ref<HTMLElement | null>(null)
+
+/** 获取注入的"添加到对话"函数 */
+const appendToChat = useIdeAppendToChat()
+
+/** 最大添加到对话的字符数（超过则截断） */
+const MAX_APPEND_LENGTH = 8000
 
 // ==================== Agent 输出镜像 ====================
 

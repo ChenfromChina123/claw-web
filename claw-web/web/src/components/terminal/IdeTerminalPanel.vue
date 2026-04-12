@@ -22,6 +22,7 @@ import {
   exportTerminalLogBlob,
   type IdeTerminalPrefs,
 } from '@/composables/useIdeTerminalPersistence'
+import { useIdeAppendToChat } from '@/composables/useIdeChatAppend'
 
 type BottomTab = 'terminal' | 'debug' | 'output'
 
@@ -75,6 +76,12 @@ const terminalPrefs = ref<IdeTerminalPrefs>(loadTerminalPrefs())
 const shellToolIds = new Set<string>()
 let saveLogTimer: ReturnType<typeof setTimeout> | null = null
 let wsUnsubs: Array<() => void> = []
+
+/** 获取注入的"添加到对话"函数 */
+const appendToChat = useIdeAppendToChat()
+
+/** 最大添加到对话的字符数（超过则截断） */
+const MAX_APPEND_LENGTH = 8000
 
 function normalizeForXterm(s: string): string {
   return s.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n')
@@ -357,6 +364,11 @@ async function initTerminal(): Promise<void> {
 
   // 添加粘贴事件处理
   t.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+    // 支持 Ctrl+U 添加选中的内容到对话
+    if (event.ctrlKey && event.key === 'u') {
+      appendSelectionToChat()
+      return false
+    }
     // 支持 Ctrl+V 粘贴
     if (event.ctrlKey && event.key === 'v') {
       navigator.clipboard.readText().then(text => {
@@ -542,6 +554,48 @@ function clearTerminal(): void {
   }
 }
 
+/**
+ * 获取终端选中的文本并添加到对话
+ * 如果文本过长，则进行截断并在末尾添加省略号
+ */
+function appendSelectionToChat(): void {
+  const t = term.value
+  if (!t) return
+
+  // 获取选中的文本
+  let selection = t.getSelection()
+
+  // 如果没有选中文本，尝试获取全部可见内容
+  if (!selection || !selection.trim()) {
+    const buffer = t.buffer
+    const lines: string[] = []
+    for (let i = 0; i < buffer.activeBuffer.length; i++) {
+      const line = buffer.activeBuffer.getLine(i)
+      if (line) {
+        lines.push(line.translateToString(true))
+      }
+    }
+    selection = lines.join('\n').trim()
+  }
+
+  if (!selection || !selection.trim()) return
+
+  // 清理文本：移除 ANSI 转义序列
+  let cleanedText = selection.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+
+  // 截断过长的文本
+  if (cleanedText.length > MAX_APPEND_LENGTH) {
+    cleanedText = cleanedText.slice(0, MAX_APPEND_LENGTH) + '\n\n...（内容已截断，原文较长）'
+  }
+
+  // 调用注入的函数将文本添加到对话
+  if (appendToChat) {
+    appendToChat(cleanedText, {
+      sourceLabel: '终端输出',
+    })
+  }
+}
+
 async function onNewSession(): Promise<void> {
   if (activeTab.value !== 'terminal') {
     activeTab.value = 'terminal'
@@ -661,6 +715,9 @@ defineExpose({
 
   /** 导出当前缓冲为文本文件 */
   exportLog: downloadTerminalLog,
+
+  /** 添加选中内容到对话 */
+  appendSelectionToChat,
 })
 </script>
 
@@ -742,6 +799,16 @@ defineExpose({
           @click="clearTerminal"
         >
           🗑️
+        </button>
+
+        <button
+          type="button"
+          class="ide-terminal-icon-btn append-to-chat-btn"
+          title="添加选中内容到对话 (Ctrl+U)"
+          aria-label="添加选中内容到对话"
+          @click="appendSelectionToChat"
+        >
+          ✨ 添加到对话
         </button>
       </div>
     </div>
@@ -886,6 +953,25 @@ defineExpose({
 .ide-terminal-icon-btn:hover {
   background: #37373d;
   color: #fff;
+}
+
+.append-to-chat-btn {
+  font-size: 11px;
+  padding: 0 10px;
+  width: auto;
+  white-space: nowrap;
+  background: linear-gradient(135deg, #23d18b 0%, #1fa866 100%);
+  color: #fff;
+  border-radius: 12px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  transition: all 0.2s ease;
+}
+
+.append-to-chat-btn:hover {
+  background: linear-gradient(135deg, #2ee599 0%, #23d18b 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(35, 209, 139, 0.3);
 }
 
 .ide-terminal-body {
