@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick, h } from 'vue'
+import type { VNode } from 'vue'
 import type { IdeAppendToChatOptions, IdeCodeRefPayload, IdeTerminalRefPayload } from '@/composables/useIdeChatAppend'
 import { buildIdeLayeredUserMessage, buildTerminalRefMarker, type TerminalRefInMessage } from '@/utils/ideUserMessageMarkers'
 import { saveTerminalReference } from '@/composables/useIdeTerminalPersistence'
@@ -215,7 +216,7 @@ const skillDropdownOptions = computed(() => {
     key: string
     label: string
     type?: 'group' | 'divider'
-    children?: Array<{ key: string; label: string }>
+    children?: Array<{ key: string; label: string; icon?: () => VNode }>
   }> = []
 
   const skillList = skills.value || []
@@ -252,6 +253,7 @@ const skillDropdownOptions = computed(() => {
       children: categorySkills.map(skill => ({
         key: `skill:${skill.id}`,
         label: skill.name,
+        icon: () => h(NIcon, null, { default: () => h(FlashOutline) }),
       })),
     })
   })

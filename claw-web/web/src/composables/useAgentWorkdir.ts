@@ -497,13 +497,16 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
       return true
     }
 
-    if (!editorInstance) return false
+    if (!editorInstance) {
+      console.warn('[activateOpenFile] editorInstance 不存在，无法设置模型')
+      return false
+    }
 
     // Text file → Monaco editor
     activeIsReadOnly.value = false
 
     let model = modelMap.get(fileId)
-    console.log('[activateOpenFile] fileId:', fileId, 'modelMap 中是否存在 model:', !!model)
+    console.log('[activateOpenFile] fileId:', fileId, 'modelMap 中是否存在 model:', !!model, 'editorInstance 存在:', !!editorInstance)
     if (!model) {
       // 再次检查 Monaco 内部模型（防止 URI 冲突）
       const uri = monaco.Uri.parse(`workdir:${encodeURIComponent(entry.path)}`)
@@ -512,6 +515,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
         model = existingModel
         modelMap.set(fileId, model)
         savedVersionId.set(fileId, model.getAlternativeVersionId())
+        console.log('[activateOpenFile] 从 Monaco 内部恢复 model')
       }
     }
     if (!model) {
@@ -531,6 +535,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
           model = existing
         } else {
           model = monaco.editor.createModel(content ?? '', language ?? 'plaintext', uri2)
+          console.log('[activateOpenFile] 创建新 model, 内容长度:', content?.length || 0)
         }
         modelMap.set(effectiveId, model)
         savedVersionId.set(effectiveId, model.getAlternativeVersionId())
@@ -573,14 +578,15 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
       }
     }
 
+    console.log('[activateOpenFile] 设置模型到编辑器, fileId:', fileId, 'model 内容长度:', model.getValue()?.length || 0)
     editorInstance.setModel(model)
     fileLanguage.value = model.getLanguageId()
     syncActiveDirtyState()
 
     // 强制刷新编辑器布局，确保内容正确显示
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       editorInstance?.layout()
-    }, 0)
+    })
 
     return true
   }
@@ -1138,12 +1144,12 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     const key = String(keys[0])
     if (!key) return
 
-    // 如果 key 与当前选中项相同，但文件已经打开，则切换到该文件标签页
+    // 如果 key 与当前选中项相同，但文件已经打开，则切换到该文件标签页并刷新编辑器
     if (selectedKey.value === key) {
       const alreadyOpen = openFiles.value.find(f => f.id === key)
-      if (alreadyOpen && activeFileId.value !== key) {
-        console.log('[handleSelect] 文件已打开，切换到标签页:', key)
-        void selectOpenFile(key)
+      if (alreadyOpen) {
+        console.log('[handleSelect] 文件已打开，强制激活:', key)
+        void activateOpenFile(key)
       }
       return
     }
