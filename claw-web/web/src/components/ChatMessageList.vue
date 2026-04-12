@@ -130,6 +130,56 @@ const effectiveTimelineNav = computed(() =>
   props.showTimelineNav !== undefined ? props.showTimelineNav : !!props.ideDensity,
 )
 
+// 用户消息数量
+const userMessageCount = computed(() => {
+  return props.messages.filter(m => m.role === 'user').length
+})
+
+// 用户消息导航项
+const userMessageNavItems = computed(() => {
+  const items: Array<{ id: string; preview: string; timeLabel: string }> = []
+  let userIndex = 0
+
+  for (const m of props.messages) {
+    if (m.role !== 'user') continue
+
+    userIndex++
+    const raw = (m as { createdAt?: string | Date }).createdAt
+    const d = raw ? new Date(raw) : null
+    const timeLabel =
+      d && !Number.isNaN(d.getTime())
+        ? d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : ''
+
+    // 获取消息预览
+    let preview = ''
+    const content = (m as { content?: unknown }).content
+    if (typeof content === 'string') {
+      preview = content.slice(0, 50).replace(/\n/g, ' ')
+    } else if (Array.isArray(content)) {
+      const textContent = content
+        .filter((b: unknown) => (b as { type?: string })?.type === 'text')
+        .map((b: unknown) => String((b as { text?: string }).text || ''))
+        .join(' ')
+      preview = textContent.slice(0, 50).replace(/\n/g, ' ')
+    } else {
+      preview = String(content).slice(0, 50).replace(/\n/g, ' ')
+    }
+
+    if (preview.length > 50) {
+      preview = preview + '...'
+    }
+
+    items.unshift({
+      id: m.id,
+      preview: preview || '（空消息）',
+      timeLabel,
+    })
+  }
+
+  return items
+})
+
 const timelinePopoverShow = ref(false)
 const nearBottom = ref(true)
 const rollingBackId = ref<string | null>(null)
@@ -751,19 +801,19 @@ async function handleInterruptExecution() {
         <div class="messages-container">
           <!-- 快速导航按钮 - 悬浮在消息列表右上角 -->
           <div
-            v-if="userTimelineEntries.length > 0"
+            v-if="userMessageCount > 0"
             class="quick-nav-wrapper"
             @mouseenter="userNavPopoverShow = true"
             @mouseleave="userNavPopoverShow = false"
           >
             <button type="button" class="quick-nav-trigger">
               <NIcon :size="14"><ListOutline /></NIcon>
-              <span class="quick-nav-count">{{ userTimelineEntries.length }}</span>
+              <span class="quick-nav-count">{{ userMessageCount }}</span>
               <NIcon :size="12" class="quick-nav-arrow" :class="{ 'is-open': userNavPopoverShow }">
                 <ChevronDownOutline />
               </NIcon>
             </button>
-            
+
             <!-- 快速导航弹出层 - 向下展开 -->
             <Transition name="quick-nav-fade">
               <div
@@ -774,16 +824,16 @@ async function handleInterruptExecution() {
               >
                 <div class="quick-nav-header">
                   <span>📍 快速导航</span>
-                  <span class="quick-nav-total">共 {{ userTimelineEntries.length }} 条</span>
+                  <span class="quick-nav-total">共 {{ userMessageCount }} 条</span>
                 </div>
                 <div class="quick-nav-list">
                   <div
-                    v-for="(entry, idx) in [...userTimelineEntries].reverse()"
+                    v-for="(entry, idx) in userMessageNavItems"
                     :key="entry.id"
                     class="quick-nav-item"
                     @click="highlightAndScrollToUserMessage(entry.id)"
                   >
-                    <span class="quick-nav-index">#{{ idx + 1 }}</span>
+                    <span class="quick-nav-index">#{{ userMessageCount - idx }}</span>
                     <span class="quick-nav-preview" :title="entry.preview">{{ entry.preview }}</span>
                     <span v-if="entry.timeLabel" class="quick-nav-time">{{ entry.timeLabel }}</span>
                   </div>
