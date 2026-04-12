@@ -216,8 +216,7 @@ const skillDropdownOptions = computed(() => {
     key: string
     label: string
     type?: 'group' | 'divider'
-    children?: Array<{ key: string; label: string; icon?: () => VNode }>
-    icon?: () => VNode
+    children?: Array<{ key: string; label: string }>
   }> = []
 
   const skillList = skills.value || []
@@ -254,7 +253,6 @@ const skillDropdownOptions = computed(() => {
       children: categorySkills.map(skill => ({
         key: `skill:${skill.id}`,
         label: skill.name,
-        icon: () => h(NIcon, null, { default: () => h(FlashOutline) }),
       })),
     })
   })
