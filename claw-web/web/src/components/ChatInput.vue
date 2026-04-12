@@ -934,117 +934,131 @@ defineExpose({
 
 /* AI Icon 已彻底去掉 */
 
-/* 4. Footer：精细化排版 */
+/* 4. Footer：VS Code 状态栏风格 */
 .chat-input--ide .input-footer {
-  margin-top: 10px;
+  margin-top: 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  opacity: 0.9; /* 默认稍微淡一点 */
-  transition: opacity 0.2s;
+  padding: 4px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .chat-input--ide .input-container:focus-within .input-footer {
-  opacity: 1;
+  border-top-color: rgba(255, 255, 255, 0.08);
 }
 
-/* 6. 模型选择器：面包屑风格，弱化组件感，增强交互感 */
+/* 5. 左侧工具栏：扁平化 */
+.chat-input--ide .left-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 6. 右侧工具栏 */
+.chat-input--ide .right-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ========== 模型选择器：彻底扁平化，零边框 ========== */
 .model-select-integrated {
   width: auto;
-  min-width: 100px;
-  max-width: 160px;
+  min-width: 80px;
+  max-width: 150px;
 }
 
-/* 模型选择器：极简面包屑风格，类似 VS Code Status Bar */
+/* 模型选择器：透明背景，零边框，纯文字交互 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection) {
-  /* 关键：使用半透明背景而非实色边框 */
-  background-color: rgba(255, 255, 255, 0.04) !important;
-  border: 1px solid transparent !important;
+  background-color: transparent !important;
+  border: none !important;
   border-radius: 4px !important;
   box-shadow: none !important;
-  --n-height: 26px !important;
-  transition: all 0.2s ease;
-  padding: 0 6px !important;
+  --n-height: 24px !important;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  padding: 0 4px !important;
 }
 
-/* 模型选择器悬停状态：显现淡淡边框 */
+/* 悬停：微弱背景显现 */
 .chat-input--ide .model-select-integrated:hover :deep(.n-base-selection) {
-  background-color: rgba(255, 255, 255, 0.08) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-/* 模型选择器聚焦/激活状态 */
+/* 聚焦/激活：更明显的背景 */
 .chat-input--ide .model-select-integrated.n-select--focus :deep(.n-base-selection),
 .chat-input--ide .model-select-integrated.n-select--active :deep(.n-base-selection) {
-  background-color: rgba(255, 255, 255, 0.06) !important;
-  border-color: rgba(0, 122, 204, 0.4) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-/* 调整文字样式：低调灰色 */
+/* 文字：低调灰色，系统字体 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection__render) {
-  color: #999 !important;
+  color: #888 !important;
   font-size: 12px !important;
   font-weight: 400;
-  padding: 0 2px !important;
+  padding: 0 !important;
   justify-content: flex-start;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* 悬停和聚焦时文字变亮 */
+/* 悬停/聚焦文字变亮 */
 .chat-input--ide .model-select-integrated:hover :deep(.n-base-selection__render),
 .chat-input--ide .model-select-integrated.n-select--focus :deep(.n-base-selection__render) {
-  color: #ddd !important;
+  color: #ccc !important;
 }
 
-/* 调整右侧箭头：更细的 chevron */
+/* 箭头：极细 chevron */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection-arrow) {
-  color: #666 !important;
-  right: 2px !important;
+  color: #555 !important;
+  right: 0 !important;
   font-size: 10px !important;
   transition: color 0.2s ease;
 }
 
 .chat-input--ide .model-select-integrated:hover :deep(.n-base-selection-arrow) {
-  color: #888 !important;
+  color: #777 !important;
 }
 
-/* 模型选择器下拉菜单：毛玻璃效果 */
+/* 模型选择器下拉菜单：毛玻璃 + 紧凑 */
 .chat-input--ide .model-select-integrated :deep(.n-base-selection-menu) {
   background: rgba(30, 30, 30, 0.95) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
-  border: 1px solid #333 !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
   border-radius: 6px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
   padding: 4px !important;
   margin-top: 4px !important;
+  min-width: 140px !important;
 }
 
-/* 下拉选项样式 */
+/* 下拉选项 */
 .chat-input--ide .model-select-integrated :deep(.n-base-select-option) {
-  color: #aaa !important;
+  color: #999 !important;
   font-size: 12px !important;
-  padding: 6px 10px !important;
-  border-radius: 4px !important;
-  margin: 2px 0 !important;
+  padding: 5px 10px !important;
+  border-radius: 3px !important;
+  margin: 1px 0 !important;
   transition: all 0.15s ease;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* 下拉选项悬停状态 */
+/* 悬停 */
 .chat-input--ide .model-select-integrated :deep(.n-base-select-option:hover) {
-  background-color: #383838 !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
   color: #fff !important;
 }
 
-/* 下拉选项选中状态：左侧蓝色小条 */
+/* 选中项：左侧蓝色指示条 + 微弱背景 */
 .chat-input--ide .model-select-integrated :deep(.n-base-select-option--selected) {
-  background-color: rgba(0, 120, 212, 0.15) !important;
+  background-color: rgba(0, 120, 212, 0.12) !important;
   color: #fff !important;
   position: relative;
+  padding-left: 14px !important;
 }
 
-/* 选中项左侧蓝色指示条 */
+/* 选中项左侧 2px 蓝色指示条 */
 .chat-input--ide .model-select-integrated :deep(.n-base-select-option--selected::before) {
   content: '';
   position: absolute;
@@ -1052,27 +1066,27 @@ defineExpose({
   top: 50%;
   transform: translateY(-50%);
   width: 2px;
-  height: 14px;
+  height: 12px;
   background-color: #0078d4;
-  border-radius: 0 2px 2px 0;
+  border-radius: 0 1px 1px 0;
 }
 
-/* 选中标记颜色 */
+/* 选中标记 */
 .chat-input--ide .model-select-integrated :deep(.n-base-select-option--selected .n-base-select-option__check) {
   color: #0078d4 !important;
 }
 
-/* 下拉菜单分割线 */
+/* 分割线 */
 .chat-input--ide .model-select-integrated :deep(.n-base-select-menu__divider) {
-  background-color: #333 !important;
-  margin: 4px 0 !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  margin: 3px 0 !important;
 }
 
-/* 下拉菜单分组标题 */
+/* 分组标题 */
 .chat-input--ide .model-select-integrated :deep(.n-base-select-group-header) {
-  color: #666 !important;
+  color: #555 !important;
   font-size: 10px !important;
-  padding: 4px 10px !important;
+  padding: 4px 10px 2px !important;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 600;
@@ -1106,22 +1120,6 @@ defineExpose({
   font-weight: 500;
   letter-spacing: 0.5px;
   user-select: none;
-}
-
-.model-selector-wrapper {
-  display: flex;
-  align-items: center;
-}
-
-.model-selector-wrapper :deep(.n-base-selection) {
-  --n-height: 28px !important;
-  font-size: 13px !important;
-  background: transparent !important;
-  border: none !important;
-}
-
-.model-selector-wrapper :deep(.n-base-selection .n-base-selection__render) {
-  background: transparent !important;
 }
 
 .input-main-wrapper {
@@ -1267,10 +1265,8 @@ defineExpose({
 .right-tools {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
-
-
 
 /* 功能图标按钮样式 */
 .action-icon-btn, .send-btn-minimal {
@@ -1285,11 +1281,6 @@ defineExpose({
 .action-icon-btn:hover { color: #aaa; }
 
 /* ========== 发送按钮样式 (IDE 变体) ========== */
-.right-tools {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
 
 .send-btn-minimal {
   background: transparent;
@@ -1566,42 +1557,42 @@ defineExpose({
   transform: none;
 }
 
-/* 提示词模板库按钮 */
+/* 提示词模板库按钮：极简标签，零边框 */
 .prompt-library-button {
-  height: 36px !important;
-  min-height: 36px !important;
-  padding: 0 12px !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  border-radius: 8px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 8px !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  border-radius: 4px !important;
   background: transparent !important;
-  color: rgba(255, 255, 255, 0.65) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #888 !important;
+  border: none !important;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .prompt-library-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08) !important;
-  color: rgba(255, 255, 255, 0.9) !important;
-  border-color: rgba(255, 255, 255, 0.25) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #ccc !important;
 }
 
 .prompt-library-button:active:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
 }
 
 .prompt-library-button:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
+/* IDE 变体模板按钮：与模型选择器高度对齐 */
 .chat-input--ide .prompt-library-button {
-  height: 30px !important;
-  min-height: 30px !important;
-  padding: 0 10px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 6px !important;
   font-size: 12px !important;
-  border-radius: 6px !important;
+  border-radius: 4px !important;
 }
 
 .chat-input--ide .prompt-library-button:hover:not(:disabled) {
@@ -1609,26 +1600,6 @@ defineExpose({
 }
 
 /* ========== IDE 侧栏变体 ========== */
-.ide-input-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: flex-start;
-}
-
-.ide-model-select {
-  flex: 0 1 auto;
-  width: auto;
-  min-width: 0;
-  max-width: 200px;
-}
-
-.chat-input--ide .ide-input-toolbar :deep(.n-base-selection) {
-  --n-height: 28px !important;
-  font-size: 12px !important;
-  background-color: #1e1e1e !important;
-  border: 1px solid #3c3c3c !important;
-}
 
 .chat-input--ide .upload-section {
   flex-direction: row;
