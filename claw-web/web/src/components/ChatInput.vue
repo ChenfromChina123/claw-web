@@ -5,11 +5,12 @@ import { buildIdeLayeredUserMessage, buildTerminalRefMarker, type TerminalRefInM
 import { saveTerminalReference } from '@/composables/useIdeTerminalPersistence'
 import { NInput, NButton, NIcon, NSpin, NTag, NSelect, NDropdown, useMessage } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
-import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline } from '@vicons/ionicons5'
+import { CloudUploadOutline, StopCircleOutline, ReorderFourOutline, FlashOutline } from '@vicons/ionicons5'
 import { modelApi, type Model } from '@/api/modelApi'
 import { useChatStore } from '@/stores/chat'
 import { promptTemplateApi, type PromptTemplate } from '@/api/promptTemplateApi'
 import { useOpenPromptLibrary } from '@/composables/usePromptTemplateLibrary'
+import { skillApi, type SkillDefinition } from '@/api/skillApi'
 
 const props = defineProps<{
   disabled?: boolean

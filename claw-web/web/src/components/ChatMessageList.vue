@@ -30,7 +30,7 @@ import ToolUseEnhanced from './ToolUseEnhanced.vue'
 import TaskPipeline from './TaskPipeline.vue'
 import FileWriteToolInline from './FileWriteToolInline.vue'
 import FileOutputCard from './FileOutputCard.vue'
-import { StopCircleOutline, ChevronDownOutline, ListOutline, ArrowUndoOutline, CreateOutline, CheckmarkOutline, CloseOutline } from '@vicons/ionicons5'
+import { StopCircleOutline, ChevronDownOutline, ListOutline, ArrowUndoOutline, CreateOutline, CheckmarkOutline, CloseOutline, PersonOutline } from '@vicons/ionicons5'
 import { interruptAgent } from '@/api/agentApi'
 import { extractIdeUserDisplay, extractTerminalRefs, stripTerminalRefs, type TerminalRefInMessage } from '@/utils/ideUserMessageMarkers'
 import { isUserTimelineAnchor, userMessageTimelinePreview } from '@/utils/chatTimeline'
@@ -74,6 +74,40 @@ const isInterrupting = ref(false)
 
 /** 当前展开的终端引用 ID */
 const expandedTerminalRef = ref<string | null>(null)
+
+/** 用户消息导航相关状态 */
+const highlightedMessageId = ref<string | null>(null)
+const userNavPopoverShow = ref(false)
+
+/**
+ * 获取用户消息的序号（用于显示）
+ */
+function getUserMessageIndex(messageId: string): number {
+  return props.messages.findIndex(m => m.id === messageId && m.role === 'user') + 1
+}
+
+/**
+ * 高亮并滚动到指定用户消息
+ */
+function highlightAndScrollToUserMessage(messageId: string) {
+  highlightedMessageId.value = messageId
+  scrollToUserMessage(messageId)
+  userNavPopoverShow.value = false
+  
+  // 3秒后取消高亮
+  setTimeout(() => {
+    if (highlightedMessageId.value === messageId) {
+      highlightedMessageId.value = null
+    }
+  }, 3000)
+}
+
+/**
+ * 判断消息是否被高亮
+ */
+function isMessageHighlighted(messageId: string): boolean {
+  return highlightedMessageId.value === messageId
+}
 
 /**
  * 切换终端引用的展开/收起状态
@@ -751,9 +785,15 @@ async function handleInterruptExecution() {
             class="message-wrapper"
           >
             <!-- 用户消息 - 右边 -->
-            <div v-if="message.role === 'user'" class="message user-message">
+            <div v-if="message.role === 'user'" class="message user-message" :class="{ 'message--highlighted': isMessageHighlighted(message.id) }">
               <div class="message-content">
                 <div class="message-bubble-column">
+                  <!-- 用户消息序号标签 -->
+                  <div class="user-message-index-badge">
+                    <NIcon :size="12"><PersonOutline /></NIcon>
+                    <span>{{ getUserMessageIndex(message.id) }}</span>
+                  </div>
+                  
                   <!-- 气泡主体 -->
                   <div class="message-bubble user-bubble">
                     <!-- 编辑模式 -->
@@ -1069,7 +1109,54 @@ async function handleInterruptExecution() {
       class="chat-nav-floating"
       :class="{ 'chat-nav-floating--ide': ideDensity }"
     >
+      <!-- 快速导航到用户消息 -->
       <NPopover
+        v-model:show="userNavPopoverShow"
+        trigger="click"
+        :show-arrow="false"
+        placement="left-end"
+        raw
+        class="chat-timeline-popover-wrap"
+      >
+        <template #trigger>
+          <button
+            type="button"
+            class="chat-nav-btn chat-nav-btn--primary"
+            title="快速导航到用户消息"
+            aria-label="用户消息导航"
+          >
+            <NIcon :size="ideDensity ? 18 : 20"><PersonOutline /></NIcon>
+            <span v-if="userTimelineEntries.length > 0" class="nav-badge">{{ userTimelineEntries.length }}</span>
+          </button>
+        </template>
+        <div class="chat-user-nav-panel" :class="{ 'chat-user-nav-panel--ide': ideDensity }">
+          <div class="chat-user-nav-head">
+            <span>📍 用户提问导航</span>
+            <span class="chat-user-nav-count">共 {{ userTimelineEntries.length }} 条</span>
+          </div>
+          <div v-if="userTimelineEntries.length === 0" class="chat-user-nav-empty">暂无用户提问</div>
+          <div v-else class="chat-user-nav-list">
+            <div
+              v-for="(entry, idx) in userTimelineEntries"
+              :key="entry.id"
+              class="chat-user-nav-item"
+              :class="{ 'chat-user-nav-item--active': isMessageHighlighted(entry.id) }"
+              @click="highlightAndScrollToUserMessage(entry.id)"
+            >
+              <div class="chat-user-nav-item-index">#{{ idx + 1 }}</div>
+              <div class="chat-user-nav-item-content">
+                <div class="chat-user-nav-item-preview" :title="entry.preview">{{ entry.preview }}</div>
+                <div v-if="entry.timeLabel" class="chat-user-nav-item-time">{{ entry.timeLabel }}</div>
+              </div>
+              <div class="chat-user-nav-item-action">
+                <NIcon :size="14"><ChevronDownOutline /></NIcon>
+              </div>
+            </div>
+          </div>
+        </div>
+      </NPopover>
+
+      <!-- 原有的时间线导航（编辑/回滚） -->
         v-model:show="timelinePopoverShow"
         trigger="click"
         :show-arrow="false"
@@ -1187,6 +1274,250 @@ async function handleInterruptExecution() {
 
 /* ==================== 6. 导航按钮 (图 2 右上角极简风) ==================== */
 /* —— 时间线 + 回到底部浮动按钮 —— */
+
+/* 导航徽章 - 显示消息数量 */
+.nav-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--ide-green);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* 用户消息序号标签 */
+.user-message-index-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #a5b4fc;
+  margin-bottom: 6px;
+  width: fit-content;
+  transition: all 0.2s ease;
+}
+
+.user-message-index-badge:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(139, 92, 246, 0.25) 100%);
+  border-color: rgba(99, 102, 241, 0.5);
+  transform: scale(1.05);
+}
+
+/* 消息高亮效果 */
+.message--highlighted {
+  animation: messageHighlight 3s ease-out;
+}
+
+@keyframes messageHighlight {
+  0% {
+    background: rgba(99, 102, 241, 0.15);
+    border-radius: 12px;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+  }
+  50% {
+    background: rgba(99, 102, 241, 0.08);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+.message--highlighted .user-message-index-badge {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.35) 0%, rgba(139, 92, 246, 0.35) 100%);
+  border-color: rgba(99, 102, 241, 0.6);
+  color: #fff;
+}
+
+/* 快速用户导航面板 */
+.chat-user-nav-panel {
+  width: min(360px, calc(100vw - 48px));
+  max-height: min(480px, 60vh);
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: #ffffff;
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+}
+
+.chat-user-nav-panel--ide {
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+.chat-user-nav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #6366f1;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(139, 92, 246, 0.06) 100%);
+}
+
+.chat-user-nav-panel--ide .chat-user-nav-head {
+  color: #a78bfa;
+  border-bottom-color: #3c3c3c;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+}
+
+.chat-user-nav-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+  padding: 2px 8px;
+  background: rgba(148, 163, 184, 0.1);
+  border-radius: 10px;
+}
+
+.chat-user-nav-panel--ide .chat-user-nav-count {
+  color: #858585;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.chat-user-nav-empty {
+  padding: 20px 14px;
+  font-size: 13px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.chat-user-nav-panel--ide .chat-user-nav-empty {
+  color: #6e6e6e;
+}
+
+.chat-user-nav-list {
+  overflow-y: auto;
+  padding: 6px 0;
+  max-height: min(400px, 52vh);
+}
+
+.chat-user-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.chat-user-nav-panel--ide .chat-user-nav-item {
+  border-bottom-color: #2a2a2a;
+}
+
+.chat-user-nav-item:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(139, 92, 246, 0.04) 100%);
+}
+
+.chat-user-nav-panel--ide .chat-user-nav-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.chat-user-nav-item--active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
+  border-left: 3px solid #6366f1;
+}
+
+.chat-user-nav-panel--ide .chat-user-nav-item--active {
+  background: rgba(99, 102, 241, 0.15);
+  border-left-color: #a78bfa;
+}
+
+.chat-user-nav-item-index {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+  color: #6366f1;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.chat-user-nav-panel--ide .chat-user-nav-item-index {
+  background: rgba(167, 139, 250, 0.15);
+  color: #a78bfa;
+}
+
+.chat-user-nav-item--active .chat-user-nav-item-index {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: #fff;
+}
+
+.chat-user-nav-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-user-nav-item-preview {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #334155;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+.chat-user-nav-panel--ide .chat-user-nav-item-preview {
+  color: #cccccc;
+}
+
+.chat-user-nav-item-time {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.chat-user-nav-panel--ide .chat-user-nav-item-time {
+  color: #6e6e6e;
+}
+
+.chat-user-nav-item-action {
+  flex-shrink: 0;
+  color: #cbd5e1;
+  transition: transform 0.2s ease;
+}
+
+.chat-user-nav-item:hover .chat-user-nav-item-action {
+  color: #6366f1;
+  transform: translateX(-2px);
+}
+
+.chat-user-nav-panel--ide .chat-user-nav-item-action {
+  color: #6e6e6e;
+}
+
+.chat-user-nav-panel--ide .chat-user-nav-item:hover .chat-user-nav-item-action {
+  color: #a78bfa;
+}
 
 /* 导航按钮容器 - 聊天框右上角悬浮 */
 .chat-nav-floating {
