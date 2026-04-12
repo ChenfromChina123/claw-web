@@ -474,9 +474,14 @@ function handleSend() {
       return `### 工作区代码引用\n- 路径: \`${r.filePath}\`\n- 行号: ${r.startLine}–${r.endLine}\n\n\`\`\`${lang}\n${r.snippet}\n\`\`\``
     })
 
+    /** 构建 Skill 引用部分 */
+    const skillParts = skillAttachments.value.map(s => {
+      return `### 使用 Skill: ${s.name}\n${s.description}`
+    })
+
     const allParts = []
     if (text) allParts.push(text)
-    allParts.push(...codeParts, ...terminalParts)
+    allParts.push(...codeParts, ...terminalParts, ...skillParts)
 
     /** 构建显示文本（包含终端引用标记） */
     const displayParts = [text]
@@ -495,6 +500,7 @@ function handleSend() {
     emit('send', payload, selectedModelId.value || undefined)
     codeAttachments.value = []
     terminalAttachments.value = []
+    skillAttachments.value = []
   } else {
     emit('send', inputValue.value)
   }
@@ -791,6 +797,27 @@ defineExpose({
           </div>
         </div>
 
+        <!-- Skill 引用显示 -->
+        <div v-if="skillAttachments.length > 0" class="ide-skill-refs">
+          <div
+            v-for="s in skillAttachments"
+            :key="s.id"
+            class="ide-skill-chip"
+            :title="`Skill: ${s.name}\n${s.description}`"
+          >
+            <span class="ide-skill-chip-icon">⚡</span>
+            <span class="ide-skill-chip-text">{{ s.name }}</span>
+            <button
+              type="button"
+              class="ide-skill-chip-x"
+              aria-label="移除 Skill"
+              @click="removeSkillAttachment(s.id)"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
         <NInput
           ref="inputRef"
           v-model:value="inputValue"
@@ -865,8 +892,8 @@ defineExpose({
           <!-- 发送/停止按钮 -->
           <button
             class="send-btn-minimal"
-            :class="{ 'can-send': inputValue.trim() || codeAttachments.length > 0 || terminalAttachments.length > 0, 'is-generating': isGenerating }"
-            :disabled="isGenerating ? false : ((!inputValue.trim() && !(codeAttachments.length > 0) && !(terminalAttachments.length > 0)) || disabled)"
+            :class="{ 'can-send': inputValue.trim() || codeAttachments.length > 0 || terminalAttachments.length > 0 || skillAttachments.length > 0, 'is-generating': isGenerating }"
+            :disabled="isGenerating ? false : ((!inputValue.trim() && !(codeAttachments.length > 0) && !(terminalAttachments.length > 0) && !(skillAttachments.length > 0)) || disabled)"
             @click="isGenerating ? emit('stop') : handleSend()"
           >
             <NIcon v-if="!isGenerating" :size="16">

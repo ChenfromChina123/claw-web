@@ -39,26 +39,32 @@
 }
 
 /* ============================================
-   全局统一的右键菜单样式 - 简洁设计
+   全局统一的右键菜单样式 - 复用终端样式
    ============================================ */
 .n-dropdown {
-  --n-border-radius: 4px !important;
-  --n-color: #333333 !important;
-  --n-option-color-hover: #404040 !important;
-  --n-option-text-color: #ffffff !important;
-  --n-option-text-color-hover: #ffffff !important;
+  --n-border-radius: 6px !important;
+  --n-color: #2d2d2d !important;
+  --n-option-color-hover: #4a4a4a !important;
+  --n-option-text-color: #ddd !important;
+  --n-option-text-color-hover: #ddd !important;
   --n-padding: 4px 0 !important;
-  --n-font-size: 14px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  --n-font-size: 13px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid #555 !important;
 }
 
 .n-dropdown-option {
-  padding: 8px 20px !important;
-  min-width: 120px !important;
+  padding: 8px 16px !important;
+  min-width: 140px !important;
   cursor: pointer !important;
   transition: none !important;
 }
 
 .n-dropdown-option__content {
   font-weight: 400 !important;
+}
+
+.n-dropdown-divider {
+  background-color: #555 !important;
+  margin: 4px 0 !important;
 }
