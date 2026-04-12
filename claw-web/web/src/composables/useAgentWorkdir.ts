@@ -639,9 +639,11 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
 
     // 文件名相同时，只保留一个标签（按路径 id 查重）
     if (openFiles.value.some(f => f.id === id)) {
+      console.log('[openFileFromExplorer] 文件已打开，激活:', id)
       activeFileId.value = id
       currentFilePath.value = path
-      return true
+      // 重要：调用 activateOpenFile 来更新编辑器模型
+      return await activateOpenFile(id, options)
     }
     openFiles.value.push({ id, path, name, mode, mimeType, ext, readOnly: mode === 'binary' })
     activeFileId.value = id
