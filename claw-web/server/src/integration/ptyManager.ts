@@ -406,6 +406,9 @@ export class PTYSessionManager {
             // 输出数据回调 - data 是 Uint8Array，需要解码为字符串
             const text = new TextDecoder().decode(data)
             
+            // 调试日志
+            console.log(`[PTY] Bun.Terminal data callback: data.length=${data.length}, text=${JSON.stringify(text.substring(0, 100))}`)
+            
             // 过滤掉 bash 的作业控制警告信息
             const filteredText = text
               .replace(/^bash: cannot set terminal process group.*\r?\n?/gmi, '')
@@ -413,7 +416,10 @@ export class PTYSessionManager {
             
             // 只要有内容就发送（包括空格），只有完全为空才不发送
             if (filteredText.length > 0) {
+              console.log(`[PTY] Calling handleOutput with filteredText.length=${filteredText.length}`)
               this.handleOutput(sessionId, 'stdout', filteredText)
+            } else {
+              console.log(`[PTY] Filtered text is empty, skipping`)
             }
           }
         })
@@ -434,19 +440,19 @@ export class PTYSessionManager {
           stdio: ['pipe', 'pipe', 'pipe']
         })
 
-        // 立即发送配置命令到 stdin
-        if (subprocess.stdin) {
+        // 立即发送配置命令到 terminal（使用 Bun.Terminal API）
+        if (terminal) {
           // 禁用 bash 回显和 verbose 模式
           // stty -echo: 禁用字符回显，避免输入显示两次
           // set +v: 禁用 verbose 模式
-          subprocess.stdin.write(`stty -echo\r\n`)
-          subprocess.stdin.write(`set +v\r\n`)
+          terminal.write(`stty -echo\r\n`)
+          terminal.write(`set +v\r\n`)
           // 设置自定义提示符，显示用户名和当前路径
-          subprocess.stdin.write(`export PS1='${userId}@\\H:\\w\\$ '\r\n`)
+          terminal.write(`export PS1='${userId}@\\H:\\w\\$ '\r\n`)
           // 切换到工作目录
-          subprocess.stdin.write(`cd "${cwd}"\r\n`)
+          terminal.write(`cd "${cwd}"\r\n`)
           // 清除屏幕并显示欢迎信息
-          subprocess.stdin.write(`clear\r\n`)
+          terminal.write(`clear\r\n`)
         }
 
         console.log(`[PTY] Bun.spawn success, pid: ${subprocess.pid}`)
@@ -522,11 +528,15 @@ export class PTYSessionManager {
       session.isAlive = false
     }
 
+    // 调试日志：记录原始输出
+    console.log(`[PTY] handleOutput: sessionId=${sessionId}, type=${type}, data.length=${data.length}, data=${JSON.stringify(data.substring(0, 200))}`)
+
     // 如果启用了安全终端，处理输出（替换真实路径为虚拟路径）
     let processedData = data
     const secureTerminal = this.secureTerminalManager.getTerminal(sessionId)
     if (secureTerminal && type === 'stdout') {
       processedData = secureTerminal.processOutput(data)
+      console.log(`[PTY] processOutput: original.length=${data.length}, processed.length=${processedData.length}`)
     }
 
     const output: PTYOutput = {
@@ -540,6 +550,9 @@ export class PTYSessionManager {
     const callback = this.eventCallbacks.get(sessionId)
     if (callback) {
       callback(output)
+      console.log(`[PTY] Output callback called for sessionId=${sessionId}`)
+    } else {
+      console.warn(`[PTY] No callback found for sessionId=${sessionId}`)
     }
   }
 

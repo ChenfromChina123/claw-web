@@ -3,5 +3,5 @@
 本项目的项目名称是claw-web，不是claw-web，遇到命名或者看到之前的claw-web，请做好重新命名为claw-web。
 当前主要的开发项目是在claw-web\server（后端），以及claw-web\web（前端）。
 请在开发过程中，根据项目需求，修改相关代码，而不是改与项目无关的代码。
-修改完代码请使用
+修改完代码请使用docker compose重新构建项目，并注意要删除全部容器。
 cd d:\Users\Administrator\AistudyProject\HAHA\claw-web; docker compose -f docker-compose.yml up -d --build 重新构建项目。
