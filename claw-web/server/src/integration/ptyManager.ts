@@ -284,8 +284,9 @@ export class PTYSessionManager {
       envVars['HOME'] = userRoot || cwd
       envVars['USER'] = userId
       envVars['USERNAME'] = userId
-      // 设置安全的提示符
-      envVars['PS1'] = `${userId}\\$ `
+      // 设置安全的提示符，显示用户ID和当前完整路径
+      // 使用 \\$ 显示当前用户，\\w 显示完整路径，\\$ 显示提示符
+      envVars['PS1'] = `${userId}@\\H:\\w\\$ `
       // 禁用历史记录
       envVars['HISTFILE'] = '/dev/null'
       envVars['HISTSIZE'] = '0'
@@ -327,7 +328,8 @@ export class PTYSessionManager {
         
         if (shellName.includes('powershell') || shellName.includes('pwsh')) {
           // PowerShell 模式：无启动画面、无配置文件、非交互模式
-          shellArgs = ['-NoLogo', '-NoProfile', '-NonInteractive']
+          // -NoEcho: 禁用命令回显，避免输入显示两次
+          shellArgs = ['-NoLogo', '-NoProfile', '-NonInteractive', '-NoEcho']
           // 保留实际的 shell 路径
           actualShell = shell
         } else if (shellName.includes('cmd.exe')) {
@@ -421,13 +423,22 @@ export class PTYSessionManager {
         // --norc: 不读取 .bashrc
         // --noprofile: 不读取 /etc/profile, ~/.bash_profile 等
         // +m: 禁用作业控制（避免 "no job control" 警告）
-        const shellArgs = shell.includes('bash') ? ['--norc', '--noprofile', '+m'] : []
+        // 直接启动 bash，设置 PS1 和 cd
+        const shellArgs = shell.includes('bash')
+          ? ['--norc', '--noprofile', '+m']
+          : []
         subprocess = Bun.spawn([shell, ...shellArgs], {
           cwd,
           env: envVars,
           terminal,
           stdio: ['pipe', 'pipe', 'pipe']
         })
+
+        // 立即发送 PS1 和 cd 命令到 stdin
+        if (subprocess.stdin) {
+          subprocess.stdin.write(`PS1="${userId}@\\\\H:\\\\w\\\\$ "\\r\\n`)
+          subprocess.stdin.write(`cd "${cwd}"\\r\\n`)
+        }
 
         console.log(`[PTY] Bun.spawn success, pid: ${subprocess.pid}`)
 

@@ -439,11 +439,14 @@ export class EnhancedToolExecutor {
       }
 
       // ==================== 路径安全检查（防止目录遍历）====================
-      if (tool.name === 'Bash' || tool.name === 'PowerShell') {
+      // 当使用容器隔离时，跳过这些检查，因为容器本身已经提供了隔离
+      const skipSecurityChecks = process.env.CONTAINER_ISOLATION_ENABLED === 'true'
+
+      if (!skipSecurityChecks && (tool.name === 'Bash' || tool.name === 'PowerShell')) {
         const command = (input.command || '') as string
         const workingDir = (input.cwd || this.context.projectRoot) as string
         const cmdType = tool.name === 'PowerShell' ? 'powershell' : 'bash'
-        
+
         // 1. 检测目录遍历攻击（cd .. 等）
         const traversalCheck = validateCommandForTraversal(command)
         if (!traversalCheck.allowed && traversalCheck.severity === 'block') {
@@ -458,8 +461,8 @@ export class EnhancedToolExecutor {
 
         // 3. 警告但不阻止的情况
         if (!securityCheck.allowed && securityCheck.severity === 'warn') {
-          sendEvent?.('tool_progress', { 
-            output: `⚠️ 安全警告: ${securityCheck.reason}\n` 
+          sendEvent?.('tool_progress', {
+            output: `⚠️ 安全警告: ${securityCheck.reason}\n`
           })
         }
       }
@@ -486,17 +489,20 @@ export class EnhancedToolExecutor {
       }
 
       for (const rawPath of fileToolPaths) {
-        if (containsParentDirectoryReference(rawPath)) {
-          throw new Error(
-            '🚫 安全限制：文件路径不能包含 ".."（父目录引用）。Agent 只能访问当前工作目录及其子目录。'
+        // 当使用容器隔离时，跳过路径检查
+        if (!skipSecurityChecks) {
+          if (containsParentDirectoryReference(rawPath)) {
+            throw new Error(
+              '🚫 安全限制：文件路径不能包含 ".."（父目录引用）。Agent 只能访问当前工作目录及其子目录。'
+            )
+          }
+          const resolvedForCheck = this.resolvePath(rawPath)
+          const pathCheck = await import('../utils/pathSecurity').then((m) =>
+            m.validatePathWithinRoot(resolvedForCheck, this.context.projectRoot)
           )
-        }
-        const resolvedForCheck = this.resolvePath(rawPath)
-        const pathCheck = await import('../utils/pathSecurity').then((m) =>
-          m.validatePathWithinRoot(resolvedForCheck, this.context.projectRoot)
-        )
-        if (pathCheck && !pathCheck.allowed && pathCheck.severity === 'block') {
-          throw new Error(pathCheck.reason || '安全限制：文件路径超出工作目录范围')
+          if (pathCheck && !pathCheck.allowed && pathCheck.severity === 'block') {
+            throw new Error(pathCheck.reason || '安全限制：文件路径超出工作目录范围')
+          }
         }
       }
 

@@ -51,6 +51,7 @@ services:
       - --thread_cache_size=8
       - --slow_query_log=1
       - --long_query_time=2
+      - --performance_schema=OFF
     networks:
       - claude-network
     healthcheck:
@@ -86,6 +87,8 @@ services:
     environment:
       # 运行模式标识
       - ROLE=master
+      # 启用容器隔离模式（取消命令和路径限制）
+      - CONTAINER_ISOLATION_ENABLED=true
       # Node.js优化配置
       - NODE_ENV=production
       - NODE_OPTIONS=--max-old-space-size=512

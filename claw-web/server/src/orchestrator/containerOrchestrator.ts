@@ -599,7 +599,9 @@ class ContainerOrchestrator {
       try {
         await execAsync(`docker inspect ${containerId}`)
       } catch (error) {
-        console.warn(`[ContainerOrchestrator] 容器不存在，健康检查失败: ${containerId}`)
+        console.warn(`[ContainerOrchestrator] 容器不存在，从热池移除: ${containerId}`)
+        // 从热池中移除不存在的容器记录
+        this.warmPool.delete(containerId)
         return false
       }
 
