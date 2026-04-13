@@ -4,7 +4,7 @@
  */
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import type { SettingsConfig, UserPreferences, ModelSettings } from '@/types/settings'
+import type { SettingsConfig, UserPreferences, ModelSettings, AgentSettings } from '@/types/settings'
 import { SETTINGS_STORAGE_KEY } from '@/types/settings'
 import type { ThemeName } from '@/themes/types'
 
@@ -25,6 +25,12 @@ const DEFAULT_MODEL: ModelSettings = {
   model: 'qwen-plus',
   temperature: 0.7,
   maxTokens: 4096,
+}
+
+const DEFAULT_AGENT: AgentSettings = {
+  maxIterations: 10,
+  debugMode: false,
+  timeout: 300,
 }
 
 /**
@@ -68,6 +74,12 @@ export const useSettingsStore = defineStore('settings', () => {
     ...storedSettings?.model,
   })
 
+  // Agent 设置
+  const agent = ref<AgentSettings>({
+    ...DEFAULT_AGENT,
+    ...storedSettings?.agent,
+  })
+
   /**
    * 保存所有设置到 localStorage
    */
@@ -75,6 +87,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const settings: SettingsConfig = {
       preferences: preferences.value,
       model: model.value,
+      agent: agent.value,
     }
     saveSettingsToStorage(settings)
   }
@@ -143,11 +156,39 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   /**
+   * 更新 Agent 最大循环次数
+   * @param iterations 最大循环次数
+   */
+  function setMaxIterations(iterations: number): void {
+    agent.value.maxIterations = iterations
+    saveSettings()
+  }
+
+  /**
+   * 更新 Agent 调试模式
+   * @param enabled 是否启用
+   */
+  function setAgentDebugMode(enabled: boolean): void {
+    agent.value.debugMode = enabled
+    saveSettings()
+  }
+
+  /**
+   * 更新 Agent 超时时间
+   * @param seconds 超时秒数
+   */
+  function setAgentTimeout(seconds: number): void {
+    agent.value.timeout = seconds
+    saveSettings()
+  }
+
+  /**
    * 重置所有设置为默认值
    */
   function resetSettings(): void {
     preferences.value = { ...DEFAULT_PREFERENCES }
     model.value = { ...DEFAULT_MODEL }
+    agent.value = { ...DEFAULT_AGENT }
     saveSettings()
   }
 
@@ -158,12 +199,13 @@ export const useSettingsStore = defineStore('settings', () => {
     return {
       preferences: preferences.value,
       model: model.value,
+      agent: agent.value,
     }
   }
 
   // 监听设置变化并自动保存
   watch(
-    [preferences, model],
+    [preferences, model, agent],
     () => {
       saveSettings()
     },
@@ -174,6 +216,7 @@ export const useSettingsStore = defineStore('settings', () => {
     // 状态
     preferences,
     model,
+    agent,
 
     // 设置方法
     setTheme,
@@ -183,6 +226,9 @@ export const useSettingsStore = defineStore('settings', () => {
     setModel,
     setTemperature,
     setMaxTokens,
+    setMaxIterations,
+    setAgentDebugMode,
+    setAgentTimeout,
 
     // 其他方法
     resetSettings,

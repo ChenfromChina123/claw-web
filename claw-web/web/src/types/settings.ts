@@ -36,6 +36,18 @@ export interface ModelSettings {
 }
 
 /**
+ * Agent 设置接口
+ */
+export interface AgentSettings {
+  /** Agent 最大单次循环次数 */
+  maxIterations: number
+  /** 是否启用 Agent 调试模式 */
+  debugMode: boolean
+  /** Agent 超时时间（秒） */
+  timeout: number
+}
+
+/**
  * 完整设置配置接口
  */
 export interface SettingsConfig {
@@ -43,6 +55,8 @@ export interface SettingsConfig {
   preferences: UserPreferences
   /** 模型设置 */
   model: ModelSettings
+  /** Agent 设置 */
+  agent: AgentSettings
 }
 
 /**

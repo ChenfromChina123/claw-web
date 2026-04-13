@@ -1069,8 +1069,12 @@ class EnhancedWebSocketClient {
     this.send({ type: 'list_sessions' })
   }
 
-  sendMessage(content: string, sessionId?: string, model?: string): void {
-    console.log('[WS] sendMessage called:', { content, sessionId, model })
+  sendMessage(content: string, sessionId?: string, model?: string, agentOptions?: {
+    maxIterations?: number
+    debugMode?: boolean
+    timeout?: number
+  }): void {
+    console.log('[WS] sendMessage called:', { content, sessionId, model, agentOptions })
     // 使用传入的 sessionId 或当前会话的 id
     const targetSessionId = sessionId || this.currentSession.value?.id
     console.log('[WS] targetSessionId:', targetSessionId)
@@ -1083,6 +1087,7 @@ class EnhancedWebSocketClient {
       content,
       sessionId: targetSessionId,
       model: model || this.currentSession.value?.model || 'qwen-plus',
+      agentOptions,
     }
     console.log('[WS] Sending message:', message)
     this.send(message)

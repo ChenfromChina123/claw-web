@@ -341,15 +341,26 @@ async function handleUserMessage(ws: any, wsData: WebSocketData, message: any, s
 
   const content = message.content as string
   const model = (message.model as string) || 'qwen-plus'
+  
+  // 从消息中读取 Agent 配置
+  const agentOptions = message.agentOptions ? {
+    maxIterations: message.agentOptions.maxIterations,
+    debugMode: message.agentOptions.debugMode,
+    timeout: message.agentOptions.timeout,
+  } : undefined
 
   console.log(`[WS] Processing message for session ${sessionId}:`, content.substring(0, 100))
+  if (agentOptions) {
+    console.log(`[WS] Agent options:`, agentOptions)
+  }
 
   sessionConversationManager.processMessage(
     sessionId,
     content,
     model,
     sessionManager,
-    sendEvent
+    sendEvent,
+    agentOptions
   ).catch(err => {
     console.error('[WS] processMessage error:', err)
     sendEvent('error', { message: 'Failed to process message' })

@@ -156,7 +156,12 @@ export class SessionConversationManager {
     userMessage: string,
     model: string,
     sessionManager: SessionManager,
-    sendEvent: EventSender
+    sendEvent: EventSender,
+    options?: {
+      maxIterations?: number
+      debugMode?: boolean
+      timeout?: number
+    }
   ): Promise<void> {
     // 首先尝试从内存获取会话，如果不存在则从数据库加载
     let sessionDataTemp = sessionManager.getInMemorySession(sessionId)
@@ -225,8 +230,8 @@ export class SessionConversationManager {
 
     const streamAbort = this.registerStreamAbort(sessionId)
     try {
-      // 4. 进入 Agent Loop (最多10次迭代)
-      const maxIterations = 10
+      // 4. 进入 Agent Loop (使用配置的最大迭代次数，默认10次)
+      const maxIterations = options?.maxIterations ?? 10
       let actualIterations = 0
       for (let iteration = 0; iteration < maxIterations; iteration++) {
         actualIterations = iteration + 1

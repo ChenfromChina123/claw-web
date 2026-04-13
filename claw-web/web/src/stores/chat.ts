@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Session, Message, ToolCall } from '@/types'
 import wsClient from '@/composables/useWebSocket'
+import { useSettingsStore } from './settings'
 
 /** 避免每次 connect() 重复注册 WS 监听，导致同一事件触发多次（重复 unshift 会话、错误 resolve loadSession 等） */
 let wsListenersAttached = false
@@ -562,9 +563,18 @@ export const useChatStore = defineStore('chat', () => {
     })
     console.log('[ChatStore] User message added, total messages:', messages.value.length)
 
+    // 获取 Agent 配置
+    const settingsStore = useSettingsStore()
+    const agentOptions = {
+      maxIterations: settingsStore.agent.maxIterations,
+      debugMode: settingsStore.agent.debugMode,
+      timeout: settingsStore.agent.timeout,
+    }
+    console.log('[ChatStore] Agent options:', agentOptions)
+
     // 同时发送消息给后端，传入 sessionId 确保消息能正确路由
     console.log('[ChatStore] Calling wsClient.sendMessage')
-    wsClient.sendMessage(content, currentSessionId.value, model)
+    wsClient.sendMessage(content, currentSessionId.value, model, agentOptions)
   }
   
   function deleteSession(sessionId: string) {

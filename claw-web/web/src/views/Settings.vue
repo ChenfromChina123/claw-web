@@ -18,13 +18,14 @@ const message = useMessage()
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 
-type SettingsSection = 'general' | 'model' | 'visualization' | 'account'
+type SettingsSection = 'general' | 'model' | 'agent' | 'visualization' | 'account'
 
 const activeSection = ref<SettingsSection>('general')
 
 const navItems: { key: SettingsSection; label: string }[] = [
   { key: 'general', label: '通用' },
   { key: 'model', label: '模型' },
+  { key: 'agent', label: 'Agent' },
   { key: 'visualization', label: '可视化' },
   { key: 'account', label: '账户' },
 ]
@@ -32,6 +33,7 @@ const navItems: { key: SettingsSection; label: string }[] = [
 // 从 store 获取设置
 const preferences = computed(() => settingsStore.preferences)
 const modelSettings = computed(() => settingsStore.model)
+const agentSettings = computed(() => settingsStore.agent)
 
 // 模型选项
 const modelOptions = [
@@ -151,6 +153,34 @@ onMounted(() => {
               :min="100"
               :max="100000"
               :step="100"
+            />
+          </NFormItem>
+        </NForm>
+      </NCard>
+
+      <NCard v-show="activeSection === 'agent'" title="Agent 设置" :size="embedded ? 'small' : 'medium'">
+        <NForm :label-placement="embedded ? 'top' : 'left'" :label-width="embedded ? undefined : 140">
+          <NFormItem label="最大循环次数">
+            <NInputNumber
+              v-model:value="agentSettings.maxIterations"
+              :style="embedded ? 'width: 100%' : 'width: 120px'"
+              :min="1"
+              :max="100"
+              :step="1"
+            />
+          </NFormItem>
+
+          <NFormItem label="调试模式">
+            <NSwitch v-model:value="agentSettings.debugMode" />
+          </NFormItem>
+
+          <NFormItem label="超时时间（秒）">
+            <NInputNumber
+              v-model:value="agentSettings.timeout"
+              :style="embedded ? 'width: 100%' : 'width: 120px'"
+              :min="30"
+              :max="3600"
+              :step="30"
             />
           </NFormItem>
         </NForm>
