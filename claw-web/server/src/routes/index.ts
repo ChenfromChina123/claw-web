@@ -37,6 +37,9 @@ export { handlePromptTemplateRoutes, default as promptTemplateRoutes } from './p
 // Skills 路由
 export { handleSkillRoutes, handleSkillImportRoutes, default as skillRoutes } from './skills.routes'
 
+// 用户等级管理路由
+export { default as userTierRoutes } from './userTier.routes'
+
 import type { Request, Response } from 'express'
 
 // 所有路由处理器列表（按优先级排序）
@@ -70,6 +73,9 @@ const routeHandlers = [
 
   // 提示词模板相关
   (req: Request) => import('./promptTemplate.routes').then(m => m.handlePromptTemplateRoutes(req)),
+
+  // 用户等级管理相关
+  (req: Request) => import('./userTier.routes').then(m => m.default(req as any, {} as any)),
 
   // 技能导入相关（放在最后，作为通用处理器）
   (req: Request) => import('./skills.routes').then(m => m.handleSkillImportRoutes(req)),

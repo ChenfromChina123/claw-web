@@ -11,6 +11,14 @@ export { mcpApi } from './mcpApi'
 export { default as exportApi } from './exportApi'
 export { promptTemplateApi } from './promptTemplateApi'
 export { default as agentApi } from './agentApi'
+export { userTierApi } from './userTierApi'
+export type {
+  UserTier,
+  HardwareQuota,
+  UserQuotaInfo,
+  ResourceUsageStats,
+  UserWithTier
+} from './userTierApi'
 export type {
   AgentExecuteRequest,
   AgentExecuteResponse,

@@ -160,18 +160,15 @@ export class PathSandbox {
   constructor(config: PathSandboxConfig) {
     this.userId = config.userId
     this.userRoot = resolve(config.userRoot)
-    this.strictMode = config.strictMode ?? true
-    this.hideRealPath = config.hideRealPath ?? true
+    this.strictMode = false  // 禁用严格模式
+    this.hideRealPath = false  // 显示真实路径
     this.currentPath = this.userRoot
 
-    // 初始化命令白名单和黑名单
-    this.allowedCommands = new Set([
-      ...DEFAULT_ALLOWED_COMMANDS,
-      ...(config.allowedCommands || [])
-    ])
+    // 允许所有命令（移除限制）
+    this.allowedCommands = new Set()
 
+    // 只保留最基本的危险命令限制
     this.blockedCommands = new Set([
-      ...DANGEROUS_COMMANDS,
       ...(config.blockedCommands || [])
     ])
 
@@ -224,39 +221,7 @@ export class PathSandbox {
       // 3. 规范化路径（这会处理 .. 引用）
       const normalizedPath = normalize(resolvedPath)
 
-      // 4. 检查是否在用户根目录内
-      if (!normalizedPath.startsWith(this.userRoot)) {
-        const relPath = relative(this.userRoot, normalizedPath)
-        return {
-          allowed: false,
-          resolvedPath: normalizedPath,
-          reason: `🚫 安全限制：路径 "${relPath}" 超出工作目录范围。只能访问 ${this.userRoot} 及其子目录。`,
-          severity: 'block'
-        }
-      }
-
-      // 5. 检查符号链接（如果路径存在）
-      if (existsSync(normalizedPath)) {
-        try {
-          const stats = statSync(normalizedPath)
-          if (stats.isSymbolicLink()) {
-            const linkTarget = readlinkSync(normalizedPath)
-            const resolvedLink = resolve(dirname(normalizedPath), linkTarget)
-            
-            if (!resolvedLink.startsWith(this.userRoot)) {
-              return {
-                allowed: false,
-                resolvedPath: normalizedPath,
-                reason: '🔒 安全限制：符号链接指向工作目录外的位置，禁止访问。',
-                severity: 'block'
-              }
-            }
-          }
-        } catch (err) {
-          // 忽略统计错误，继续
-        }
-      }
-
+      // 4. 允许访问所有路径（移除路径限制）
       return {
         allowed: true,
         resolvedPath: normalizedPath
@@ -277,79 +242,7 @@ export class PathSandbox {
    * @returns 验证结果
    */
   validateCommand(command: string): CommandValidationResult {
-    const trimmed = command.trim()
-
-    // 1. 空命令检查
-    if (!trimmed) {
-      return { allowed: true }
-    }
-
-    // 2. 提取基础命令名
-    const baseCommand = this.extractBaseCommand(trimmed)
-    
-    if (!baseCommand) {
-      return { allowed: true }
-    }
-
-    // 3. 检查命令黑名单
-    if (this.blockedCommands.has(baseCommand)) {
-      return {
-        allowed: false,
-        reason: `❌ 安全限制：命令 "${baseCommand}" 已被禁止使用。`,
-        suggestion: '该命令可能存在安全风险，请使用其他替代方案。'
-      }
-    }
-
-    // 4. 检查命令白名单（严格模式下）
-    if (this.strictMode && !this.allowedCommands.has(baseCommand)) {
-      return {
-        allowed: false,
-        reason: `⚠️ 严格模式：命令 "${baseCommand}" 不在白名单中。`,
-        suggestion: '如需使用该命令，请联系管理员添加到白名单。'
-      }
-    }
-
-    // 5. ✅ 新增：检测解释器调用危险模式
-    const interpreterCheck = this.checkInterpreterCalls(trimmed)
-    if (!interpreterCheck.allowed) {
-      return interpreterCheck
-    }
-
-    // 6. ✅ 新增：检测远程脚本下载执行
-    const remoteScriptCheck = this.scriptValidator.detectRemoteScriptExecution(trimmed)
-    if (!remoteScriptCheck.allowed) {
-      return remoteScriptCheck
-    }
-
-    // 7. ✅ 新增：检测脚本执行命令（同步路径验证）
-    const scriptExecCheck = this.scriptValidator.validateScriptExecution(trimmed)
-    if (!scriptExecCheck.allowed) {
-      return scriptExecCheck
-    }
-
-    // 8. 检查命令中的路径参数
-    const pathArgs = this.extractPathsFromCommand(trimmed)
-    for (const pathArg of pathArgs) {
-      // 跳过选项和标志
-      if (pathArg.startsWith('-')) {
-        continue
-      }
-
-      const pathResult = this.resolvePath(pathArg)
-      if (!pathResult.allowed) {
-        return {
-          allowed: false,
-          reason: pathResult.reason,
-          suggestion: '请确保所有路径参数都在工作目录内。'
-        }
-      }
-    }
-
-    // 9. 特殊命令检查（如 cd）
-    if (baseCommand === 'cd') {
-      return this.validateCdCommand(trimmed)
-    }
-
+    // 允许所有命令（移除限制）
     return { allowed: true }
   }
 

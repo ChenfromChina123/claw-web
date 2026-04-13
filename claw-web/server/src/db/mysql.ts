@@ -173,12 +173,6 @@ export async function initDatabase(): Promise<void> {
       ADD COLUMN is_pinned BOOLEAN DEFAULT FALSE AFTER model
     `).catch(() => {})
 
-    // 添加 is_master 字段到 sessions 表（如果不存在）
-    await tempPool.query(`
-      ALTER TABLE sessions
-      ADD COLUMN is_master BOOLEAN DEFAULT FALSE AFTER is_pinned
-    `).catch(() => {})
-
     // 添加 shared_sessions 表（如果不存在）
     await tempPool.query(`
       CREATE TABLE IF NOT EXISTS shared_sessions (

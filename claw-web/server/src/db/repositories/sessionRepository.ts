@@ -4,13 +4,13 @@ import type { Session } from '../../models/types'
 import type { Pool } from 'mysql2/promise'
 
 export class SessionRepository {
-  async create(userId: string, title: string = '新对话', model: string = 'qwen-plus', isMaster: boolean = false): Promise<Session> {
+  async create(userId: string, title: string = '新对话', model: string = 'qwen-plus'): Promise<Session> {
     const pool = getPool() as Pool
     const id = uuidv4()
 
     await pool.query(
-      'INSERT INTO sessions (id, user_id, title, model, is_master) VALUES (?, ?, ?, ?, ?)',
-      [id, userId, title, model, isMaster]
+      'INSERT INTO sessions (id, user_id, title, model) VALUES (?, ?, ?, ?)',
+      [id, userId, title, model]
     )
 
     const [rows] = await pool.query(
@@ -101,12 +101,10 @@ export class SessionRepository {
 
   async save(session: Session): Promise<void> {
     const pool = getPool() as Pool
-    // 将布尔值转换为整数（0/1）以确保 MySQL 正确存储
-    const isMasterValue = session.isMaster ? 1 : 0
     const isPinnedValue = session.isPinned ? 1 : 0
     await pool.query(
-      'UPDATE sessions SET title = ?, model = ?, is_pinned = ?, is_master = ? WHERE id = ?',
-      [session.title, session.model, isPinnedValue, isMasterValue, session.id]
+      'UPDATE sessions SET title = ?, model = ?, is_pinned = ? WHERE id = ?',
+      [session.title, session.model, isPinnedValue, session.id]
     )
   }
 
@@ -161,7 +159,6 @@ export class SessionRepository {
       title: row.title,
       model: row.model,
       isPinned: row.is_pinned ?? false,
-      isMaster: row.is_master ?? false,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }

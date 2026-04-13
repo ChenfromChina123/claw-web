@@ -18,6 +18,7 @@ import { execSync, exec } from 'child_process'
 import { promisify } from 'util'
 import * as path from 'path'
 import * as fs from 'fs/promises'
+import { getHardwareResourceManager, UserTier } from '../config/hardwareResourceConfig'
 
 const execAsync = promisify(exec)
 
@@ -192,9 +193,10 @@ class ContainerOrchestrator {
    * 为用户分配容器（从热池获取或新建）
    * @param userId 用户ID
    * @param username 用户名（可选）
+   * @param userTier 用户等级（可选，默认为free）
    * @returns 分配结果
    */
-  async assignContainerToUser(userId: string, username?: string): Promise<OrchestratorResult<UserContainerMapping>> {
+  async assignContainerToUser(userId: string, username?: string, userTier?: UserTier): Promise<OrchestratorResult<UserContainerMapping>> {
     try {
       // 检查用户是否已有容器
       const existingMapping = this.userMappings.get(userId)
@@ -212,7 +214,7 @@ class ContainerOrchestrator {
       if (!container) {
         // 热池为空，创建新容器
         console.log(`[ContainerOrchestrator] 热池为空，为用户 ${userId} 创建新容器...`)
-        const createResult = await this.createContainer(userId, username)
+        const createResult = await this.createContainer(userId, username, userTier)
         if (!createResult.success) {
           return createResult as OrchestratorResult<UserContainerMapping>
         }
@@ -456,9 +458,10 @@ class ContainerOrchestrator {
    * 创建新的用户专用容器
    * @param userId 用户ID
    * @param username 用户名
+   * @param userTier 用户等级（可选，默认为free）
    * @returns 创建结果
    */
-  private async createContainer(userId: string, username?: string): Promise<OrchestratorResult<ContainerInstance>> {
+  private async createContainer(userId: string, username?: string, userTier?: UserTier): Promise<OrchestratorResult<ContainerInstance>> {
     try {
       const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 20)
       const containerName = `claude-user-${safeUserId}`
@@ -476,23 +479,35 @@ class ContainerOrchestrator {
       // 分配端口
       const port = this.allocatePort()
 
-      // 构建Docker运行命令
+      // 获取用户等级的硬件配额
+      const tier = userTier || UserTier.FREE
+      const hardwareManager = getHardwareResourceManager()
+      const quota = hardwareManager.getUserQuota(userId, tier)
+      const resourceArgs = hardwareManager.generateDockerResourceArgs(quota)
+
+      // 构建Docker运行命令（包含硬件资源限制）
       const dockerCmd = [
         'docker run -d',
         `--name ${containerName}`,
         `-p ${port}:3000`,
         `--network ${this.config.networkName}`,
         '--restart unless-stopped',
+        ...resourceArgs,
         `-v claw-web_user-workspaces:/app/workspaces/users`,
         `-v claw-web_session-workspaces:/app/workspaces/sessions`,
         '-e CONTAINER_ROLE=worker',
         '-e NODE_ENV=production',
         `-e TENANT_USER_ID=${userId}`,
         `-e WORKSPACE_BASE_DIR=/app/workspaces`,
+        `-e USER_STORAGE_QUOTA_MB=${quota.storageQuotaMB}`,
+        `-e USER_SESSION_LIMIT=${quota.maxSessions}`,
+        `-e USER_PTY_LIMIT=${quota.maxPtyProcesses}`,
+        `-e MAX_FILES_PER_USER=${quota.maxFiles}`,
+        `-e MAX_FILE_SIZE_MB=${quota.maxFileSizeMB}`,
         this.config.imageName
       ].join(' ')
 
-      console.log(`[ContainerOrchestrator] 创建用户容器: ${dockerCmd}`)
+      console.log(`[ContainerOrchestrator] 创建用户容器 (等级: ${tier}): ${dockerCmd}`)
 
       const { stdout } = await execAsync(dockerCmd)
       const containerId = stdout.trim()

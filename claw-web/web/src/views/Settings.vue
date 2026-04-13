@@ -5,6 +5,9 @@ import { NLayout, NLayoutSider, NLayoutContent, NCard, NForm, NFormItem, NInput,
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
 import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
+import UserQuotaPanel from '@/components/UserQuotaPanel.vue'
+import TierComparison from '@/components/TierComparison.vue'
+import UserManagement from '@/components/UserManagement.vue'
 
 /**
  * 是否为内嵌模式（在编辑器标签页中显示）
@@ -18,17 +21,28 @@ const message = useMessage()
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 
-type SettingsSection = 'general' | 'model' | 'agent' | 'visualization' | 'account'
+type SettingsSection = 'general' | 'model' | 'agent' | 'visualization' | 'account' | 'quota' | 'tiers' | 'users'
 
 const activeSection = ref<SettingsSection>('general')
 
-const navItems: { key: SettingsSection; label: string }[] = [
+const navItems: { key: SettingsSection; label: string; adminOnly?: boolean }[] = [
   { key: 'general', label: '通用' },
   { key: 'model', label: '模型' },
   { key: 'agent', label: 'Agent' },
   { key: 'visualization', label: '可视化' },
+  { key: 'quota', label: '我的配额' },
+  { key: 'tiers', label: '套餐对比' },
+  { key: 'users', label: '用户管理', adminOnly: true },
   { key: 'account', label: '账户' },
 ]
+
+const isAdmin = computed(() => {
+  return authStore.user?.isAdmin || false
+})
+
+const filteredNavItems = computed(() => {
+  return navItems.filter(item => !item.adminOnly || isAdmin.value)
+})
 
 // 从 store 获取设置
 const preferences = computed(() => settingsStore.preferences)
@@ -76,7 +90,7 @@ onMounted(() => {
         <h3>设置</h3>
         <ul role="tablist" aria-label="设置分类">
           <li
-            v-for="item in navItems"
+            v-for="item in filteredNavItems"
             :key="item.key"
             role="tab"
             :tabindex="activeSection === item.key ? 0 : -1"
@@ -96,7 +110,7 @@ onMounted(() => {
       <!-- 内嵌模式下的顶部导航 -->
       <div v-if="embedded" class="settings-embedded-nav">
         <button
-          v-for="item in navItems"
+          v-for="item in filteredNavItems"
           :key="item.key"
           class="settings-embedded-nav-btn"
           :class="{ active: activeSection === item.key }"
@@ -201,6 +215,18 @@ onMounted(() => {
           </NFormItem>
         </NForm>
       </NCard>
+
+      <div v-show="activeSection === 'quota'" class="settings-quota-section">
+        <UserQuotaPanel />
+      </div>
+
+      <div v-show="activeSection === 'tiers'" class="settings-tiers-section">
+        <TierComparison />
+      </div>
+
+      <div v-show="activeSection === 'users' && isAdmin" class="settings-users-section">
+        <UserManagement />
+      </div>
 
       <NCard v-show="activeSection === 'account'" title="账户" :size="embedded ? 'small' : 'medium'">
         <NSpace vertical :size="16">

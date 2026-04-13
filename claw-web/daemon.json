@@ -1,1 +1,9 @@
-{"registry-mirrors": ["https://docker.mirrors.ustc.edu.cn", "https://mirror.baidubce.com", "https://docker.1ms.run"]}
+{
+  "registry-mirrors": [
+    "https://docker.mirrors.ustc.edu.cn",
+    "https://docker.1ms.run",
+    "https://dockerhub.icu",
+    "https://docker.udayun.com",
+    "https://docker.awsl9527.cn"
+  ]
+}

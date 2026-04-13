@@ -70,10 +70,7 @@ const filteredSessions = computed(() => {
 
 const visibleSessions = computed(() => {
   const sessions = filteredSessions.value.slice(0, visibleSessionCount.value)
-  // 主会话始终在最前面
   return sessions.sort((a, b) => {
-    if (a.isMaster && !b.isMaster) return -1
-    if (!a.isMaster && b.isMaster) return 1
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   })
 })
@@ -285,12 +282,11 @@ function formatTime(date: Date | string) {
               v-for="session in visibleSessions"
               :key="session.id"
               class="session-item"
-              :class="{ active: chatStore.currentSessionId === session.id, 'master-session': session.isMaster }"
+              :class="{ active: chatStore.currentSessionId === session.id }"
               @click="handleSelectSession(session)"
             >
               <div class="session-content">
                 <div class="session-title">
-                  <span v-if="session.isMaster" class="master-badge">⭐</span>
                   {{ session.title }}
                 </div>
                 <div class="session-meta">
@@ -655,48 +651,6 @@ function formatTime(date: Date | string) {
 
 .session-item.active .session-time-only {
   color: var(--text-secondary);
-}
-
-/* 主会话样式 */
-.session-item.master-session {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.08), rgba(217, 119, 6, 0.04));
-  border-color: rgba(251, 191, 36, 0.2);
-}
-
-.session-item.master-session::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(180deg, #fbbf24, #f59e0b);
-  box-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
-  opacity: 1;
-  transform: scaleY(1);
-}
-
-.session-item.master-session:hover {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(217, 119, 6, 0.06));
-  border-color: rgba(251, 191, 36, 0.3);
-}
-
-.session-item.master-session.active {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(217, 119, 6, 0.08));
-  border-color: #fbbf24;
-  box-shadow: 0 2px 12px rgba(251, 191, 36, 0.2);
-}
-
-.master-badge {
-  display: inline-block;
-  margin-right: 4px;
-  font-size: 12px;
-  animation: starPulse 2s ease-in-out infinite;
-}
-
-@keyframes starPulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.8; }
 }
 
 /* 三点菜单：更大点击区域与字号，避免误点会话项 */

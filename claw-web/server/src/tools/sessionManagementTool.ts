@@ -22,7 +22,6 @@ export interface SessionManagementInput {
 export interface SessionInfo {
   id: string
   title: string
-  isMaster: boolean
   model?: string
   updatedAt: string
   messageCount: number
@@ -115,7 +114,6 @@ export async function executeSessionManagementTool(
         const sessionInfos: SessionInfo[] = sessions.map(s => ({
           id: s.id,
           title: s.title || '未命名',
-          isMaster: s.isMaster || false,
           model: s.model,
           updatedAt: s.updatedAt,
           messageCount: s.messageCount || 0,

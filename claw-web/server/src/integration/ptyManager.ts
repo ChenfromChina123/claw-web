@@ -276,8 +276,9 @@ export class PTYSessionManager {
         envVars[key] = value
       }
     }
-    // Windows 平台使用 dumb 终端类型避免换行问题
-    envVars['TERM'] = isWindows ? 'dumb' : 'xterm-256color'
+    // 启用彩色终端支持（所有平台）
+    envVars['TERM'] = 'xterm-256color'
+    envVars['COLORTERM'] = 'truecolor'
 
     // 如果启用隔离，使用安全的环境变量
     if (enableIsolation && userId) {
@@ -295,11 +296,6 @@ export class PTYSessionManager {
       envVars['HOME'] = '/tmp'
       envVars['USER'] = 'bun'
       envVars['PS1'] = '\\w\\$ '
-    }
-    
-    // Windows 平台禁用 bash 回显，由前端负责本地回显
-    if (isWindows) {
-      envVars['TERM'] = 'dumb'
     }
     
     // 删除敏感环境变量

@@ -8,7 +8,7 @@
 
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NModal, NInput, NScrollbar, NButton, NIcon, NTag } from 'naive-ui'
-import { ChatbubblesOutline, Star } from '@vicons/ionicons5'
+import { ChatbubblesOutline } from '@vicons/ionicons5'
 import { useChatStore } from '@/stores/chat'
 import type { Session } from '@/types'
 
@@ -38,8 +38,6 @@ const filteredSessions = computed(() => {
 
 const sortedSessions = computed(() => {
   return [...filteredSessions.value].sort((a, b) => {
-    if (a.isMaster && !b.isMaster) return -1
-    if (!a.isMaster && b.isMaster) return 1
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   })
 })
@@ -150,16 +148,12 @@ onUnmounted(() => {
           :class="{
             active: chatStore.currentSessionId === session.id,
             selected: index === selectedIndex,
-            master: session.isMaster,
           }"
           @click="selectSession(session.id)"
           @mouseenter="selectedIndex = index"
         >
           <div class="session-content">
             <div class="session-header">
-              <span v-if="session.isMaster" class="master-star" title="主会话">
-                <NIcon :size="14"><Star /></NIcon>
-              </span>
               <span class="session-title">{{ session.title || '未命名' }}</span>
               <NTag
                 v-if="modelLabel(session.model)"
@@ -248,12 +242,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.master-star {
-  display: flex;
-  color: #fbbf24;
-  flex-shrink: 0;
 }
 
 .session-title {

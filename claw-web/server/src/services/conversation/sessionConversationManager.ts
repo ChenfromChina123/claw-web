@@ -64,18 +64,8 @@ export class SessionConversationManager {
    */
   private async initializeSessionWorkspace(sessionId: string, userId: string): Promise<void> {
     try {
-      const sm = SessionManager.getInstance()
-      const session = sm.getInMemorySession(sessionId)
-      
-      let workspace
-      
-      if (session?.session.isMaster) {
-        workspace = await this.workspaceManager.getOrCreateUserWorkspace(userId)
-        console.log(`[SessionWorkspace] Master session using user home: ${workspace.path}`)
-      } else {
-        workspace = await this.workspaceManager.createWorkspace(userId, sessionId)
-        console.log(`[SessionWorkspace] Workspace initialized for session ${sessionId}:`, workspace.path)
-      }
+      const workspace = await this.workspaceManager.createWorkspace(userId, sessionId)
+      console.log(`[SessionWorkspace] Workspace initialized for session ${sessionId}:`, workspace.path)
     } catch (error) {
       console.error(`[SessionWorkspace] Failed to initialize workspace for session ${sessionId}:`, error)
     }

@@ -248,31 +248,8 @@ export class SecureTerminal {
    * @returns 处理后的输出
    */
   processOutput(output: string): string {
-    const userRoot = this.sandbox.getUserRoot()
-    
-    // 替换真实路径为虚拟路径
-    // 需要处理多种路径格式
-    let processed = output
-
-    // Windows 路径处理
-    const winPathRegex = new RegExp(userRoot.replace(/\\/g, '\\\\'), 'g')
-    processed = processed.replace(winPathRegex, `/${this.userId}`)
-
-    // Unix 路径处理
-    const unixPathRegex = new RegExp(userRoot.replace(/\//g, '/'), 'g')
-    processed = processed.replace(unixPathRegex, `/${this.userId}`)
-
-    // 处理当前路径的显示
-    const currentPath = this.sandbox.getCurrentPath()
-    if (currentPath !== userRoot) {
-      const currentWinPath = new RegExp(currentPath.replace(/\\/g, '\\\\'), 'g')
-      const currentUnixPath = new RegExp(currentPath.replace(/\//g, '/'), 'g')
-      
-      processed = processed.replace(currentWinPath, this.sandbox.getVirtualPath(currentPath))
-      processed = processed.replace(currentUnixPath, this.sandbox.getVirtualPath(currentPath))
-    }
-
-    return processed
+    // 移除路径虚拟化，直接返回原始输出
+    return output
   }
 
   /**

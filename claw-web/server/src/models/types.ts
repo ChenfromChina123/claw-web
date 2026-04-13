@@ -6,9 +6,20 @@ export interface User {
   avatar?: string
   isActive?: boolean
   isAdmin?: boolean
+  tier?: UserTier
+  subscriptionExpiresAt?: Date
+  customQuota?: Record<string, any>
   createdAt: Date
   updatedAt: Date
   lastLogin?: Date
+}
+
+export enum UserTier {
+  FREE = 'free',
+  BASIC = 'basic',
+  PRO = 'pro',
+  ENTERPRISE = 'enterprise',
+  ADMIN = 'admin'
 }
 
 export interface Session {
@@ -17,7 +28,6 @@ export interface Session {
   title: string
   model: string
   isPinned?: boolean
-  isMaster?: boolean  // 是否为主会话
   createdAt: Date
   updatedAt: Date
 }
