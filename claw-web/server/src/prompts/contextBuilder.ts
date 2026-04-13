@@ -170,7 +170,8 @@ export const SYSTEM_PROMPT_DYNAMIC_BOUNDARY =
  * 8. 会话特定指导（动态）
  * 9. 规则注入（用户规则与项目规则）
  * 10. 环境信息（动态）
- * 11. MCP 指令（动态）
+ * 11. 工作区摘要（动态）
+ * 12. MCP 指令（动态）
  *
  * @param options 构建选项
  */
@@ -184,6 +185,7 @@ export async function buildCompleteSystemPrompt(options: {
   languagePreference?: string | null
   useGlobalCacheScope?: boolean
   injectRules?: boolean
+  workspaceSummary?: string | null
 }): Promise<string[]> {
   const {
     cwd = process.cwd(),
@@ -195,6 +197,7 @@ export async function buildCompleteSystemPrompt(options: {
     languagePreference,
     useGlobalCacheScope = false,
     injectRules = true,
+    workspaceSummary,
   } = options
 
   const {
@@ -216,7 +219,7 @@ export async function buildCompleteSystemPrompt(options: {
   ]
 
   // 动态部分（不可缓存）
-  const dynamicSections = []
+  const dynamicSections: string[] = []
 
   // 会话特定指导
   const sessionGuidance = getSessionSpecificGuidanceSection(enabledTools)
@@ -249,6 +252,11 @@ ${outputStyleConfig.prompt}`)
   // 环境信息
   const envInfo = buildEnvInfo(cwd, modelId, additionalWorkingDirectories)
   dynamicSections.push(envInfo)
+
+  // 工作区摘要（动态）
+  if (workspaceSummary) {
+    dynamicSections.push(workspaceSummary)
+  }
 
   // MCP 指令
   if (mcpInstructions) {

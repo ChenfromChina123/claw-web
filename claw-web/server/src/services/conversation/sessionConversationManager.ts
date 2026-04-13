@@ -17,6 +17,7 @@ import { WebAgentRunner } from '../../integrations/agentRunner'
 import { WebSessionBridge } from '../../integrations/sessionBridge'
 import { getWorkspaceManager } from '../workspaceManager'
 import { stripIdeUserDisplayLayer } from '../../utils/ideUserMessageMarkers'
+import { buildCompleteSystemPrompt } from '../../prompts/contextBuilder'
 import type { ToolCall } from '../../models/types'
 import type { EventSender } from '../../types'
 
@@ -60,12 +61,12 @@ export class SessionConversationManager {
   }
 
   /**
-   * 初始化会话的工作目录（Workspace）
+   * 初始化用户主工作目录
    */
   private async initializeSessionWorkspace(sessionId: string, userId: string): Promise<void> {
     try {
-      const workspace = await this.workspaceManager.createWorkspace(userId, sessionId)
-      console.log(`[SessionWorkspace] Workspace initialized for session ${sessionId}:`, workspace.path)
+      const workspace = await this.workspaceManager.getOrCreateUserWorkspace(userId)
+      console.log(`[SessionWorkspace] User workspace ready for session ${sessionId}:`, workspace.path)
     } catch (error) {
       console.error(`[SessionWorkspace] Failed to initialize workspace for session ${sessionId}:`, error)
     }
@@ -390,17 +391,28 @@ export class SessionConversationManager {
 
     console.log(`[${sessionId}] Calling AI API with ${messages.length} messages`)
 
-    // 获取工作区信息并注入到系统提示中
-    let systemPrompt = ''
+    // 获取工作区信息
+    let workspaceSummary: string | null = null
+    let userId: string | null = null
     try {
-      const workspaceSummary = await this.workspaceManager.getWorkspaceSummaryForContext(sessionId)
-      if (workspaceSummary) {
-        systemPrompt = workspaceSummary
-        console.log(`[${sessionId}] Workspace info injected into context`)
+      const session = sessionManager.getInMemorySession(sessionId)
+      userId = session?.session.userId ?? null
+      if (userId) {
+        workspaceSummary = await this.workspaceManager.getUserWorkspaceSummaryForContext(userId)
+        console.log(`[${sessionId}] Workspace info retrieved for user ${userId}`)
       }
     } catch (error) {
       console.warn(`[${sessionId}] Failed to get workspace summary:`, error)
     }
+
+    // 构建系统提示（静态部分可缓存，动态部分包含工作区摘要）
+    const systemPromptSections = await buildCompleteSystemPrompt({
+      cwd: process.cwd(),
+      workspaceSummary,
+      injectRules: true,
+      useGlobalCacheScope: true,
+    })
+    const systemPrompt = systemPromptSections.join('\n\n')
 
     const streamParams = {
       model,
