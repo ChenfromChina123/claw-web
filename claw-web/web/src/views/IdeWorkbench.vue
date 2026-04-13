@@ -23,6 +23,7 @@ import {
   Add,
   ListOutline,
   ChevronDownOutline,
+  GridOutline,
 } from '@vicons/ionicons5'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
@@ -34,11 +35,13 @@ import ChatMessageList from '@/components/ChatMessageList.vue'
 import ChatInput from '@/components/ChatInput.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import IdeTerminalTabs from '@/components/terminal/IdeTerminalTabs.vue'
+import IdeComponentLayoutPanel from '@/components/layout/IdeComponentLayoutPanel.vue'
 import type { ComponentPublicInstance } from 'vue'
 
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import { useAgentStore } from '@/stores/agent'
+import { useIdeComponentLayoutStore } from '@/stores/ideComponentLayout'
 import { useAgentWorkdir } from '@/composables/useAgentWorkdir'
 import { useEffectiveWorkspacePath } from '@/composables/useEffectiveWorkspacePath'
 import {
@@ -60,6 +63,7 @@ const message = useMessage()
 const chatStore = useChatStore()
 const authStore = useAuthStore()
 const agentStore = useAgentStore()
+const layoutStore = useIdeComponentLayoutStore()
 
 // ========== 初始化状态 ==========
 const isInitializing = ref(true)
@@ -112,6 +116,7 @@ function onEditorTermSplitResized(): void {
 
 // ========== UI 状态 ==========
 const showCommandPalette = ref(false)
+const showLayoutPanel = ref(false)
 const inputRef = ref<InstanceType<typeof ChatInput> | null>(null)
 const editorPanelRef = ref<InstanceType<typeof AgentWorkdirEditorPanel> | null>(null)
 /** 左侧边栏视图：资源管理器 vs 会话列表（释放右侧 AI 栏垂直空间） */
@@ -485,6 +490,13 @@ async function handleRetry(): Promise<void> {
       <div class="activity-bottom">
         <div
           class="activity-icon"
+          title="组件布局"
+          @click="showLayoutPanel = !showLayoutPanel"
+        >
+          <NIcon size="22"><GridOutline /></NIcon>
+        </div>
+        <div
+          class="activity-icon"
           title="设置"
           @click="handleOpenSettings"
         >
@@ -501,7 +513,7 @@ async function handleRetry(): Promise<void> {
         class="ide-splitpanes ide-split-root"
         @resized="onRootSplitResized"
       >
-        <Pane :size="safeSize(ideLayout.rootSizes[0], 20)" min-size="14" class="explorer-pane">
+        <Pane v-if="layoutStore.explorerVisible" :size="safeSize(ideLayout.rootSizes[0], 20)" min-size="14" class="explorer-pane">
           <div class="pane-header">
             <span>{{ leftSidebarView === 'explorer' ? 'EXPLORER' : 'SESSIONS' }}</span>
           </div>
@@ -511,14 +523,15 @@ async function handleRetry(): Promise<void> {
           </div>
         </Pane>
 
-        <Pane :size="safeSize(ideLayout.rootSizes[1], 52)" min-size="30" class="editor-pane">
+        <Pane v-if="layoutStore.editorVisible || layoutStore.terminalVisible" :size="safeSize(ideLayout.rootSizes[1], 52)" min-size="30" class="editor-pane">
           <Splitpanes
+            v-if="layoutStore.editorVisible && layoutStore.terminalVisible"
             ref="editorTermSplitRef"
             horizontal
             class="ide-editor-terminal-split"
             @resized="onEditorTermSplitResized"
           >
-            <Pane :size="safeSize(ideLayout.editorTerminalSizes[0], 68)" min-size="35" class="editor-pane-stack">
+            <Pane v-if="layoutStore.editorVisible" :size="safeSize(ideLayout.editorTerminalSizes[0], 68)" min-size="35" class="editor-pane-stack">
               <div class="pane-header">
                 <span>{{ editorTabTitle }}</span>
               </div>
@@ -526,7 +539,7 @@ async function handleRetry(): Promise<void> {
                 <AgentWorkdirEditorPanel ref="editorPanelRef" />
               </div>
             </Pane>
-            <Pane :size="safeSize(ideLayout.editorTerminalSizes[1], 32)" min-size="14" max-size="55" class="editor-terminal-pane">
+            <Pane v-if="layoutStore.terminalVisible" :size="safeSize(ideLayout.editorTerminalSizes[1], 32)" min-size="14" max-size="55" class="editor-terminal-pane">
               <div id="ide-bottom-terminal" class="ide-terminal-anchor">
                 <IdeTerminalTabs
                   v-if="terminalWebSocketReady"
@@ -536,9 +549,28 @@ async function handleRetry(): Promise<void> {
               </div>
             </Pane>
           </Splitpanes>
+          <template v-else>
+            <div v-if="layoutStore.editorVisible" class="pane-full-content">
+              <div class="pane-header">
+                <span>{{ editorTabTitle }}</span>
+              </div>
+              <div class="pane-content editor-pane-editor-body">
+                <AgentWorkdirEditorPanel ref="editorPanelRef" />
+              </div>
+            </div>
+            <div v-if="layoutStore.terminalVisible" class="pane-full-content">
+              <div id="ide-bottom-terminal" class="ide-terminal-anchor">
+                <IdeTerminalTabs
+                  v-if="terminalWebSocketReady"
+                  ref="terminalTabsRef"
+                  :default-cwd="effectiveWorkspacePath || undefined"
+                />
+              </div>
+            </div>
+          </template>
         </Pane>
 
-        <Pane :size="safeSize(ideLayout.rootSizes[2], 28)" min-size="20" class="right-column-pane chat-pane-full">
+        <Pane v-if="layoutStore.chatVisible" :size="safeSize(ideLayout.rootSizes[2], 28)" min-size="20" class="right-column-pane chat-pane-full">
           <div class="pane-header chat-pane-header">
             <span>AI AGENT</span>
             <div class="chat-header-actions">
@@ -647,6 +679,13 @@ async function handleRetry(): Promise<void> {
         :show="showCommandPalette"
         @close="showCommandPalette = false"
         @select="handleCommandSelect"
+      />
+    </Teleport>
+
+    <Teleport to="body">
+      <IdeComponentLayoutPanel
+        :visible="showLayoutPanel"
+        @close="showLayoutPanel = false"
       />
     </Teleport>
   </div>
@@ -841,6 +880,13 @@ async function handleRetry(): Promise<void> {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.pane-full-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .ide-terminal-anchor {
