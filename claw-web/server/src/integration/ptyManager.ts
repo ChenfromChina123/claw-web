@@ -434,10 +434,12 @@ export class PTYSessionManager {
           stdio: ['pipe', 'pipe', 'pipe']
         })
 
-        // 立即发送 PS1 和 cd 命令到 stdin
+        // 立即发送配置命令到 stdin
         if (subprocess.stdin) {
+          // 禁用 bash verbose 模式（不会回显 set -x 的命令）
+          subprocess.stdin.write(`set +v\r\n`)
           subprocess.stdin.write(`PS1="${userId}@\\\\H:\\\\w\\\\$ "\\r\\n`)
-          subprocess.stdin.write(`cd "${cwd}"\\r\\n`)
+          subprocess.stdin.write(`cd "${cwd}"\r\n`)
         }
 
         console.log(`[PTY] Bun.spawn success, pid: ${subprocess.pid}`)
