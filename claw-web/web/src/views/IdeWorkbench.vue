@@ -85,7 +85,11 @@ const safeSize = (val: number | undefined, fallback: number): number => {
 function persistRootSplitSizes(): void {
   const el = rootSplitRef.value?.$el as HTMLElement | undefined
   const sizes = readSplitPanePercents(el, false)
-  if (sizes.length === 3) {
+  const visibleCount =
+    Number(layoutStore.explorerVisible) +
+    Number(layoutStore.editorVisible || layoutStore.terminalVisible) +
+    Number(layoutStore.chatVisible)
+  if (sizes.length === 3 && visibleCount === 3) {
     ideLayout.value = {
       ...ideLayout.value,
       rootSizes: sizes as [number, number, number],
