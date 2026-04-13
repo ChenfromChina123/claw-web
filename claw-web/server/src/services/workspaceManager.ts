@@ -2,26 +2,26 @@
  * Agent Workspace Manager - 工作目录管理器
  *
  * 功能：
- * - 用户主工作目录：存储 skills、用户配置、全局数据
- * - 会话工作目录：存储会话相关的临时文件、上传文件、输出文件
+ * - 用户主工作目录：存储 skills、用户配置、数据、上传文件
  *
  * 目录结构：
- * server/workspaces/
- * ├── users/                              # 用户主目录
- * │   └── {userId}/
- * │       ├── skills/                     # 用户的 skills 安装
- * │       ├── config/                     # 用户配置文件
- * │       ├── data/                       # 用户数据
- * │       ├── .user-workspace.json        # 用户工作区元数据
- * │       └── README.md
- * └── sessions/                           # 会话目录
+ * workspaces/                            # 工作区根目录
+ * ├── .claude/                           # Claude 全局目录
+ * │   ├── skills/                        # 全局 skills
+ * │   └── commands/                      # 全局 commands
+ * └── users/                             # 用户主目录
  *     └── {userId}/
- *         └── {sessionId}/
- *             ├── uploads/                # 用户上传的文件
- *             ├── outputs/                 # AI 生成的输出文件
- *             ├── temp/                    # 临时文件
- *             ├── .workspace.json         # 会话工作区元数据
- *             └── README.md
+ *         ├── skills/                    # 用户的 skills 安装
+ *         ├── config/                    # 用户配置文件
+ *         ├── data/                      # 用户数据
+ *         ├── uploads/                   # 用户上传的文件
+ *         ├── outputs/                   # AI 生成的输出文件
+ *         ├── temp/                      # 临时文件
+ *         ├── .claude/                   # 用户 Claude 目录
+ *         │   ├── skills/                # 用户 skills
+ *         │   └── commands/              # 用户 commands
+ *         ├── .user-workspace.json       # 用户工作区元数据
+ *         └── README.md
  */
 
 import * as fs from 'fs/promises'
