@@ -775,6 +775,7 @@ async function handleInterruptExecution() {
             v-for="(message, index) in visibleMessages"
             :id="'chat-msg-' + (message.id || String(index))"
             :key="message.id || index"
+            :data-message-id="message.id"
             class="message-wrapper"
           >
             <!-- 用户消息 - 右边 -->
