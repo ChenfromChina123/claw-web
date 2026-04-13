@@ -114,15 +114,53 @@ export async function handleAgentRoutes(req: Request): Promise<Response | null> 
         tools: string[]
         maxTurns?: number
       }
-      
+
       const result = await engineExecuteAgent(body, (state) => {
         // WebSocket 状态更新回调
       })
-      
+
       return createSuccessResponse(result)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Agent 执行失败'
       return createErrorResponse('AGENT_EXECUTE_FAILED', message, 500)
+    }
+  }
+
+  // POST /api/agents/:agentId/interrupt - 中断正在执行的 Agent
+  const interruptMatch = path.match(/^\/api\/agents\/([^\/]+)\/interrupt$/)
+  if (interruptMatch && method === 'POST') {
+    try {
+      const auth = await authMiddleware(req)
+      if (!auth.userId) {
+        return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
+      }
+
+      const agentId = interruptMatch[1]
+
+      if (!agentId) {
+        return createErrorResponse('INVALID_PARAMS', '缺少必需参数: agentId', 400)
+      }
+
+      console.log(`[AgentRoutes] 收到中断请求，agentId: ${agentId}`)
+
+      const success = agentManager.interruptAgent(agentId)
+
+      if (!success) {
+        return createErrorResponse('AGENT_NOT_FOUND', `Agent ${agentId} 不存在或无法中断`, 404)
+      }
+
+      console.log(`[AgentRoutes] Agent ${agentId} 中断成功`)
+
+      return createSuccessResponse({
+        success: true,
+        message: `Agent ${agentId} 已被成功中断`,
+        agentId,
+        interruptedAt: new Date().toISOString()
+      })
+    } catch (error) {
+      console.error('[AgentRoutes] 中断 Agent 失败:', error)
+      const message = error instanceof Error ? error.message : '中断 Agent 时发生未知错误'
+      return createErrorResponse('INTERRUPT_AGENT_FAILED', message, 500)
     }
   }
 
