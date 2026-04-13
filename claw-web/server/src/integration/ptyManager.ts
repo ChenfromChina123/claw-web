@@ -436,10 +436,17 @@ export class PTYSessionManager {
 
         // 立即发送配置命令到 stdin
         if (subprocess.stdin) {
-          // 禁用 bash verbose 模式（不会回显 set -x 的命令）
+          // 禁用 bash 回显和 verbose 模式
+          // stty -echo: 禁用字符回显，避免输入显示两次
+          // set +v: 禁用 verbose 模式
+          subprocess.stdin.write(`stty -echo\r\n`)
           subprocess.stdin.write(`set +v\r\n`)
-          subprocess.stdin.write(`PS1="${userId}@\\\\H:\\\\w\\\\$ "\\r\\n`)
+          // 设置自定义提示符，显示用户名和当前路径
+          subprocess.stdin.write(`export PS1='${userId}@\\H:\\w\\$ '\r\n`)
+          // 切换到工作目录
           subprocess.stdin.write(`cd "${cwd}"\r\n`)
+          // 清除屏幕并显示欢迎信息
+          subprocess.stdin.write(`clear\r\n`)
         }
 
         console.log(`[PTY] Bun.spawn success, pid: ${subprocess.pid}`)
