@@ -56,6 +56,12 @@ const routes: RouteRecordRaw[] = [
     name: 'IdeWorkbench',
     component: () => import('@/views/IdeWorkbench.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/deployment',
+    name: 'Deployment',
+    component: () => import('@/views/Deployment.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 
