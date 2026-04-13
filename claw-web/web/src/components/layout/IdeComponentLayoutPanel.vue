@@ -139,8 +139,8 @@ function handleClickOutside(e: MouseEvent): void {
 
 .layout-panel {
   position: absolute;
-  top: 56px;
-  right: 16px;
+  bottom: 56px;
+  left: 16px;
   width: 260px;
   background: #2d2d2d;
   border: 1px solid #3c3c3c;
@@ -221,6 +221,6 @@ function handleClickOutside(e: MouseEvent): void {
 .layout-panel-fade-enter-from,
 .layout-panel-fade-leave-to {
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(8px);
 }
 </style>
