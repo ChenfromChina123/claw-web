@@ -88,16 +88,47 @@ export class PTYSessionManager {
   private getDefaultShell(): string {
     const platform = process.platform
     if (platform === 'win32') {
-      // Windows 上优先使用 PowerShell
+      // Windows 平台 shell 检测优先级：
+      // 1. PowerShell 7+ (pwsh.exe)
+      // 2. Windows PowerShell (powershell.exe)
+      // 3. Command Prompt (cmd.exe)
+      
+      // 检查 PowerShell 7+
+      const pwshPaths = [
+        'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+        'C:\\Program Files (x86)\\PowerShell\\7\\pwsh.exe'
+      ]
+      
+      for (const path of pwshPaths) {
+        try {
+          const exists = execSync(`if exist "${path}" echo yes`, { encoding: 'utf8' }).trim()
+          if (exists === 'yes') return path
+        } catch {}
+      }
+      
+      // 检查 Windows PowerShell
       const psPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
       try {
         const exists = execSync(`if exist "${psPath}" echo yes`, { encoding: 'utf8' }).trim()
         if (exists === 'yes') return psPath
       } catch {}
-      return 'powershell.exe'
+      
+      // 检查 Command Prompt
+      try {
+        const exists = execSync('if exist "C:\\Windows\\System32\\cmd.exe" echo yes', { encoding: 'utf8' }).trim()
+        if (exists === 'yes') return 'C:\\Windows\\System32\\cmd.exe'
+      } catch {}
+      
+      // 最后的回退选项
+      return 'cmd.exe'
     }
-    // Linux/macOS 优先使用 /bin/bash
-    const shells = ['/bin/bash', '/bin/sh', '/bin/zsh']
+    
+    // Linux/macOS 平台 shell 检测优先级：
+    // 1. /bin/bash
+    // 2. /bin/sh
+    // 3. /bin/zsh
+    // 4. 其他常见 shell
+    const shells = ['/bin/bash', '/bin/sh', '/bin/zsh', '/usr/bin/bash', '/usr/bin/sh', '/usr/bin/zsh']
     for (const shell of shells) {
       try {
         if (require('fs').existsSync(shell)) {
@@ -105,7 +136,9 @@ export class PTYSessionManager {
         }
       } catch {}
     }
-    return '/bin/bash'
+    
+    // 最后的回退选项
+    return '/bin/sh'
   }
 
   /**
@@ -120,27 +153,86 @@ export class PTYSessionManager {
     if (platform === 'win32') {
       switch (shellOption) {
         case 'powershell':
-          return 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+          // 优先使用 PowerShell 7+
+          const pwshPaths = [
+            'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+            'C:\\Program Files (x86)\\PowerShell\\7\\pwsh.exe',
+            'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+          ]
+          
+          for (const path of pwshPaths) {
+            try {
+              const exists = execSync(`if exist "${path}" echo yes`, { encoding: 'utf8' }).trim()
+              if (exists === 'yes') return path
+            } catch {}
+          }
+          // 回退到 cmd.exe
+          return 'C:\\Windows\\System32\\cmd.exe'
+          
         case 'cmd':
-          return 'cmd.exe'
-        case 'bash':
-          // WSL 或 Git Bash
-          const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe'
           try {
-            const exists = execSync(`if exist "${gitBash}" echo yes`, { encoding: 'utf8' }).trim()
-            if (exists === 'yes') return gitBash
+            const exists = execSync('if exist "C:\\Windows\\System32\\cmd.exe" echo yes', { encoding: 'utf8' }).trim()
+            if (exists === 'yes') return 'C:\\Windows\\System32\\cmd.exe'
           } catch {}
+          return 'cmd.exe'
+          
+        case 'bash':
+          // 尝试 Git Bash
+          const gitBashPaths = [
+            'C:\\Program Files\\Git\\bin\\bash.exe',
+            'C:\\Program Files (x86)\\Git\\bin\\bash.exe'
+          ]
+          
+          for (const path of gitBashPaths) {
+            try {
+              const exists = execSync(`if exist "${path}" echo yes`, { encoding: 'utf8' }).trim()
+              if (exists === 'yes') return path
+            } catch {}
+          }
+          
           // 尝试 WSL bash
           try {
             execSync('wsl which bash', { encoding: 'utf8' })
             return 'bash'
           } catch {}
-          return 'powershell.exe'
+          
+          // 回退到默认 shell
+          return this.getDefaultShell()
+          
         default:
-          return 'powershell.exe'
+          // 如果指定了具体路径，检查是否存在
+          try {
+            const exists = execSync(`if exist "${shellOption}" echo yes`, { encoding: 'utf8' }).trim()
+            if (exists === 'yes') return shellOption
+          } catch {}
+          // 回退到默认 shell
+          return this.getDefaultShell()
       }
     }
-    return shellOption === 'bash' ? '/bin/bash' : shellOption
+    
+    // Linux/macOS 平台
+    if (shellOption === 'bash') {
+      const bashPaths = ['/bin/bash', '/usr/bin/bash']
+      for (const path of bashPaths) {
+        try {
+          if (require('fs').existsSync(path)) {
+            return path
+          }
+        } catch {}
+      }
+      // 回退到 /bin/sh
+      return '/bin/sh'
+    }
+    
+    // 检查指定的 shell 是否存在
+    try {
+      if (require('fs').existsSync(shellOption)) {
+        return shellOption
+      }
+    } catch {}
+    
+    // 回退到默认 shell
+    return this.getDefaultShell()
   }
 
   /**
@@ -223,28 +315,33 @@ export class PTYSessionManager {
     try {
       if (isWindows) {
         // Windows 平台：使用 Node.js child_process.spawn
-        // 默认使用 PowerShell，因为它在非交互模式下表现更好
+        // 根据实际 shell 路径确定启动参数
         console.log(`[PTY] Windows 平台：使用 Node.js child_process, shell: ${shell}`)
 
         // 根据 shell 类型设置参数
         let shellArgs: string[] = []
         let actualShell = shell
 
-        if (shell === 'auto' || shell === 'powershell' || shell === 'auto') {
-          // PowerShell 模式：无启动画面、无配置文件
-          shellArgs = ['-NoLogo', '-NoProfile']
-          actualShell = 'powershell.exe'
-        } else if (shell === 'cmd') {
+        // 检测 shell 类型
+        const shellName = shell.toLowerCase()
+        
+        if (shellName.includes('powershell') || shellName.includes('pwsh')) {
+          // PowerShell 模式：无启动画面、无配置文件、非交互模式
+          shellArgs = ['-NoLogo', '-NoProfile', '-NonInteractive']
+          // 保留实际的 shell 路径
+          actualShell = shell
+        } else if (shellName.includes('cmd.exe')) {
+          // Command Prompt 模式
           shellArgs = ['/K']
-          actualShell = 'cmd.exe'
-        } else if (shell.includes('bash')) {
+          actualShell = shell
+        } else if (shellName.includes('bash')) {
           // Git Bash 模式
           shellArgs = ['--login', '-i']
-          actualShell = 'bash.exe'
+          actualShell = shell
         } else {
-          // 默认 PowerShell
-          shellArgs = ['-NoLogo', '-NoProfile']
-          actualShell = 'powershell.exe'
+          // 未知 shell 类型，使用默认参数
+          shellArgs = []
+          actualShell = shell
         }
 
         console.log(`[PTY] Windows spawn: ${actualShell} ${shellArgs.join(' ')}`)
@@ -253,7 +350,8 @@ export class PTYSessionManager {
           cwd,
           env: envVars,
           stdio: ['pipe', 'pipe', 'pipe'],
-          windowsHide: false
+          windowsHide: false,
+          shell: false // 不使用系统 shell 包装
         })
 
         // 监听 stdout

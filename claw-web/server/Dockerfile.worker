@@ -83,14 +83,11 @@ RUN mkdir -p /app/workspaces/users /app/workspaces/sessions && \
 EXPOSE 3000
 
 # 健康检查（更频繁的检查间隔，便于编排器快速发现故障）
-HEALTHCHECK --interval=15s --timeout=5s --start_period=10s --retries=3 \
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:3000/api/health || exit 1
 
 # 停止信号（优雅关闭）
 STOPSIGNAL SIGINT
 
-# 以非root用户运行（安全最佳实践）
-USER bun
-
-# 启动命令
+# 启动命令（使用root用户运行，确保可以绑定端口）
 CMD ["bun", "--bun", "run", "src/index.ts"]

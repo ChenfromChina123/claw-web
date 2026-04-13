@@ -25,9 +25,12 @@ const userNavEntries = computed(() => {
   for (const message of messages) {
     if (message.role === 'user') {
       userIndex++
-      const content = typeof message.content === 'string'
-        ? message.content
-        : JSON.stringify(message.content)
+      let content = ''
+      if ('content' in message) {
+        content = typeof message.content === 'string'
+          ? message.content
+          : JSON.stringify(message.content)
+      }
       const preview = content.slice(0, 40).replace(/\n/g, ' ') || '（空消息）'
       entries.push({
         id: message.id,

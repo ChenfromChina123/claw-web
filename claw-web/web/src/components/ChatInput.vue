@@ -925,7 +925,7 @@ defineExpose({
           @click="triggerFileSelect"
         >
           <template v-if="uploading">
-            <NSpin size="18" stroke="#6366f1" />
+            <NSpin :size="18" stroke="#6366f1" />
           </template>
           <template v-else>
             <NIcon :size="22" color="#6366f1">
@@ -964,7 +964,7 @@ defineExpose({
         <NButton
           class="prompt-library-button"
           :disabled="!sessionId || disabled"
-          @click="openPromptLibrary"
+          @click="openPromptLibraryInEditor"
         >
           <template #icon>
             <NIcon><ReorderFourOutline /></NIcon>

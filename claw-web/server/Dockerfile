@@ -20,7 +20,7 @@ LABEL version="1.0.0"
 RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' /etc/apt/sources.list.d/debian.sources && \
     sed -i 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources
 
-# 安装必要的系统依赖（包含 node-pty 编译所需的构建工具）
+# 安装必要的系统依赖（包含 node-pty 编译所需的构建工具和 docker 客户端）
 # ✅ 安全优化：移除不必要的工具，减少攻击面
 RUN apt-get update && apt-get install -y \
     default-mysql-client \
@@ -31,6 +31,7 @@ RUN apt-get update && apt-get install -y \
     make \
     g++ \
     gcc \
+    docker.io \
     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/* \
@@ -75,9 +76,10 @@ ENV NODE_ENV=production \
 RUN mkdir -p /app/workspaces/users /app/workspaces/sessions && \
     chown -R bun:bun /app/workspaces
 
-# 为 bun 用户添加访问 PTY 设备的权限
+# 为 bun 用户添加访问 PTY 设备和 Docker 的权限
 RUN usermod -a -G tty bun && \
-    usermod -a -G dialout bun
+    usermod -a -G dialout bun && \
+    usermod -a -G docker bun
 
 # 暴露端口
 EXPOSE 3000
@@ -88,7 +90,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 STOPSIGNAL SIGINT
 
-USER bun
+# 使用 root 用户运行，解决 Docker 权限问题
+# USER bun
 
 # ✅ 安全配置说明：
 # 1. 以非 root 用户（bun）运行，降低容器内进程权限

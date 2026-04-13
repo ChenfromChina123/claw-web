@@ -115,6 +115,8 @@ class ContainerOrchestrator {
   private portCounter: number = 0
   private healthCheckTimer: NodeJS.Timeout | null = null
   private cleanupTimer: NodeJS.Timeout | null = null
+  private lastContainerCreationTime: number = 0
+  private consecutiveFailures: number = 0
 
   constructor(config?: Partial<PoolConfig>) {
     this.config = { ...DEFAULT_POOL_CONFIG, ...config }
@@ -139,10 +141,31 @@ class ContainerOrchestrator {
         }
       }
 
-      // 预启动热容器池
+      // 确保网络存在
+      const networkCreated = await this.ensureNetworkExists()
+      if (!networkCreated) {
+        return {
+          success: false,
+          error: `无法创建或访问网络 ${this.config.networkName}`,
+          code: 'NETWORK_ERROR'
+        }
+      }
+
+      // 预启动热容器池（带间隔延迟，避免资源竞争）
       console.log(`[ContainerOrchestrator] 预启动 ${this.config.minPoolSize} 个热容器...`)
       for (let i = 0; i < this.config.minPoolSize; i++) {
-        await this.prewarmContainer()
+        const created = await this.prewarmContainer()
+        if (created) {
+          this.lastContainerCreationTime = Date.now()
+          this.consecutiveFailures = 0
+        } else {
+          this.consecutiveFailures++
+        }
+        // 每个容器之间等待10秒，避免同时创建导致资源竞争
+        if (i < this.config.minPoolSize - 1) {
+          console.log(`[ContainerOrchestrator] 等待10秒后创建下一个容器...`)
+          await new Promise(resolve => setTimeout(resolve, 10000))
+        }
       }
 
       // 启动健康检查定时任务
@@ -150,6 +173,7 @@ class ContainerOrchestrator {
 
       // 启动空闲清理定时任务
       this.startIdleCleanupLoop()
+      console.log('[ContainerOrchestrator] 健康检查和空闲清理已启用')
 
       console.log(`[ContainerOrchestrator] 初始化完成，当前热池大小: ${this.warmPool.size}`)
       return { success: true }
@@ -297,6 +321,18 @@ class ContainerOrchestrator {
         `-e USER_STORAGE_QUOTA_MB=200`,
         `-e USER_SESSION_LIMIT=5`,
         `-e MAX_USERS=1`,
+        // 数据库连接信息
+        `-e DB_HOST=mysql`,
+        `-e DB_PORT=3306`,
+        `-e DB_USER=claude_user`,
+        `-e DB_PASSWORD=userpassword123`,
+        `-e DB_NAME=claude_code_haha`,
+        // API密钥（从环境变量获取）
+        `-e ANTHROPIC_AUTH_TOKEN=${process.env.ANTHROPIC_AUTH_TOKEN || ''}`,
+        `-e ANTHROPIC_BASE_URL=${process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'}`,
+        // 网络配置
+        `-e HOST=0.0.0.0`,
+        `-e PORT=3000`,
         this.config.imageName
       ].join(' ')
 
@@ -318,17 +354,10 @@ class ContainerOrchestrator {
       // 加入热池
       this.warmPool.set(containerId, instance)
 
-      // 等待容器就绪并更新状态
-      setTimeout(async () => {
-        const healthy = await this.checkContainerHealth(containerId)
-        if (healthy) {
-          instance.status = 'idle'
-          console.log(`[ContainerOrchestrator] 热容器就绪: ${containerName} (端口: ${port})`)
-        } else {
-          instance.status = 'error'
-          console.error(`[ContainerOrchestrator] 热容器健康检查失败: ${containerName}`)
-        }
-      }, 5000) // 等待5秒让容器完全启动
+      // 异步等待容器就绪（不阻塞返回）
+      this.waitForContainerReady(containerId, instance).catch(err => {
+        console.error(`[ContainerOrchestrator] 容器 ${containerName} 就绪等待失败:`, err)
+      })
 
       return instance
 
@@ -336,6 +365,37 @@ class ContainerOrchestrator {
       console.error('[ContainerOrchestrator] 预启动容器失败:', error)
       return null
     }
+  }
+
+  /**
+   * 等待容器就绪
+   * @param containerId 容器ID
+   * @param instance 容器实例
+   */
+  private async waitForContainerReady(containerId: string, instance: ContainerInstance): Promise<void> {
+    const maxWaitMs = 90000  // 最多等待 90 秒
+    const start = Date.now()
+
+    while (Date.now() - start < maxWaitMs) {
+      // 检查容器是否还存在（可能已被健康检查循环销毁）
+      if (!this.warmPool.has(containerId)) {
+        console.log(`[ContainerOrchestrator] 容器 ${instance.containerName} 已被移除，停止就绪等待`)
+        return
+      }
+
+      const healthy = await this.checkContainerHealth(containerId)
+      if (healthy) {
+        instance.status = 'idle'
+        console.log(`[ContainerOrchestrator] 热容器就绪: ${instance.containerName} (端口: ${instance.hostPort})`)
+        return
+      }
+      await new Promise(resolve => setTimeout(resolve, 3000))  // 3 秒重试
+    }
+
+    // 超时标记错误并销毁
+    instance.status = 'error'
+    console.error(`[ContainerOrchestrator] 容器启动超时: ${instance.containerName}`)
+    await this.destroyContainer(containerId)
   }
 
   /**
@@ -480,18 +540,50 @@ class ContainerOrchestrator {
    */
   async destroyContainer(containerId: string): Promise<boolean> {
     try {
+      // 检查容器是否存在
+      try {
+        await execAsync(`docker inspect ${containerId}`)
+      } catch (error) {
+        console.warn(`[ContainerOrchestrator] 容器不存在，跳过销毁: ${containerId}`)
+        // 从所有数据结构中移除
+        this.warmPool.delete(containerId)
+        // 从用户映射中移除
+        for (const [userId, mapping] of this.userMappings) {
+          if (mapping.container.containerId === containerId) {
+            this.userMappings.delete(userId)
+            break
+          }
+        }
+        return true
+      }
+
       // 停止并删除容器
       await execAsync(`docker stop -t 5 ${containerId}`)
       await execAsync(`docker rm ${containerId}`)
 
       // 从所有数据结构中移除
       this.warmPool.delete(containerId)
+      // 从用户映射中移除
+      for (const [userId, mapping] of this.userMappings) {
+        if (mapping.container.containerId === containerId) {
+          this.userMappings.delete(userId)
+          break
+        }
+      }
 
       console.log(`[ContainerOrchestrator] 容器已销毁: ${containerId}`)
       return true
 
     } catch (error) {
       console.error(`[ContainerOrchestrator] 销毁容器失败 (${containerId}):`, error)
+      // 即使销毁失败，也要从内存中移除容器记录
+      this.warmPool.delete(containerId)
+      for (const [userId, mapping] of this.userMappings) {
+        if (mapping.container.containerId === containerId) {
+          this.userMappings.delete(userId)
+          break
+        }
+      }
       return false
     }
   }
@@ -503,6 +595,14 @@ class ContainerOrchestrator {
    */
   async checkContainerHealth(containerId: string): Promise<boolean> {
     try {
+      // 检查容器是否存在
+      try {
+        await execAsync(`docker inspect ${containerId}`)
+      } catch (error) {
+        console.warn(`[ContainerOrchestrator] 容器不存在，健康检查失败: ${containerId}`)
+        return false
+      }
+
       // 先检查容器运行状态
       const { stdout: inspectOutput } = await execAsync(
         `docker inspect --format='{{.State.Running}}' ${containerId}`
@@ -518,18 +618,23 @@ class ContainerOrchestrator {
         return false
       }
 
-      // 尝试访问健康检查接口
+      // 使用Docker exec在容器内部执行健康检查
+      // 这样可以避免网络映射问题
       try {
-        const response = await fetch(`http://localhost:${container.hostPort}/api/health`, {
-          method: 'GET',
-          signal: AbortSignal.timeout(3000) // 3秒超时
-        })
-        return response.ok
-      } catch {
-        // HTTP请求失败，但容器仍在运行，视为亚健康
-        console.warn(`[ContainerOrchestrator] 容器 ${containerId} 健康检查HTTP请求失败`)
-        return false
+        const { stdout: healthOutput } = await execAsync(
+          `docker exec ${containerId} curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health || echo "000"`
+        )
+        const statusCode = parseInt(healthOutput.trim(), 10)
+        // 只要HTTP服务器能够响应（状态码小于500），就认为容器健康
+        if (statusCode > 0 && statusCode < 500) {
+          return true
+        }
+      } catch (execError) {
+        // Docker exec失败，容器可能还在启动中
+        console.warn(`[ContainerOrchestrator] 容器 ${containerId} 健康检查Docker exec失败`)
       }
+
+      return false
 
     } catch (error) {
       console.error(`[ContainerOrchestrator] 健康检查异常 (${containerId}):`, error)
@@ -616,10 +721,48 @@ class ContainerOrchestrator {
    */
   private async checkDockerAvailability(): Promise<boolean> {
     try {
+      // 尝试多种方式检测Docker
+      // 1. 直接执行docker命令
       await execAsync('docker info')
       return true
-    } catch {
+    } catch (error) {
+      console.warn('[ContainerOrchestrator] Docker命令执行失败:', error)
+      
+      try {
+        // 2. 检查Docker socket文件是否存在
+        const fs = require('fs')
+        const socketPath = '/var/run/docker.sock'
+        if (fs.existsSync(socketPath)) {
+          console.log('[ContainerOrchestrator] Docker socket存在，假设Docker可用')
+          return true
+        }
+      } catch (error) {
+        console.warn('[ContainerOrchestrator] 检查Docker socket失败:', error)
+      }
+      
       return false
+    }
+  }
+
+  /**
+   * 检查并创建Docker网络（如果不存在）
+   */
+  private async ensureNetworkExists(): Promise<boolean> {
+    try {
+      // 检查网络是否存在
+      await execAsync(`docker network inspect ${this.config.networkName}`)
+      console.log(`[ContainerOrchestrator] 网络 ${this.config.networkName} 已存在`)
+      return true
+    } catch (error) {
+      // 网络不存在，创建网络
+      try {
+        await execAsync(`docker network create ${this.config.networkName}`)
+        console.log(`[ContainerOrchestrator] 网络 ${this.config.networkName} 创建成功`)
+        return true
+      } catch (error) {
+        console.error(`[ContainerOrchestrator] 创建网络 ${this.config.networkName} 失败:`, error)
+        return false
+      }
     }
   }
 
@@ -725,15 +868,26 @@ class ContainerOrchestrator {
   private startHealthCheckLoop(): void {
     this.healthCheckTimer = setInterval(async () => {
       // 检查热池容器
+      const containersToRemove: string[] = []
       for (const [containerId, container] of this.warmPool) {
-        if (container.status !== 'idle') continue
+        const ageMs = Date.now() - container.createdAt.getTime()
+
+        // 创建后 60 秒内不检查（除非状态已标记为 error）
+        if (ageMs < 60000 && container.status !== 'error') {
+          continue
+        }
 
         const isHealthy = await this.checkContainerHealth(containerId)
         if (!isHealthy) {
-          console.warn(`[ContainerOrchestrator] 发现不健康的热容器: ${container.containerName}`)
-          container.status = 'error'
-          // 可以选择自动销毁并重建
+          console.warn(`[ContainerOrchestrator] 发现不健康的热容器: ${container.containerName}，正在销毁...`)
+          containersToRemove.push(containerId)
         }
+      }
+
+      // 移除不健康的容器
+      for (const containerId of containersToRemove) {
+        await this.destroyContainer(containerId)
+        this.consecutiveFailures++
       }
 
       // 检查用户容器
@@ -745,12 +899,35 @@ class ContainerOrchestrator {
         }
       }
 
-      // 补充热池到最小数量
-      while (this.warmPool.size < this.config.minPoolSize) {
-        await this.prewarmContainer()
-      }
+      // 补充热池到最小数量（带冷却期与指数退避）
+      await this.replenishWarmPool()
 
     }, this.config.healthCheckIntervalMs)
+  }
+
+  /**
+   * 补充热池到最小数量（带冷却期与指数退避）
+   */
+  private async replenishWarmPool(): Promise<void> {
+    const now = Date.now()
+    // 指数退避：连续失败越多，冷却时间越长，最多5分钟
+    const minInterval = Math.min(30000 * (this.consecutiveFailures + 1), 300000)
+
+    if (now - this.lastContainerCreationTime < minInterval) {
+      return  // 冷却中，暂不补充
+    }
+
+    while (this.warmPool.size < this.config.minPoolSize) {
+      const created = await this.prewarmContainer()
+      if (created) {
+        this.lastContainerCreationTime = Date.now()
+        this.consecutiveFailures = 0  // 重置失败计数
+        break  // 一次只创建一个容器
+      } else {
+        this.consecutiveFailures++
+        break  // 失败后等待下次定时器重试
+      }
+    }
   }
 
   /**

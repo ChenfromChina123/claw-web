@@ -188,7 +188,8 @@ function showDeleteConfirm(path: string, isDirectory: boolean): void {
 /**
  * 在树中查找节点
  */
-function findNodeByKey(nodes: any[], key: string): any {
+function findNodeByKey(nodes: any[] | undefined, key: string): any {
+  if (!nodes) return null
   for (const node of nodes) {
     if (node.key === key) return node
     if (node.children && node.children.length > 0) {

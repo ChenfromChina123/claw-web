@@ -173,6 +173,21 @@ export async function startServer(): Promise<void> {
     console.warn('[Plugin] Failed to initialize plugin system:', error)
   }
 
+  // Initialize Container Orchestrator
+  try {
+    console.log('\n[ContainerOrchestrator] Initializing container orchestrator...')
+    const { getContainerOrchestrator } = await import('../orchestrator/containerOrchestrator')
+    const orchestrator = getContainerOrchestrator()
+    const initResult = await orchestrator.initialize()
+    if (initResult.success) {
+      console.log('[ContainerOrchestrator] Container orchestrator initialized successfully')
+    } else {
+      console.warn('[ContainerOrchestrator] Failed to initialize:', initResult.error)
+    }
+  } catch (error) {
+    console.warn('[ContainerOrchestrator] Failed to initialize:', error)
+  }
+
   // Initialize PTY Bridge
   console.log('[PTY] Initializing PTY Bridge...')
   wsPTYBridge

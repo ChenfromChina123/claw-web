@@ -588,7 +588,7 @@ function toolsForMessage(messageId: string): ToolCall[] {
 /**
  * 从消息内容中提取纯文本（处理多种格式）
  */
-function getMessageText(content: any): string {
+function getMessageText(content: unknown): string {
   // 情况1：null 或 undefined
   if (!content) {
     return ''
@@ -624,12 +624,12 @@ function getMessageText(content: any): string {
   // 情况4：对象格式（可能有 text 属性）
   if (typeof content === 'object') {
     // 如果有 text 属性
-    if (content.text && typeof content.text === 'string') {
-      return content.text
+    if ('text' in content && typeof (content as any).text === 'string') {
+      return (content as any).text
     }
     // 如果有 content 属性（嵌套结构）
-    if (content.content) {
-      return getMessageText(content.content)
+    if ('content' in content) {
+      return getMessageText((content as any).content)
     }
     // 兜底：转换为 JSON 字符串显示
     try {
