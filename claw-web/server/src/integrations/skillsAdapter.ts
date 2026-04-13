@@ -52,6 +52,7 @@ export interface Command {
   name: string
   description: string
   hasUserSpecifiedDescription?: boolean
+  aliases?: string[]
   allowedTools?: string[]
   argumentHint?: string
   argNames?: string[]
@@ -60,6 +61,7 @@ export interface Command {
   model?: string
   disableModelInvocation?: boolean
   userInvocable?: boolean
+  isEnabled?: () => boolean
   context?: 'inline' | 'fork'
   agent?: string
   effort?: string
