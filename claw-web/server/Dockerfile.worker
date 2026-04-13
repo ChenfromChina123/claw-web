@@ -22,13 +22,19 @@ LABEL role="worker"
 RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' /etc/apt/sources.list.d/debian.sources && \
     sed -i 's|http://security.debian.org-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources
 
-# 安装最小化系统依赖（移除编译工具以减小镜像体积）
+# 安装系统依赖和进程管理器
 RUN apt-get update && apt-get install -y --no-install-recommends \
     default-mysql-client \
     curl \
     tzdata \
+    supervisor \
+    nodejs \
+    npm \
+    procps \
+    net-tools \
     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone \
+    && npm install -g pm2 \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/apt/archives/* \
     && apt-get clean \
@@ -45,6 +51,9 @@ RUN bun install --production  # 生产环境跳过开发依赖
 
 # 复制源代码
 COPY server/ .
+
+# 复制 Supervisor 主配置文件
+COPY server/config/supervisord.conf /etc/supervisor/supervisord.conf
 
 # 清理环境变量文件（防止覆盖docker-compose设置）
 RUN rm -f .env .env.local .env.*.local 2>/dev/null || true && \
@@ -75,9 +84,14 @@ ENV NODE_ENV=production \
     # 容器标识
     CONTAINER_ROLE=worker
 
-# 创建工作区目录结构
-RUN mkdir -p /app/workspaces/users /app/workspaces/sessions && \
-    chown -R bun:bun /app/workspaces
+# 创建工作区目录结构、Supervisor 配置目录和日志目录
+RUN mkdir -p /app/workspaces/users \
+             /app/workspaces/sessions \
+             /app/workspaces/projects \
+             /app/logs \
+             /etc/supervisor/conf.d \
+             /var/log/supervisor \
+    && chown -R bun:bun /app/workspaces /app/logs
 
 # 暴露端口
 EXPOSE 3000
