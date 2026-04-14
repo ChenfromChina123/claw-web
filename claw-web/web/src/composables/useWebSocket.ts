@@ -106,6 +106,7 @@ class EnhancedWebSocketClient {
 
           // 优先使用传入的token，否则使用保存的token（用于重连）
           const authToken = token || this.currentToken
+          console.log(`[WS] onopen: token param=${!!token}, currentToken=${!!this.currentToken}, using=${authToken ? 'login' : 'register'}`)
           if (authToken) {
             this.send({ type: 'login' as WebSocketMessageType, token: authToken })
           } else {
@@ -137,14 +138,17 @@ class EnhancedWebSocketClient {
         }
 
         this.ws.onclose = (event) => {
-          console.log(`[WS] Disconnected (code: ${event.code})`)
+          console.log(`[WS] Disconnected (code: ${event.code}, reason: ${event.reason}, wasClean: ${event.wasClean})`)
           this.status.value = 'disconnected'
           this.isConnected.value = false
           this.stopHeartbeat()
           this.connectInFlight = null
 
           if (!this.manualClose) {
+            console.log('[WS] Connection closed unexpectedly, attempting reconnect...')
             this.attemptReconnect()
+          } else {
+            console.log('[WS] Connection closed manually, not reconnecting')
           }
         }
       } catch (error) {
