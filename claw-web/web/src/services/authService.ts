@@ -24,9 +24,17 @@ export function decodeToken(token: string): DecodedToken {
 export function isTokenValid(token: string): boolean {
   try {
     const decoded = decodeToken(token)
+    console.log('[AuthService] Decoded token:', { 
+      userId: decoded.userId, 
+      exp: decoded.exp, 
+      currentTime: Date.now() / 1000 
+    })
     const currentTime = Date.now() / 1000
-    return !!decoded.exp && decoded.exp > currentTime
-  } catch {
+    const isValid = !!decoded.exp && decoded.exp > currentTime
+    console.log('[AuthService] Token validation:', { isValid, exp: decoded.exp, currentTime })
+    return isValid
+  } catch (error) {
+    console.error('[AuthService] Token validation error:', error)
     return false
   }
 }

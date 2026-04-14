@@ -721,7 +721,7 @@ class ContainerOrchestrator {
   }
 
   /**
-   * 在容器销毁前创建快照
+   * 在容器销毁前创建快照（使用增强型快照服务）
    */
   private async createSnapshotBeforeDestroy(containerId: string): Promise<void> {
     try {
@@ -745,21 +745,24 @@ class ContainerOrchestrator {
         return
       }
 
-      // 延迟导入避免循环依赖
-      const { getWorkSnapshotService } = await import('../services/workSnapshotService')
-      const snapshotService = getWorkSnapshotService()
+      // 使用增强型快照服务
+      const { getEnhancedSnapshotService } = await import('../services/enhancedSnapshotService')
+      const snapshotService = getEnhancedSnapshotService()
 
-      await snapshotService.createSnapshot({
+      // 获取上次快照作为基础（用于增量备份）
+      const lastSnapshot = await snapshotService.getLatestSnapshot(sessionId)
+
+      const metadata = await snapshotService.createSnapshot({
         userId,
         sessionId,
         containerId,
         snapshotType: 'final',
-        includeProcessState: true,
+        baseSnapshotId: lastSnapshot?.id, // 使用增量备份
         includeGitState: true,
         includeExecutionState: true
       })
 
-      console.log(`[ContainerOrchestrator] 容器销毁前快照已保存: ${containerId}`)
+      console.log(`[ContainerOrchestrator] 容器销毁前快照已保存: ${containerId}, 快照ID=${metadata.id}, 大小=${metadata.sizeBytes}`)
     } catch (error) {
       console.error(`[ContainerOrchestrator] 创建销毁前快照失败 (${containerId}):`, error)
       // 快照失败不阻止容器销毁，但记录错误

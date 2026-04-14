@@ -72,12 +72,27 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token')
-  const isTokenValid = token ? checkLoginStatus() : false
+  console.log('[Router] beforeEach:', to.path, 'token exists:', !!token)
+  
+  let isTokenValid = false
+  if (token) {
+    try {
+      isTokenValid = checkLoginStatus()
+      console.log('[Router] Token validation result:', isTokenValid)
+    } catch (error) {
+      console.error('[Router] Token validation error:', error)
+      isTokenValid = false
+    }
+  }
+  
+  console.log('[Router] isTokenValid:', isTokenValid, 'requiresAuth:', to.meta.requiresAuth)
   
   if (to.meta.requiresAuth && !isTokenValid) {
+    console.warn('[Router] Redirecting to login due to invalid token')
     localStorage.removeItem('token')
     next('/login')
   } else if ((to.path === '/login' || to.path === '/register' || to.path === '/forgot-password') && isTokenValid) {
+    console.log('[Router] Redirecting to chat (already logged in)')
     next('/chat')
   } else {
     next()
