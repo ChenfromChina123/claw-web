@@ -9,10 +9,12 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
+import { exec } from 'child_process'
+import { promisify } from 'util'
 import { getPool } from '../db/mysql'
-import { execAsync, getContainerWorkdir } from '../utils/process'
-import { getLogger } from '../utils/logger'
+import { getLogger } from '../monitoring/structuredLogger'
 
+const execAsync = promisify(exec)
 const logger = getLogger('WorkSnapshotService')
 
 export type SnapshotType = 'realtime' | 'checkpoint' | 'final'
