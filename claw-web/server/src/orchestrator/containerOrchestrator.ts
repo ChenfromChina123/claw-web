@@ -572,6 +572,9 @@ class ContainerOrchestrator {
         return true
       }
 
+      // 销毁前：尝试保存工作快照
+      await this.createSnapshotBeforeDestroy(containerId)
+
       // 停止并删除容器
       await execAsync(`docker stop -t 5 ${containerId}`)
       await execAsync(`docker rm ${containerId}`)
@@ -600,6 +603,52 @@ class ContainerOrchestrator {
         }
       }
       return false
+    }
+  }
+
+  /**
+   * 在容器销毁前创建快照
+   */
+  private async createSnapshotBeforeDestroy(containerId: string): Promise<void> {
+    try {
+      const container = this.warmPool.get(containerId)
+      if (!container) return
+
+      // 查找对应的用户
+      let userId: string | null = null
+      let sessionId: string | null = null
+
+      for (const [uid, mapping] of this.userMappings) {
+        if (mapping.container.containerId === containerId) {
+          userId = uid
+          sessionId = mapping.sessionId
+          break
+        }
+      }
+
+      if (!userId || !sessionId) {
+        console.log(`[ContainerOrchestrator] 无法找到容器对应的用户，跳过快照: ${containerId}`)
+        return
+      }
+
+      // 延迟导入避免循环依赖
+      const { getWorkSnapshotService } = await import('../services/workSnapshotService')
+      const snapshotService = getWorkSnapshotService()
+
+      await snapshotService.createSnapshot({
+        userId,
+        sessionId,
+        containerId,
+        snapshotType: 'final',
+        includeProcessState: true,
+        includeGitState: true,
+        includeExecutionState: true
+      })
+
+      console.log(`[ContainerOrchestrator] 容器销毁前快照已保存: ${containerId}`)
+    } catch (error) {
+      console.error(`[ContainerOrchestrator] 创建销毁前快照失败 (${containerId}):`, error)
+      // 快照失败不阻止容器销毁，但记录错误
     }
   }
 

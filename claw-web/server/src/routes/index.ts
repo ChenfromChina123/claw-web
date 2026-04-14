@@ -38,7 +38,10 @@ export { handlePromptTemplateRoutes, default as promptTemplateRoutes } from './p
 export { handleSkillRoutes, handleSkillImportRoutes, default as skillRoutes } from './skills.routes'
 
 // 用户等级管理路由
-export { default as userTierRoutes } from './userTier.routes'
+export { handleUserTierRoutes, default as userTierRoutes } from './userTier.routes'
+
+// 快照管理路由
+export { default as snapshotRoutes, handleSnapshotRoutes } from './snapshot.routes'
 
 import type { Request, Response } from 'express'
 
@@ -75,7 +78,10 @@ const routeHandlers = [
   (req: Request) => import('./promptTemplate.routes').then(m => m.handlePromptTemplateRoutes(req)),
 
   // 用户等级管理相关
-  (req: Request) => import('./userTier.routes').then(m => m.default(req as any, {} as any)),
+  (req: Request) => import('./userTier.routes').then(m => m.handleUserTierRoutes(req)),
+
+  // 快照管理相关
+  (req: Request) => import('./snapshot.routes').then(m => m.handleSnapshotRoutes(req)),
 
   // 技能导入相关（放在最后，作为通用处理器）
   (req: Request) => import('./skills.routes').then(m => m.handleSkillImportRoutes(req)),

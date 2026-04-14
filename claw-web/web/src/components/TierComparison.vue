@@ -11,7 +11,7 @@ import {
 } from 'naive-ui'
 import { 
   CheckmarkOutline, CloseOutline, StarOutline,
-  RocketOutline, DiamondOutline, CrownOutline
+  RocketOutline, DiamondOutline, MedalOutline
 } from '@vicons/ionicons5'
 import { userTierApi, UserTier, type HardwareQuota } from '@/api/userTierApi'
 
@@ -33,8 +33,8 @@ const tierIcons: Record<UserTier, any> = {
   [UserTier.FREE]: StarOutline,
   [UserTier.BASIC]: RocketOutline,
   [UserTier.PRO]: DiamondOutline,
-  [UserTier.ENTERPRISE]: CrownOutline,
-  [UserTier.ADMIN]: CrownOutline
+  [UserTier.ENTERPRISE]: MedalOutline,
+  [UserTier.ADMIN]: MedalOutline
 }
 
 const tierPrices: Record<UserTier, { price: string; period: string }> = {
