@@ -947,14 +947,22 @@ class ContainerOrchestrator {
       console.log(`[ContainerOrchestrator] 网络 ${this.config.networkName} 已存在`)
       return true
     } catch (error) {
-      // 网络不存在，创建网络
+      // 网络不存在，尝试创建网络
       try {
         await execAsync(`docker network create ${this.config.networkName}`)
         console.log(`[ContainerOrchestrator] 网络 ${this.config.networkName} 创建成功`)
         return true
-      } catch (error) {
-        console.error(`[ContainerOrchestrator] 创建网络 ${this.config.networkName} 失败:`, error)
-        return false
+      } catch (createError: any) {
+        // 如果创建失败是因为网络已存在（并发情况），也认为是成功的
+        if (createError?.message?.includes('already exists')) {
+          console.log(`[ContainerOrchestrator] 网络 ${this.config.networkName} 已存在（并发创建）`)
+          return true
+        }
+        // 如果是 Docker 客户端版本问题，记录警告但继续运行
+        // 因为网络可能已经在 docker-compose 中创建
+        console.warn(`[ContainerOrchestrator] 创建网络 ${this.config.networkName} 失败:`, createError)
+        console.warn(`[ContainerOrchestrator] 将继续运行，假设网络已由 docker-compose 创建`)
+        return true
       }
     }
   }

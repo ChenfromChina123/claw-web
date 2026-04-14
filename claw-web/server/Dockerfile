@@ -24,7 +24,7 @@ RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
         sed -i 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list; \
     fi
 
-# 安装必要的系统依赖（包含 node-pty 编译所需的构建工具和 docker 客户端）
+# 安装必要的系统依赖（包含 node-pty 编译所需的构建工具）
 # ✅ 安全优化：移除不必要的工具，减少攻击面
 RUN apt-get update && apt-get install -y \
     default-mysql-client \
@@ -35,11 +35,19 @@ RUN apt-get update && apt-get install -y \
     make \
     g++ \
     gcc \
-    docker.io \
+    ca-certificates \
+    gnupg \
+    lsb-release \
     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/apt/archives/*
+
+# 安装最新版 Docker CLI（直接下载二进制文件）
+RUN curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-27.3.1.tgz" -o docker.tgz \
+    && tar -xzf docker.tgz --strip-components=1 -C /usr/local/bin docker/docker \
+    && rm docker.tgz \
+    && docker --version
 
 WORKDIR /app
 
