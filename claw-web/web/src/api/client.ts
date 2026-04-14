@@ -61,8 +61,26 @@ class ApiClient {
 
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true
-          localStorage.removeItem('token')
-          window.location.href = '/login'
+          // 只在明确是登录/认证请求失败时才清除token并跳转
+          // 其他请求的401可能是token过期，需要刷新或重新登录
+          const url = originalRequest.url || ''
+          const isAuthRequest = url.includes('/auth/login') || url.includes('/auth/register')
+          
+          if (isAuthRequest) {
+            // 登录/注册请求失败，不需要清除token
+            return Promise.reject(this.normalizeError(error))
+          }
+          
+          // 其他请求401，可能是token过期
+          // 检查token是否还存在
+          const currentToken = localStorage.getItem('token')
+          if (currentToken) {
+            // token存在但请求返回401，可能是token过期
+            // 清除token并跳转到登录页面
+            console.warn('[apiClient] Token expired or invalid, redirecting to login')
+            localStorage.removeItem('token')
+            window.location.href = '/login'
+          }
           return Promise.reject(error)
         }
 
