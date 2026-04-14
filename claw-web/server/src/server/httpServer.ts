@@ -225,6 +225,22 @@ export async function startServer(): Promise<void> {
       }
 
       // 处理 HTTP 请求
+      // 简单的健康检查端点（不需要认证，在路由处理之前）
+      if (path === '/api/health' && method === 'GET') {
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            status: 'healthy',
+            version: '1.0.0',
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+            role: process.env.CONTAINER_ROLE || 'unknown'
+          }
+        }), {
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
       const response = await handleRequest(req)
       if (response !== null) {
         return response
