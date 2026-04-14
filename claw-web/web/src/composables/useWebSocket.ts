@@ -74,14 +74,17 @@ class EnhancedWebSocketClient {
       return Promise.resolve()
     }
 
-    // 防止并发 connect() 创建多个 WebSocket（例如 ChatStore 与 PTY 同时触发）
-    if (this.connectInFlight) {
-      return this.connectInFlight
-    }
-
-    // 保存token用于重连
+    // 保存token用于重连（必须在检查 connectInFlight 之前保存）
     if (token) {
       this.currentToken = token
+      console.log('[WS] Token saved for connection/reconnection')
+    }
+
+    // 防止并发 connect() 创建多个 WebSocket（例如 ChatStore 与 PTY 同时触发）
+    // 如果有token且正在连接中，继续等待现有连接完成（因为token已保存）
+    if (this.connectInFlight) {
+      console.log('[WS] Connection already in progress, waiting for it to complete...')
+      return this.connectInFlight
     }
 
     this.connectInFlight = new Promise((resolve, reject) => {

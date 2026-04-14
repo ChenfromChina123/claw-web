@@ -63,11 +63,21 @@ export function usePTY(options: PTYOptions = {}) {
     error.value = null
 
     try {
-      // 等待 WebSocket 连接（与 Chat 共用单例，须带登录 token，避免子组件先于父组件连上导致匿名连接）
+      // 等待 WebSocket 连接完成（由 Chat 组件负责连接，PTY 只等待）
+      // 避免子组件先于父组件连上导致匿名连接
       if (!wsClient.isConnected.value) {
-        const token = useAuthStore().token || undefined
-        console.log('[PTY] WebSocket not connected, connecting...', token ? '(with token)' : '(anonymous)')
-        await wsClient.connect(token)
+        console.log('[PTY] Waiting for WebSocket connection...')
+        // 等待最多 10 秒
+        let attempts = 0
+        const maxAttempts = 100 // 100 * 100ms = 10s
+        while (!wsClient.isConnected.value && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+          attempts++
+        }
+        if (!wsClient.isConnected.value) {
+          throw new Error('WebSocket connection timeout')
+        }
+        console.log('[PTY] WebSocket connected')
       }
 
       const result = await wsClient.callRPC<{
