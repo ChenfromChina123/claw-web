@@ -1,120 +1,139 @@
 /**
- * 性能监控 API 接口
- * 提供 REST API 调用方式，与 WebSocket RPC 互补
+ * 性能监控 API 服务
+ *
+ * 提供系统性能监控相关的 API 调用
  */
 
-import apiClient from './client'
-import { unwrapApiData } from './unwrapApiResponse'
-import type { ApiResponse } from '@/types'
+import { request } from './request'
 
-export interface MonitoringMetrics {
-  uptime: number
-  memory: {
-    heapUsed: number
-    heapTotal: number
-    external: number
-    rss: number
+/**
+ * 系统健康状态
+ */
+export interface HealthStatus {
+  status: 'healthy' | 'degraded'
+  components: {
+    database: { status: string; message: string }
+    docker: { status: string; message: string }
+    disk: { status: string; message: string; usage?: number }
   }
+  timestamp: string
+}
+
+/**
+ * 资源使用情况
+ */
+export interface ResourceUsage {
   cpu: {
-    usage: number
-    cores: number
+    usagePercent: number
+    coreCount: number
+    model: string
+    loadAverage: number[]
   }
-  requests: {
-    total: number
-    success: number
-    failed: number
-    avgDuration: number
+  memory: {
+    totalBytes: number
+    usedBytes: number
+    freeBytes: number
+    usagePercent: string
   }
-  tools: {
-    total: number
-    success: number
-    failed: number
-    avgDuration: number
+  process: {
+    count: number
   }
-  connections: {
-    websocket: number
-    activeSessions: number
-  }
+  timestamp: string
 }
 
-export interface LogEntry {
+/**
+ * 容器信息
+ */
+export interface ContainerInfo {
   id: string
-  level: string
-  message: string
-  timestamp: number
-  source?: string
+  name: string
+  status: string
+  state: string
+  image: string
+  created: string
+  ports: string
+  cpu?: string
+  memUsage?: string
+  memPerc?: string
 }
 
-export interface AlertEntry {
-  id: string
-  ruleName: string
-  metric: string
-  value: number
-  threshold: number
-  timestamp: number
-  acknowledged: boolean
+/**
+ * 容器状态
+ */
+export interface ContainerStatus {
+  containers: ContainerInfo[]
+  total: number
+  running: number
+  stopped: number
+  timestamp: string
 }
 
-export interface MonitoringLogsResponse {
-  data: LogEntry[]
-  count: number
+/**
+ * 性能统计
+ */
+export interface PerformanceStats {
+  database: {
+    queries: number
+    connections: number
+    slowQueries: number
+  }
+  containers: {
+    running: number
+  }
+  system: {
+    loadAverage: number[]
+    cpuCount: number
+  }
+  timestamp: string
 }
 
-export interface MonitoringAlertsResponse {
-  data: AlertEntry[]
-  count: number
+/**
+ * 获取系统健康状态
+ */
+export async function getHealthStatus(): Promise<HealthStatus> {
+  const response = await request.get<HealthStatus>('/api/monitoring/health')
+  return response.data
 }
 
-export interface AcknowledgeAlertRequest {
-  alertId: string
+/**
+ * 获取资源使用情况
+ */
+export async function getResourceUsage(): Promise<ResourceUsage> {
+  const response = await request.get<ResourceUsage>('/api/monitoring/resources')
+  return response.data
 }
 
-export interface AcknowledgeAlertResponse {
-  message: string
+/**
+ * 获取容器状态
+ */
+export async function getContainerStatus(): Promise<ContainerStatus> {
+  const response = await request.get<ContainerStatus>('/api/monitoring/containers')
+  return response.data
 }
 
-export const monitoringApi = {
-  /**
-   * 获取性能指标
-   */
-  async getMetrics(): Promise<MonitoringMetrics> {
-    const { data } = await apiClient.get<ApiResponse<MonitoringMetrics>>('/monitoring/metrics')
-    return unwrapApiData(data)
-  },
-
-  /**
-   * 获取日志列表
-   * @param limit 日志数量限制，默认 50
-   */
-  async getLogs(limit: number = 50): Promise<LogEntry[]> {
-    const { data } = await apiClient.get<ApiResponse<LogEntry[]>>('/monitoring/logs', {
-      params: { limit }
-    })
-    return unwrapApiData(data)
-  },
-
-  /**
-   * 获取告警列表
-   * @param unacknowledged 是否只获取未确认的告警
-   */
-  async getAlerts(unacknowledged: boolean = true): Promise<AlertEntry[]> {
-    const { data } = await apiClient.get<ApiResponse<AlertEntry[]>>('/monitoring/alerts', {
-      params: { unacknowledged }
-    })
-    return unwrapApiData(data)
-  },
-
-  /**
-   * 确认告警
-   * @param alertId 告警 ID
-   */
-  async acknowledgeAlert(alertId: string): Promise<AcknowledgeAlertResponse> {
-    const { data } = await apiClient.post<ApiResponse<AcknowledgeAlertResponse>>(
-      '/monitoring/alerts/acknowledge',
-      { alertId }
-    )
-    return unwrapApiData(data)
-  },
+/**
+ * 获取性能统计
+ */
+export async function getPerformanceStats(): Promise<PerformanceStats> {
+  const response = await request.get<PerformanceStats>('/api/monitoring/performance')
+  return response.data
 }
 
-export default monitoringApi
+/**
+ * 格式化字节数为可读字符串
+ */
+export function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+/**
+ * 格式化百分比
+ */
+export function formatPercent(value: string | number): string {
+  if (typeof value === 'string') return value
+  return value.toFixed(1) + '%'
+}

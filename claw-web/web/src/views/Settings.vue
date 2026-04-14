@@ -8,6 +8,7 @@ import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import UserQuotaPanel from '@/components/UserQuotaPanel.vue'
 import TierComparison from '@/components/TierComparison.vue'
 import UserManagement from '@/components/UserManagement.vue'
+import MonitoringPanel from '@/components/MonitoringPanel.vue'
 
 /**
  * 是否为内嵌模式（在编辑器标签页中显示）
@@ -21,7 +22,7 @@ const message = useMessage()
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 
-type SettingsSection = 'general' | 'model' | 'agent' | 'visualization' | 'account' | 'quota' | 'tiers' | 'users'
+type SettingsSection = 'general' | 'model' | 'agent' | 'visualization' | 'account' | 'quota' | 'tiers' | 'users' | 'monitoring'
 
 const activeSection = ref<SettingsSection>('general')
 
@@ -32,6 +33,7 @@ const navItems: { key: SettingsSection; label: string; adminOnly?: boolean }[] =
   { key: 'visualization', label: '可视化' },
   { key: 'quota', label: '我的配额' },
   { key: 'tiers', label: '套餐对比' },
+  { key: 'monitoring', label: '性能监控', adminOnly: true },
   { key: 'users', label: '用户管理', adminOnly: true },
   { key: 'account', label: '账户' },
 ]
@@ -226,6 +228,10 @@ onMounted(() => {
 
       <div v-show="activeSection === 'users' && isAdmin" class="settings-users-section">
         <UserManagement />
+      </div>
+
+      <div v-show="activeSection === 'monitoring' && isAdmin" class="settings-monitoring-section">
+        <MonitoringPanel />
       </div>
 
       <NCard v-show="activeSection === 'account'" title="账户" :size="embedded ? 'small' : 'medium'">
