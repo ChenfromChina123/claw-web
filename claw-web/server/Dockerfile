@@ -8,7 +8,7 @@
 # ✅ 生产级安全配置
 
 # 使用华为云镜像加速
-FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/oven/bun:1 AS production
+FROM oven/bun:1 AS production
 
 # 元数据标签
 LABEL maintainer="Claude Code HAHA Team"

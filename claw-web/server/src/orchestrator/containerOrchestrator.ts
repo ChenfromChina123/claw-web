@@ -402,8 +402,8 @@ class ContainerOrchestrator {
       const port = await this.allocatePort()
 
       // 构建Docker运行命令
-      // 传递JWT_SECRET确保Worker容器与Master使用相同的密钥验证token
-      const jwtSecret = process.env.JWT_SECRET || 'your-super-secret-key-change-in-production-min-32-chars'
+      // Worker容器不参与认证，不需要JWT_SECRET
+      // 所有认证由Master容器处理，Worker只信任Master传递的用户信息
       const dockerCmd = [
         'docker run -d',
         `--name ${containerName}`,
@@ -426,9 +426,6 @@ class ContainerOrchestrator {
         // API密钥（从环境变量获取）
         `-e ANTHROPIC_AUTH_TOKEN=${process.env.ANTHROPIC_AUTH_TOKEN || ''}`,
         `-e ANTHROPIC_BASE_URL=${process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'}`,
-        // JWT配置（必须与Master一致）
-        `-e JWT_SECRET=${jwtSecret}`,
-        `-e JWT_EXPIRATION=${process.env.JWT_EXPIRATION || '24h'}`,
         // 网络配置
         `-e HOST=0.0.0.0`,
         `-e PORT=3000`,
@@ -583,8 +580,7 @@ class ContainerOrchestrator {
       const resourceArgs = hardwareManager.generateDockerResourceArgs(quota)
 
       // 构建Docker运行命令（包含硬件资源限制）
-      // 传递JWT_SECRET确保Worker容器与Master使用相同的密钥验证token
-      const jwtSecret = process.env.JWT_SECRET || 'your-super-secret-key-change-in-production-min-32-chars'
+      // Worker容器不参与认证，不需要JWT_SECRET
       const dockerCmd = [
         'docker run -d',
         `--name ${containerName}`,
@@ -603,7 +599,6 @@ class ContainerOrchestrator {
         `-e USER_PTY_LIMIT=${quota.maxPtyProcesses}`,
         `-e MAX_FILES_PER_USER=${quota.maxFiles}`,
         `-e MAX_FILE_SIZE_MB=${quota.maxFileSizeMB}`,
-        `-e JWT_SECRET=${jwtSecret}`,
         this.config.imageName
       ].join(' ')
 

@@ -11,7 +11,7 @@
 # - 每个容器只服务一个用户
 # - 由Master服务统一调度和管理
 
-FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/oven/bun:1 AS worker
+FROM oven/bun:1 AS worker
 
 LABEL maintainer="Claude Code HAHA Team"
 LABEL description="Worker container for single-user isolation"
