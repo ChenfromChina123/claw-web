@@ -60,6 +60,10 @@ function loadDbConfig(): DbConfig {
 export function getPool(): mysql.Pool {
   if (!pool) {
     const config = loadDbConfig()
+    
+    // 检查是否需要禁用 SSL 证书验证
+    const sslRejectUnauthorized = process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false'
+    
     pool = mysql.createPool({
       host: config.host,
       port: config.port,
@@ -69,8 +73,11 @@ export function getPool(): mysql.Pool {
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
+      ssl: sslRejectUnauthorized ? undefined : {
+        rejectUnauthorized: false
+      }
     })
-    console.log('MySQL pool created with config:', { host: config.host, port: config.port, user: config.user, database: config.database })
+    console.log('MySQL pool created with config:', { host: config.host, port: config.port, user: config.user, database: config.database, sslRejectUnauthorized })
   }
   return pool
 }

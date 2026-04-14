@@ -42,6 +42,8 @@ class EnhancedWebSocketClient {
   private connectTimeout: ReturnType<typeof setTimeout> | null = null
   /** 避免并发 connect() 创建多个 WebSocket（例如 ChatStore 与 PTY 同时触发） */
   private connectInFlight: Promise<void> | null = null
+  /** 存储登录token，用于重连时恢复身份 */
+  private currentToken: string | null = null
 
   public status = ref<ConnectionStatus>('disconnected')
   public isConnected = ref(false)
@@ -77,6 +79,11 @@ class EnhancedWebSocketClient {
       return this.connectInFlight
     }
 
+    // 保存token用于重连
+    if (token) {
+      this.currentToken = token
+    }
+
     this.connectInFlight = new Promise((resolve, reject) => {
       this.manualClose = false
       this.status.value = 'connecting'
@@ -94,8 +101,10 @@ class EnhancedWebSocketClient {
 
           this.startHeartbeat()
 
-          if (token) {
-            this.send({ type: 'login' as WebSocketMessageType, token })
+          // 优先使用传入的token，否则使用保存的token（用于重连）
+          const authToken = token || this.currentToken
+          if (authToken) {
+            this.send({ type: 'login' as WebSocketMessageType, token: authToken })
           } else {
             this.send({ type: 'register' as WebSocketMessageType })
           }
@@ -170,6 +179,15 @@ class EnhancedWebSocketClient {
 
     this.status.value = 'disconnected'
     this.isConnected.value = false
+  }
+
+  /**
+   * 用户登出
+   * 清除token并重置连接状态
+   */
+  logout(): void {
+    this.currentToken = null
+    this.disconnect()
   }
 
   /**
@@ -293,10 +311,11 @@ class EnhancedWebSocketClient {
       30000
     )
 
-    console.log(`[WS] 将在 ${delay}ms 后重连 (第 ${this.reconnectAttempts} 次)`)
+    console.log(`[WS] 将在 ${delay}ms 后重连 (第 ${this.reconnectAttempts} 次), token存在: ${!!this.currentToken}`)
 
     setTimeout(() => {
       if (!this.manualClose) {
+        // 使用保存的token进行重连，不传token参数，让connect()方法使用this.currentToken
         this.connect().catch((err) => {
           console.error('[WS] Reconnect failed:', err)
         })

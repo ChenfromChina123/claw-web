@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import type { User } from '@/types'
 import { authApi } from '@/api'
 import { checkLoginStatus, getCurrentUserFromToken } from '@/services/authService'
+import wsClient from '@/composables/useWebSocket'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(localStorage.getItem('token'))
@@ -118,6 +119,8 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     token.value = null
     localStorage.removeItem('token')
+    // 清除WebSocket的token并断开连接
+    wsClient.logout()
   }
 
   /** 与 localStorage 中的 token 同步 user（例如其它标签页改动了 token） */

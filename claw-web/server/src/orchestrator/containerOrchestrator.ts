@@ -103,7 +103,7 @@ const DEFAULT_POOL_CONFIG: Required<PoolConfig> = {
   idleTimeoutMs: parseInt(process.env.CONTAINER_IDLE_TIMEOUT_MS || '300000', 10), // 5分钟
   healthCheckIntervalMs: parseInt(process.env.CONTAINER_HEALTH_CHECK_INTERVAL || '15000', 10),
   imageName: process.env.WORKER_IMAGE_NAME || 'claw-web-backend-worker:latest',
-  networkName: process.env.DOCKER_NETWORK_NAME || 'claude-network',
+  networkName: process.env.DOCKER_NETWORK_NAME || 'claw-web_claude-network',
   basePort: parseInt(process.env.CONTAINER_BASE_PORT || '3100', 10)
 }
 
@@ -114,6 +114,7 @@ class ContainerOrchestrator {
   private warmPool: Map<string, ContainerInstance> = new Map()
   private userMappings: Map<string, UserContainerMapping> = new Map()
   private portCounter: number = 0
+  private usedPorts: Set<number> = new Set() // 跟踪已使用的端口
   private healthCheckTimer: NodeJS.Timeout | null = null
   private cleanupTimer: NodeJS.Timeout | null = null
   private lastContainerCreationTime: number = 0
@@ -152,21 +153,33 @@ class ContainerOrchestrator {
         }
       }
 
+      // 首先扫描已存在的热容器
+      console.log('[ContainerOrchestrator] 扫描已存在的热容器...')
+      const existingContainers = await this.scanExistingContainers()
+      console.log(`[ContainerOrchestrator] 发现 ${existingContainers} 个已存在的热容器`)
+
+      // 计算需要创建的容器数量
+      const containersNeeded = Math.max(0, this.config.minPoolSize - existingContainers)
+      
       // 预启动热容器池（带间隔延迟，避免资源竞争）
-      console.log(`[ContainerOrchestrator] 预启动 ${this.config.minPoolSize} 个热容器...`)
-      for (let i = 0; i < this.config.minPoolSize; i++) {
-        const created = await this.prewarmContainer()
-        if (created) {
-          this.lastContainerCreationTime = Date.now()
-          this.consecutiveFailures = 0
-        } else {
-          this.consecutiveFailures++
+      if (containersNeeded > 0) {
+        console.log(`[ContainerOrchestrator] 需要创建 ${containersNeeded} 个新热容器...`)
+        for (let i = 0; i < containersNeeded; i++) {
+          const created = await this.prewarmContainer()
+          if (created) {
+            this.lastContainerCreationTime = Date.now()
+            this.consecutiveFailures = 0
+          } else {
+            this.consecutiveFailures++
+          }
+          // 每个容器之间等待10秒，避免同时创建导致资源竞争
+          if (i < containersNeeded - 1) {
+            console.log(`[ContainerOrchestrator] 等待10秒后创建下一个容器...`)
+            await new Promise(resolve => setTimeout(resolve, 10000))
+          }
         }
-        // 每个容器之间等待10秒，避免同时创建导致资源竞争
-        if (i < this.config.minPoolSize - 1) {
-          console.log(`[ContainerOrchestrator] 等待10秒后创建下一个容器...`)
-          await new Promise(resolve => setTimeout(resolve, 10000))
-        }
+      } else {
+        console.log(`[ContainerOrchestrator] 热容器池已满，无需创建新容器`)
       }
 
       // 启动健康检查定时任务
@@ -186,6 +199,84 @@ class ContainerOrchestrator {
         error: error instanceof Error ? error.message : '初始化失败',
         code: 'INIT_FAILED'
       }
+    }
+  }
+
+  /**
+   * 扫描已存在的热容器（Worker容器）
+   * 在初始化时调用，避免重复创建容器
+   * @returns 发现的容器数量
+   */
+  private async scanExistingContainers(): Promise<number> {
+    try {
+      // 获取所有正在运行的 Worker 容器
+      const { stdout } = await execAsync(
+        `docker ps --filter "name=claude-worker-warm-" --filter "status=running" --format "{{.ID}}|{{.Names}}|{{.Ports}}"`
+      )
+
+      if (!stdout.trim()) {
+        console.log('[ContainerOrchestrator] 未发现已存在的热容器')
+        return 0
+      }
+
+      const containers = stdout.trim().split('\n')
+      let addedCount = 0
+
+      for (const containerLine of containers) {
+        const [containerId, containerName, ports] = containerLine.split('|')
+        
+        if (!containerId || !containerName) continue
+
+        // 解析端口映射
+        const portMatch = ports.match(/:(\d+)->3000\/tcp/)
+        const hostPort = portMatch ? parseInt(portMatch[1], 10) : 0
+
+        // 检查容器是否已经在热池中
+        if (this.warmPool.has(containerId)) {
+          console.log(`[ContainerOrchestrator] 容器已在热池中: ${containerName}`)
+          addedCount++
+          continue
+        }
+
+        // 检查容器是否已被分配给用户
+        let isAssigned = false
+        for (const mapping of this.userMappings.values()) {
+          if (mapping.container.containerId === containerId) {
+            isAssigned = true
+            break
+          }
+        }
+
+        if (isAssigned) {
+          console.log(`[ContainerOrchestrator] 容器已被分配，跳过: ${containerName}`)
+          continue
+        }
+
+        // 将容器添加到热池
+        const container: ContainerInstance = {
+          containerId,
+          containerName,
+          hostPort,
+          status: 'idle',
+          createdAt: new Date(),
+          lastActivityAt: new Date()
+        }
+
+        this.warmPool.set(containerId, container)
+        
+        // 将端口添加到已使用端口池
+        if (hostPort > 0) {
+          this.usedPorts.add(hostPort)
+        }
+        
+        console.log(`[ContainerOrchestrator] 已扫描并添加到热池: ${containerName} (端口: ${hostPort})`)
+        addedCount++
+      }
+
+      return addedCount
+    } catch (error) {
+      console.error('[ContainerOrchestrator] 扫描已存在容器失败:', error)
+      return 0
     }
   }
 
@@ -307,8 +398,8 @@ class ContainerOrchestrator {
       const randomStr = Math.random().toString(36).substring(2, 8)
       const containerName = `claude-worker-warm-${timestamp}-${randomStr}`
 
-      // 分配端口
-      const port = this.allocatePort()
+      // 分配端口（异步，带冲突检测）
+      const port = await this.allocatePort()
 
       // 构建Docker运行命令
       const dockerCmd = [
@@ -329,6 +420,7 @@ class ContainerOrchestrator {
         `-e DB_USER=claude_user`,
         `-e DB_PASSWORD=userpassword123`,
         `-e DB_NAME=claude_code_haha`,
+        `-e DB_SSL_REJECT_UNAUTHORIZED=false`,
         // API密钥（从环境变量获取）
         `-e ANTHROPIC_AUTH_TOKEN=${process.env.ANTHROPIC_AUTH_TOKEN || ''}`,
         `-e ANTHROPIC_BASE_URL=${process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'}`,
@@ -476,8 +568,8 @@ class ContainerOrchestrator {
         }
       }
 
-      // 分配端口
-      const port = this.allocatePort()
+      // 分配端口（异步，带冲突检测）
+      const port = await this.allocatePort()
 
       // 获取用户等级的硬件配额
       const tier = userTier || UserTier.FREE
@@ -555,6 +647,20 @@ class ContainerOrchestrator {
    */
   async destroyContainer(containerId: string): Promise<boolean> {
     try {
+      // 查找容器信息以获取端口
+      let containerPort: number | undefined
+      const warmContainer = this.warmPool.get(containerId)
+      if (warmContainer) {
+        containerPort = warmContainer.hostPort
+      } else {
+        for (const mapping of this.userMappings.values()) {
+          if (mapping.container.containerId === containerId) {
+            containerPort = mapping.container.hostPort
+            break
+          }
+        }
+      }
+
       // 检查容器是否存在
       try {
         await execAsync(`docker inspect ${containerId}`)
@@ -568,6 +674,10 @@ class ContainerOrchestrator {
             this.userMappings.delete(userId)
             break
           }
+        }
+        // 释放端口
+        if (containerPort) {
+          this.releasePort(containerPort)
         }
         return true
       }
@@ -587,6 +697,10 @@ class ContainerOrchestrator {
           this.userMappings.delete(userId)
           break
         }
+      }
+      // 释放端口
+      if (containerPort) {
+        this.releasePort(containerPort)
       }
 
       console.log(`[ContainerOrchestrator] 容器已销毁: ${containerId}`)
@@ -753,6 +867,19 @@ class ContainerOrchestrator {
   }
 
   /**
+   * 获取热池状态（getPoolStats 的别名，供 schedulingPolicy 使用）
+   * @returns 统计信息
+   */
+  getPoolStatus(): {
+    totalContainers: number
+    idleContainers: number
+    activeUsers: number
+    poolUtilization: number
+  } {
+    return this.getPoolStats()
+  }
+
+  /**
    * 关闭编排器（停止所有定时任务，清理资源）
    */
   async shutdown(): Promise<void> {
@@ -833,12 +960,126 @@ class ContainerOrchestrator {
   }
 
   /**
-   * 分配下一个可用端口
+   * 分配下一个可用端口（带冲突检测和端口池管理）
    */
-  private allocatePort(): number {
-    const port = this.config.basePort + this.portCounter
-    this.portCounter++
-    return port
+  private async allocatePort(): Promise<number> {
+    const maxPort = this.config.basePort + 200 // 最大尝试端口范围
+    const startCounter = this.portCounter
+    
+    while (this.config.basePort + this.portCounter < maxPort) {
+      const port = this.config.basePort + this.portCounter
+      this.portCounter++
+      
+      // 跳过已在端口池中的端口
+      if (this.usedPorts.has(port)) {
+        console.warn(`[ContainerOrchestrator] 端口 ${port} 已在端口池中，跳过`)
+        continue
+      }
+      
+      // 检查端口是否已被系统占用
+      const isAvailable = await this.isPortAvailable(port)
+      if (isAvailable) {
+        this.usedPorts.add(port) // 添加到已使用端口池
+        console.log(`[ContainerOrchestrator] 成功分配端口: ${port}`)
+        return port
+      }
+      
+      console.warn(`[ContainerOrchestrator] 端口 ${port} 已被占用，尝试下一个端口`)
+    }
+    
+    // 如果一轮没找到，重置计数器再试一次（可能有端口被释放了）
+    if (startCounter > 0) {
+      console.log('[ContainerOrchestrator] 重置端口计数器，重新搜索可用端口')
+      this.portCounter = 0
+      return this.allocatePort()
+    }
+    
+    throw new Error(`无法分配可用端口，范围 ${this.config.basePort}-${maxPort} 已被耗尽`)
+  }
+  
+  /**
+   * 释放端口（当容器被销毁时调用）
+   */
+  private releasePort(port: number): void {
+    if (this.usedPorts.has(port)) {
+      this.usedPorts.delete(port)
+      console.log(`[ContainerOrchestrator] 端口 ${port} 已释放`)
+    }
+  }
+  
+  /**
+   * 检查端口是否可用（使用多种方法）
+   */
+  private async isPortAvailable(port: number): Promise<boolean> {
+    try {
+      // 方法1: 使用 net 模块检查本地端口
+      const net = require('net')
+      const isLocalAvailable = await new Promise<boolean>((resolve) => {
+        const server = net.createServer()
+        
+        server.once('error', (err: any) => {
+          if (err.code === 'EADDRINUSE') {
+            resolve(false)
+          } else {
+            resolve(true)
+          }
+        })
+        
+        server.once('listening', () => {
+          server.close()
+          resolve(true)
+        })
+        
+        server.listen(port, '0.0.0.0')
+      })
+      
+      if (!isLocalAvailable) {
+        return false
+      }
+      
+      // 方法2: 检查 Docker 是否已在使用该端口
+      try {
+        const { stdout } = await execAsync(`docker ps --filter "publish=${port}" --format "{{.Names}}"`)
+        if (stdout.trim()) {
+          console.warn(`[ContainerOrchestrator] 端口 ${port} 已被 Docker 容器使用: ${stdout.trim()}`)
+          return false
+        }
+      } catch {
+        // 命令失败，继续检查
+      }
+      
+      // 方法3: 检查系统中是否有进程在监听该端口
+      try {
+        const isWindows = process.platform === 'win32'
+        if (isWindows) {
+          // Windows: 使用 netstat 检查
+          const { stdout } = await execAsync(`netstat -ano | findstr ":${port}" | findstr "LISTENING"`)
+          if (stdout.trim()) {
+            console.warn(`[ContainerOrchestrator] 端口 ${port} 已被系统进程占用`)
+            return false
+          }
+        } else {
+          // Linux/Mac: 使用 ss 或 netstat 检查
+          try {
+            const { stdout } = await execAsync(`ss -tln | grep ":${port} " || netstat -tln | grep ":${port} "`)
+            if (stdout.trim()) {
+              console.warn(`[ContainerOrchestrator] 端口 ${port} 已被系统进程占用`)
+              return false
+            }
+          } catch {
+            // 命令失败，假设端口可用
+          }
+        }
+      } catch {
+        // 命令失败，继续
+      }
+      
+      return true
+    } catch (error) {
+      console.error(`[ContainerOrchestrator] 检查端口 ${port} 状态时出错:`, error)
+      // 出错时保守处理，假设端口不可用
+      return false
+    }
   }
 
   /**
@@ -1003,6 +1244,7 @@ class ContainerOrchestrator {
     this.cleanupTimer = setInterval(async () => {
       const now = Date.now()
 
+      // 策略1: 清理空闲超时的容器
       for (const [containerId, container] of this.warmPool) {
         if (container.status !== 'idle') continue
 
@@ -1013,7 +1255,55 @@ class ContainerOrchestrator {
         }
       }
 
+      // 策略2: 如果容器数量超过最大值，删除最老的空闲容器
+      await this.cleanupExcessContainers()
+
     }, 60000) // 每分钟检查一次
+  }
+
+  /**
+   * 清理超出最大值的容器
+   * 当热池中的容器数量超过 maxPoolSize 时，删除最老的空闲容器
+   */
+  private async cleanupExcessContainers(): Promise<void> {
+    const totalContainers = this.warmPool.size + this.userMappings.size
+
+    if (totalContainers <= this.config.maxPoolSize) {
+      return // 未超过最大值，无需清理
+    }
+
+    const excessCount = totalContainers - this.config.maxPoolSize
+    console.log(`[ContainerOrchestrator] 容器总数(${totalContainers})超过最大值(${this.config.maxPoolSize})，需要清理${excessCount}个容器`)
+
+    // 按最后活动时间排序，找出最老的空闲容器
+    const idleContainers: Array<[string, ContainerInstance]> = []
+    for (const [id, container] of this.warmPool) {
+      if (container.status === 'idle') {
+        idleContainers.push([id, container])
+      }
+    }
+
+    // 按最后活动时间升序排序（最老的在前）
+    idleContainers.sort((a, b) => a[1].lastActivityAt.getTime() - b[1].lastActivityAt.getTime())
+
+    // 删除超出数量的最老容器
+    let deletedCount = 0
+    for (let i = 0; i < Math.min(excessCount, idleContainers.length); i++) {
+      const [containerId, container] = idleContainers[i]
+      console.log(`[ContainerOrchestrator] 删除超出最大值的容器: ${container.containerName}`)
+      await this.destroyContainer(containerId)
+      deletedCount++
+    }
+
+    if (deletedCount > 0) {
+      console.log(`[ContainerOrchestrator] 已清理${deletedCount}个超出最大值的容器`)
+    }
+
+    // 如果仍然超过最大值（可能是因为空闲容器不够），记录警告
+    const remainingContainers = this.warmPool.size + this.userMappings.size
+    if (remainingContainers > this.config.maxPoolSize) {
+      console.warn(`[ContainerOrchestrator] 警告: 清理后容器数量(${remainingContainers})仍超过最大值(${this.config.maxPoolSize})，可能所有容器都在使用中`)
+    }
   }
 }
 

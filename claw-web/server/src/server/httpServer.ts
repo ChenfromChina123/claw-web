@@ -16,6 +16,8 @@ import { handleWebSocketOpen, handleWebSocketMessage, handleWebSocketClose } fro
 import { createSuccessResponse, createErrorResponse } from '../utils/response'
 import { PORT, AVAILABLE_MODELS } from '../utils/constants'
 import type { WebSocketData } from '../types'
+import { getContainerOrchestrator } from '../orchestrator/containerOrchestrator'
+import { getSchedulingPolicy } from '../orchestrator/schedulingPolicy'
 
 // 导入所有需要初始化的服务
 import '../services/sessionManager'
@@ -42,12 +44,102 @@ function initializeRPCMethods(): void {
 }
 
 /**
+ * 从请求中提取用户身份信息
+ */
+function extractUserFromRequest(req: Request): { userId?: string; username?: string; role?: string } | null {
+  // 从 Authorization header 提取
+  const authHeader = req.headers.get('authorization')
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7)
+    try {
+      const payload = decodeJWTPayload(token)
+      return {
+        userId: payload.userId || payload.sub,
+        username: payload.username || payload.email,
+        role: payload.role
+      }
+    } catch {
+      // 解码失败
+    }
+  }
+  
+  // 从 URL 查询参数提取（用于 WebSocket 等场景）
+  const url = new URL(req.url)
+  const userId = url.searchParams.get('userId')
+  if (userId) {
+    return {
+      userId,
+      username: url.searchParams.get('username') || undefined,
+      role: url.searchParams.get('role') || undefined
+    }
+  }
+  
+  return null
+}
+
+/**
+ * 解码 JWT Payload（不验证签名）
+ */
+function decodeJWTPayload(token: string): any {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) {
+      throw new Error('Invalid JWT format')
+    }
+    const payload = parts[1]
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+    return JSON.parse(decoded)
+  } catch (error) {
+    console.error('[JWT] 解码失败:', error)
+    return {}
+  }
+}
+
+/**
+ * 代理请求到 Worker 容器
+ * 使用 Docker 网络内部通信（通过容器名称）
+ */
+async function proxyToWorkerContainer(req: Request, containerName: string, path: string): Promise<Response> {
+  // 在 Docker 网络中，使用容器名称 + 内部端口（3000）访问
+  const targetUrl = `http://${containerName}:3000${path}`
+  const startTime = Date.now()
+  
+  try {
+    // 复制请求头
+    const headers = new Headers(req.headers)
+    headers.set('X-Forwarded-For', 'claw-web-master')
+    headers.set('X-Proxy-Origin', 'claw-web-master')
+    headers.set('Host', `${containerName}:3000`)
+    
+    // 转发请求
+    const response = await fetch(targetUrl, {
+      method: req.method,
+      headers,
+      body: ['GET', 'HEAD'].includes(req.method) ? undefined : req.body,
+    })
+    
+    const duration = Date.now() - startTime
+    if (duration > 1000) {
+      console.warn(`[RequestRouter] 慢请求警告: ${req.method} ${path} -> ${containerName} (${duration}ms)`)
+    }
+    
+    return response
+  } catch (error) {
+    console.error(`[RequestRouter] 代理请求失败 (${targetUrl}):`, error)
+    return createErrorResponse('PROXY_ERROR', '无法连接到Worker容器', 502)
+  }
+}
+
+/**
  * 启动 HTTP 服务器
  */
 export async function startServer(): Promise<void> {
   console.log('='.repeat(60))
   console.log('  Claude Code HAHA - Deep React Integration Server')
   console.log('='.repeat(60))
+  
+  // 获取容器角色（在整个函数中使用）
+  const containerRole = process.env.CONTAINER_ROLE || 'master'
   
   // Initialize database
   try {
@@ -174,7 +266,6 @@ export async function startServer(): Promise<void> {
   }
 
   // Initialize Container Orchestrator (only for master/orchestrator roles)
-  const containerRole = process.env.CONTAINER_ROLE || 'master'
   if (containerRole !== 'worker') {
     try {
       console.log('\n[ContainerOrchestrator] Initializing container orchestrator...')
@@ -240,6 +331,52 @@ export async function startServer(): Promise<void> {
           headers: { 'Content-Type': 'application/json' }
         })
       }
+
+      // ========== 容器路由逻辑 ==========
+      // 只在 Master 角色下启用容器路由
+      // 排除认证相关路径，这些路径需要在 Master 本地处理
+      const authPaths = ['/api/auth/login', '/api/auth/register', '/api/auth/me', '/api/auth/refresh']
+      const isAuthPath = authPaths.some(authPath => path.startsWith(authPath))
+      
+      if (containerRole !== 'worker' && !isAuthPath) {
+        try {
+          // 从请求中提取用户身份
+          const userInfo = extractUserFromRequest(req)
+          
+          if (userInfo?.userId) {
+            // 获取容器编排器
+            const orchestrator = getContainerOrchestrator()
+            let mapping = orchestrator.getUserMapping(userInfo.userId)
+            
+            // 如果没有容器映射，触发调度分配
+            if (!mapping) {
+              console.log(`[RequestRouter] 用户 ${userInfo.userId} 无容器，开始调度...`)
+              const schedulingPolicy = getSchedulingPolicy()
+              const scheduleResult = await schedulingPolicy.scheduleContainer(
+                userInfo.userId,
+                userInfo.username,
+                { role: userInfo.role }
+              )
+              
+              if (scheduleResult.success && scheduleResult.mapping) {
+                mapping = scheduleResult.mapping
+                console.log(`[RequestRouter] 成功为用户 ${userInfo.userId} 分配容器: ${mapping.container.containerName} (${scheduleResult.strategy})`)
+              } else {
+                console.warn(`[RequestRouter] 为用户 ${userInfo.userId} 分配容器失败: ${scheduleResult.error}`)
+              }
+            }
+            
+            // 如果有容器映射，代理请求到 Worker 容器
+            if (mapping) {
+              return await proxyToWorkerContainer(req, mapping.container.containerName, path)
+            }
+          }
+        } catch (error) {
+          console.error('[RequestRouter] 容器路由失败:', error)
+          // 路由失败时继续本地处理
+        }
+      }
+      // ========== 容器路由逻辑结束 ==========
 
       const response = await handleRequest(req)
       if (response !== null) {

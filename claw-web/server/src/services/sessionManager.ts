@@ -58,6 +58,46 @@ export class SessionManager {
   }
 
   /**
+   * 获取或创建用户的主会话（Master Session）
+   * 主会话是一个特殊的会话，用于全局上下文和跨会话操作
+   * @param userId 用户ID
+   * @returns 主会话对象
+   */
+  async getOrCreateMasterSession(userId: string): Promise<Session> {
+    // 查找用户现有的主会话
+    const userSessions = await this.sessionRepo.findByUserId(userId)
+    const masterSession = userSessions.find(s => s.isMaster === true)
+    
+    if (masterSession) {
+      console.log(`[SessionManager] Found existing master session for user ${userId}: ${masterSession.id}`)
+      return masterSession
+    }
+    
+    // 如果没有主会话，创建一个
+    console.log(`[SessionManager] Creating new master session for user ${userId}`)
+    const newSession = await this.sessionRepo.create(userId, '主会话', 'qwen-plus')
+    
+    // 标记为主会话
+    await this.sessionRepo.update(newSession.id, { isMaster: true })
+    newSession.isMaster = true
+    
+    // 添加到内存缓存
+    this.sessions.set(newSession.id, {
+      session: newSession,
+      messages: [],
+      toolCalls: [],
+      dirty: false,
+    })
+    
+    const userSessionList = this.userSessions.get(userId) || []
+    userSessionList.unshift(newSession.id)
+    this.userSessions.set(userId, userSessionList)
+    
+    console.log(`[SessionManager] Created master session for user ${userId}: ${newSession.id}`)
+    return newSession
+  }
+
+  /**
    * 检查用户是否有空会话(没有消息的会话)
    * @param userId 用户ID
    * @returns 如果有空会话返回true,否则返回false
