@@ -43,6 +43,9 @@ export { handleUserTierRoutes, default as userTierRoutes } from './userTier.rout
 // 快照管理路由
 export { default as snapshotRoutes, handleSnapshotRoutes } from './snapshot.routes'
 
+// 管理员容器管理路由
+export { default as adminContainerRoutes, handleAdminContainerRoutes } from './adminContainer.routes'
+
 import type { Request, Response } from 'express'
 
 // 所有路由处理器列表（按优先级排序）
@@ -82,6 +85,9 @@ const routeHandlers = [
 
   // 快照管理相关
   (req: Request) => import('./snapshot.routes').then(m => m.handleSnapshotRoutes(req)),
+
+  // 管理员容器管理相关
+  (req: Request) => import('./adminContainer.routes').then(m => m.handleAdminContainerRoutes(req)),
 
   // 技能导入相关（放在最后，作为通用处理器）
   (req: Request) => import('./skills.routes').then(m => m.handleSkillImportRoutes(req)),

@@ -4,7 +4,8 @@
  * 提供系统性能监控相关的 API 调用
  */
 
-import { request } from './request'
+import apiClient from './client'
+import { unwrapApiData } from './unwrapApiResponse'
 
 /**
  * 系统健康状态
@@ -91,32 +92,32 @@ export interface PerformanceStats {
  * 获取系统健康状态
  */
 export async function getHealthStatus(): Promise<HealthStatus> {
-  const response = await request.get<HealthStatus>('/api/monitoring/health')
-  return response.data
+  const response = await apiClient.get<HealthStatus>('/api/monitoring/health')
+  return unwrapApiData(response.data)
 }
 
 /**
  * 获取资源使用情况
  */
 export async function getResourceUsage(): Promise<ResourceUsage> {
-  const response = await request.get<ResourceUsage>('/api/monitoring/resources')
-  return response.data
+  const response = await apiClient.get<ResourceUsage>('/api/monitoring/resources')
+  return unwrapApiData(response.data)
 }
 
 /**
  * 获取容器状态
  */
 export async function getContainerStatus(): Promise<ContainerStatus> {
-  const response = await request.get<ContainerStatus>('/api/monitoring/containers')
-  return response.data
+  const response = await apiClient.get<ContainerStatus>('/api/monitoring/containers')
+  return unwrapApiData(response.data)
 }
 
 /**
  * 获取性能统计
  */
 export async function getPerformanceStats(): Promise<PerformanceStats> {
-  const response = await request.get<PerformanceStats>('/api/monitoring/performance')
-  return response.data
+  const response = await apiClient.get<PerformanceStats>('/api/monitoring/performance')
+  return unwrapApiData(response.data)
 }
 
 /**
