@@ -11,7 +11,7 @@
 # - 每个容器只服务一个用户
 # - 由Master服务统一调度和管理
 
-FROM oven/bun:1 AS worker
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/oven/bun:1 AS worker
 
 LABEL maintainer="Claude Code HAHA Team"
 LABEL description="Worker container for single-user isolation"
@@ -19,8 +19,13 @@ LABEL version="1.0.0"
 LABEL role="worker"
 
 # 使用国内镜像源加速
-RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' /etc/apt/sources.list.d/debian.sources && \
-    sed -i 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources
+RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' /etc/apt/sources.list.d/debian.sources && \
+        sed -i 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources; \
+    elif [ -f /etc/apt/sources.list ]; then \
+        sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' /etc/apt/sources.list && \
+        sed -i 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list; \
+    fi
 
 # 安装系统依赖和进程管理器
 RUN apt-get update && apt-get install -y --no-install-recommends \

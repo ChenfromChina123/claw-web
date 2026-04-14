@@ -499,7 +499,14 @@ class EnhancedWebSocketClient {
         }
 
         case 'error':
-          console.error('[WS] Error from server:', (message as { message?: string }).message)
+          const errorMsg = (message as { message?: string }).message || 'Unknown error'
+          console.error('[WS] Error from server:', errorMsg)
+          // 如果在连接过程中收到错误，拒绝连接Promise
+          if (this.connectReject) {
+            console.error('[WS] Connection rejected due to error:', errorMsg)
+            this.connectReject(new Error(errorMsg))
+            this.clearConnectPromise()
+          }
           this.emitEvent('error', message)
           break
 

@@ -7,8 +7,8 @@
 # ✅ 健康检查和优雅关闭
 # ✅ 生产级安全配置
 
-# 使用官方 Bun 镜像
-FROM oven/bun:1 AS production
+# 使用华为云镜像加速
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/oven/bun:1 AS production
 
 # 元数据标签
 LABEL maintainer="Claude Code HAHA Team"
@@ -16,8 +16,13 @@ LABEL description="Backend service with multi-tenant isolation and memory optimi
 LABEL version="1.0.0"
 
 # ✅ 使用国内镜像源加速（阿里云镜像 - HTTP 协议避免 SSL 证书问题）
-RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' /etc/apt/sources.list.d/debian.sources && \
-    sed -i 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources
+RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' /etc/apt/sources.list.d/debian.sources && \
+        sed -i 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources; \
+    elif [ -f /etc/apt/sources.list ]; then \
+        sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' /etc/apt/sources.list && \
+        sed -i 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list; \
+    fi
 
 # 安装必要的系统依赖（包含 node-pty 编译所需的构建工具和 docker 客户端）
 # ✅ 安全优化：移除不必要的工具，减少攻击面

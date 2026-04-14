@@ -462,74 +462,260 @@ server {
 
 ---
 
-## 七、策略交互关系图
+## 七、容器快照保存与恢复策略分析
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Master Service                           │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
-│  │  RequestRouter  │  │ SchedulingPolicy│  │   HealthCheck   │  │
-│  │   (请求路由)     │  │   (调度策略)     │  │   (健康检查)     │  │
-│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘  │
-│           │                    │                    │           │
-│           ▼                    ▼                    ▼           │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │              ContainerOrchestrator                       │   │
-│  │                 (容器编排器)                              │   │
-│  └────────┬───────────────────────────────┬────────────────┘   │
-│           │                               │                    │
-│           ▼                               ▼                    │
-│  ┌─────────────────┐           ┌─────────────────┐             │
-│  │  UserContainer  │           │ EnhancedWarmPool│             │
-│  │     Mapper      │           │    Manager      │             │
-│  │  (用户映射管理)  │           │  (热池管理)      │             │
-│  └─────────────────┘           └─────────────────┘             │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-        ▼                     ▼                     ▼
-┌───────────────┐   ┌─────────────────┐   ┌─────────────────┐
-│  Docker网络   │   │   共享卷         │   │   MySQL数据库    │
-│ 内部HTTP通信  │   │ workspaces/     │   │  sessions/      │
-│               │   │ users/sessions  │   │ users/messages  │
-└───────────────┘   └─────────────────┘   └─────────────────┘
-        │                     │                     │
-        ▼                     ▼                     ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      Docker Containers                          │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
-│  │ Worker-1 │ │ Worker-2 │ │ Worker-3 │ │ Worker-N │           │
-│  │ (VIP)    │ │ (Premium)│ │ (Regular)│ │ (Warm)   │           │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
-└─────────────────────────────────────────────────────────────────┘
+### 7.1 当前实现方案
+
+#### 7.1.1 快照数据结构
+
+**数据库表结构**（add_work_snapshots.sql）：
+```sql
+CREATE TABLE IF NOT EXISTS work_snapshots (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  session_id VARCHAR(36) NOT NULL,
+  container_id VARCHAR(64),
+  snapshot_type ENUM('realtime', 'checkpoint', 'final'),
+  workspace_path VARCHAR(512),
+  workspace_size_bytes BIGINT,
+  file_manifest JSON,        -- 文件清单（路径、校验和、修改时间）
+  process_state JSON,        -- 运行中的进程状态
+  git_state JSON,            -- Git状态
+  execution_state JSON,      -- Agent执行状态
+  compression_type ENUM('none', 'gzip', 'lz4') DEFAULT 'gzip',
+  compressed_size_bytes BIGINT,
+  created_at TIMESTAMP,
+  expires_at TIMESTAMP,
+  restored_at TIMESTAMP
+)
 ```
 
----
+#### 7.1.2 快照创建流程
 
-## 八、关键配置参数
+**代码实现**（workSnapshotService.ts:101-174）：
+```typescript
+async createSnapshot(options: CreateSnapshotOptions): Promise<WorkSnapshot> {
+  const workspacePath = options.workspacePath || `/app/workspaces/sessions/${options.sessionId}`
+  
+  // 1. 收集文件清单（使用find + md5sum）
+  const fileManifest = await this.collectFileManifest(workspacePath)
+  
+  // 2. 计算工作区大小
+  const workspaceSizeBytes = await this.calculateWorkspaceSize(workspacePath)
+  
+  // 3. 收集进程状态（使用ps aux）
+  let processState: RunningProcess[] | undefined
+  if (options.includeProcessState) {
+    processState = await this.collectProcessState()
+  }
+  
+  // 4. 收集Git状态
+  let gitState: GitState | undefined
+  if (options.includeGitState) {
+    gitState = await this.collectGitState(workspacePath)
+  }
+  
+  // 5. 保存到数据库
+  await pool.execute(
+    `INSERT INTO work_snapshots (...) VALUES (...)`,
+    [snapshotId, userId, sessionId, ...]
+  )
+}
+```
 
-| 配置项 | 默认值 | 说明 |
-|--------|--------|------|
-| `CONTAINER_POOL_MIN_SIZE` | 3 | 最小热容器数 |
-| `CONTAINER_POOL_MAX_SIZE` | 10 | 最大热容器数 |
-| `CONTAINER_IDLE_TIMEOUT_MS` | 300000 | 空闲超时（5分钟） |
-| `CONTAINER_HEALTH_CHECK_INTERVAL` | 15000 | 健康检查间隔（15秒） |
-| `CONTAINER_BASE_PORT` | 3100 | 基础端口号 |
-| `ROUTER_TIMEOUT_MS` | 30000 | 请求超时（30秒） |
-| `ROUTER_MAX_RETRIES` | 2 | 最大重试次数 |
-| `DOCKER_NETWORK_NAME` | 'claude-network' | Docker网络名称 |
+#### 7.1.3 当前方案的局限性
 
----
+| 问题 | 说明 | 影响 |
+|------|------|------|
+| **仅保存元数据** | 只保存文件清单和校验和，不保存实际文件内容 | 容器销毁后无法恢复文件 |
+| **无实际恢复逻辑** | snapshot.routes.ts:270-278 显示恢复功能待实现 | 快照无法实际使用 |
+| **进程状态不完整** | 仅保存进程列表，无法恢复进程状态 | 无法恢复运行中的任务 |
+| **存储在数据库** | JSON数据存储在MySQL，不适合大文件 | 性能瓶颈 |
+| **无增量备份** | 每次全量扫描文件 | 效率低下 |
+| **无压缩存储** | 文件内容未压缩存储 | 占用空间大 |
 
-## 九、总结
+### 7.2 改进方案建议
 
- claw-web 的 Docker 服务策略设计体现了以下特点：
+#### 方案一：Docker 原生 Checkpoint（推荐用于进程状态）
 
-1. **分层调度**：四级用户等级，差异化资源分配
-2. **预热水池**：提前准备容器，降低用户等待时间
-3. **健康感知**：多维度健康评分，智能负载均衡
-4. **弹性伸缩**：自动扩缩容，指数退避避免雪崩
-5. **优雅降级**：资源不足时按等级差异化处理
-6. **故障自愈**：自动检测、销毁、重建不健康容器
-7. **多元通信**：支持Docker网络、WebSocket、共享卷、数据库等多种通信方式
+**原理**：使用 Docker Checkpoint 功能，基于 CRIU 实现容器热迁移
+
+**优点**：
+- 完整保存容器状态（内存、进程、文件描述符）
+- 原生支持，无需额外开发
+- 恢复后容器状态完全一致
+
+**缺点**：
+- 需要 Linux 内核支持 CRIU
+- 文件系统需要单独处理
+- 快照文件较大
+
+**实现代码示例**：
+```typescript
+class DockerCheckpointService {
+  /**
+   * 创建容器检查点
+   */
+  async createCheckpoint(containerId: string, checkpointName: string): Promise<string> {
+    try {
+      // 使用 docker checkpoint 命令
+      const { stdout } = await execAsync(
+        `docker checkpoint create --checkpoint-dir=/var/lib/docker/checkpoints ${containerId} ${checkpointName}`
+      )
+      
+      // 同时打包文件系统
+      await this.createVolumeSnapshot(containerId, checkpointName)
+      
+      return checkpointName
+    } catch (error) {
+      logger.error(`[Checkpoint] 创建检查点失败:`, error)
+      throw error
+    }
+  }
+  
+  /**
+   * 从检查点恢复容器
+   */
+  async restoreFromCheckpoint(checkpointName: string, newContainerName: string): Promise<string> {
+    try {
+      // 先恢复文件系统
+      await this.restoreVolumeSnapshot(checkpointName, newContainerName)
+      
+      // 使用 checkpoint 恢复容器
+      const { stdout } = await execAsync(
+        `docker create --name ${newContainerName} ` +
+        `--checkpoint ${checkpointName} ` +
+        `--checkpoint-dir=/var/lib/docker/checkpoints ` +
+        `claw-web-backend-worker:latest`
+      )
+      
+      await execAsync(`docker start ${newContainerName}`)
+      
+      return stdout.trim()
+    } catch (error) {
+      logger.error(`[Checkpoint] 恢复检查点失败:`, error)
+      throw error
+    }
+  }
+}
+```
+
+#### 方案二：文件系统级快照（推荐用于文件数据）
+
+**原理**：使用 rsync + tar 增量备份，配合对象存储
+
+**架构设计**：
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     快照创建流程                              │
+├─────────────────────────────────────────────────────────────┤
+│  1. 扫描文件变更（rsync --dry-run）                           │
+│  2. 增量备份变更文件（rsync -avz）                            │
+│  3. 打包为元数据 + 数据文件（tar）                             │
+│  4. 上传到对象存储（S3/MinIO）                                │
+│  5. 数据库记录快照元数据                                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**实现代码示例**：
+```typescript
+class FileSystemSnapshotService {
+  private s3Client: S3Client
+  private readonly SNAPSHOT_BUCKET = 'claw-web-snapshots'
+  
+  /**
+   * 创建增量快照
+   */
+  async createIncrementalSnapshot(
+    containerId: string,
+    sessionId: string,
+    baseSnapshotId?: string
+  ): Promise<SnapshotInfo> {
+    const snapshotId = uuidv4()
+    const workspacePath = `/app/workspaces/sessions/${sessionId}`
+    const tempDir = `/tmp/snapshots/${snapshotId}`
+    
+    try {
+      // 1. 创建临时目录
+      await execAsync(`mkdir -p ${tempDir}`)
+      
+      // 2. 如果有基础快照，下载基础文件
+      if (baseSnapshotId) {
+        await this.downloadBaseSnapshot(baseSnapshotId, tempDir)
+      }
+      
+      // 3. 使用 rsync 进行增量备份
+      const rsyncCmd = baseSnapshotId
+        ? `rsync -avz --compare-dest=${tempDir}/base/ ${workspacePath}/ ${tempDir}/delta/`
+        : `rsync -avz ${workspacePath}/ ${tempDir}/full/`
+      
+      await execAsync(rsyncCmd, { timeout: 120000 })
+      
+      // 4. 压缩打包
+      const tarPath = `${tempDir}.tar.gz`
+      await execAsync(
+        `tar -czf ${tarPath} -C ${tempDir} .`,
+        { timeout: 60000 }
+      )
+      
+      // 5. 上传到 S3
+      const s3Key = `snapshots/${sessionId}/${snapshotId}.tar.gz`
+      await this.uploadToS3(tarPath, s3Key)
+      
+      // 6. 计算校验和
+      const { stdout: checksum } = await execAsync(`md5sum ${tarPath}`)
+      
+      // 7. 保存元数据到数据库
+      const snapshotInfo: SnapshotInfo = {
+        id: snapshotId,
+        sessionId,
+        containerId,
+        baseSnapshotId,
+        s3Key,
+        checksum: checksum.split(' ')[0],
+        sizeBytes: (await fs.stat(tarPath)).size,
+        createdAt: new Date()
+      }
+      
+      await this.saveSnapshotMetadata(snapshotInfo)
+      
+      return snapshotInfo
+    } finally {
+      // 清理临时文件
+      await execAsync(`rm -rf ${tempDir} ${tempDir}.tar.gz`)
+    }
+  }
+  
+  /**
+   * 恢复快照
+   */
+  async restoreSnapshot(
+    snapshotId: string,
+    targetContainerId: string
+  ): Promise<void> {
+    const snapshot = await this.getSnapshotMetadata(snapshotId)
+    const tempDir = `/tmp/restore/${snapshotId}`
+    const workspacePath = `/app/workspaces/sessions/${snapshot.sessionId}`
+    
+    try {
+      // 1. 创建临时目录
+      await execAsync(`mkdir -p ${tempDir}`)
+      
+      // 2. 从 S3 下载快照
+      const tarPath = `${tempDir}/snapshot.tar.gz`
+      await this.downloadFromS3(snapshot.s3Key, tarPath)
+      
+      // 3. 校验文件完整性
+      const { stdout: checksum } = await execAsync(`md5sum ${tarPath}`)
+      if (checksum.split(' ')[0] !== snapshot.checksum) {
+        throw new Error('快照文件校验失败')
+      }
+      
+      // 4. 解压到目标容器
+      await execAsync(
+        `docker cp ${tarPath} ${targetContainerId}:/tmp/restore.tar.gz`
+      )
+      
+      // 5. 在容器内解压
+      await execAsync(
+        `docker exec ${targetContainerId} bash -c 

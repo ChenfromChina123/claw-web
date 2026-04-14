@@ -98,8 +98,12 @@ function decodeJWTPayload(token: string): any {
 /**
  * 代理请求到 Worker 容器
  * 使用 Docker 网络内部通信（通过容器名称）
+ * 
+ * 架构说明：
+ * - Master 负责认证，将用户信息通过头部传递给 Worker
+ * - Worker 信任来自 Master 的请求，不再重复验证 token
  */
-async function proxyToWorkerContainer(req: Request, containerName: string, path: string): Promise<Response> {
+async function proxyToWorkerContainer(req: Request, containerName: string, path: string, userInfo?: { userId: string; isAdmin?: boolean }): Promise<Response> {
   // 在 Docker 网络中，使用容器名称 + 内部端口（3000）访问
   const targetUrl = `http://${containerName}:3000${path}`
   const startTime = Date.now()
@@ -110,6 +114,12 @@ async function proxyToWorkerContainer(req: Request, containerName: string, path:
     headers.set('X-Forwarded-For', 'claw-web-master')
     headers.set('X-Proxy-Origin', 'claw-web-master')
     headers.set('Host', `${containerName}:3000`)
+    
+    // 将认证后的用户信息传递给 Worker
+    if (userInfo?.userId) {
+      headers.set('X-User-Id', userInfo.userId)
+      headers.set('X-User-Admin', userInfo.isAdmin ? 'true' : 'false')
+    }
     
     // 转发请求
     const response = await fetch(targetUrl, {
@@ -340,35 +350,40 @@ export async function startServer(): Promise<void> {
       
       if (containerRole !== 'worker' && !isAuthPath) {
         try {
-          // 从请求中提取用户身份
-          const userInfo = extractUserFromRequest(req)
+          // 从请求中提取并验证用户身份（Master 负责所有认证）
+          const { authMiddleware } = await import('../utils/auth')
+          const auth = await authMiddleware(req)
           
-          if (userInfo?.userId) {
+          if (auth.userId) {
             // 获取容器编排器
             const orchestrator = getContainerOrchestrator()
-            let mapping = orchestrator.getUserMapping(userInfo.userId)
+            let mapping = orchestrator.getUserMapping(auth.userId)
             
             // 如果没有容器映射，触发调度分配
             if (!mapping) {
-              console.log(`[RequestRouter] 用户 ${userInfo.userId} 无容器，开始调度...`)
+              console.log(`[RequestRouter] 用户 ${auth.userId} 无容器，开始调度...`)
               const schedulingPolicy = getSchedulingPolicy()
               const scheduleResult = await schedulingPolicy.scheduleContainer(
-                userInfo.userId,
-                userInfo.username,
-                { role: userInfo.role }
+                auth.userId,
+                undefined,
+                { role: auth.isAdmin ? 'admin' : 'user' }
               )
               
               if (scheduleResult.success && scheduleResult.mapping) {
                 mapping = scheduleResult.mapping
-                console.log(`[RequestRouter] 成功为用户 ${userInfo.userId} 分配容器: ${mapping.container.containerName} (${scheduleResult.strategy})`)
+                console.log(`[RequestRouter] 成功为用户 ${auth.userId} 分配容器: ${mapping.container.containerName} (${scheduleResult.strategy})`)
               } else {
-                console.warn(`[RequestRouter] 为用户 ${userInfo.userId} 分配容器失败: ${scheduleResult.error}`)
+                console.warn(`[RequestRouter] 为用户 ${auth.userId} 分配容器失败: ${scheduleResult.error}`)
               }
             }
             
             // 如果有容器映射，代理请求到 Worker 容器
+            // 将认证后的用户信息传递给 Worker，Worker 不再重复验证
             if (mapping) {
-              return await proxyToWorkerContainer(req, mapping.container.containerName, path)
+              return await proxyToWorkerContainer(req, mapping.container.containerName, path, {
+                userId: auth.userId,
+                isAdmin: auth.isAdmin || false
+              })
             }
           }
         } catch (error) {

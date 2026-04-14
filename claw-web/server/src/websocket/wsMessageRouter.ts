@@ -218,18 +218,28 @@ async function handleRegister(ws: any, wsData: WebSocketData, message: any, send
 
 async function handleLogin(ws: any, wsData: WebSocketData, message: any, sendEvent: EventSender) {
   const token = message.token as string
-  if (token) {
-    wsData.token = token
-    verifyToken(token).then(payload => {
-      if (payload) {
-        wsData.userId = payload.userId
-        wsManager.syncConnectionMeta(wsData.connectionId, { userId: payload.userId })
-        console.log(`[WS] User logged in via token: ${payload.userId}`)
-        ws.send(JSON.stringify({ type: 'logged_in', userId: payload.userId }))
-      } else {
-        ws.send(JSON.stringify({ type: 'error', message: 'Invalid token' }))
-      }
-    })
+  if (!token) {
+    console.error('[WS] Login failed: no token provided')
+    ws.send(JSON.stringify({ type: 'error', message: 'Token is required' }))
+    return
+  }
+
+  wsData.token = token
+  try {
+    const payload = await verifyToken(token)
+    if (payload) {
+      wsData.userId = payload.userId
+      wsManager.syncConnectionMeta(wsData.connectionId, { userId: payload.userId })
+      console.log(`[WS] User logged in via token: ${payload.userId}`)
+      ws.send(JSON.stringify({ type: 'logged_in', userId: payload.userId }))
+    } else {
+      console.error('[WS] Login failed: invalid token')
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid token' }))
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Token verification failed'
+    console.error('[WS] Login failed:', errorMsg)
+    ws.send(JSON.stringify({ type: 'error', message: errorMsg }))
   }
 }
 
