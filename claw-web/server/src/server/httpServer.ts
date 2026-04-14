@@ -173,19 +173,24 @@ export async function startServer(): Promise<void> {
     console.warn('[Plugin] Failed to initialize plugin system:', error)
   }
 
-  // Initialize Container Orchestrator
-  try {
-    console.log('\n[ContainerOrchestrator] Initializing container orchestrator...')
-    const { getContainerOrchestrator } = await import('../orchestrator/containerOrchestrator')
-    const orchestrator = getContainerOrchestrator()
-    const initResult = await orchestrator.initialize()
-    if (initResult.success) {
-      console.log('[ContainerOrchestrator] Container orchestrator initialized successfully')
-    } else {
-      console.warn('[ContainerOrchestrator] Failed to initialize:', initResult.error)
+  // Initialize Container Orchestrator (only for master/orchestrator roles)
+  const containerRole = process.env.CONTAINER_ROLE || 'master'
+  if (containerRole !== 'worker') {
+    try {
+      console.log('\n[ContainerOrchestrator] Initializing container orchestrator...')
+      const { getContainerOrchestrator } = await import('../orchestrator/containerOrchestrator')
+      const orchestrator = getContainerOrchestrator()
+      const initResult = await orchestrator.initialize()
+      if (initResult.success) {
+        console.log('[ContainerOrchestrator] Container orchestrator initialized successfully')
+      } else {
+        console.warn('[ContainerOrchestrator] Failed to initialize:', initResult.error)
+      }
+    } catch (error) {
+      console.warn('[ContainerOrchestrator] Failed to initialize:', error)
     }
-  } catch (error) {
-    console.warn('[ContainerOrchestrator] Failed to initialize:', error)
+  } else {
+    console.log('\n[ContainerOrchestrator] Skipping orchestrator initialization (worker mode)')
   }
 
   // Initialize PTY Bridge
