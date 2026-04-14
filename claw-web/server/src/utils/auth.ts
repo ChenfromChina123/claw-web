@@ -4,6 +4,8 @@
 
 import { verifyToken, extractTokenFromHeader } from '../services/jwtService'
 
+export { verifyToken }
+
 export interface AuthResult {
   userId: string | null
   isAdmin: boolean | null
