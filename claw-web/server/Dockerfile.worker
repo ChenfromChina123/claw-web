@@ -5,6 +5,7 @@
 # ✅ 内存优化：降低V8堆内存和线程池大小
 # ✅ 快速启动：精简依赖和初始化流程
 # ✅ 健康检查：支持容器编排器的健康探测
+# ✅ 开发工具预装：Python、Node.js、Git、GitHub CLI 等
 #
 # 使用场景：
 # - 作为容器池中的Worker实例
@@ -20,7 +21,7 @@ LABEL role="worker"
 
 # 使用国内镜像源加速
 RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' /etc/apt/sources.list.d/debian.sources && \
-    sed -i 's|http://security.debian.org-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources
+    sed -i 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources
 
 # 安装系统依赖和进程管理器
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -28,17 +29,77 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     tzdata \
     supervisor \
-    nodejs \
-    npm \
     procps \
     net-tools \
+    # Python 依赖
+    python3-pip \
+    build-essential \
+    zlib1g-dev \
+    libncurses5-dev \
+    libgdbm-dev \
+    libnss3-dev \
+    libssl-dev \
+    libreadline-dev \
+    libffi-dev \
+    libsqlite3-dev \
+    wget \
+    llvm \
+    liblapack-dev \
+    gfortran \
+    # Git 依赖
+    liberror-perl \
+    # GitHub CLI 依赖
+    gnupg \
     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone \
-    && npm install -g pm2 \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/apt/archives/* \
     && apt-get clean \
     && rm -rf /tmp/* /var/tmp/*
+
+# ==================== 安装 Python 3.11.0 ====================
+RUN cd /tmp && \
+    wget https://www.python.org/ftp/python/3.11.0/Python-3.11.0.tgz && \
+    tar -xf Python-3.11.0.tgz && \
+    cd Python-3.11.0 && \
+    ./configure --enable-optimizations --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make altinstall && \
+    cd / && \
+    rm -rf /tmp/Python-3.11.0*
+
+# 验证 Python 安装
+RUN python3.11 --version && pip3 --version
+
+# ==================== 安装 Node.js 22.13.0 ====================
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y nodejs && \
+    node --version && \
+    npm --version
+
+# ==================== 安装 pnpm 9.4.0 ====================
+RUN npm install -g pnpm@9.4.0 && pnpm --version
+
+# ==================== 安装 Git 2.34.1 ====================
+RUN cd /tmp && \
+    wget https://github.com/git/git/archive/refs/tags/v2.34.1.tar.gz && \
+    tar -xzf v2.34.1.tar.gz && \
+    cd git-2.34.1 && \
+    make prefix=/usr/local all && \
+    make prefix=/usr/local install && \
+    cd / && \
+    rm -rf /tmp/git-* && \
+    git --version
+
+# ==================== 安装 GitHub CLI (gh) 2.40.1 ====================
+RUN curl -fsSL https://packagecloud.io/github/cli/gpgkey | apt-key add - && \
+    echo "deb https://deb.packager.io/gh/github/cli jammy main" > /etc/apt/sources.list.d/github-cli.list && \
+    apt-get update && \
+    apt-get install -y gh=2.40.1 && \
+    gh --version
+
+# ==================== 安装 PM2 ====================
+RUN npm install -g pm2 && pm2 --version
 
 WORKDIR /app
 
@@ -47,7 +108,7 @@ COPY server/package.json ./
 
 # 使用国内镜像源加速
 ENV BUN_CONFIG_REGISTRY=https://registry.npmmirror.com
-RUN bun install --production  # 生产环境跳过开发依赖
+RUN bun install --production
 
 # 复制源代码
 COPY server/ .
@@ -64,7 +125,9 @@ ENV NODE_ENV=production \
     PORT=3000 \
     WORKSPACE_BASE_DIR=/app/workspaces \
     TZ=Asia/Shanghai \
-    # 内存优化：单用户场景降低内存占用
+    # Python 环境
+    PATH="/usr/local/bin:$PATH" \
+    # 内存优化：单用户降低内存占用
     NODE_OPTIONS="--max-old-space-size=256 \
                  --optimize-for-size \
                  --gc-interval=100" \
