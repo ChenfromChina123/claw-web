@@ -26,15 +26,9 @@ export const useAuthStore = defineStore('auth', () => {
       if (response.accessToken) {
         console.log('[AuthStore] 登录成功，保存用户信息')
         token.value = response.accessToken
-        user.value = {
-          id: response.userId,
-          username: response.username,
-          email: response.email,
-          avatar: response.avatar,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
         localStorage.setItem('token', response.accessToken)
+        // 登录成功后调用 fetchUser 获取完整用户信息（包括 isAdmin）
+        await fetchUser()
         return true
       }
       console.log('[AuthStore] 登录失败: 没有 accessToken')
