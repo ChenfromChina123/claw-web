@@ -221,8 +221,7 @@ services:
     container_name: claw-worker-template  # 模板容器（不启动）
     entrypoint: ["tail", "-f", "/dev/null"]  # 保持容器运行但不执行业务逻辑
     profiles: ["build"]  # 仅在显式指定时构建: docker compose --profile build up worker-build
-    networks:
-      - claude-network
+    # 注意：不需要网络配置，仅用于构建镜像
 
 networks:
   # 主网络：MySQL 和 Master 通信
