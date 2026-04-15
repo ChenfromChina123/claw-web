@@ -776,6 +776,125 @@ export class SessionManager {
       }
     }
   }
+
+  /**
+   * 为 Agent 执行准备上下文
+   * 
+   * Master 专用方法，用于构建 Agent 执行所需的上下文
+   */
+  async prepareAgentContext(sessionId: string, userId: string): Promise<{
+    sessionId: string
+    userId: string
+    messages: Message[]
+    tools: any[]
+    quota: any
+    systemPrompt: string
+  } | null> {
+    const session = await this.sessionRepo.findById(sessionId)
+    if (!session || session.userId !== userId) {
+      console.error(`[SessionManager] Session not found or access denied: ${sessionId}`)
+      return null
+    }
+
+    // 获取消息
+    const messages = await this.messageRepo.findBySessionId(sessionId)
+    const visibleMessages = this.filterVisibleMessages(messages)
+
+    // 获取工具调用
+    const toolCalls = await this.toolCallRepo.findBySessionId(sessionId)
+
+    // 获取用户配额
+    let quota = {}
+    try {
+      const { getQuotaService } = await import('../security/quotaService')
+      const quotaService = getQuotaService()
+      quota = await quotaService.getUserQuota(userId)
+    } catch (error) {
+      console.warn('[SessionManager] 获取用户配额失败:', error)
+    }
+
+    // 获取可用工具
+    const { getAgentTools } = await import('../tools')
+    const tools = getAgentTools()
+
+    // 构建系统提示词
+    const systemPrompt = this.buildSystemPrompt(quota)
+
+    return {
+      sessionId,
+      userId,
+      messages: visibleMessages,
+      tools,
+      quota,
+      systemPrompt,
+    }
+  }
+
+  /**
+   * 保存 Agent 执行结果
+   * 
+   * Master 专用方法，用于保存 Agent 执行的结果
+   */
+  async saveAgentResult(
+    sessionId: string,
+    userMessage: Message,
+    assistantMessage: Message,
+    toolCalls: ToolCall[]
+  ): Promise<void> {
+    // 确保会话在缓存中
+    let sessionData = this.sessions.get(sessionId)
+    if (!sessionData) {
+      sessionData = await this.loadSession(sessionId)
+      if (!sessionData) {
+        throw new Error('Session not found')
+      }
+    }
+
+    // 添加用户消息
+    this.addMessage(
+      sessionId,
+      'user',
+      userMessage.content,
+      undefined,
+      userMessage.id
+    )
+
+    // 添加助手消息
+    this.addMessage(
+      sessionId,
+      'assistant',
+      assistantMessage.content,
+      toolCalls,
+      assistantMessage.id
+    )
+
+    // 添加工具调用
+    for (const toolCall of toolCalls) {
+      this.addToolCall(sessionId, toolCall)
+    }
+
+    // 强制保存
+    await this.forceSaveSession(sessionId)
+
+    console.log(`[SessionManager] 保存执行结果: session=${sessionId}, messages=2, toolCalls=${toolCalls.length}`)
+  }
+
+  /**
+   * 构建系统提示词
+   */
+  private buildSystemPrompt(quota: any): string {
+    // TODO: 根据用户配额构建系统提示词
+    return `你是一个智能助手，可以帮助用户完成各种任务。
+  
+当前可用工具：
+- 文件操作：读取、写入、创建、删除文件
+- 终端操作：执行命令
+- 搜索：搜索文件和内容
+- 网络操作：发送 HTTP 请求
+
+请根据用户的需求，合理使用工具来完成任务。
+`
+  }
 }
 
 /**

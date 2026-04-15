@@ -6,6 +6,11 @@
 # ✅ 快速启动：精简依赖和初始化流程
 # ✅ 健康检查：支持容器编排器的健康探测
 #
+# 安全加固：
+# ✅ Worker 不连接数据库 - 所有 DB 操作由 Master 负责
+# ✅ 使用 MASTER_INTERNAL_TOKEN 验证 Master 请求
+# ✅ 禁止容器内提权和网络攻击
+#
 # 使用场景：
 # - 作为容器池中的Worker实例
 # - 每个容器只服务一个用户
@@ -27,9 +32,8 @@ RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
         sed -i 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list; \
     fi
 
-# 安装系统依赖和进程管理器
+# 安装系统依赖（移除 MySQL 客户端 - Worker 不需要数据库连接）
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    default-mysql-client \
     curl \
     tzdata \
     supervisor \
@@ -63,9 +67,15 @@ RUN rm -f .env .env.local .env.*.local 2>/dev/null || true && \
     echo "# Environment variables set by container orchestrator" > .env
 
 # 设置环境变量（针对单用户优化的配置）
+# 安全说明：
+# - CONTAINER_ROLE=worker 表示这是 Worker 容器
+# - DB_* 变量已被移除，Worker 不连接数据库
+# - MASTER_INTERNAL_TOKEN 用于验证 Master 的内部 API 请求
+# - WORKSPACE_BASE_DIR=/workspace 是 Bind Mount 挂载点
 ENV NODE_ENV=production \
     PORT=3000 \
-    WORKSPACE_BASE_DIR=/app/workspaces \
+    # Bind Mount 挂载点（宿主机目录挂载到容器内的路径）
+    WORKSPACE_BASE_DIR=/workspace \
     TZ=Asia/Shanghai \
     # 内存优化：单用户降低内存占用
     NODE_OPTIONS="--max-old-space-size=256" \
@@ -82,17 +92,21 @@ ENV NODE_ENV=production \
     API_TIMEOUT_MS=300000 \
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
     DISABLE_TELEMETRY=1 \
-    # 容器标识
-    CONTAINER_ROLE=worker
+    # 容器标识 - Worker 模式
+    CONTAINER_ROLE=worker \
+    # 禁用数据库连接（安全加固）
+    DB_HOST="" \
+    DB_PORT="" \
+    DB_USER="" \
+    DB_PASSWORD="" \
+    DB_NAME=""
 
-# 创建工作区目录结构、Supervisor 配置目录和日志目录
-RUN mkdir -p /app/workspaces/users \
-             /app/workspaces/sessions \
-             /app/workspaces/projects \
+# 创建工作区目录结构（作为 Bind Mount 挂载点）
+RUN mkdir -p /workspace \
              /app/logs \
              /etc/supervisor/conf.d \
              /var/log/supervisor \
-    && chown -R bun:bun /app/workspaces /app/logs
+    && chown -R bun:bun /workspace /app/logs
 
 # 暴露端口
 EXPOSE 3000
@@ -104,5 +118,9 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
 # 停止信号（优雅关闭）
 STOPSIGNAL SIGINT
 
-# 启动命令（使用root用户运行，确保可以绑定端口）
+# 启动命令（使用非 root 用户运行 - 安全加固）
+# 注意：容器启动时需要确保 /app/workspaces 目录存在且可访问
+# Worker 模式入口文件：index.ts（自动检测 CONTAINER_ROLE）
+USER bun
+
 CMD ["bun", "--bun", "run", "src/index.ts"]

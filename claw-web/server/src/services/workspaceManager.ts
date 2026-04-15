@@ -40,6 +40,14 @@ function resolveWorkspaceBaseDir(): string {
   return path.resolve(process.cwd(), '..', 'workspaces')
 }
 
+/**
+ * 检查是否为 Worker 模式
+ * Worker 模式下，/workspace 就是用户工作区，不需要 users/{userId} 嵌套
+ */
+function isWorkerMode(): boolean {
+  return process.env.CONTAINER_ROLE === 'worker'
+}
+
 function pathsEffectivelyEqual(a: string, b: string): boolean {
   const na = path.normalize(path.resolve(a))
   const nb = path.normalize(path.resolve(b))
@@ -157,6 +165,23 @@ export class WorkspaceManager {
     return this.config.baseDir
   }
 
+  /**
+   * 获取用户的实际工作目录路径
+   * Worker 模式下：直接返回 /workspace（Bind Mount 点）
+   * Master 模式下：返回 /baseDir/users/{userId}
+   */
+  getActualWorkspacePath(userId?: string): string {
+    // Worker 模式：/workspace 就是用户工作区，不需要 users/{userId} 嵌套
+    if (isWorkerMode()) {
+      return this.config.baseDir
+    }
+    // Master 模式：使用标准的 users/{userId} 嵌套结构
+    if (userId) {
+      return path.join(this.config.baseDir, 'users', userId)
+    }
+    return this.config.baseDir
+  }
+
   constructor(config?: WorkspaceConfig) {
     this.config = { ...DEFAULT_CONFIG, ...config }
     console.log(`[WorkspaceManager] 工作区根目录: ${this.config.baseDir}`)
@@ -165,8 +190,22 @@ export class WorkspaceManager {
 
   /**
    * 确保基础目录和 .claude 目录存在
+   * Worker 模式下跳过目录创建，信任 Master 在宿主机上已准备好
    */
   private async ensureBaseDirectory(): Promise<void> {
+    // Worker 模式：只读环境，不创建目录
+    if (process.env.CONTAINER_ROLE === 'worker') {
+      console.log(`[WorkspaceManager] Worker 模式: 跳过目录创建，信任 Master 的 Bind Mount`)
+      // Worker 只检查目录是否存在，如果不存在也不报错（由后续操作处理）
+      if (!existsSync(this.config.baseDir)) {
+        console.warn(`[WorkspaceManager] 警告: 工作区目录 ${this.config.baseDir} 不存在（Bind Mount 可能未挂载）`)
+      } else {
+        console.log(`[WorkspaceManager] 工作区目录已就绪: ${this.config.baseDir}`)
+      }
+      return
+    }
+
+    // Master 模式：正常创建目录
     try {
       if (!existsSync(this.config.baseDir)) {
         await fs.mkdir(this.config.baseDir, { recursive: true })
@@ -246,6 +285,36 @@ export class WorkspaceManager {
    * @returns 用户工作区元数据
    */
   async getUserWorkspace(userId: string): Promise<UserWorkspaceMetadata | null> {
+    // Worker 模式：优先尝试加载 Master 留下的元数据，实现 Skill/配置继承
+    if (isWorkerMode()) {
+      // 尝试读取挂载点根目录下的 Master 元数据
+      const metadataPath = path.join(this.config.baseDir, '.user-workspace.json')
+      if (existsSync(metadataPath)) {
+        try {
+          const content = await fs.readFile(metadataPath, 'utf-8')
+          const metadata = JSON.parse(content) as UserWorkspaceMetadata
+          // 强制覆盖路径为当前挂载点（扁平化：Agent 看不到 users/ 结构）
+          metadata.path = this.config.baseDir
+          // 保留原有的 installedSkills（继承 Master 的 Skill 遗产）
+          console.log(`[WorkspaceManager] Worker 继承 Master 元数据: ${metadata.installedSkills.length} 个 Skills`)
+          return metadata
+        } catch (e) {
+          console.warn('[WorkspaceManager] 读取 Master 元数据失败，降级到默认配置')
+        }
+      }
+      // 降级：返回简化元数据（但 Skill 列表应该为空）
+      const workerMetadata: UserWorkspaceMetadata = {
+        workspaceId: `worker-${userId}`,
+        userId,
+        createdAt: new Date().toISOString(),
+        lastModifiedAt: new Date().toISOString(),
+        path: this.config.baseDir, // 指向 /workspace（扁平化）
+        installedSkills: [], // Master 元数据不存在时为空
+        config: { isWorkerMode: true }
+      }
+      return workerMetadata
+    }
+
     if (this.userWorkspaces.has(userId)) {
       const cached = this.userWorkspaces.get(userId)!
       return await this.reconcileUserWorkspacePath(userId, cached)
@@ -290,6 +359,31 @@ export class WorkspaceManager {
    * @returns 用户工作区元数据
    */
   async createUserWorkspace(userId: string): Promise<UserWorkspaceMetadata> {
+    // Worker 模式：不应该调用此方法，尝试继承 Master 元数据
+    if (isWorkerMode()) {
+      // 尝试读取 Master 留下的元数据
+      const metadataPath = path.join(this.config.baseDir, '.user-workspace.json')
+      if (existsSync(metadataPath)) {
+        try {
+          const content = await fs.readFile(metadataPath, 'utf-8')
+          const metadata = JSON.parse(content) as UserWorkspaceMetadata
+          metadata.path = this.config.baseDir
+          console.log(`[WorkspaceManager] Worker 从 createUserWorkspace 继承元数据`)
+          return metadata
+        } catch {}
+      }
+      // 最终降级
+      return {
+        workspaceId: `worker-${userId}`,
+        userId,
+        createdAt: new Date().toISOString(),
+        lastModifiedAt: new Date().toISOString(),
+        path: this.config.baseDir,
+        installedSkills: [],
+        config: { isWorkerMode: true }
+      }
+    }
+
     const workspacePath = path.join(this.config.baseDir, 'users', userId)
 
     const dirs = ['skills', 'config', 'data', 'uploads', 'outputs', 'temp']

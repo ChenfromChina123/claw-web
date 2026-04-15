@@ -1,9 +1,13 @@
 /**
  * HTTP 服务器配置与启动
+ * 
+ * 支持 Master-Worker 双角色模式：
+ * - Master: 负责认证、会话管理、数据库操作、容器调度、流式转发
+ * - Worker: 纯沙箱，只执行 Agent 和工具，不连接数据库
  */
 
 import { v4 as uuidv4 } from 'uuid'
-import { initDatabase, closePool } from '../db/mysql'
+import { initDatabase, closePool, isDatabaseAvailable } from '../db/mysql'
 import { SessionManager } from '../services/sessionManager'
 import { getAgentStatusService, createAgentStatusService, setAgentStatusService } from '../services/agentStatusService'
 import { getWorkflowEventService } from '../services/workflowEventService'
@@ -18,6 +22,8 @@ import { PORT, AVAILABLE_MODELS } from '../utils/constants'
 import type { WebSocketData } from '../types'
 import { getContainerOrchestrator } from '../orchestrator/containerOrchestrator'
 import { getSchedulingPolicy } from '../orchestrator/schedulingPolicy'
+import { executeAgentOnWorker } from './agentApi'
+import { SSEParser } from './sseParser'
 
 // 导入所有需要初始化的服务
 import '../services/sessionManager'
@@ -34,6 +40,253 @@ import '../integration/webStore'
 import { initializePluginSystem } from '../integrations/plugins'
 
 const sessionManager = SessionManager.getInstance()
+const sseParser = new SSEParser()
+
+// ==================== Master Token 验证 ====================
+
+/**
+ * 验证 Master 内部通信 Token
+ * Worker 只信任来自 Master 的请求
+ */
+function verifyMasterToken(request: Request): boolean {
+  const masterToken = request.headers.get('X-Master-Token')
+  const expectedToken = process.env.MASTER_INTERNAL_TOKEN
+  
+  if (!expectedToken) {
+    console.warn('[MasterToken] MASTER_INTERNAL_TOKEN not configured, rejecting all internal requests')
+    return false
+  }
+  
+  if (!masterToken) {
+    console.warn('[MasterToken] Missing X-Master-Token header')
+    return false
+  }
+  
+  if (masterToken !== expectedToken) {
+    console.warn('[MasterToken] Invalid X-Master-Token')
+    return false
+  }
+  
+  return true
+}
+
+/**
+ * 提取用户身份信息（Worker 模式下从 Master 头部获取）
+ */
+function extractUserFromMasterHeaders(req: Request): { userId?: string; isAdmin?: boolean } | null {
+  const userId = req.headers.get('X-User-Id')
+  const isAdmin = req.headers.get('X-User-Admin') === 'true'
+  
+  if (!userId) {
+    return null
+  }
+  
+  return { userId, isAdmin }
+}
+
+/**
+ * Worker 模式下的 Agent 执行处理器（SSE 流式响应）
+ */
+async function handleWorkerAgentExecute(req: Request): Promise<Response> {
+  // 1. 验证 Master Token
+  if (!verifyMasterToken(req)) {
+    return createErrorResponse('UNAUTHORIZED', 'Invalid or missing Master token', 401)
+  }
+  
+  // 2. 从 Master 头部获取用户信息
+  const userInfo = extractUserFromMasterHeaders(req)
+  if (!userInfo?.userId) {
+    return createErrorResponse('BAD_REQUEST', 'Missing X-User-Id header', 400)
+  }
+  
+  // 3. 解析请求体
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return createErrorResponse('BAD_REQUEST', 'Invalid JSON body', 400)
+  }
+  
+  const { sessionId, message, context } = body
+  
+  if (!sessionId || !message) {
+    return createErrorResponse('BAD_REQUEST', 'Missing sessionId or message', 400)
+  }
+  
+  // 4. 创建 SSE 流
+  const stream = new ReadableStream({
+    start(controller) {
+      const sendEvent = (type: string, data: unknown) => {
+        const payload = `data: ${JSON.stringify({ type, data })}\n\n`
+        try {
+          controller.enqueue(new TextEncoder().encode(payload))
+        } catch (e) {
+          console.error('[WorkerAgent] Failed to enqueue event:', e)
+        }
+      }
+      
+      // 执行 Agent（这里需要导入 Agent 执行器）
+      executeAgentOnWorkerInternal(
+        userInfo.userId!,
+        sessionId,
+        message,
+        context || {},
+        sendEvent
+      ).catch(error => {
+        console.error('[WorkerAgent] Execution error:', error)
+        sendEvent('error', { message: error.message })
+        controller.close()
+      })
+    }
+  })
+  
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  })
+}
+
+/**
+ * Worker 内部 Agent 执行逻辑
+ * 这里调用实际的 Agent 执行器
+ */
+async function executeAgentOnWorkerInternal(
+  userId: string,
+  sessionId: string,
+  message: string,
+  context: any,
+  sendEvent: (type: string, data: unknown) => void
+): Promise<void> {
+  try {
+    // 导入 Agent 执行器
+    const { getAgentExecutor } = await import('../agents/executor')
+    const executor = getAgentExecutor()
+    
+    await executor.execute({
+      userId,
+      sessionId,
+      message,
+      messages: context.messages || [],
+      tools: context.tools || [],
+      quota: context.quota,
+      onEvent: sendEvent,
+    })
+  } catch (error) {
+    console.error('[WorkerAgent] Executor error:', error)
+    sendEvent('error', { message: error instanceof Error ? error.message : 'Unknown error' })
+  }
+}
+
+/**
+ * Worker 模式下的文件操作处理器
+ */
+async function handleWorkerFileOperation(req: Request, path: string): Promise<Response> {
+  if (!verifyMasterToken(req)) {
+    return createErrorResponse('UNAUTHORIZED', 'Invalid or missing Master token', 401)
+  }
+  
+  const userInfo = extractUserFromMasterHeaders(req)
+  if (!userInfo?.userId) {
+    return createErrorResponse('BAD_REQUEST', 'Missing X-User-Id header', 400)
+  }
+  
+  // 文件操作逻辑...
+  // 这里可以复用现有的文件操作路由
+  return createErrorResponse('NOT_IMPLEMENTED', 'File operations on Worker not implemented', 501)
+}
+
+/**
+ * Worker 模式下的 PTY 创建处理器
+ */
+async function handleWorkerPtyCreate(req: Request): Promise<Response> {
+  if (!verifyMasterToken(req)) {
+    return createErrorResponse('UNAUTHORIZED', 'Invalid or missing Master token', 401)
+  }
+  
+  const userInfo = extractUserFromMasterHeaders(req)
+  if (!userInfo?.userId) {
+    return createErrorResponse('BAD_REQUEST', 'Missing X-User-Id header', 400)
+  }
+  
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return createErrorResponse('BAD_REQUEST', 'Invalid JSON body', 400)
+  }
+  
+  const { sessionId, shell, cwd } = body
+  
+  try {
+    const ptySession = await ptyManager.createSession(
+      sessionId || uuidv4(),
+      shell || '/bin/bash',
+      cwd || '/app'
+    )
+    
+    return createSuccessResponse({
+      sessionId: ptySession.sessionId,
+      pid: ptySession.pid,
+    })
+  } catch (error) {
+    console.error('[WorkerPTY] Create error:', error)
+    return createErrorResponse('PTY_ERROR', error instanceof Error ? error.message : 'Failed to create PTY', 500)
+  }
+}
+
+/**
+ * Worker 模式 HTTP 处理函数
+ */
+async function handleWorkerRequest(req: Request): Promise<Response | null> {
+  const url = new URL(req.url)
+  const path = url.pathname
+  const method = req.method
+  
+  // 1. 健康检查
+  if (path === '/api/health' && method === 'GET') {
+    return new Response(JSON.stringify({
+      success: true,
+      data: {
+        status: 'healthy',
+        role: 'worker',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+      }
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  }
+  
+  // 2. Agent 执行（主入口）
+  if (path === '/api/internal/agent/execute' && method === 'POST') {
+    return await handleWorkerAgentExecute(req)
+  }
+  
+  // 3. PTY 创建
+  if (path === '/api/internal/pty/create' && method === 'POST') {
+    return await handleWorkerPtyCreate(req)
+  }
+  
+  // 4. 文件操作
+  if (path.startsWith('/api/internal/files/')) {
+    return await handleWorkerFileOperation(req, path)
+  }
+  
+  // 5. 工具执行
+  if (path === '/api/internal/tools/execute' && method === 'POST') {
+    if (!verifyMasterToken(req)) {
+      return createErrorResponse('UNAUTHORIZED', 'Invalid or missing Master token', 401)
+    }
+    // 工具执行逻辑...
+    return createErrorResponse('NOT_IMPLEMENTED', 'Tool execution not implemented', 501)
+  }
+  
+  return null
+}
 
 /**
  * 注册 WebSocket RPC 方法
@@ -102,6 +355,7 @@ function decodeJWTPayload(token: string): any {
  * 架构说明：
  * - Master 负责认证，将用户信息通过头部传递给 Worker
  * - Worker 信任来自 Master 的请求，不再重复验证 token
+ * - 使用 X-Master-Token 进行内部 API 认证
  */
 async function proxyToWorkerContainer(req: Request, containerName: string, path: string, userInfo?: { userId: string; isAdmin?: boolean }): Promise<Response> {
   // 在 Docker 网络中，使用容器名称 + 内部端口（3000）访问
@@ -114,6 +368,12 @@ async function proxyToWorkerContainer(req: Request, containerName: string, path:
     headers.set('X-Forwarded-For', 'claw-web-master')
     headers.set('X-Proxy-Origin', 'claw-web-master')
     headers.set('Host', `${containerName}:3000`)
+    
+    // 设置 Master 内部通信 Token（Worker 只信任带有此 Token 的请求）
+    const masterToken = process.env.MASTER_INTERNAL_TOKEN
+    if (masterToken) {
+      headers.set('X-Master-Token', masterToken)
+    }
     
     // 将认证后的用户信息传递给 Worker
     if (userInfo?.userId) {
@@ -150,7 +410,15 @@ export async function startServer(): Promise<void> {
   
   // 获取容器角色（在整个函数中使用）
   const containerRole = process.env.CONTAINER_ROLE || 'master'
+  console.log(`[Server] Container role: ${containerRole}`)
   
+  // ========== Worker 模式启动 ==========
+  if (containerRole === 'worker') {
+    await startWorkerMode()
+    return
+  }
+  // ========== Worker 模式启动结束 ==========
+
   // Initialize database
   try {
     console.log('\n[DB] Initializing database...')
@@ -348,16 +616,22 @@ export async function startServer(): Promise<void> {
       const authPaths = ['/api/auth/login', '/api/auth/register', '/api/auth/me', '/api/auth/refresh']
       const isAuthPath = authPaths.some(authPath => path.startsWith(authPath))
       
+      console.log(`[RequestRouter] path=${path}, isAuthPath=${isAuthPath}, containerRole=${containerRole}`)
+      
       if (containerRole !== 'worker' && !isAuthPath) {
         try {
           // 从请求中提取并验证用户身份（Master 负责所有认证）
           const { authMiddleware } = await import('../utils/auth')
           const auth = await authMiddleware(req)
           
+          console.log(`[RequestRouter] auth result: userId=${auth.userId}, isAdmin=${auth.isAdmin}`)
+          
           if (auth.userId) {
             // 获取容器编排器
             const orchestrator = getContainerOrchestrator()
             let mapping = orchestrator.getUserMapping(auth.userId)
+            
+            console.log(`[RequestRouter] userMapping: ${mapping ? mapping.container.containerName : 'null'}`)
             
             // 如果没有容器映射，触发调度分配
             if (!mapping) {
@@ -380,6 +654,7 @@ export async function startServer(): Promise<void> {
             // 如果有容器映射，代理请求到 Worker 容器
             // 将认证后的用户信息传递给 Worker，Worker 不再重复验证
             if (mapping) {
+              console.log(`[RequestRouter] 代理请求到 Worker: ${mapping.container.containerName}`)
               return await proxyToWorkerContainer(req, mapping.container.containerName, path, {
                 userId: auth.userId,
                 isAdmin: auth.isAdmin || false
@@ -417,7 +692,7 @@ export async function startServer(): Promise<void> {
           version: '1.0.0',
           timestamp: new Date().toISOString(),
           uptime: process.uptime(),
-          dbConnected: true,
+          dbConnected: isDatabaseAvailable(),
           connections: wsManager.getAllConnections().size,
         })
       }
@@ -471,6 +746,69 @@ export async function startServer(): Promise<void> {
   })
 
   printServerStatus()
+}
+
+/**
+ * Worker 模式启动
+ * Worker 是纯沙箱，只初始化必要的组件
+ */
+async function startWorkerMode(): Promise<void> {
+  console.log('='.repeat(60))
+  console.log('  Worker Mode - Sandbox Execution Environment')
+  console.log('='.repeat(60))
+  
+  console.log('\n[Worker] Running in sandbox mode')
+  console.log('[Worker] Database connection disabled - Master handles all DB operations')
+  console.log('[Worker] All requests must include valid X-Master-Token')
+  
+  // 初始化 PTY Bridge（Worker 也需要支持终端操作）
+  console.log('\n[PTY] Initializing PTY Bridge...')
+  wsPTYBridge
+  console.log('[PTY] PTY Bridge initialized')
+  
+  // Start HTTP server in Worker mode
+  const server = Bun.serve({
+    port: PORT,
+    hostname: '0.0.0.0',
+    async fetch(req) {
+      // Worker 模式下使用简化的路由处理
+      const response = await handleWorkerRequest(req)
+      if (response !== null) {
+        return response
+      }
+      
+      // 404 for unmatched routes
+      return createErrorResponse('NOT_FOUND', 'Route not found in Worker mode', 404)
+    },
+    
+    websocket: {
+      open(ws) {
+        const wsData = ws.data as WebSocketData
+        handleWebSocketOpen(ws, wsData)
+      },
+      
+      async message(ws, data) {
+        const wsData = ws.data as WebSocketData
+        await handleWebSocketMessage(ws, wsData, data)
+      },
+      
+      close(ws) {
+        const wsData = ws.data as WebSocketData
+        handleWebSocketClose(ws, wsData)
+      },
+    },
+  })
+  
+  console.log(`\n${'='.repeat(60)}`)
+  console.log('  Worker Mode Started')
+  console.log(`${'='.repeat(60)}`)
+  console.log(`\n[HTTP] Worker API:      http://localhost:${PORT}/api/*`)
+  console.log(`[WS]   WebSocket:        ws://localhost:${PORT}/ws`)
+  console.log(`\n[Worker] Internal API Endpoints:`)
+  console.log(`       POST /api/internal/agent/execute - Agent execution (Master only)`)
+  console.log(`       POST /api/internal/pty/create    - PTY creation (Master only)`)
+  console.log(`       POST /api/internal/files/*      - File operations (Master only)`)
+  console.log(`       POST /api/internal/tools/execute - Tool execution (Master only)`)
 }
 
 /**

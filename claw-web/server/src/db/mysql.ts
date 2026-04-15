@@ -12,6 +12,14 @@ interface DbConfig {
   database: string
 }
 
+/**
+ * 判断当前是否运行在 Worker 模式下
+ * Worker 容器不连接数据库，所有数据库操作由 Master 负责
+ */
+function isWorkerMode(): boolean {
+  return process.env.CONTAINER_ROLE === 'worker'
+}
+
 function loadDbConfig(): DbConfig {
   const config: Record<string, string> = {}
 
@@ -57,7 +65,14 @@ function loadDbConfig(): DbConfig {
   }
 }
 
-export function getPool(): mysql.Pool {
+export function getPool(): mysql.Pool | null {
+  // Worker 模式下禁用数据库连接
+  // 所有数据库操作由 Master 容器负责，Worker 只执行 Agent 和工具
+  if (isWorkerMode()) {
+    console.log('[DB] Worker mode: database pool disabled - all DB operations handled by Master')
+    return null
+  }
+
   if (!pool) {
     const config = loadDbConfig()
     
@@ -80,6 +95,17 @@ export function getPool(): mysql.Pool {
     console.log('MySQL pool created with config:', { host: config.host, port: config.port, user: config.user, database: config.database, sslRejectUnauthorized })
   }
   return pool
+}
+
+/**
+ * 检查数据库连接是否可用
+ * Worker 模式下始终返回 false
+ */
+export function isDatabaseAvailable(): boolean {
+  if (isWorkerMode()) {
+    return false
+  }
+  return pool !== null
 }
 
 export async function initDatabase(): Promise<void> {

@@ -79,10 +79,20 @@ export interface PoolConfig {
   healthCheckIntervalMs: number
   /** Docker镜像名称 */
   imageName: string
-  /** 网络名称 */
+  /**
+   * 网络名称
+   * 安全说明：Worker 容器应该使用与 MySQL 隔离的网络（如 worker-network）
+   * 以防止 Worker 容器直接访问数据库，即使应用层被绕过也无法连接 MySQL
+   */
   networkName: string
   /** 基础端口号（从该端口开始分配）*/
   basePort: number
+  /** 宿主机工作空间根目录（Bind Mount 目标）*/
+  hostWorkspacePath: string
+  /** 磁盘空间告警阈值（百分比）*/
+  diskWarningThreshold: number
+  /** 磁盘空间严重告警阈值（百分比）*/
+  diskCriticalThreshold: number
 }
 
 /**
@@ -102,9 +112,16 @@ const DEFAULT_POOL_CONFIG: Required<PoolConfig> = {
   maxPoolSize: parseInt(process.env.CONTAINER_POOL_MAX_SIZE || '10', 10),
   idleTimeoutMs: parseInt(process.env.CONTAINER_IDLE_TIMEOUT_MS || '300000', 10), // 5分钟
   healthCheckIntervalMs: parseInt(process.env.CONTAINER_HEALTH_CHECK_INTERVAL || '15000', 10),
-  imageName: process.env.WORKER_IMAGE_NAME || 'claw-web-backend-worker:latest',
-  networkName: process.env.DOCKER_NETWORK_NAME || 'claw-web_claude-network',
-  basePort: parseInt(process.env.CONTAINER_BASE_PORT || '3100', 10)
+  imageName: process.env.WORKER_IMAGE_NAME || 'claw-web-backend-worker:latest', // 确保使用 Worker 镜像
+  // 安全加固：Worker 容器使用独立的 worker-network，无法直接访问 MySQL
+  // Master 同时连接 claude-network（MySQL）和 worker-network（Worker）
+  networkName: process.env.DOCKER_NETWORK_NAME || 'claw-web_worker-network',
+  basePort: parseInt(process.env.CONTAINER_BASE_PORT || '3100', 10),
+  // 宿主机工作空间目录（Bind Mount）
+  hostWorkspacePath: process.env.HOST_WORKSPACE_PATH || '/data/claws/workspaces',
+  // 磁盘空间告警阈值
+  diskWarningThreshold: parseInt(process.env.DISK_WARNING_THRESHOLD || '80', 10),
+  diskCriticalThreshold: parseInt(process.env.DISK_CRITICAL_THRESHOLD || '90', 10),
 }
 
 // ==================== ContainerOrchestrator 类 ====================
@@ -151,6 +168,23 @@ class ContainerOrchestrator {
           error: `无法创建或访问网络 ${this.config.networkName}`,
           code: 'NETWORK_ERROR'
         }
+      }
+
+      // 初始化宿主机工作空间目录（Bind Mount 根目录）
+      await this.ensureHostWorkspaceExists()
+
+      // 检查磁盘空间
+      const diskStatus = await this.checkDiskSpace()
+      if (diskStatus.critical) {
+        console.error(`[ContainerOrchestrator] 磁盘空间严重不足: ${diskStatus.used}%`)
+        return {
+          success: false,
+          error: `磁盘空间严重不足 (${diskStatus.used}%)，无法创建容器`,
+          code: 'DISK_SPACE_CRITICAL'
+        }
+      }
+      if (diskStatus.warning) {
+        console.warn(`[ContainerOrchestrator] 磁盘空间告警: ${diskStatus.used}%`)
       }
 
       // 首先扫描已存在的热容器
@@ -285,9 +319,10 @@ class ContainerOrchestrator {
    * @param userId 用户ID
    * @param username 用户名（可选）
    * @param userTier 用户等级（可选，默认为free）
+   * @param sessionId 会话ID（可选，用于工作空间目录挂载）
    * @returns 分配结果
    */
-  async assignContainerToUser(userId: string, username?: string, userTier?: UserTier): Promise<OrchestratorResult<UserContainerMapping>> {
+  async assignContainerToUser(userId: string, username?: string, userTier?: UserTier, sessionId?: string): Promise<OrchestratorResult<UserContainerMapping>> {
     try {
       // 检查用户是否已有容器
       const existingMapping = this.userMappings.get(userId)
@@ -299,13 +334,22 @@ class ContainerOrchestrator {
         return { success: true, data: existingMapping }
       }
 
+      // 如果提供了 sessionId，先确保宿主机目录存在
+      if (sessionId) {
+        const workspaceResult = await this.ensureUserWorkspaceExists(userId, sessionId)
+        if (!workspaceResult.success) {
+          console.warn(`[ContainerOrchestrator] 确保工作空间目录存在失败: ${workspaceResult.error}`)
+          // 不阻塞容器创建，继续
+        }
+      }
+
       // 尝试从热池获取可用容器
       let container = await this.acquireFromWarmPool()
 
       if (!container) {
         // 热池为空，创建新容器
         console.log(`[ContainerOrchestrator] 热池为空，为用户 ${userId} 创建新容器...`)
-        const createResult = await this.createContainer(userId, username, userTier)
+        const createResult = await this.createContainer(userId, username, userTier, sessionId)
         if (!createResult.success) {
           return createResult as OrchestratorResult<UserContainerMapping>
         }
@@ -401,28 +445,47 @@ class ContainerOrchestrator {
       // 分配端口（异步，带冲突检测）
       const port = await this.allocatePort()
 
+      // ========== Bind Mount: 热池容器临时工作空间 ==========
+      // 热池容器使用临时目录，分配给用户时会切换到用户专属目录
+      const warmWorkspacePath = `${this.config.hostWorkspacePath}/_warm/${containerName}`
+      try {
+        await fs.mkdir(warmWorkspacePath, { recursive: true })
+        await execAsync(`chmod 755 ${warmWorkspacePath}`)
+      } catch (error) {
+        console.warn(`[ContainerOrchestrator] 创建热池工作空间目录失败（非致命）: ${error}`)
+      }
+      // ========== Bind Mount 结束 ==========
+
       // 构建Docker运行命令
-      // Worker容器不参与认证，不需要JWT_SECRET
-      // 所有认证由Master容器处理，Worker只信任Master传递的用户信息
+      // 安全加固：Worker容器不接收数据库凭证
+      // 所有认证由Master处理，Worker只信任Master传递的用户信息（通过X-Master-Token验证）
       const dockerCmd = [
         'docker run -d',
         `--name ${containerName}`,
         `-p ${port}:3000`,
         `--network ${this.config.networkName}`,
         '--restart unless-stopped',
+
+        // 安全加固
+        '--read-only',
+        '--security-opt=no-new-privileges',
+        '--cap-drop=ALL',
+
+        // 资源限制
+        '-m 512m',
+        '--memory-swap 512m',
+        '--pids-limit 100',
+        '--ulimit nproc=100:100',
+        '--ulimit nofile=1024:1024',
+
         '-e CONTAINER_ROLE=worker',
         '-e NODE_ENV=production',
-        `-e WORKSPACE_BASE_DIR=/app/workspaces`,
+        `-e WORKSPACE_BASE_DIR=/workspace`,
         `-e USER_STORAGE_QUOTA_MB=200`,
         `-e USER_SESSION_LIMIT=5`,
         `-e MAX_USERS=1`,
-        // 数据库连接信息
-        `-e DB_HOST=mysql`,
-        `-e DB_PORT=3306`,
-        `-e DB_USER=claude_user`,
-        `-e DB_PASSWORD=userpassword123`,
-        `-e DB_NAME=claude_code_haha`,
-        `-e DB_SSL_REJECT_UNAUTHORIZED=false`,
+        // 内部通信令牌 - Worker验证Master请求的唯一凭证
+        `-e MASTER_INTERNAL_TOKEN=${process.env.MASTER_INTERNAL_TOKEN || ''}`,
         // API密钥（从环境变量获取）
         `-e ANTHROPIC_AUTH_TOKEN=${process.env.ANTHROPIC_AUTH_TOKEN || ''}`,
         `-e ANTHROPIC_BASE_URL=${process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'}`,
@@ -548,14 +611,15 @@ class ContainerOrchestrator {
     }
   }
 
-  /**
-   * 创建新的用户专用容器
-   * @param userId 用户ID
-   * @param username 用户名
-   * @param userTier 用户等级（可选，默认为free）
-   * @returns 创建结果
-   */
-  private async createContainer(userId: string, username?: string, userTier?: UserTier): Promise<OrchestratorResult<ContainerInstance>> {
+/**
+ * 创建新的用户专用容器
+ * @param userId 用户ID
+ * @param username 用户名
+ * @param userTier 用户等级（可选，默认为free）
+ * @param sessionId 会话ID（可选，用于工作空间目录）
+ * @returns 创建结果
+ */
+private async createContainer(userId: string, username?: string, userTier?: UserTier, sessionId?: string): Promise<OrchestratorResult<ContainerInstance>> {
     try {
       const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 20)
       const containerName = `claude-user-${safeUserId}`
@@ -579,26 +643,68 @@ class ContainerOrchestrator {
       const quota = hardwareManager.getUserQuota(userId, tier)
       const resourceArgs = hardwareManager.generateDockerResourceArgs(quota)
 
+      // ========== Bind Mount: 宿主机工作空间挂载 ==========
+      // 安全说明：
+      // - 文件直接写入宿主机磁盘，容器崩溃也不会丢失
+      // - Agent 看到的是 /workspace（容器内路径）
+      // - 实际上对应宿主机 /data/claws/workspaces/{userId}/{sessionId}
+      // - pathSandbox.ts 已经限制了路径，Agent 只能访问 /workspace
+      const hostWorkspacePath = sessionId
+        ? `${this.config.hostWorkspacePath}/${userId}/${sessionId}`
+        : `${this.config.hostWorkspacePath}/${userId}`
+
+      // 确保宿主机目录存在
+      try {
+        await fs.mkdir(hostWorkspacePath, { recursive: true })
+        await execAsync(`chmod 755 ${hostWorkspacePath}`)
+      } catch (error) {
+        console.warn(`[ContainerOrchestrator] 创建宿主机工作空间目录失败（非致命）: ${error}`)
+      }
+      // ========== Bind Mount 结束 ==========
+
       // 构建Docker运行命令（包含硬件资源限制）
-      // Worker容器不参与认证，不需要JWT_SECRET
+      // 安全加固：Worker容器不接收数据库凭证
+      // 所有认证由Master处理，Worker只信任Master传递的用户信息
       const dockerCmd = [
         'docker run -d',
         `--name ${containerName}`,
         `-p ${port}:3000`,
         `--network ${this.config.networkName}`,
         '--restart unless-stopped',
+
+        // 安全加固
+        '--read-only',
+        '--security-opt=no-new-privileges',
+        '--cap-drop=ALL',
+
+        // 资源限制（来自用户等级配额）
         ...resourceArgs,
+
+        // 安全限制：非 root 用户（Windows Docker 环境下可能有问题，暂时注释）
+        // '-u 1000:1000',
+
+        // ========== Bind Mount 挂载 ==========
+        // 宿主机目录 -> 容器内 /workspace
+        `-v ${hostWorkspacePath}:/workspace`,
+        `--workdir /workspace`,
+        // ========== Bind Mount 结束 ==========
+
         `-v claw-web_user-workspaces:/app/workspaces/users`,
         `-v claw-web_session-workspaces:/app/workspaces/sessions`,
         '-e CONTAINER_ROLE=worker',
         '-e NODE_ENV=production',
         `-e TENANT_USER_ID=${userId}`,
-        `-e WORKSPACE_BASE_DIR=/app/workspaces`,
+        `-e WORKSPACE_BASE_DIR=/workspace`,
         `-e USER_STORAGE_QUOTA_MB=${quota.storageQuotaMB}`,
         `-e USER_SESSION_LIMIT=${quota.maxSessions}`,
         `-e USER_PTY_LIMIT=${quota.maxPtyProcesses}`,
         `-e MAX_FILES_PER_USER=${quota.maxFiles}`,
         `-e MAX_FILE_SIZE_MB=${quota.maxFileSizeMB}`,
+        // 内部通信令牌 - Worker验证Master请求的唯一凭证
+        `-e MASTER_INTERNAL_TOKEN=${process.env.MASTER_INTERNAL_TOKEN || ''}`,
+        // API密钥（从环境变量获取）
+        `-e ANTHROPIC_AUTH_TOKEN=${process.env.ANTHROPIC_AUTH_TOKEN || ''}`,
+        `-e ANTHROPIC_BASE_URL=${process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'}`,
         this.config.imageName
       ].join(' ')
 
@@ -1317,6 +1423,180 @@ class ContainerOrchestrator {
     const remainingContainers = this.warmPool.size + this.userMappings.size
     if (remainingContainers > this.config.maxPoolSize) {
       console.warn(`[ContainerOrchestrator] 警告: 清理后容器数量(${remainingContainers})仍超过最大值(${this.config.maxPoolSize})，可能所有容器都在使用中`)
+    }
+  }
+
+  // ==================== Bind Mount 宿主机关联 ====================
+
+  /**
+   * 获取用户工作目录路径
+   * 格式: /data/claws/workspaces/{userId}/{sessionId}
+   */
+  getUserWorkspacePath(userId: string, sessionId: string): string {
+    return `${this.config.hostWorkspacePath}/${userId}/${sessionId}`
+  }
+
+  /**
+   * 确保宿主主机工作空间目录存在
+   * 在初始化时调用，创建根目录
+   */
+  private async ensureHostWorkspaceExists(): Promise<void> {
+    const workspaceRoot = this.config.hostWorkspacePath
+
+    try {
+      // 检查目录是否存在
+      await fs.access(workspaceRoot)
+      console.log(`[ContainerOrchestrator] 宿主机工作空间目录已存在: ${workspaceRoot}`)
+    } catch {
+      // 目录不存在，创建它
+      console.log(`[ContainerOrchestrator] 创建宿主机工作空间目录: ${workspaceRoot}`)
+      await fs.mkdir(workspaceRoot, { recursive: true })
+    }
+
+    // 设置目录权限（允许 Docker 容器访问）
+    try {
+      await execAsync(`chmod 755 ${workspaceRoot}`)
+      console.log(`[ContainerOrchestrator] 已设置目录权限: ${workspaceRoot}`)
+    } catch (error) {
+      console.warn(`[ContainerOrchestrator] 设置目录权限失败（非致命）:`, error)
+    }
+  }
+
+  /**
+   * 为用户创建工作空间目录
+   * Master 在分配容器前调用此方法确保目录存在
+   */
+  async ensureUserWorkspaceExists(userId: string, sessionId: string): Promise<{ success: boolean; workspacePath?: string; error?: string }> {
+    const workspacePath = this.getUserWorkspacePath(userId, sessionId)
+
+    try {
+      // 创建用户工作空间目录
+      await fs.mkdir(workspacePath, { recursive: true })
+
+      // 设置权限（允许容器内的非 root 用户访问）
+      try {
+        await execAsync(`chmod 755 ${workspacePath}`)
+      } catch {
+        // 权限设置失败不影响目录创建
+      }
+
+      console.log(`[ContainerOrchestrator] 已创建用户工作空间: ${workspacePath}`)
+      return { success: true, workspacePath }
+    } catch (error) {
+      console.error(`[ContainerOrchestrator] 创建用户工作空间失败: ${workspacePath}`, error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create workspace'
+      }
+    }
+  }
+
+  /**
+   * 检查磁盘空间状态
+   */
+  async checkDiskSpace(): Promise<{
+    total: number
+    used: number
+    available: number
+    warning: boolean
+    critical: boolean
+  }> {
+    try {
+      const result = await execAsync(`df -h ${this.config.hostWorkspacePath} | tail -1`)
+      const output = result.stdout.trim()
+
+      // 解析 df 输出: Filesystem Size Used Avail Use% Mounted on
+      const parts = output.split(/\s+/)
+      if (parts.length < 5) {
+        return { total: 0, used: 0, available: 0, warning: false, critical: false }
+      }
+
+      const total = this.parseSizeToMB(parts[1])
+      const usedPercent = parseInt(parts[4].replace('%', ''), 10)
+      const available = this.parseSizeToMB(parts[3])
+      const used = Math.round(total * (usedPercent / 100))
+
+      return {
+        total,
+        used,
+        available,
+        warning: usedPercent >= this.config.diskWarningThreshold,
+        critical: usedPercent >= this.config.diskCriticalThreshold,
+      }
+    } catch (error) {
+      console.warn('[ContainerOrchestrator] 检查磁盘空间失败:', error)
+      return { total: 0, used: 0, available: 0, warning: false, critical: false }
+    }
+  }
+
+  /**
+   * 解析大小字符串（如 "100G"）为 MB
+   */
+  private parseSizeToMB(size: string): number {
+    const match = size.match(/^([\d.]+)([KMGT]?)/i)
+    if (!match) return 0
+
+    const value = parseFloat(match[1])
+    const unit = match[2].toUpperCase()
+
+    switch (unit) {
+      case 'K': return Math.round(value / 1024)
+      case 'M': return value
+      case 'G': return Math.round(value * 1024)
+      case 'T': return Math.round(value * 1024 * 1024)
+      default: return value
+    }
+  }
+
+  /**
+   * 获取工作空间统计信息
+   */
+  async getWorkspaceStats(): Promise<{
+    userCount: number
+    sessionCount: number
+    totalSizeMB: number
+  }> {
+    try {
+      const workspaceRoot = this.config.hostWorkspacePath
+
+      // 统计用户目录数量
+      const users = await fs.readdir(workspaceRoot)
+      let totalSize = 0
+
+      for (const userId of users) {
+        const userPath = `${workspaceRoot}/${userId}`
+        try {
+          const sessions = await fs.readdir(userPath)
+          for (const sessionId of sessions) {
+            const sessionPath = `${userPath}/${sessionId}`
+            const size = await this.getDirectorySize(sessionPath)
+            totalSize += size
+          }
+        } catch {
+          // 忽略读取错误
+        }
+      }
+
+      return {
+        userCount: users.length,
+        sessionCount: 0, // 需要遍历统计
+        totalSizeMB: Math.round(totalSize / (1024 * 1024)),
+      }
+    } catch (error) {
+      console.warn('[ContainerOrchestrator] 获取工作空间统计失败:', error)
+      return { userCount: 0, sessionCount: 0, totalSizeMB: 0 }
+    }
+  }
+
+  /**
+   * 获取目录大小（递归）
+   */
+  private async getDirectorySize(path: string): Promise<number> {
+    try {
+      const result = await execAsync(`du -sb ${path} | cut -f1`)
+      return parseInt(result.stdout.trim(), 10) || 0
+    } catch {
+      return 0
     }
   }
 }

@@ -51,7 +51,223 @@ export interface TierConfig {
   allowAdvancedFeatures: boolean
 }
 
-/**
+/**2026-04-14 23:00:53.056 | [WS] Client disconnected: 7224cad4-dd65-4122-8c2f-e3b7223781f9
+2026-04-14 23:00:53.180 | [RequestRouter] 代理请求失败 (http://localhost:3100/api/auth/me): 108 |     headers.set('X-Forwarded-For', 'localhost')
+2026-04-14 23:00:53.180 | 109 |     headers.set('X-Proxy-Origin', 'claw-web-master')
+2026-04-14 23:00:53.180 | 110 |     headers.set('Host', `localhost:${targetPort}`)
+2026-04-14 23:00:53.180 | 111 | 
+2026-04-14 23:00:53.180 | 112 |     // 转发请求
+2026-04-14 23:00:53.180 | 113 |     const response = await fetch(targetUrl, {
+2026-04-14 23:00:53.180 |                                  ^
+2026-04-14 23:00:53.180 | error: Unable to connect. Is the computer able to access the url?
+2026-04-14 23:00:53.180 |   path: "http://localhost:3100/api/auth/me",
+2026-04-14 23:00:53.180 |  errno: 0,
+2026-04-14 23:00:53.180 |   code: "ConnectionRefused"
+2026-04-14 23:00:53.180 | 
+2026-04-14 23:00:53.180 |       at async proxyToWorkerContainer (/app/src/server/httpServer.ts:113:28)
+2026-04-14 23:00:53.180 |       at async fetch (/app/src/server/httpServer.ts:365:28)
+2026-04-14 23:00:53.180 | 
+2026-04-14 23:00:53.209 | [WS] Message from aaf2b38b-ebb6-4147-a74f-cad3714c548c: ping
+2026-04-14 23:00:53.507 | [WS] Client connected: 41b0d202-3dfa-4172-bce1-34f225ddd83d
+2026-04-14 23:00:53.509 | [RequestRouter] 代理请求失败 (http://localhost:3100/api/agent/session/effective-workspace): 108 |     headers.set('X-Forwarded-For', 'localhost')
+2026-04-14 23:00:53.509 | 109 |     headers.set('X-Proxy-Origin', 'claw-web-master')
+2026-04-14 23:00:53.509 | 110 |     headers.set('Host', `localhost:${targetPort}`)
+2026-04-14 23:00:53.509 | 111 | 
+2026-04-14 23:00:53.509 | 112 |     // 转发请求
+2026-04-14 23:00:53.509 | 113 |     const response = await fetch(targetUrl, {
+2026-04-14 23:00:53.509 |                                  ^
+2026-04-14 23:00:53.509 | error: Unable to connect. Is the computer able to access the url?
+2026-04-14 23:00:53.509 |   path: "http://localhost:3100/api/agent/session/effective-workspace",
+2026-04-14 23:00:53.509 |  errno: 0,
+2026-04-14 23:00:53.509 |   code: "ConnectionRefused"
+2026-04-14 23:00:53.509 | 
+2026-04-14 23:00:53.509 |       at async proxyToWorkerContainer (/app/src/server/httpServer.ts:113:28)
+2026-04-14 23:00:53.509 |       at async fetch (/app/src/server/httpServer.ts:365:28)
+2026-04-14 23:00:53.509 | 
+2026-04-14 23:00:53.520 | [WS] Message from 41b0d202-3dfa-4172-bce1-34f225ddd83d: login
+2026-04-14 23:00:53.521 | [WS] User logged in via token: 2fb3f37b-c043-4599-801c-774dd5102b39
+2026-04-14 23:00:53.524 | [WS] Message from 41b0d202-3dfa-4172-bce1-34f225ddd83d: list_sessions
+2026-04-14 23:00:53.524 | [WS] list_sessions: userId=2fb3f37b-c043-4599-801c-774dd5102b39
+2026-04-14 23:00:53.524 | [SessionRepo] findByUserId: userId=2fb3f37b-c043-4599-801c-774dd5102b39
+2026-04-14 23:00:53.526 | [SessionRepo] findByUserId: found 5 sessions for user 2fb3f37b-c043-4599-801c-774dd5102b39, rows: [
+2026-04-14 23:00:53.526 |   {
+2026-04-14 23:00:53.526 |     "id": "a305fe6f-fc6f-4608-a56d-7c6b37a034d7",
+2026-04-14 23:00:53.526 |     "user_id": "2fb3f37b-c043-4599-801c-774dd5102b39",
+2026-04-14 23:00:53.526 |     "title": "新对话",
+2026-04-14 23:00:53.526 |     "model": "qwen-plus",
+2026-04-14 23:00:53.526 |     "is_pinned": 0,
+2026-04-14 23:00:53.526 |     "is_master": 0,
+2026-04-14 23:00:53.526 |     "created_at": "2026-04-14T14:56:57.000Z",
+2026-04-14 23:00:53.526 |     "updated_at": "2026-04-14T14:58:35.000Z"
+2026-04-14 23:00:53.526 |   },
+2026-04-14 23:00:53.526 |   {
+2026-04-14 23:00:53.526 |     "id": "192dd7d3-3483-4f05-a57d-3dbc4e1096d8",
+2026-04-14 23:00:53.526 |     "user_id": "2fb3f37b-c043-4599-801c-774dd5102b39",
+2026-04-14 23:00:53.526 |     "title": "探索电脑环境",
+2026-04-14 23:00:53.526 |     "model": "qwen-plus",
+2026-04-14 23:00:53.526 |     "is_pinned": 0,
+2026-04-14 23:00:53.526 |     "is_master": 0,
+2026-04-14 23:00:53.526 |     "created_at": "2026-04-14T08:12:24.000Z",
+2026-04-14 23:00:53.526 |     "updated_at": "2026-04-14T12:50:58.000Z"
+2026-04-14 23:00:53.526 |   },
+2026-04-14 23:00:53.526 |   {
+2026-04-14 23:00:53.526 |     "id": "ccafe5c6-fe36-49a0-928f-1f53afdb583a",
+2026-04-14 23:00:53.526 |     "user_id": "2fb3f37b-c043-4599-801c-774dd5102b39",
+2026-04-14 23:00:53.526 |     "title": "探索环境",
+2026-04-14 23:00:53.526 |     "model": "qwen-plus",
+2026-04-14 23:00:53.526 |     "is_pinned": 0,
+2026-04-14 23:00:53.526 |     "is_master": 0,
+2026-04-14 23:00:53.526 |     "created_at": "2026-04-13T16:12:13.000Z",
+2026-04-14 23:00:53.526 |     "updated_at": "2026-04-13T16:16:47.000Z"
+2026-04-14 23:00:53.526 |   },
+2026-04-14 23:00:53.526 |   {
+2026-04-14 23:00:53.526 |     "id": "529afee2-5387-4479-9aff-a497b0628314",
+2026-04-14 23:00:53.526 |     "user_id": "2fb3f37b-c043-4599-801c-774dd5102b39",
+2026-04-14 23:00:53.526 |     "title": "nih",
+2026-04-14 23:00:53.526 |     "model": "qwen-plus",
+2026-04-14 23:00:53.526 |     "is_pinned": 0,
+2026-04-14 23:00:53.526 |     "is_master": 0,
+2026-04-14 23:00:53.526 |     "created_at": "2026-04-11T07:42:30.000Z",
+2026-04-14 23:00:53.526 |     "updated_at": "2026-04-13T04:43:30.000Z"
+2026-04-14 23:00:53.526 |   },
+2026-04-14 23:00:53.526 |   {
+2026-04-14 23:00:53.526 |     "id": "53eae232-f940-4429-a6d8-94a77c0a7bd0",
+2026-04-14 23:00:53.526 |     "user_id": "2fb3f37b-c043-4599-801c-774dd5102b39",
+2026-04-14 23:00:53.526 |     "title": "主会话",
+2026-04-14 23:00:53.526 |     "model": "qwen-plus",
+2026-04-14 23:00:53.526 |     "is_pinned": 0,
+2026-04-14 23:00:53.526 |     "is_master": 1,
+2026-04-14 23:00:53.526 |     "created_at": "2026-04-11T07:42:30.000Z",
+2026-04-14 23:00:53.526 |     "updated_at": "2026-04-11T07:42:30.000Z"
+2026-04-14 23:00:53.526 |   }
+2026-04-14 23:00:53.526 | ]
+2026-04-14 23:00:53.526 | [WS] list_sessions: found 5 sessions for user 2fb3f37b-c043-4599-801c-774dd5102b39
+2026-04-14 23:00:53.575 | [WS] Message from 41b0d202-3dfa-4172-bce1-34f225ddd83d: get_master_session
+2026-04-14 23:00:53.575 | [WS] Message handling error: sessionManager.getOrCreateMasterSession is not a function. (In 'sessionManager.getOrCreateMasterSession(userId)', 'sessionManager.getOrCreateMasterSession' is undefined)
+2026-04-14 23:00:53.576 | [WS] Message from 41b0d202-3dfa-4172-bce1-34f225ddd83d: load_session
+2026-04-14 23:00:53.577 | [SessionManager] loadSession called for session a305fe6f-fc6f-4608-a56d-7c6b37a034d7
+2026-04-14 23:00:53.579 | [SessionManager] Retrieved from DB - messages: 0, toolCalls: 0
+2026-04-14 23:00:53.579 | [SessionManager] After filtering tool_result messages: 0 (removed 0 internal messages)
+2026-04-14 23:00:53.579 | [SessionManager] Loaded session a305fe6f-fc6f-4608-a56d-7c6b37a034d7 successfully: {
+2026-04-14 23:00:53.579 |   messageCount: 0,
+2026-04-14 23:00:53.579 |   toolCallCount: 0,
+2026-04-14 23:00:53.579 |   dirty: false,
+2026-04-14 23:00:53.579 | }
+2026-04-14 23:00:53.579 | [WS] Session loaded: a305fe6f-fc6f-4608-a56d-7c6b37a034d7, messages: 0
+2026-04-14 23:00:53.595 | [WS] Message from 41b0d202-3dfa-4172-bce1-34f225ddd83d: rpc_call
+2026-04-14 23:00:53.596 | [WS RPC] pty.create id=1776178853594-idos57xxn conn=41b0d202-3dfa-4172-bce1-34f225ddd83d
+2026-04-14 23:00:53.596 | [PTY] Creating session c37feaeb-01ac-4ff4-aa0c-40d9ea49f124 with shell: /bin/bash, cwd: /app
+2026-04-14 23:00:53.596 | [PTY] Unix 平台：使用 Bun.Terminal
+2026-04-14 23:00:53.597 | [PTY] Bun.spawn success, pid: 875
+2026-04-14 23:00:53.597 | [PTY] Session c37feaeb-01ac-4ff4-aa0c-40d9ea49f124 created successfully
+2026-04-14 23:00:53.597 | [PTY] Bun.Terminal data callback: data.length=108, text="stty -echo\r\n\r\nset +v\r\n\r\nexport PS1='2fb3f37b-c043-4599-801c-774dd5102b39@\\H:\\w\\$ '\r\n\r\ncd \"/app\"\r\n\r\nc"
+2026-04-14 23:00:53.597 | [PTY] Calling handleOutput with filteredText.length=108
+2026-04-14 23:00:53.597 | [PTY] handleOutput: sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124, type=stdout, data.length=108, data="stty -echo\r\n\r\nset +v\r\n\r\nexport PS1='2fb3f37b-c043-4599-801c-774dd5102b39@\\H:\\w\\$ '\r\n\r\ncd \"/app\"\r\n\r\nclear\r\n\r\n"
+2026-04-14 23:00:53.597 | [PTY] Output callback called for sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124
+2026-04-14 23:00:53.599 | [PTY] Bun.Terminal data callback: data.length=113, text="bash: cannot set terminal process group (1): Inappropriate ioctl for device\r\nbash: no job control in"
+2026-04-14 23:00:53.599 | [PTY] Filtered text is empty, skipping
+2026-04-14 23:00:53.600 | [PTY] Bun.Terminal data callback: data.length=61, text="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# "
+2026-04-14 23:00:53.600 | [PTY] Calling handleOutput with filteredText.length=61
+2026-04-14 23:00:53.600 | [PTY] handleOutput: sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124, type=stdout, data.length=61, data="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# "
+2026-04-14 23:00:53.600 | [PTY] Output callback called for sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124
+2026-04-14 23:00:53.600 | [PTY] Bun.Terminal data callback: data.length=21, text="stty -echo\r\n\u001b[?2004l\r"
+2026-04-14 23:00:53.600 | [PTY] Calling handleOutput with filteredText.length=21
+2026-04-14 23:00:53.600 | [PTY] handleOutput: sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124, type=stdout, data.length=21, data="stty -echo\r\n\u001b[?2004l\r"
+2026-04-14 23:00:53.600 | [PTY] Output callback called for sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124
+2026-04-14 23:00:53.602 | [PTY] Bun.Terminal data callback: data.length=72, text="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n"
+2026-04-14 23:00:53.602 | [PTY] Calling handleOutput with filteredText.length=72
+2026-04-14 23:00:53.602 | [PTY] handleOutput: sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124, type=stdout, data.length=72, data="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n"
+2026-04-14 23:00:53.602 | [PTY] Output callback called for sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124
+2026-04-14 23:00:53.602 | [PTY] Bun.Terminal data callback: data.length=144, text="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n\u001b[?2004h2fb3f37b-c043-4599-8"
+2026-04-14 23:00:53.602 | [PTY] Calling handleOutput with filteredText.length=144
+2026-04-14 23:00:53.602 | [PTY] handleOutput: sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124, type=stdout, data.length=144, data="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n"
+2026-04-14 23:00:53.602 | [PTY] Output callback called for sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124
+2026-04-14 23:00:53.602 | [PTY] Bun.Terminal data callback: data.length=61, text="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# "
+2026-04-14 23:00:53.602 | [PTY] Calling handleOutput with filteredText.length=61
+2026-04-14 23:00:53.602 | [PTY] handleOutput: sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124, type=stdout, data.length=61, data="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# "
+2026-04-14 23:00:53.602 | [PTY] Output callback called for sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124
+2026-04-14 23:00:53.602 | [PTY] Bun.Terminal data callback: data.length=83, text="\u001b[?2004l\r\r\n\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n"
+2026-04-14 23:00:53.603 | [PTY] Calling handleOutput with filteredText.length=83
+2026-04-14 23:00:53.603 | [PTY] handleOutput: sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124, type=stdout, data.length=83, data="\u001b[?2004l\r\r\n\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n"
+2026-04-14 23:00:53.603 | [PTY] Output callback called for sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124
+2026-04-14 23:00:53.603 | [PTY] Bun.Terminal data callback: data.length=144, text="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n\u001b[?2004h2fb3f37b-c043-4599-8"
+2026-04-14 23:00:53.603 | [PTY] Calling handleOutput with filteredText.length=144
+2026-04-14 23:00:53.603 | [PTY] handleOutput: sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124, type=stdout, data.length=144, data="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n"
+2026-04-14 23:00:53.603 | [PTY] Output callback called for sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124
+2026-04-14 23:00:53.603 | [PTY] Bun.Terminal data callback: data.length=72, text="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n"
+2026-04-14 23:00:53.603 | [PTY] Calling handleOutput with filteredText.length=72
+2026-04-14 23:00:53.603 | [PTY] handleOutput: sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124, type=stdout, data.length=72, data="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n"
+2026-04-14 23:00:53.603 | [PTY] Output callback called for sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124
+2026-04-14 23:00:53.606 | [PTY] Bun.Terminal data callback: data.length=11, text="\u001b[H\u001b[2J\u001b[3J"
+2026-04-14 23:00:53.606 | [PTY] Calling handleOutput with filteredText.length=11
+2026-04-14 23:00:53.606 | [PTY] handleOutput: sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124, type=stdout, data.length=11, data="\u001b[H\u001b[2J\u001b[3J"
+2026-04-14 23:00:53.606 | [PTY] Output callback called for sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124
+2026-04-14 23:00:53.607 | [PTY] Bun.Terminal data callback: data.length=133, text="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n\u001b[?2004h2fb3f37b-c043-4599-8"
+2026-04-14 23:00:53.607 | [PTY] Calling handleOutput with filteredText.length=133
+2026-04-14 23:00:53.607 | [PTY] handleOutput: sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124, type=stdout, data.length=133, data="\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# \u001b[?2004l\r\r\n\u001b[?2004h2fb3f37b-c043-4599-801c-774dd5102b39@b33cd167ce9d:~# "
+2026-04-14 23:00:53.607 | [PTY] Output callback called for sessionId=c37feaeb-01ac-4ff4-aa0c-40d9ea49f124
+2026-04-14 23:00:53.621 | [RequestRouter] 代理请求失败 (http://localhost:3100/api/agent/workdir/list): 108 |     headers.set('X-Forwarded-For', 'localhost')
+2026-04-14 23:00:53.621 | 109 |     headers.set('X-Proxy-Origin', 'claw-web-master')
+2026-04-14 23:00:53.621 | 110 |     headers.set('Host', `localhost:${targetPort}`)
+2026-04-14 23:00:53.621 | 111 | 
+2026-04-14 23:00:53.621 | 112 |     // 转发请求
+2026-04-14 23:00:53.621 | 113 |     const response = await fetch(targetUrl, {
+2026-04-14 23:00:53.621 |                                  ^
+2026-04-14 23:00:53.621 | error: Unable to connect. Is the computer able to access the url?
+2026-04-14 23:00:53.621 |   path: "http://localhost:3100/api/agent/workdir/list",
+2026-04-14 23:00:53.621 |  errno: 0,
+2026-04-14 23:00:53.621 |   code: "ConnectionRefused"
+2026-04-14 23:00:53.621 | 
+2026-04-14 23:00:53.621 |       at async proxyToWorkerContainer (/app/src/server/httpServer.ts:113:28)
+2026-04-14 23:00:53.621 |       at async fetch (/app/src/server/httpServer.ts:365:28)
+2026-04-14 23:00:53.621 | 
+2026-04-14 23:00:54.217 | [RequestRouter] 代理请求失败 (http://localhost:3100/api/auth/me): 108 |     headers.set('X-Forwarded-For', 'localhost')
+2026-04-14 23:00:54.217 | 109 |     headers.set('X-Proxy-Origin', 'claw-web-master')
+2026-04-14 23:00:54.217 | 110 |     headers.set('Host', `localhost:${targetPort}`)
+2026-04-14 23:00:54.217 | 111 | 
+2026-04-14 23:00:54.217 | 112 |     // 转发请求
+2026-04-14 23:00:54.217 | 113 |     const response = await fetch(targetUrl, {
+2026-04-14 23:00:54.217 |                                  ^
+2026-04-14 23:00:54.217 | error: Unable to connect. Is the computer able to access the url?
+2026-04-14 23:00:54.217 |   path: "http://localhost:3100/api/auth/me",
+2026-04-14 23:00:54.217 |  errno: 0,
+2026-04-14 23:00:54.217 |   code: "ConnectionRefused"
+2026-04-14 23:00:54.217 | 
+2026-04-14 23:00:54.217 |       at async proxyToWorkerContainer (/app/src/server/httpServer.ts:113:28)
+2026-04-14 23:00:54.217 |       at async fetch (/app/src/server/httpServer.ts:365:28)
+2026-04-14 23:00:54.217 | 
+2026-04-14 23:00:55.155 | [WS] Message from aaf2b38b-ebb6-4147-a74f-cad3714c548c: pong
+2026-04-14 23:00:55.155 | [WS] Message from 41b0d202-3dfa-4172-bce1-34f225ddd83d: pong
+2026-04-14 23:00:55.206 | [RequestRouter] 代理请求失败 (http://localhost:3100/api/agent/session/effective-workspace): 108 |     headers.set('X-Forwarded-For', 'localhost')
+2026-04-14 23:00:55.207 | 109 |     headers.set('X-Proxy-Origin', 'claw-web-master')
+2026-04-14 23:00:55.207 | 110 |     headers.set('Host', `localhost:${targetPort}`)
+2026-04-14 23:00:55.207 | 111 | 
+2026-04-14 23:00:55.207 | 112 |     // 转发请求
+2026-04-14 23:00:55.207 | 113 |     const response = await fetch(targetUrl, {
+2026-04-14 23:00:55.207 |                                  ^
+2026-04-14 23:00:55.207 | error: Unable to connect. Is the computer able to access the url?
+2026-04-14 23:00:55.207 |   path: "http://localhost:3100/api/agent/session/effective-workspace",
+2026-04-14 23:00:55.207 |  errno: 0,
+2026-04-14 23:00:55.207 |   code: "ConnectionRefused"
+2026-04-14 23:00:55.207 | 
+2026-04-14 23:00:55.207 |       at async proxyToWorkerContainer (/app/src/server/httpServer.ts:113:28)
+2026-04-14 23:00:55.207 |       at async fetch (/app/src/server/httpServer.ts:365:28)
+2026-04-14 23:00:55.207 | 
+2026-04-14 23:00:55.207 | [RequestRouter] 代理请求失败 (http://localhost:3100/api/agent/workdir/list): 108 |     headers.set('X-Forwarded-For', 'localhost')
+2026-04-14 23:00:55.207 | 109 |     headers.set('X-Proxy-Origin', 'claw-web-master')
+2026-04-14 23:00:55.207 | 110 |     headers.set('Host', `localhost:${targetPort}`)
+2026-04-14 23:00:55.207 | 111 | 
+2026-04-14 23:00:55.207 | 112 |     // 转发请求
+2026-04-14 23:00:55.207 | 113 |     const response = await fetch(targetUrl, {
+2026-04-14 23:00:55.207 |                                  ^
+2026-04-14 23:00:55.207 | error: Unable to connect. Is the computer able to access the url?
+2026-04-14 23:00:55.207 |   path: "http://localhost:3100/api/agent/workdir/list",
+2026-04-14 23:00:55.207 |  errno: 0,
+2026-04-14 23:00:55.207 |   code: "ConnectionRefused"
+2026-04-14 23:00:55.207 | 
+2026-04-14 23:00:55.207 |       at async proxyToWorkerContainer (/app/src/server/httpServer.ts:113:28)
+2026-04-14 23:00:55.207 |       at async fetch (/app/src/server/httpServer.ts:365:28)
+2026-04-14 23:00:55.207 | 
  * 调度结果
  */
 export interface SchedulingResult {

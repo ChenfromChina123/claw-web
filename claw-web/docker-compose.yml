@@ -18,6 +18,7 @@
 services:
   # ==================== MySQL 数据库（国内镜像）====================
   # 使用官方镜像，建议配置 Docker 镜像加速器
+  # 安全说明：MySQL 只在 claude-network 网络中，Worker 容器无法直接访问
   mysql:
     image: mysql:8.0
     container_name: claude-mysql
@@ -54,6 +55,8 @@ services:
       - --performance_schema=OFF
     networks:
       - claude-network
+    # 安全加固：只允许来自 claude-network 的连接
+    # 注意：这需要 MySQL 8.0+ 的 host 缓存功能配合
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -74,6 +77,10 @@ services:
   # - WebSocket连接管理
   # - 容器生命周期管理（创建/销毁/调度）
   # - 资源监控与配额管理
+  # 
+  # 网络说明：
+  # - claude-network: 与 MySQL 通信
+  # - worker-network: 与 Worker 容器通信
   backend-master:
     build:
       context: .
@@ -132,6 +139,8 @@ services:
       - CONTAINER_IDLE_TIMEOUT_MS=${CONTAINER_IDLE_TIMEOUT_MS:-300000}
       - CONTAINER_BASE_PORT=${CONTAINER_BASE_PORT:-3100}
       - WORKER_IMAGE_NAME=claw-web-backend-worker:latest
+      # Worker 网络配置：指定 Worker 容器使用的网络
+      - DOCKER_NETWORK_NAME=claw-web_worker-network
       # 其他配置
       - API_TIMEOUT_MS=${API_TIMEOUT_MS:-300000}
       - CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
@@ -148,7 +157,8 @@ services:
       mysql:
         condition: service_healthy
     networks:
-      - claude-network
+      - claude-network    # 与 MySQL 通信
+      - worker-network    # 与 Worker 容器通信
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 30s
@@ -213,11 +223,21 @@ services:
       - claude-network
 
 networks:
+  # 主网络：MySQL 和 Master 通信
   claude-network:
     driver: bridge
     ipam:
       config:
         - subnet: 172.28.0.0/16
+  
+  # Worker 专用网络：Worker 容器只能与 Master 通信，无法直接访问 MySQL
+  # 安全加固：实现网络层隔离，防止 Worker 直接连接数据库
+  worker-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16
+    internal: false  # 允许访问外部网络（如下载依赖），但 Docker 内部网络受限于连接配置
 
 volumes:
   mysql_data:

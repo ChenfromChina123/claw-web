@@ -160,20 +160,28 @@ export class PathSandbox {
   constructor(config: PathSandboxConfig) {
     this.userId = config.userId
     this.userRoot = resolve(config.userRoot)
-    this.strictMode = false  // 禁用严格模式
-    this.hideRealPath = false  // 显示真实路径
+    this.strictMode = config.strictMode ?? true  // 启用严格模式
+    this.hideRealPath = config.hideRealPath ?? true  // 隐藏真实路径
+
     this.currentPath = this.userRoot
 
-    // 允许所有命令（移除限制）
-    this.allowedCommands = new Set()
+    // 合并自定义白名单和默认白名单
+    this.allowedCommands = new Set([
+      ...DEFAULT_ALLOWED_COMMANDS,
+      ...(config.allowedCommands || [])
+    ])
 
-    // 只保留最基本的危险命令限制
+    // 合并危险命令黑名单和自定义黑名单
     this.blockedCommands = new Set([
+      ...DANGEROUS_COMMANDS,
       ...(config.blockedCommands || [])
     ])
 
     // ✅ 新增：初始化脚本验证器
     this.scriptValidator = createScriptValidator(config.userId, config.userRoot)
+    
+    console.log(`[PathSandbox] 初始化完成: userId=${this.userId}, strictMode=${this.strictMode}`)
+    console.log(`[PathSandbox] 危险命令黑名单: ${Array.from(DANGEROUS_COMMANDS).join(', ')}`)
   }
 
   /**
@@ -242,7 +250,40 @@ export class PathSandbox {
    * @returns 验证结果
    */
   validateCommand(command: string): CommandValidationResult {
-    // 允许所有命令（移除限制）
+    // 提取第一个命令（忽略参数）
+    const trimmed = command.trim()
+    const firstCmd = trimmed.split(/\s+/)[0].toLowerCase()
+    
+    // 检查是否是危险命令
+    if (this.blockedCommands.has(firstCmd)) {
+      console.warn(`[PathSandbox] 命令被拦截: ${firstCmd}`)
+      return {
+        allowed: false,
+        reason: `禁止执行危险命令: ${firstCmd}`
+      }
+    }
+
+    // 检查是否包含管道或重定向中的危险命令
+    const parts = trimmed.split(/[|&;]/)
+    for (const part of parts) {
+      const cmd = part.trim().split(/\s+/)[0].toLowerCase()
+      if (this.blockedCommands.has(cmd)) {
+        console.warn(`[PathSandbox] 命令被拦截: ${cmd}`)
+        return {
+          allowed: false,
+          reason: `禁止执行危险命令: ${cmd}`
+        }
+      }
+    }
+
+    // 检查是否有路径遍历攻击
+    if (trimmed.includes('..') && trimmed.includes('/etc')) {
+      return {
+        allowed: false,
+        reason: '检测到路径遍历攻击'
+      }
+    }
+
     return { allowed: true }
   }
 

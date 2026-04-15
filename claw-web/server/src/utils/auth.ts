@@ -60,9 +60,10 @@ export async function authMiddleware(request: Request): Promise<AuthResult> {
   // Master 模式：验证 JWT token
   const authHeader = request.headers.get('Authorization')
   console.log('[Auth] Request URL:', request.url)
-  console.log('[Auth] Authorization header:', authHeader ? 'exists' : 'missing')
+  console.log('[Auth] Authorization header:', authHeader ? `exists: "${authHeader.substring(0, 50)}..."` : 'missing')
   
   const token = await extractTokenFromHeader(authHeader)
+  console.log('[Auth] extractTokenFromHeader result:', token ? `token length: ${token.length}` : 'null')
 
   if (!token) {
     console.warn('[Auth] No token extracted from header')
@@ -70,6 +71,8 @@ export async function authMiddleware(request: Request): Promise<AuthResult> {
   }
 
   const payload = await verifyToken(token)
+  console.log('[Auth] verifyToken result:', payload ? `userId: ${payload.userId}` : 'null')
+  
   if (!payload) {
     console.warn('[Auth] Token verification failed')
     return { userId: null, isAdmin: null }

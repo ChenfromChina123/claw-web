@@ -176,8 +176,11 @@ export async function handleSkillRoutes(req: Request): Promise<Response | null> 
  */
 async function handleListSkills(req: Request, url: URL): Promise<Response> {
   try {
+    console.log('[skills.routes] handleListSkills 开始处理请求')
     const auth = await authMiddleware(req)
+    console.log('[skills.routes] authMiddleware 返回:', JSON.stringify(auth))
     if (!auth.userId) {
+      console.log('[skills.routes] auth.userId 为空，返回 401')
       return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
     }
 
@@ -186,7 +189,11 @@ async function handleListSkills(req: Request, url: URL): Promise<Response> {
     const query = url.searchParams.get('query')
 
     // 获取工作空间目录
+    console.log('[skills.routes] 准备获取 workspaceDir，userId:', auth.userId)
     const workspaceDir = await getWorkspaceDir(auth.userId)
+    console.log('[skills.routes] workspaceDir:', workspaceDir)
+    
+    console.log('[skills.routes] 准备调用 getAllSkills')
 
     // 使用新的技能系统获取所有技能（包括内置技能）
     const allSkills = await getAllSkills(workspaceDir || process.cwd())
