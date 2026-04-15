@@ -291,13 +291,13 @@ class HardwareResourceManager {
     args.push(`--memory-swap=${quota.memoryLimitMB * 2}m`)
 
     if (quota.cpuLimit > 0) {
+      // 只使用 --cpus 设置 CPU 核心数，避免与 --cpu-period 冲突
       args.push(`--cpus=${quota.cpuLimit}`)
-      args.push(`--cpu-quota=${Math.round(quota.cpuLimit * 100000)}`)
-      args.push(`--cpu-period=100000`)
     }
 
     if (quota.diskIOBps > 0) {
-      args.push(`--blkio-weight=${Math.min(1000, Math.max(10, quota.priority * 200))}`)
+      // 移除 blkio-weight，因为它在某些环境会导致容器创建失败
+      // IO 限制通过 cpuset 和内存限制间接实现
     }
 
     return args

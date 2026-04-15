@@ -284,8 +284,58 @@ async function handleWorkerRequest(req: Request): Promise<Response | null> {
     // 工具执行逻辑...
     return createErrorResponse('NOT_IMPLEMENTED', 'Tool execution not implemented', 501)
   }
+
+  // 6. LLM 聊天（Worker 调用 Master 的 LLM 服务）
+  if (path === '/api/internal/llm/chat' && method === 'POST') {
+    return await handleWorkerLLMChat(req)
+  }
   
   return null
+}
+
+/**
+ * 处理 Worker 的 LLM 聊天请求
+ * Worker 通过此接口调用 Master 的 LLM 服务
+ */
+async function handleWorkerLLMChat(req: Request): Promise<Response> {
+  // 验证 Master Token
+  if (!verifyMasterToken(req)) {
+    return createErrorResponse('UNAUTHORIZED', 'Invalid or missing Master token', 401)
+  }
+
+  try {
+    const body = await req.json()
+    const { messages, options, tools } = body
+
+    console.log('[Master LLM] 收到 Worker LLM 请求:', { 
+      messageCount: messages?.length,
+      model: options?.model,
+      toolCount: tools?.length 
+    })
+
+    // 调用 LLM 服务
+    const { llmService } = await import('../services/llmService')
+    const response = await llmService.chat(messages, options, tools)
+
+    console.log('[Master LLM] LLM 响应成功:', {
+      contentLength: response.content?.length,
+      toolCallsCount: response.toolCalls?.length
+    })
+
+    return new Response(JSON.stringify({
+      success: true,
+      data: response
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  } catch (error) {
+    console.error('[Master LLM] LLM 调用失败:', error)
+    return createErrorResponse(
+      'LLM_ERROR',
+      error instanceof Error ? error.message : 'LLM service error',
+      500
+    )
+  }
 }
 
 /**
@@ -610,15 +660,40 @@ export async function startServer(): Promise<void> {
         })
       }
 
+      // 先尝试本地路由处理（Master 本地 API）
+      const localResponse = await handleRequest(req)
+      if (localResponse !== null) {
+        return localResponse
+      }
+
       // ========== 容器路由逻辑 ==========
       // 只在 Master 角色下启用容器路由
-      // 排除认证相关路径，这些路径需要在 Master 本地处理
-      const authPaths = ['/api/auth/login', '/api/auth/register', '/api/auth/me', '/api/auth/refresh']
-      const isAuthPath = authPaths.some(authPath => path.startsWith(authPath))
+      // 排除需要在 Master 本地处理的路径：
+      // - 认证相关路径
+      // - Agent 执行相关路径（LLM 调用在 Master 中进行）
+      // - 会话管理路径
+      // - 技能管理路径
+      const masterOnlyPaths = [
+        '/api/auth/login',
+        '/api/auth/register', 
+        '/api/auth/me',
+        '/api/auth/refresh',
+        '/api/agents/execute',
+        '/api/agents/orchestration',
+        '/api/sessions',
+        '/api/skills',
+        '/api/prompt-templates',
+        '/api/mcp',
+        '/api/tools',
+      ]
+      const isMasterOnlyPath = masterOnlyPaths.some(masterPath => path.startsWith(masterPath))
       
-      console.log(`[RequestRouter] path=${path}, isAuthPath=${isAuthPath}, containerRole=${containerRole}`)
+      // Agent 消息发送也在 Master 中处理
+      const isAgentMessagePath = path.match(/^\/api\/agents\/[^\/]+\/message$/)
       
-      if (containerRole !== 'worker' && !isAuthPath) {
+      console.log(`[RequestRouter] path=${path}, isMasterOnlyPath=${isMasterOnlyPath}, containerRole=${containerRole}`)
+      
+      if (containerRole !== 'worker' && !isMasterOnlyPath && !isAgentMessagePath) {
         try {
           // 从请求中提取并验证用户身份（Master 负责所有认证）
           const { authMiddleware } = await import('../utils/auth')
@@ -667,11 +742,6 @@ export async function startServer(): Promise<void> {
         }
       }
       // ========== 容器路由逻辑结束 ==========
-
-      const response = await handleRequest(req)
-      if (response !== null) {
-        return response
-      }
 
       // CORS preflight
       if (method === 'OPTIONS') {

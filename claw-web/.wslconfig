@@ -1,0 +1,24 @@
+[wsl2]
+# WSL2 内存限制
+memory=4GB
+
+# WSL2 处理器限制
+processors=4
+
+# WSL2 交换文件限制
+swap=2GB
+
+# WSL2 交换文件路径
+swapFile=D:\\wsl-swap.vhdx
+
+# 限制 localhost 转发
+localhostForwarding=true
+
+# 禁用页面报告（提高性能）
+pageReporting=false
+
+# 设置默认用户
+defaultUid=1000
+
+# 设置 WSL 版本
+kernelCommandLine = cgroup_no_v1=all

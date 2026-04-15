@@ -141,6 +141,8 @@ services:
       - WORKER_IMAGE_NAME=claw-web-backend-worker:latest
       # Worker 网络配置：指定 Worker 容器使用的网络
       - DOCKER_NETWORK_NAME=claw-web_worker-network
+      # Master 内部通信 Token（Worker 通过此 Token 访问 Master 的 LLM 服务）
+      - MASTER_INTERNAL_TOKEN=${MASTER_INTERNAL_TOKEN:-claw-web-master-token-2024}
       # 其他配置
       - API_TIMEOUT_MS=${API_TIMEOUT_MS:-300000}
       - CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1

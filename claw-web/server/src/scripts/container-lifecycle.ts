@@ -90,17 +90,20 @@ async function getWarmContainers(): Promise<ContainerInfo[]> {
 
 /**
  * 获取工作空间目录列表
+ *
+ * 安全修复：使用 users/{userId} 路径格式
  */
 async function getWorkspaces(): Promise<WorkspaceInfo[]> {
   try {
     const workspaces: WorkspaceInfo[] = []
 
-    // 遍历用户目录
-    const userDirs = await execAsync(`ls -la ${CONFIG.hostWorkspacePath} 2>/dev/null | grep "^d" | awk '{print $9}'`, { encoding: 'utf8' })
+    // 遍历用户目录（使用 users/ 子目录）
+    const userDirs = await execAsync(`ls -la ${CONFIG.hostWorkspacePath}/users 2>/dev/null | grep "^d" | awk '{print $9}'`, { encoding: 'utf8' })
     const users = userDirs.stdout.trim().split('\n').filter(Boolean)
 
     for (const userId of users) {
-      const userPath = `${CONFIG.hostWorkspacePath}/${userId}`
+      // 安全修复：使用 users/{userId} 路径格式
+      const userPath = `${CONFIG.hostWorkspacePath}/users/${userId}`
 
       try {
         // 获取该用户的所有工作空间

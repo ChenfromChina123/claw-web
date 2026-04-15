@@ -10,6 +10,9 @@
 # 国内用户可使用：docker pull registry.cn-hangzhou.aliyuncs.com/library/node:20-alpine && docker tag registry.cn-hangzhou.aliyuncs.com/library/node:20-alpine node:20-alpine
 FROM node:20-alpine AS builder
 
+# ✅ 增大 Node.js 堆内存限制，防止 OOM
+ENV NODE_OPTIONS="--max-old-space-size=6144"
+
 # ✅ 使用国内镜像源加速（阿里云镜像）
 RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories
 
@@ -27,6 +30,7 @@ COPY web/ .
 # 构建生产版本（跳过类型检查，仅打包）
 ENV NODE_ENV=production
 ENV VITE_FEATURE_PTY_SHELL=true
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npx vite build
 
 # ==================== 生产阶段（Nginx） ====================

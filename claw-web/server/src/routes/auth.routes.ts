@@ -55,7 +55,18 @@ export async function handleAuthRoutes(req: Request): Promise<Response | null> {
   // 用户登录
   if (path === '/api/auth/login' && method === 'POST') {
     try {
-      const body = await req.json() as LoginRequest
+      // 读取请求体文本用于调试
+      const bodyText = await req.text()
+      console.log('[Auth] Login request body:', bodyText)
+      
+      let body: LoginRequest
+      try {
+        body = JSON.parse(bodyText) as LoginRequest
+      } catch (parseError) {
+        console.error('[Auth] Failed to parse JSON:', parseError)
+        return createErrorResponse('LOGIN_FAILED', 'Failed to parse JSON: ' + (parseError as Error).message, 400)
+      }
+      
       const result = await authService.login({
         email: body.email,
         password: body.password,

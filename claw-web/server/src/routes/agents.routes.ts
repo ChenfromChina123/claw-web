@@ -164,6 +164,44 @@ export async function handleAgentRoutes(req: Request): Promise<Response | null> 
     }
   }
 
+  // POST /api/agents/:agentId/message - 发送消息到 Agent
+  const messageMatch = path.match(/^\/api\/agents\/([^\/]+)\/message$/)
+  if (messageMatch && method === 'POST') {
+    try {
+      const auth = await authMiddleware(req)
+      if (!auth.userId) {
+        return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
+      }
+
+      const agentId = messageMatch[1]
+      const body = await req.json() as { message: string }
+
+      if (!agentId) {
+        return createErrorResponse('INVALID_PARAMS', '缺少必需参数: agentId', 400)
+      }
+
+      if (!body.message) {
+        return createErrorResponse('INVALID_PARAMS', '缺少必需参数: message', 400)
+      }
+
+      console.log(`[AgentRoutes] 收到消息，agentId: ${agentId}, message: ${body.message}`)
+
+      // TODO: 实现消息发送到 Agent 的逻辑
+      // 这里暂时返回一个模拟的响应
+      return createSuccessResponse({
+        success: true,
+        messageId: `msg_${Date.now()}`,
+        agentId,
+        content: `收到消息: ${body.message}`,
+        timestamp: new Date().toISOString()
+      })
+    } catch (error) {
+      console.error('[AgentRoutes] 发送消息到 Agent 失败:', error)
+      const message = error instanceof Error ? error.message : '发送消息时发生未知错误'
+      return createErrorResponse('SEND_MESSAGE_FAILED', message, 500)
+    }
+  }
+
   return null
 }
 

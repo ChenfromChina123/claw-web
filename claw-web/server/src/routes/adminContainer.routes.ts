@@ -41,6 +41,11 @@ export async function handleAdminContainerRoutes(req: Request): Promise<Response
     })
   }
 
+  // 只处理 /api/admin/* 路径
+  if (!path.startsWith('/api/admin/')) {
+    return null
+  }
+
   // 验证管理员权限
   const authResult = await verifyAdminPermission(req)
   if (authResult.error) {

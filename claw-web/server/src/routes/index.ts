@@ -86,11 +86,11 @@ const routeHandlers = [
   // 快照管理相关
   (req: Request) => import('./snapshot.routes').then(m => m.handleSnapshotRoutes(req)),
 
-  // 管理员容器管理相关
-  (req: Request) => import('./adminContainer.routes').then(m => m.handleAdminContainerRoutes(req)),
-
-  // 技能相关（放在会话相关之后，避免路由冲突）
+  // 技能相关（放在管理员容器管理之前，避免路由冲突）
   (req: Request) => import('./skills.routes').then(m => m.handleSkillRoutes(req)),
+
+  // 管理员容器管理相关（放在最后，因为它会检查管理员权限）
+  (req: Request) => import('./adminContainer.routes').then(m => m.handleAdminContainerRoutes(req)),
 
   // 技能导入相关（放在最后，作为通用处理器）
   (req: Request) => import('./skills.routes').then(m => m.handleSkillImportRoutes(req)),

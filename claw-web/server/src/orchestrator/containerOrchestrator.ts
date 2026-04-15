@@ -642,11 +642,13 @@ private async createContainer(userId: string, username?: string, userTier?: User
       // 安全说明：
       // - 文件直接写入宿主机磁盘，容器崩溃也不会丢失
       // - Agent 看到的是 /workspace（容器内路径）
-      // - 实际上对应宿主机 /data/claws/workspaces/{userId}/{sessionId}
+      // - 实际上对应宿主机 /data/claws/workspaces/users/{userId}/{sessionId}
       // - pathSandbox.ts 已经限制了路径，Agent 只能访问 /workspace
+      //
+      // 安全修复：统一使用 users/{userId} 路径格式
       const hostWorkspacePath = sessionId
-        ? `${this.config.hostWorkspacePath}/${userId}/${sessionId}`
-        : `${this.config.hostWorkspacePath}/${userId}`
+        ? `${this.config.hostWorkspacePath}/users/${userId}/${sessionId}`
+        : `${this.config.hostWorkspacePath}/users/${userId}`
 
       // 确保宿主机目录存在
       try {
@@ -1025,12 +1027,13 @@ private async createContainer(userId: string, username?: string, userTier?: User
     ]
 
     // 基础环境变量
+    // 注意：LLM 服务统一在 Master 中，Worker 通过 MASTER_INTERNAL_TOKEN 访问 Master 的 LLM API
     const baseEnvVars = [
       `-e CONTAINER_ROLE=worker`,
       `-e NODE_ENV=production`,
       `-e MASTER_INTERNAL_TOKEN=${process.env.MASTER_INTERNAL_TOKEN || ''}`,
-      `-e ANTHROPIC_AUTH_TOKEN=${process.env.ANTHROPIC_AUTH_TOKEN || ''}`,
-      `-e ANTHROPIC_BASE_URL=${process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'}`,
+      `-e MASTER_HOST=${process.env.MASTER_HOST || 'claude-backend-master'}`,
+      `-e MASTER_PORT=${process.env.MASTER_PORT || '3000'}`,
       `-e HOST=0.0.0.0`,
       `-e PORT=3000`
     ]
@@ -1054,16 +1057,24 @@ private async createContainer(userId: string, username?: string, userTier?: User
         ]
 
     // Bind Mount 配置
+    // 注意：不设置 --workdir，让容器使用 Dockerfile 中的 WORKDIR (/app)
+    // 因为 CMD 是相对于 WORKDIR 的路径
+    //
+    // 安全修复：只挂载当前用户的目录，而不是整个 users 目录
+    // 之前：`-v claw-web_user-workspaces:/app/workspaces/users` (所有用户都可见 - 安全漏洞)
+    // 现在：`-v claw-web_user-workspaces/${userId}:/app/workspaces/users/${userId}` (仅当前用户)
     const bindMounts = userId
       ? [
           `-v ${workspacePath}:/workspace`,
-          `--workdir /workspace`,
-          `-v claw-web_user-workspaces:/app/workspaces/users`,
-          `-v claw-web_session-workspaces:/app/workspaces/sessions`
+          // 只挂载当前用户的目录，实现用户隔离
+          `-v ${this.config.hostWorkspacePath}/users/${userId}:/app/workspaces/users/${userId}`,
+          // 会话目录也按用户隔离（如果 sessionId 提供）
+          ...(sessionId
+            ? [`-v ${this.config.hostWorkspacePath}/sessions/${sessionId}:/app/workspaces/sessions/${sessionId}`]
+            : [])
         ]
       : [
-          `-v ${workspacePath}:/workspace`,
-          `--workdir /workspace`
+          `-v ${workspacePath}:/workspace`
         ]
 
     // 构建完整命令
@@ -1703,10 +1714,12 @@ private async createContainer(userId: string, username?: string, userTier?: User
 
   /**
    * 获取用户工作目录路径
-   * 格式: /data/claws/workspaces/{userId}/{sessionId}
+   * 格式: /data/claws/workspaces/users/{userId}/{sessionId}
+   *
+   * 安全修复：统一使用 users/{userId} 路径格式，与隔离挂载保持一致
    */
   getUserWorkspacePath(userId: string, sessionId: string): string {
-    return `${this.config.hostWorkspacePath}/${userId}/${sessionId}`
+    return `${this.config.hostWorkspacePath}/users/${userId}/${sessionId}`
   }
 
   /**
@@ -1738,22 +1751,31 @@ private async createContainer(userId: string, username?: string, userTier?: User
   /**
    * 为用户创建工作空间目录
    * Master 在分配容器前调用此方法确保目录存在
+   *
+   * 安全修复：同时创建用户目录和会话目录，用于隔离挂载
    */
   async ensureUserWorkspaceExists(userId: string, sessionId: string): Promise<{ success: boolean; workspacePath?: string; error?: string }> {
     const workspacePath = this.getUserWorkspacePath(userId, sessionId)
 
+    // 安全修复：创建用户目录（用于隔离挂载）
+    const userDirPath = `${this.config.hostWorkspacePath}/users/${userId}`
+
     try {
-      // 创建用户工作空间目录
+      // 创建用户目录（用于隔离挂载）
+      await fs.mkdir(userDirPath, { recursive: true })
+
+      // 创建会话工作空间目录
       await fs.mkdir(workspacePath, { recursive: true })
 
       // 设置权限（允许容器内的非 root 用户访问）
       try {
+        await execAsync(`chmod 755 ${userDirPath}`)
         await execAsync(`chmod 755 ${workspacePath}`)
       } catch {
         // 权限设置失败不影响目录创建
       }
 
-      console.log(`[ContainerOrchestrator] 已创建用户工作空间: ${workspacePath}`)
+      console.log(`[ContainerOrchestrator] 已创建用户工作空间: ${workspacePath} 和用户目录: ${userDirPath}`)
       return { success: true, workspacePath }
     } catch (error) {
       console.error(`[ContainerOrchestrator] 创建用户工作空间失败: ${workspacePath}`, error)

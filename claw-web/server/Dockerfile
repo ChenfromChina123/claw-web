@@ -11,6 +11,9 @@
 # ==================== 前端构建阶段 ====================
 FROM node:20-alpine AS frontend-builder
 
+# ✅ 增大 Node.js 堆内存限制，防止 OOM
+ENV NODE_OPTIONS="--max-old-space-size=6144"
+
 # 使用国内镜像源加速
 RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories
 
@@ -64,8 +67,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/apt/archives/*
 
-# 安装最新版 Docker CLI（直接下载二进制文件）
-RUN curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-27.3.1.tgz" -o docker.tgz \
+# 安装最新版 Docker CLI（使用国内镜像加速）
+RUN curl -fsSL "https://mirrors.aliyun.com/docker-ce/linux/static/stable/x86_64/docker-27.3.1.tgz" -o docker.tgz \
     && tar -xzf docker.tgz --strip-components=1 -C /usr/local/bin docker/docker \
     && rm docker.tgz \
     && docker --version

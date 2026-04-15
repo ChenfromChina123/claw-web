@@ -311,6 +311,30 @@ export function createAgentApiRouter(): Router {
   })
 
   /**
+   * @route POST /api/agents/:agentId/message
+   * @desc 发送消息到指定 Agent
+   */
+  router.post('/:agentId/message', async (req: Request, res: Response) => {
+    try {
+      const { agentId } = req.params
+      const { message } = req.body
+
+      if (!message) {
+        return res.status(400).json({ error: '缺少必需参数: message' })
+      }
+
+      const result = await sendMessage({
+        agentId,
+        message,
+      })
+
+      res.json(result)
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
+    }
+  })
+
+  /**
    * @route GET /api/agents/active
    * @desc 获取所有活跃 Agent
    */

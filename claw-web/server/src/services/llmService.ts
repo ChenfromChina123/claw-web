@@ -226,6 +226,11 @@ class LLMService {
     tools?: ToolDefinition[],
     abortSignal?: AbortSignal
   ): Promise<LLMResponse> {
+    // Worker 模式下，调用 Master 的 LLM 服务
+    if (process.env.CONTAINER_ROLE === 'worker') {
+      return await this.chatViaMaster(messages, config, tools, abortSignal)
+    }
+
     const finalConfig = { ...this.defaultConfig, ...config }
 
     // 检查中断信号
@@ -243,6 +248,57 @@ class LLMService {
         return await this.chatOpenAI(messages, finalConfig, tools, abortSignal)
       default:
         throw new Error(`不支持的 LLM 提供商: ${finalConfig.provider}`)
+    }
+  }
+
+  /**
+   * Worker 模式下通过 Master 调用 LLM
+   */
+  private async chatViaMaster(
+    messages: ChatMessage[],
+    config?: Partial<LLMConfig>,
+    tools?: ToolDefinition[],
+    abortSignal?: AbortSignal
+  ): Promise<LLMResponse> {
+    const masterHost = process.env.MASTER_HOST || 'claude-backend-master'
+    const masterPort = process.env.MASTER_PORT || '3000'
+    const masterToken = process.env.MASTER_INTERNAL_TOKEN
+
+    const url = `http://${masterHost}:${masterPort}/api/internal/llm/chat`
+
+    console.log(`[LLMService Worker] 通过 Master 调用 LLM: ${url}`)
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Token': masterToken || '',
+        },
+        body: JSON.stringify({
+          messages,
+          options: config,
+          tools,
+        }),
+        signal: abortSignal,
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Master LLM API error: ${response.status} - ${errorText}`)
+      }
+
+      const result = await response.json()
+      
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Master LLM API failed')
+      }
+
+      console.log(`[LLMService Worker] Master LLM 调用成功`)
+      return result.data as LLMResponse
+    } catch (error) {
+      console.error('[LLMService Worker] 调用 Master LLM 失败:', error)
+      throw error
     }
   }
 
