@@ -196,6 +196,46 @@ claw-web/
 node scripts/verify-network-isolation.mjs
 ```
 
+### 容器内构建前端
+
+Master 容器支持在运行时构建前端代码：
+
+**方法 1：Docker 构建时自动构建（推荐）**
+
+Master 的 Dockerfile 已包含多阶段构建，在构建镜像时会自动构建前端：
+
+```bash
+# 构建时会自动执行前端构建
+docker compose -f docker-compose.yml up -d --build backend-master
+```
+
+**方法 2：容器内手动构建**
+
+如果需要更新前端而不重建镜像：
+
+```bash
+# 1. 确保 docker-compose.yml 中挂载了前端源代码
+# volumes:
+#   - ./web:/app/web-src:ro
+
+# 2. 进入容器执行构建
+docker exec claude-backend-master /app/scripts/build-frontend.sh
+
+# Windows 环境使用 PowerShell
+docker exec claude-backend-master pwsh /app/scripts/build-frontend.ps1
+```
+
+**方法 3：本地构建后复制到容器**
+
+```bash
+# 本地构建前端
+cd web
+npm run build
+
+# 复制到容器
+docker cp dist/. claude-backend-master:/app/public/
+```
+
 ## 技术栈
 
 - **前端**: Vue 3 + TypeScript + Pinia + Naive UI

@@ -19,8 +19,8 @@ WORKDIR /app/web
 # 复制前端依赖文件
 COPY web/package.json ./
 
-# 安装依赖
-RUN npm install --registry=https://registry.npmmirror.com
+# 安装依赖（使用 --legacy-peer-deps 解决依赖冲突）
+RUN npm install --registry=https://registry.npmmirror.com --legacy-peer-deps
 
 # 复制前端源代码
 COPY web/ .

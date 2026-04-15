@@ -31,7 +31,7 @@ cd /app/web-src
 
 echo ""
 echo "[1/3] 安装前端依赖..."
-npm install --registry=https://registry.npmmirror.com
+npm install --registry=https://registry.npmmirror.com --legacy-peer-deps
 
 echo ""
 echo "[2/3] 构建前端..."

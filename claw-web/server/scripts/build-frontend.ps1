@@ -28,7 +28,7 @@ Set-Location /app/web-src
 
 Write-Host ""
 Write-Host "[1/3] 安装前端依赖..." -ForegroundColor Yellow
-npm install --registry=https://registry.npmmirror.com
+npm install --registry=https://registry.npmmirror.com --legacy-peer-deps
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ 依赖安装失败" -ForegroundColor Red
