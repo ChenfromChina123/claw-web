@@ -456,46 +456,21 @@ class ContainerOrchestrator {
       }
       // ========== Bind Mount 结束 ==========
 
-      // 构建Docker运行命令
-      // 安全加固：Worker容器不接收数据库凭证
-      // 所有认证由Master处理，Worker只信任Master传递的用户信息（通过X-Master-Token验证）
-      const dockerCmd = [
-        'docker run -d',
-        `--name ${containerName}`,
-        `-p ${port}:3000`,
-        `--network ${this.config.networkName}`,
-        '--restart unless-stopped',
-
-        // 安全加固
-        '--read-only',
-        '--security-opt=no-new-privileges',
-        '--cap-drop=ALL',
-
-        // 资源限制
+      // 热池容器使用固定的资源限制（512MB）
+      const warmResourceArgs = [
         '-m 512m',
-        '--memory-swap 512m',
-        '--pids-limit 100',
-        '--ulimit nproc=100:100',
-        '--ulimit nofile=1024:1024',
+        '--memory-swap 512m'
+      ]
 
-        '-e CONTAINER_ROLE=worker',
-        '-e NODE_ENV=production',
-        `-e WORKSPACE_BASE_DIR=/workspace`,
-        `-e USER_STORAGE_QUOTA_MB=200`,
-        `-e USER_SESSION_LIMIT=5`,
-        `-e MAX_USERS=1`,
-        // 内部通信令牌 - Worker验证Master请求的唯一凭证
-        `-e MASTER_INTERNAL_TOKEN=${process.env.MASTER_INTERNAL_TOKEN || ''}`,
-        // API密钥（从环境变量获取）
-        `-e ANTHROPIC_AUTH_TOKEN=${process.env.ANTHROPIC_AUTH_TOKEN || ''}`,
-        `-e ANTHROPIC_BASE_URL=${process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'}`,
-        // 网络配置
-        `-e HOST=0.0.0.0`,
-        `-e PORT=3000`,
-        this.config.imageName
-      ].join(' ')
+      // 使用统一方法构建 Docker 命令
+      const dockerCmd = this.buildDockerRunCommand({
+        containerName,
+        port,
+        workspacePath: warmWorkspacePath,
+        resourceArgs: warmResourceArgs
+      })
 
-      console.log(`[ContainerOrchestrator] 执行命令: ${dockerCmd}`)
+      console.log(`[ContainerOrchestrator] 预热容器: ${dockerCmd}`)
 
       const { stdout } = await execAsync(dockerCmd)
       const containerId = stdout.trim()
@@ -662,51 +637,22 @@ private async createContainer(userId: string, username?: string, userTier?: User
       }
       // ========== Bind Mount 结束 ==========
 
-      // 构建Docker运行命令（包含硬件资源限制）
-      // 安全加固：Worker容器不接收数据库凭证
-      // 所有认证由Master处理，Worker只信任Master传递的用户信息
-      const dockerCmd = [
-        'docker run -d',
-        `--name ${containerName}`,
-        `-p ${port}:3000`,
-        `--network ${this.config.networkName}`,
-        '--restart unless-stopped',
-
-        // 安全加固
-        '--read-only',
-        '--security-opt=no-new-privileges',
-        '--cap-drop=ALL',
-
-        // 资源限制（来自用户等级配额）
-        ...resourceArgs,
-
-        // 安全限制：非 root 用户（Windows Docker 环境下可能有问题，暂时注释）
-        // '-u 1000:1000',
-
-        // ========== Bind Mount 挂载 ==========
-        // 宿主机目录 -> 容器内 /workspace
-        `-v ${hostWorkspacePath}:/workspace`,
-        `--workdir /workspace`,
-        // ========== Bind Mount 结束 ==========
-
-        `-v claw-web_user-workspaces:/app/workspaces/users`,
-        `-v claw-web_session-workspaces:/app/workspaces/sessions`,
-        '-e CONTAINER_ROLE=worker',
-        '-e NODE_ENV=production',
-        `-e TENANT_USER_ID=${userId}`,
-        `-e WORKSPACE_BASE_DIR=/workspace`,
-        `-e USER_STORAGE_QUOTA_MB=${quota.storageQuotaMB}`,
-        `-e USER_SESSION_LIMIT=${quota.maxSessions}`,
-        `-e USER_PTY_LIMIT=${quota.maxPtyProcesses}`,
-        `-e MAX_FILES_PER_USER=${quota.maxFiles}`,
-        `-e MAX_FILE_SIZE_MB=${quota.maxFileSizeMB}`,
-        // 内部通信令牌 - Worker验证Master请求的唯一凭证
-        `-e MASTER_INTERNAL_TOKEN=${process.env.MASTER_INTERNAL_TOKEN || ''}`,
-        // API密钥（从环境变量获取）
-        `-e ANTHROPIC_AUTH_TOKEN=${process.env.ANTHROPIC_AUTH_TOKEN || ''}`,
-        `-e ANTHROPIC_BASE_URL=${process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'}`,
-        this.config.imageName
-      ].join(' ')
+      // 使用统一方法构建 Docker 命令
+      const dockerCmd = this.buildDockerRunCommand({
+        containerName,
+        port,
+        workspacePath: hostWorkspacePath,
+        resourceArgs,
+        userId,
+        userTier: tier,
+        quota: {
+          storageQuotaMB: quota.storageQuotaMB,
+          maxSessions: quota.maxSessions,
+          maxPtyProcesses: quota.maxPtyProcesses,
+          maxFiles: quota.maxFiles,
+          maxFileSizeMB: quota.maxFileSizeMB
+        }
+      })
 
       console.log(`[ContainerOrchestrator] 创建用户容器 (等级: ${tier}): ${dockerCmd}`)
 
@@ -1022,6 +968,98 @@ private async createContainer(userId: string, username?: string, userTier?: User
   // ==================== 私有辅助方法 ====================
 
   /**
+     * 构建 Docker 容器创建命令（统一方法）
+     * @param config 容器配置
+     * @returns docker run 命令字符串
+     */
+  private buildDockerRunCommand(config: {
+    containerName: string
+    port: number
+    workspacePath: string
+    resourceArgs: string[]
+    userId?: string
+    userTier?: UserTier
+    quota?: {
+      storageQuotaMB: number
+      maxSessions: number
+      maxPtyProcesses: number
+      maxFiles: number
+      maxFileSizeMB: number
+    }
+  }): string {
+    const { containerName, port, workspacePath, resourceArgs, userId, userTier, quota } = config
+
+    // 基础安全加固参数
+    const securityArgs = [
+      '--read-only',
+      '--security-opt=no-new-privileges',
+      '--cap-drop=ALL',
+      '--pids-limit 100',
+      '--ulimit nproc=100:100',
+      '--ulimit nofile=1024:1024'
+    ]
+
+    // 基础环境变量
+    const baseEnvVars = [
+      `-e CONTAINER_ROLE=worker`,
+      `-e NODE_ENV=production`,
+      `-e MASTER_INTERNAL_TOKEN=${process.env.MASTER_INTERNAL_TOKEN || ''}`,
+      `-e ANTHROPIC_AUTH_TOKEN=${process.env.ANTHROPIC_AUTH_TOKEN || ''}`,
+      `-e ANTHROPIC_BASE_URL=${process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'}`,
+      `-e HOST=0.0.0.0`,
+      `-e PORT=3000`
+    ]
+
+    // 用户相关环境变量（使用配额配置）
+    const userEnvVars = userId
+      ? [
+          `-e TENANT_USER_ID=${userId}`,
+          `-e WORKSPACE_BASE_DIR=/workspace`,
+          `-e USER_STORAGE_QUOTA_MB=${quota?.storageQuotaMB || 500}`,
+          `-e USER_SESSION_LIMIT=${quota?.maxSessions || 5}`,
+          `-e USER_PTY_LIMIT=${quota?.maxPtyProcesses || 2}`,
+          `-e MAX_FILES_PER_USER=${quota?.maxFiles || 500}`,
+          `-e MAX_FILE_SIZE_MB=${quota?.maxFileSizeMB || 10}`
+        ]
+      : [
+          `-e WORKSPACE_BASE_DIR=/workspace`,
+          `-e USER_STORAGE_QUOTA_MB=200`,
+          `-e USER_SESSION_LIMIT=5`,
+          `-e MAX_USERS=1`
+        ]
+
+    // Bind Mount 配置
+    const bindMounts = userId
+      ? [
+          `-v ${workspacePath}:/workspace`,
+          `--workdir /workspace`,
+          `-v claw-web_user-workspaces:/app/workspaces/users`,
+          `-v claw-web_session-workspaces:/app/workspaces/sessions`
+        ]
+      : [
+          `-v ${workspacePath}:/workspace`,
+          `--workdir /workspace`
+        ]
+
+    // 构建完整命令
+    const dockerCmd = [
+      'docker run -d',
+      `--name ${containerName}`,
+      `-p ${port}:3000`,
+      `--network ${this.config.networkName}`,
+      '--restart unless-stopped',
+      ...securityArgs,
+      ...resourceArgs,
+      ...bindMounts,
+      ...baseEnvVars,
+      ...userEnvVars,
+      this.config.imageName
+    ].join(' ')
+
+    return dockerCmd
+  }
+
+  /**
    * 检查Docker服务是否可用
    */
   private async checkDockerAvailability(): Promise<boolean> {
@@ -1290,6 +1328,80 @@ private async createContainer(userId: string, username?: string, userTier?: User
   }
 
   /**
+   * 重启用户容器
+   * @param userId 用户ID
+   * @returns 是否重启成功
+   */
+  private async restartUserContainer(userId: string): Promise<boolean> {
+    try {
+      const mapping = this.userMappings.get(userId)
+      if (!mapping) {
+        console.warn(`[ContainerOrchestrator] 重启容器失败：找不到用户 ${userId} 的映射`)
+        return false
+      }
+
+      const containerId = mapping.container.containerId
+
+      // 检查容器是否仍然存在
+      const exists = await this.containerExists(containerId)
+      if (!exists) {
+        console.warn(`[ContainerOrchestrator] 重启容器失败：容器 ${containerId} 不存在`)
+        return false
+      }
+
+      // 尝试重启容器
+      console.log(`[ContainerOrchestrator] 正在重启容器: ${containerId}`)
+      await execAsync(`docker restart -t 10 ${containerId}`)
+
+      // 等待容器就绪
+      await new Promise(resolve => setTimeout(resolve, 5000))
+
+      // 验证容器健康状态
+      const isHealthy = await this.checkContainerHealth(containerId)
+      if (isHealthy) {
+        mapping.container.lastActivityAt = new Date()
+        return true
+      }
+
+      return false
+    } catch (error) {
+      console.error(`[ContainerOrchestrator] 重启用户容器失败 (${userId}):`, error)
+      return false
+    }
+  }
+
+  /**
+   * 重新为用户分配容器
+   * 当原有容器无法恢复时调用
+   * @param userId 用户ID
+   */
+  private async reallocateUserContainer(userId: string): Promise<void> {
+    try {
+      const mapping = this.userMappings.get(userId)
+      if (!mapping) {
+        console.warn(`[ContainerOrchestrator] 重新分配失败：找不到用户 ${userId} 的映射`)
+        return
+      }
+
+      const oldContainerId = mapping.container.containerId
+
+      // 销毁旧容器
+      console.log(`[ContainerOrchestrator] 销毁旧容器: ${oldContainerId}`)
+      await this.destroyContainer(oldContainerId)
+
+      // 重新分配新容器
+      const assignResult = await this.assignContainerToUser(userId)
+      if (assignResult.success) {
+        console.log(`[ContainerOrchestrator] 用户 ${userId} 已重新分配新容器: ${assignResult.data?.container.containerId}`)
+      } else {
+        console.error(`[ContainerOrchestrator] 用户 ${userId} 重新分配容器失败: ${assignResult.error}`)
+      }
+    } catch (error) {
+      console.error(`[ContainerOrchestrator] 重新分配容器失败 (${userId}):`, error)
+    }
+  }
+
+  /**
    * 启动健康检查循环
    */
   private startHealthCheckLoop(): void {
@@ -1321,8 +1433,16 @@ private async createContainer(userId: string, username?: string, userTier?: User
       for (const [userId, mapping] of this.userMappings) {
         const isHealthy = await this.checkContainerHealth(mapping.container.containerId)
         if (!isHealthy) {
-          console.error(`[ContainerOrchestrator] 用户 ${userId} 的容器不健康!`)
-          // 触发告警或自动恢复逻辑
+          console.error(`[ContainerOrchestrator] 用户 ${userId} 的容器不健康，尝试自动恢复...`)
+          // 自动恢复：尝试重启容器
+          const restarted = await this.restartUserContainer(userId)
+          if (restarted) {
+            console.log(`[ContainerOrchestrator] 用户 ${userId} 的容器重启成功`)
+          } else {
+            console.error(`[ContainerOrchestrator] 用户 ${userId} 的容器重启失败，将重新分配`)
+            // 重新分配新容器
+            await this.reallocateUserContainer(userId)
+          }
         }
       }
 

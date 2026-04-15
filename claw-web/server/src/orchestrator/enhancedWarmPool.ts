@@ -199,10 +199,10 @@ class EnhancedWarmPoolManager {
    * @param userTier 用户等级（可选）
    * @returns 最优容器，如果没有则返回null
    */
-  selectBestContainer(
+  async selectBestContainer(
     availableContainers: ContainerInstance[],
     userTier?: string
-  ): ContainerInstance | null {
+  ): Promise<ContainerInstance | null> {
     if (availableContainers.length === 0) {
       return null
     }
