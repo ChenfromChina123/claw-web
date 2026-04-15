@@ -6,8 +6,29 @@
 # ✅ 内存优化配置（V8 引擎参数）
 # ✅ 健康检查和优雅关闭
 # ✅ 生产级安全配置
+# ✅ 内置前端构建功能
 
-# 使用华为云镜像加速
+# ==================== 前端构建阶段 ====================
+FROM node:20-alpine AS frontend-builder
+
+# 使用国内镜像源加速
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories
+
+WORKDIR /app/web
+
+# 复制前端依赖文件
+COPY web/package.json ./
+
+# 安装依赖
+RUN npm install --registry=https://registry.npmmirror.com
+
+# 复制前端源代码
+COPY web/ .
+
+# 构建前端
+RUN npm run build
+
+# ==================== 生产运行阶段 ====================
 FROM oven/bun:1 AS production
 
 # 元数据标签
@@ -62,6 +83,11 @@ RUN bun install --registry=https://registry.npmmirror.com
 # 复制源代码
 COPY server/ .
 
+# 复制前端构建脚本
+COPY server/scripts/build-frontend.sh /app/scripts/build-frontend.sh
+COPY server/scripts/build-frontend.ps1 /app/scripts/build-frontend.ps1
+RUN chmod +x /app/scripts/build-frontend.sh
+
 # 复制 Supervisor 主配置文件
 COPY server/config/supervisord.conf /etc/supervisor/supervisord.conf
 
@@ -81,13 +107,16 @@ ENV NODE_ENV=production \
     TENANT_ISOLATION_ENABLED=true \
     CONTAINER_ROLE=master
 
+# 从前端构建阶段复制构建产物
+COPY --from=frontend-builder /app/web/dist /app/public
+
 # 创建工作区目录结构、Supervisor 配置目录和日志目录
 RUN mkdir -p /app/workspaces/users \
              /app/workspaces/sessions \
              /app/logs \
              /etc/supervisor/conf.d \
              /var/log/supervisor \
-    && chown -R bun:bun /app/workspaces /app/logs
+    && chown -R bun:bun /app/workspaces /app/logs /app/public
 
 # 暴露端口
 EXPOSE 3000

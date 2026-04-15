@@ -153,6 +153,8 @@ services:
       - session_workspaces:/app/workspaces/sessions
       # 日志目录
       - backend_logs:/app/logs
+      # 前端源代码挂载（用于容器内构建前端）
+      - ./web:/app/web-src:ro
     depends_on:
       mysql:
         condition: service_healthy
