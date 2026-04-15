@@ -411,6 +411,7 @@ export const useChatStore = defineStore('chat', () => {
   }
   
   function disconnect() {
+    console.log('[ChatStore] disconnect() called')
     wsClient.disconnect()
     isConnected.value = false
   }

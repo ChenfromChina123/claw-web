@@ -59,17 +59,23 @@ export async function authMiddleware(request: Request): Promise<AuthResult> {
 
   // Master 模式：验证 JWT token
   const authHeader = request.headers.get('Authorization')
+  console.log('[Auth] Request URL:', request.url)
+  console.log('[Auth] Authorization header:', authHeader ? 'exists' : 'missing')
+  
   const token = await extractTokenFromHeader(authHeader)
 
   if (!token) {
+    console.warn('[Auth] No token extracted from header')
     return { userId: null, isAdmin: null }
   }
 
   const payload = await verifyToken(token)
   if (!payload) {
+    console.warn('[Auth] Token verification failed')
     return { userId: null, isAdmin: null }
   }
 
+  console.log('[Auth] Token verified for user:', payload.userId)
   return { userId: payload.userId, isAdmin: payload.isAdmin || null }
 }
 

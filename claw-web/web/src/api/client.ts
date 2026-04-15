@@ -33,8 +33,12 @@ class ApiClient {
     this.instance.interceptors.request.use(
       (config) => {
         const token = localStorage.getItem('token')
+        console.log('[apiClient] Request interceptor:', config.url, 'Token exists:', !!token)
         if (token) {
           config.headers.Authorization = `Bearer ${token}`
+          console.log('[apiClient] Adding Authorization header:', `Bearer ${token.substring(0, 20)}...`)
+        } else {
+          console.warn('[apiClient] No token found in localStorage!')
         }
         return config
       },
