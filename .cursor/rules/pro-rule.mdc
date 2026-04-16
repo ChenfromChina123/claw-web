@@ -1,0 +1,29 @@
+---
+alwaysApply: true
+---
+
+# Claw-Web AI Context & Rules
+
+## 📌 项目概览
+- **定位**：类似 Manus 的 AI 智能体执行沙箱（TS + Bun + Docker）。
+- **架构**：严格的 **Master-Worker** 分布式隔离架构。
+
+## 🛡️ 架构铁律（绝对禁忌）
+1. **Master 禁区**：禁止在 Master 执行任何用户命令、创建 PTY、或直接读写沙盒文件。
+2. **Worker 禁区**：禁止 Worker 连接数据库、处理用户鉴权。Worker 必须是无状态的。
+3. **安全隔离**：Master 与 Worker 通信必须携带 `X-Master-Token`，Worker 必须网络隔离（无法访问 MySQL）。
+
+## 📂 核心目录索引 (server/src/)
+- `/master`：控制层（端口 3000）。鉴权、网关、会话管理、容器调度。
+- `/worker`：执行层（端口 4000）。沙箱、PTY 伪终端、文件操作。
+- `/shared`：共享模块。定义通信 Type、Constants 和 Utils（必须保持两端同步！）。
+- `/orchestrator`：容器编排。管理 Worker 的热池和用户绑定。
+
+## 🔄 核心交互数据流
+- **普通命令**：前端 -> Master(3000) -> Worker(4000 `/internal/exec`) -> 返回。
+- **PTY 终端**：前端 -[WS]-> Master -[转发器 `workerForwarder`]-> Worker PTY。
+
+## ⚠️ AI 编码规范
+- **文件路径**：所有 Worker 的文件操作，必须经过 `isPathSafe()` 限制在 `/workspace`。
+- **添加功能**：先判断属于控制层（放 Master）还是执行层（放 Worker）。
+- **通信修改**：修改 API 时，必须优先在 `server/src/shared/` 中更新类型。

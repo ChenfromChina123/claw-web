@@ -1,0 +1,26 @@
+{
+  "name": "claw-web-server",
+  "version": "1.0.0",
+  "description": "Claw-Web Backend - Master/Worker Architecture",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "start:master": "bun run src/index.master.ts",
+    "start:worker": "bun run src/index.worker.ts",
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir=dist",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0",
+    "uuid": "^11.0.0",
+    "ws": "^8.18.0",
+    "mysql2": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.5.12",
+    "@types/bun": "^1.1.0"
+  }
+}

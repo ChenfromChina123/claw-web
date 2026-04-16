@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["optional-peer-dep:__vite-optional-peer-dep:stream-monaco:markstream-vue"],
+  "sourcesContent": ["throw new Error(`Could not resolve \"stream-monaco\" imported by \"markstream-vue\". Is it installed?`)"],
+  "mappings": ";AAAA,MAAM,IAAI,MAAM,kFAAkF;",
+  "names": []
+}

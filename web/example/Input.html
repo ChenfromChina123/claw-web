@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 交互输入框</title>
+    <style>
+        /* 基础页面背景 */
+        body {
+            background-color: #121212;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        /* 1. 外层模拟容器 */
+        .input-container {
+            width: 650px;
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 16px;
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        /* 聚焦时的外框高亮 */
+        .input-container:focus-within {
+            border-color: #444;
+            box-shadow: 0 0 0 1px #444;
+        }
+
+        /* 2. 顶部角色标识 */
+        .input-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            color: #9b9b9b;
+            font-size: 13px;
+            user-select: none;
+        }
+        .ai-icon {
+            width: 18px;
+            height: 18px;
+            background: #333;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+        }
+
+        /* 3. 核心输入区域 */
+        .input-area {
+            width: 100%;
+            height: 30px;          /* 初始高度 */
+            max-height: 200px;     /* 阈值高度：超过此高度后出现滚动条 */
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #ececec;
+            font-size: 16px;
+            line-height: 1.6;
+            resize: none;          /* 禁用手动拉伸 */
+            padding: 0;
+            margin: 4px 0;
+            overflow-y: hidden;    /* 初始隐藏滚动条 */
+        }
+
+        /* 自定义滚动条样式 (针对超长内容) */
+        .input-area::-webkit-scrollbar {
+            width: 6px;
+        }
+        .input-area::-webkit-scrollbar-thumb {
+            background-color: #3d3d3d;
+            border-radius: 10px;
+        }
+
+        /* 4. 底部工具栏 */
+        .input-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 8px;
+            border-top: 1px solid transparent; /* 预留空间 */
+        }
+
+        .left-tools, .right-tools {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* 图标按钮通用样式 */
+        .icon-btn {
+            color: #888;
+            cursor: pointer;
+            font-size: 18px;
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+        }
+        .icon-btn:hover {
+            color: #fff;
+        }
+
+        /* 模型选择器 */
+        .model-picker {
+            font-size: 13px;
+            color: #888;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        .model-picker:hover {
+            background: #2d2d2d;
+            color: #ccc;
+        }
+
+        /* 发送按钮 */
+        .send-btn {
+            background-color: #19c37d; /* 典型的AI绿色 */
+            color: white;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+        .send-btn:hover {
+            opacity: 0.9;
+        }
+        .send-btn:active {
+            transform: scale(0.95);
+        }
+        .send-btn svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="input-container">
+        <div class="input-header">
+            <div class="ai-icon">回</div>
+            <span>@SOLO Coder</span>
+        </div>
+
+        <textarea 
+            class="input-area" 
+            placeholder="输入内容，我会自动变高..."
+            rows="1"
+        ></textarea>
+
+        <div class="input-footer">
+            <div class="left-tools">
+                <span class="icon-btn" title="提及">@</span>
+                <span class="icon-btn" title="知识库">#</span>
+            </div>
+            
+            <div class="right-tools">
+                <div class="model-picker">MiniMax-M2.7 ▾</div>
+                <span class="icon-btn" style="font-size: 16px;">✨</span>
+                <span class="icon-btn" style="font-size: 16px;">🎤</span>
+                <button class="send-btn">
+                    <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const textarea = document.querySelector('.input-area');
+        const maxHeight = 200; // 阈值：200px
+
+        textarea.addEventListener('input', function() {
+            // 重置高度，使其能根据内容缩回
+            this.style.height = 'auto';
+            
+            // 获取内容的实际高度
+            const scrollHeight = this.scrollHeight;
+            
+            if (scrollHeight <= maxHeight) {
+                // 如果没超过阈值，高度随内容增长，隐藏滚动条
+                this.style.height = scrollHeight + 'px';
+                this.style.overflowY = 'hidden';
+            } else {
+                // 超过阈值，固定在最大高度，显示滚动条
+                this.style.height = maxHeight + 'px';
+                this.style.overflowY = 'auto';
+            }
+        });
+    </script>
+
+</body>
+</html>

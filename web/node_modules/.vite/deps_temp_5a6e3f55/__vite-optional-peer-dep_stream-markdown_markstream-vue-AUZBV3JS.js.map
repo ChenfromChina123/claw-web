@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["optional-peer-dep:__vite-optional-peer-dep:stream-markdown:markstream-vue"],
+  "sourcesContent": ["throw new Error(`Could not resolve \"stream-markdown\" imported by \"markstream-vue\". Is it installed?`)"],
+  "mappings": ";AAAA,MAAM,IAAI,MAAM,oFAAoF;",
+  "names": []
+}
