@@ -67,8 +67,10 @@ export async function executeAgentOnWorker(
   sendEvent: (event: string, data: unknown) => void
 ): Promise<AgentExecutionResult> {
   
-  // 1. Master 加载会话上下文
-  console.log(`[AgentAPI] 加载会话上下文: sessionId=${sessionId}, userId=${userId}`)
+  const debug = process.env.DEBUG === 'agent'
+  if (debug) {
+    console.log(`[AgentAPI] 加载会话上下文: sessionId=${sessionId}`)
+  }
   
   const sessionData = await sessionManager.loadSession(sessionId)
   if (!sessionData) {
@@ -103,9 +105,12 @@ export async function executeAgentOnWorker(
     stream: true,
   }
 
-  // 4. 调用 Worker 执行
+  const debug = process.env.DEBUG === 'agent'
+  if (debug) {
+    console.log(`[AgentAPI] 调用 Worker 执行 Agent`)
+  }
+  
   const masterToken = process.env.MASTER_INTERNAL_TOKEN
-  console.log(`[AgentAPI] 调用 Worker: ${workerUrl}/api/internal/agent/execute`)
   
   let response: Response
   try {

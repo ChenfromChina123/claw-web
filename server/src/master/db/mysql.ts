@@ -92,7 +92,7 @@ export function getPool(): mysql.Pool | null {
         rejectUnauthorized: false
       }
     })
-    console.log('MySQL pool created with config:', { host: config.host, port: config.port, user: config.user, database: config.database, sslRejectUnauthorized })
+    console.log(`[DB] MySQL pool created: ${config.host}:${config.port}/${config.database} (user: ${config.user})`)
   }
   return pool
 }

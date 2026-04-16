@@ -5,12 +5,43 @@
  * - 执行用户命令
  * - 限制文件系统访问
  * - 超时控制
+ * - 命令安全验证
  */
 
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 import { exec } from 'child_process'
 import { isPathSafe, parseEnvironmentVariables } from '../../shared/utils'
+
+const execAsync = promisify(exec)
+
+/**
+ * 验证命令是否包含危险的路径遍历
+ * @param command 要验证的命令
+ * @returns 是否安全
+ */
+function isCommandSafe(command: string): { safe: boolean; reason?: string } {
+  // 检测 cd .. 切换到父目录
+  if (/^\s*(cd|pushd)\s+\.\./.test(command)) {
+    return { safe: false, reason: '禁止使用 "cd .." 切换到父目录' }
+  }
+  
+  // 检测路径中的 ..
+  if (/\.\.[\/\\]/.test(command) || /[\/\\]\.\./.test(command)) {
+    return { safe: false, reason: '检测到路径包含 ".."（父目录引用）' }
+  }
+  
+  // 检测敏感系统路径
+  const sensitivePaths = ['/etc/passwd', '/etc/shadow', '/etc/ssh', '.ssh/', 'credentials']
+  const commandLower = command.toLowerCase()
+  for (const sensitive of sensitivePaths) {
+    if (commandLower.includes(sensitive.toLowerCase())) {
+      return { safe: false, reason: `尝试访问敏感路径: ${sensitive}` }
+    }
+  }
+  
+  return { safe: true }
+}
 
 const execAsync = promisify(exec)
 

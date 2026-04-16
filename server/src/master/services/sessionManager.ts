@@ -64,24 +64,22 @@ export class SessionManager {
    * @returns 主会话对象
    */
   async getOrCreateMasterSession(userId: string): Promise<Session> {
-    // 查找用户现有的主会话
     const userSessions = await this.sessionRepo.findByUserId(userId)
     const masterSession = userSessions.find(s => s.isMaster === true)
     
     if (masterSession) {
-      console.log(`[SessionManager] Found existing master session for user ${userId}: ${masterSession.id}`)
+      const debug = process.env.DEBUG === 'session'
+      if (debug) {
+        console.log(`[SessionManager] Found existing master session for user ${userId}`)
+      }
       return masterSession
     }
     
-    // 如果没有主会话，创建一个
-    console.log(`[SessionManager] Creating new master session for user ${userId}`)
     const newSession = await this.sessionRepo.create(userId, '主会话', 'qwen-plus')
     
-    // 标记为主会话
     await this.sessionRepo.update(newSession.id, { isMaster: true })
     newSession.isMaster = true
     
-    // 添加到内存缓存
     this.sessions.set(newSession.id, {
       session: newSession,
       messages: [],
@@ -93,7 +91,6 @@ export class SessionManager {
     userSessionList.unshift(newSession.id)
     this.userSessions.set(userId, userSessionList)
     
-    console.log(`[SessionManager] Created master session for user ${userId}: ${newSession.id}`)
     return newSession
   }
 
