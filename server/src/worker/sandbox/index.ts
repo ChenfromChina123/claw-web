@@ -43,8 +43,6 @@ function isCommandSafe(command: string): { safe: boolean; reason?: string } {
   return { safe: true }
 }
 
-const execAsync = promisify(exec)
-
 export interface SandboxExecOptions {
   cwd?: string
   env?: Record<string, string>
@@ -71,6 +69,12 @@ export class WorkerSandbox {
     this.defaultMaxBuffer = defaultMaxBuffer
   }
 
+  /**
+   * 执行沙盒命令
+   * @param command 要执行的命令
+   * @param options 执行选项
+   * @returns 执行结果
+   */
   async exec(command: string, options: SandboxExecOptions = {}): Promise<SandboxExecResult> {
     const startTime = Date.now()
     const cwd = options.cwd || this.workspaceDir
@@ -81,6 +85,18 @@ export class WorkerSandbox {
     })
     const timeout = options.timeout || this.defaultTimeout
     const maxBuffer = options.maxBuffer || this.defaultMaxBuffer
+
+    // 安全验证：检查命令是否包含危险路径遍历
+    const commandSafety = isCommandSafe(command)
+    if (!commandSafety.safe) {
+      return {
+        stdout: '',
+        stderr: `安全限制: ${commandSafety.reason}`,
+        exitCode: 1,
+        duration: Date.now() - startTime,
+        error: 'UNSAFE_COMMAND',
+      }
+    }
 
     if (!isPathSafe(cwd, this.workspaceDir)) {
       return {

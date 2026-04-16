@@ -2,6 +2,8 @@
  * Shared Types - Master 和 Worker 共用的类型定义
  */
 
+export * from './worker'
+
 export interface User {
   id: string
   username: string

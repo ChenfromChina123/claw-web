@@ -78,7 +78,7 @@ export class AuthService {
     )
 
     await sendVerificationCodeEmail(email, code, '注册')
-    console.log(`注册验证码 ${code} 已发送到 ${email}`)
+    console.log(`[Auth] 注册验证码已发送到 ${email}`)
   }
 
   async register(request: RegisterRequest): Promise<AuthResponse> {
@@ -128,7 +128,7 @@ export class AuthService {
 
     const token = await generateToken({ userId, email })
 
-    console.log(`用户注册成功: ${email}`)
+    console.log(`[Auth] 用户注册成功: ${email}`)
 
     return {
       accessToken: token,

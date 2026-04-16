@@ -10,8 +10,7 @@
 
 import type { Request, Response } from 'express'
 import { createSuccessResponse, createErrorResponse } from '../utils/response'
-import { verifyToken } from '../utils/auth'
-import { getPool } from '../db/mysql'
+import { requireAdminAuth } from '../middleware/adminAuth'
 import { cpus, totalmem, freemem, loadavg } from 'os'
 import { exec } from 'child_process'
 import { promisify } from 'util'
@@ -70,30 +69,13 @@ export async function handleMonitoringRoutes(req: Request): Promise<Response | n
  */
 async function handleGetPerformance(req: Request): Promise<Response> {
   try {
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return createErrorResponse('UNAUTHORIZED', '未提供认证令牌', 401)
-    }
-
-    const token = authHeader.substring(7)
-    const payload = await verifyToken(token)
-
-    if (!payload || !payload.userId) {
-      return createErrorResponse('UNAUTHORIZED', '无效的认证令牌', 401)
-    }
-
-    // 检查是否是管理员
-    const pool = getPool()
-    const [rows] = await pool.query(
-      'SELECT is_admin FROM users WHERE id = ?',
-      [payload.userId]
-    ) as [any[], unknown]
-
-    if (rows.length === 0 || !rows[0].is_admin) {
-      return createErrorResponse('FORBIDDEN', '需要管理员权限', 403)
+    const authResult = await requireAdminAuth(req)
+    if ('status' in authResult) {
+      return authResult
     }
 
     // 获取数据库查询统计
+    const pool = await import('../db/mysql').then(m => m.getPool())
     const [dbStats] = await pool.query('SHOW GLOBAL STATUS LIKE "Questions"') as [any[], unknown]
     const [dbConnections] = await pool.query('SHOW GLOBAL STATUS LIKE "Threads_connected"') as [any[], unknown]
     const [dbSlowQueries] = await pool.query('SHOW GLOBAL STATUS LIKE "Slow_queries"') as [any[], unknown]
@@ -135,27 +117,9 @@ async function handleGetPerformance(req: Request): Promise<Response> {
  */
 async function handleGetResources(req: Request): Promise<Response> {
   try {
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return createErrorResponse('UNAUTHORIZED', '未提供认证令牌', 401)
-    }
-
-    const token = authHeader.substring(7)
-    const payload = await verifyToken(token)
-
-    if (!payload || !payload.userId) {
-      return createErrorResponse('UNAUTHORIZED', '无效的认证令牌', 401)
-    }
-
-    // 检查是否是管理员
-    const pool = getPool()
-    const [rows] = await pool.query(
-      'SELECT is_admin FROM users WHERE id = ?',
-      [payload.userId]
-    ) as [any[], unknown]
-
-    if (rows.length === 0 || !rows[0].is_admin) {
-      return createErrorResponse('FORBIDDEN', '需要管理员权限', 403)
+    const authResult = await requireAdminAuth(req)
+    if ('status' in authResult) {
+      return authResult
     }
 
     // 获取系统资源
@@ -283,27 +247,9 @@ async function handleGetHealth(req: Request): Promise<Response> {
  */
 async function handleGetContainers(req: Request): Promise<Response> {
   try {
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return createErrorResponse('UNAUTHORIZED', '未提供认证令牌', 401)
-    }
-
-    const token = authHeader.substring(7)
-    const payload = await verifyToken(token)
-
-    if (!payload || !payload.userId) {
-      return createErrorResponse('UNAUTHORIZED', '无效的认证令牌', 401)
-    }
-
-    // 检查是否是管理员
-    const pool = getPool()
-    const [rows] = await pool.query(
-      'SELECT is_admin FROM users WHERE id = ?',
-      [payload.userId]
-    ) as [any[], unknown]
-
-    if (rows.length === 0 || !rows[0].is_admin) {
-      return createErrorResponse('FORBIDDEN', '需要管理员权限', 403)
+    const authResult = await requireAdminAuth(req)
+    if ('status' in authResult) {
+      return authResult
     }
 
     // 获取容器列表

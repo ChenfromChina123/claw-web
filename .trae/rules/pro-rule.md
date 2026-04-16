@@ -1,7 +1,7 @@
 # Claw-Web AI Context & Rules
 
 ## 📌 项目概览
-- **定位**：类似 Manus 的 AI 智能体执行沙箱（TS + Bun + Docker）。
+- **定位**：类似 Manus 的 AI 智能体执行沙箱（TS + Bun + Docker + vue）。
 - **架构**：严格的 **Master-Worker** 分布式隔离架构。
 
 ## 🛡️ 架构铁律（绝对禁忌）
