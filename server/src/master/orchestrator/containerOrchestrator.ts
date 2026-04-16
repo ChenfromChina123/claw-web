@@ -156,126 +156,6 @@ class ContainerOrchestrator {
     console.log('[ContainerOrchestrator] 初始化完成，配置:', JSON.stringify(this.config, null, 2))
   }
 
-  /**
-   * 使用指定端口创建新的用户专用容器
-   * @param userId 用户ID
-   * @param port 指定端口
-   * @param username 用户名
-   * @param userTier 用户等级（可选，默认为free）
-   * @returns 创建结果
-   */
-  private async createContainerWithPort(userId: string, port: number, username?: string, userTier?: UserTier): Promise<OrchestratorResult<ContainerInstance>> {
-    try {
-      const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 20)
-      const containerName = `claude-user-${safeUserId}-${Date.now().toString(36)}`
-
-      // 获取用户等级的硬件配额
-      const tier = userTier || UserTier.FREE
-      const hardwareManager = getHardwareResourceManager()
-      const quota = hardwareManager.getUserQuota(userId, tier)
-      const resourceArgs = hardwareManager.generateDockerResourceArgs(quota)
-
-      // ========== Bind Mount: 宿主机工作空间挂载 ==========
-      // 安全说明：
-      // - 文件直接写入宿主机磁盘，容器崩溃也不会丢失
-      // - Agent 看到的是 /workspace（容器内路径）
-      // - 实际上对应宿主机 /data/claws/workspaces/users/{userId}
-      // - pathSandbox.ts 已经限制了路径，Agent 只能访问 /workspace
-      //
-      // 架构原则：工作空间按用户隔离，不按会话隔离
-      const hostWorkspacePath = `${this.config.hostWorkspacePath}/users/${userId}`
-
-      // 确保宿主机目录存在
-      try {
-        await fs.mkdir(hostWorkspacePath, { recursive: true })
-        await this.ensurePathPermissions(hostWorkspacePath)
-      } catch (error) {
-        console.warn(`[ContainerOrchestrator] 创建宿主机工作空间目录失败（非致命）: ${error}`)
-      }
-      // ========== Bind Mount 结束 ==========
-
-      // 使用统一方法构建 Docker 命令
-      const dockerCmd = this.buildDockerRunCommand({
-        containerName,
-        port,
-        workspacePath: hostWorkspacePath,
-        resourceArgs,
-        userId,
-        userTier: tier,
-        quota: {
-          storageQuotaMB: quota.storageQuotaMB,
-          maxSessions: quota.maxSessions,
-          maxPtyProcesses: quota.maxPtyProcesses,
-          maxFiles: quota.maxFiles,
-          maxFileSizeMB: quota.maxFileSizeMB
-        }
-      })
-
-      console.log(`[ContainerOrchestrator] 创建用户容器 (等级: ${tier}): ${dockerCmd}`)
-
-      const { stdout } = await execAsync(dockerCmd)
-      const containerId = stdout.trim()
-
-      const instance: ContainerInstance = {
-        containerId,
-        containerName,
-        hostPort: port,
-        status: 'creating',
-        assignedUserId: userId,
-        createdAt: new Date(),
-        lastActivityAt: new Date()
-      }
-
-      // 使用重试机制等待容器就绪（最多等待90秒）
-      const maxWaitMs = 90000
-      const retryIntervalMs = 3000
-      const startTime = Date.now()
-      let healthy = false
-
-      while (Date.now() - startTime < maxWaitMs) {
-        // 检查容器是否还存在
-        try {
-          await execAsync(`docker inspect ${containerId}`)
-        } catch {
-          instance.status = 'error'
-          return {
-            success: false,
-            error: '容器在启动过程中消失',
-            code: 'CONTAINER_DISAPPEARED'
-          }
-        }
-
-        // 验证容器健康状态
-        healthy = await this.checkContainerHealth(containerId)
-        if (healthy) {
-          instance.status = 'running'
-          break
-        }
-
-        // 等待后重试
-        await new Promise(resolve => setTimeout(resolve, retryIntervalMs))
-      }
-
-      if (!healthy) {
-        instance.status = 'error'
-        return {
-          success: false,
-          error: '容器启动超时（超过90秒）',
-          code: 'HEALTH_CHECK_TIMEOUT'
-        }
-      }
-
-      return { success: true, data: instance }
-
-    } catch (error) {
-      console.error(`[ContainerOrchestrator] 创建容器失败:`, error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '创建容器失败',
-        code: 'CREATE_FAILED'
-      }
-    }
-  }
 
   /**
    * 初始化编排器（预启动热容器池）
@@ -488,40 +368,25 @@ class ContainerOrchestrator {
         // 不阻塞容器创建，继续
       }
 
-      // 尝试从热池获取可用容器
-      let container = await this.acquireFromWarmPool()
-
-      if (!container) {
-        // 热池为空，创建新容器
-        console.log(`[ContainerOrchestrator] 热池为空，为用户 ${userId} 创建新容器...`)
-        const createResult = await this.createContainer(userId, username, userTier)
-        if (!createResult.success) {
-          return createResult as OrchestratorResult<UserContainerMapping>
-        }
-        container = createResult.data!
-      } else {
-        // 从热池获取的容器挂载的是临时目录，需要销毁并重建以使用正确的用户目录
-        console.log(`[ContainerOrchestrator] 热池容器 ${container.containerId} 挂载的是临时目录，需要重建以使用用户专属目录...`)
-        const oldContainerId = container.containerId
-        const oldPort = container.hostPort
-
-        // 销毁热池容器（保留端口）
+      // 尝试从热池获取可用容器，目的是复用其端口
+      let acquiredPort: number | null = null
+      const warmContainer = await this.acquireFromWarmPool()
+      if (warmContainer) {
+        // 热池容器没有工作空间挂载，需要销毁并重建
+        acquiredPort = warmContainer.hostPort
+        const oldContainerId = warmContainer.containerId
+        console.log(`[ContainerOrchestrator] 从热池获取容器 ${oldContainerId} (端口: ${acquiredPort})，将销毁并创建用户专用容器...`)
         await this.destroyContainer(oldContainerId)
-        this.releasePort(oldPort)
-
-        // 使用相同端口重建容器，使用正确的用户目录挂载
-        console.log(`[ContainerOrchestrator] 为用户 ${userId} 重建容器 (端口: ${oldPort})...`)
-        const rebuildResult = await this.createContainerWithPort(userId, oldPort, username, userTier)
-        if (!rebuildResult.success) {
-          return rebuildResult as OrchestratorResult<UserContainerMapping>
-        }
-        container = rebuildResult.data!
+      } else {
+        console.log(`[ContainerOrchestrator] 热池为空，将为用户 ${userId} 创建新容器...`)
       }
 
-      // 标记容器为已分配状态
-      container.status = 'assigned'
-      container.assignedUserId = userId
-      container.lastActivityAt = new Date()
+      // 创建新的用户专用容器（挂载用户工作目录）
+      const createResult = await this.createContainer(userId, username, userTier, acquiredPort || undefined)
+      if (!createResult.success) {
+        return createResult as OrchestratorResult<UserContainerMapping>
+      }
+      const container = createResult.data!
 
       // 创建用户映射
       const mapping: UserContainerMapping = {
@@ -589,6 +454,8 @@ class ContainerOrchestrator {
 
   /**
    * 预启动一个容器并加入热池
+   * 热池容器不挂载任何工作空间目录，仅保持 Worker 进程运行
+   * 分配给用户时，热池容器会先销毁，再创建新的用户专用容器（挂载用户工作目录）
    * @returns 新创建的容器实例
    */
   async prewarmContainer(): Promise<ContainerInstance | null> {
@@ -607,17 +474,6 @@ class ContainerOrchestrator {
       // 分配端口（异步，带冲突检测）
       const port = await this.allocatePort()
 
-      // ========== Bind Mount: 热池容器临时工作空间 ==========
-      // 热池容器使用临时目录，分配给用户时会切换到用户专属目录
-      const warmWorkspacePath = `${this.config.hostWorkspacePath}/_warm/${containerName}`
-      try {
-        await fs.mkdir(warmWorkspacePath, { recursive: true })
-        await this.ensurePathPermissions(warmWorkspacePath)
-      } catch (error) {
-        console.warn(`[ContainerOrchestrator] 创建热池工作空间目录失败（非致命）: ${error}`)
-      }
-      // ========== Bind Mount 结束 ==========
-
       // 热池容器使用固定的资源限制（512MB）
       const warmResourceArgs = [
         '-m 512m',
@@ -633,16 +489,17 @@ class ContainerOrchestrator {
         maxFileSizeMB: 10
       }
 
-      // 使用统一方法构建 Docker 命令
+      // 注意：热池容器不挂载任何工作空间目录
+      // 热池容器仅保持 Worker 进程运行，分配给用户时会销毁并创建新的用户专用容器
       const dockerCmd = this.buildDockerRunCommand({
         containerName,
         port,
-        workspacePath: warmWorkspacePath,
+        workspacePath: null,
         resourceArgs: warmResourceArgs,
         quota: warmQuota
       })
 
-      console.log(`[ContainerOrchestrator] 预热容器: ${dockerCmd}`)
+      console.log(`[ContainerOrchestrator] 预热容器(无工作空间挂载): ${dockerCmd}`)
 
       const { stdout } = await execAsync(dockerCmd)
       const containerId = stdout.trim()
@@ -731,18 +588,18 @@ class ContainerOrchestrator {
 
   /**
    * 将容器归还到热池（清理后复用）
+   * 用户容器挂载的是用户工作目录，无法直接复用为热池容器
+   * 因此需要先保存快照，然后销毁旧容器，再创建新的无挂载的热池容器
    * @param container 要归还的容器实例
    */
   async returnToWarmPool(container: ContainerInstance): Promise<void> {
     try {
-      // 注意：容器仍然挂载着用户的工作目录，无法直接复用
-      // 所以需要先保存快照，然后销毁旧容器，再创建新的热池容器
       console.log(`[ContainerOrchestrator] 容器 ${container.containerName} 归还热池，将销毁并重建...`)
 
       // 销毁旧容器（会触发快照保存）
       await this.destroyContainer(container.containerId)
 
-      // 创建新的热池容器（挂载临时目录）
+      // 创建新的热池容器（无工作空间挂载）
       const newContainer = await this.prewarmContainer()
       if (newContainer) {
         console.log(`[ContainerOrchestrator] 已创建新的热池容器替换旧容器`)
@@ -769,9 +626,10 @@ class ContainerOrchestrator {
    * @param userId 用户ID
    * @param username 用户名
    * @param userTier 用户等级（可选，默认为free）
+   * @param preferredPort 指定端口（可选，用于复用热池容器端口）
    * @returns 创建结果
    */
-  private async createContainer(userId: string, username?: string, userTier?: UserTier): Promise<OrchestratorResult<ContainerInstance>> {
+  private async createContainer(userId: string, username?: string, userTier?: UserTier, preferredPort?: number): Promise<OrchestratorResult<ContainerInstance>> {
     try {
       const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 20)
       const containerName = `claude-user-${safeUserId}`
@@ -787,7 +645,12 @@ class ContainerOrchestrator {
       }
 
       // 分配端口（异步，带冲突检测）
-      const port = await this.allocatePort()
+      const port = preferredPort ?? await this.allocatePort()
+
+      // 如果指定了端口，添加到已使用端口池
+      if (preferredPort && port === preferredPort) {
+        this.usedPorts.add(port)
+      }
 
       // 获取用户等级的硬件配额
       const tier = userTier || UserTier.FREE
@@ -1215,14 +1078,14 @@ class ContainerOrchestrator {
   }
 
   /**
-     * 构建 Docker 容器创建命令（统一方法）
-     * @param config 容器配置
-     * @returns docker run 命令字符串
-     */
+   * 构建 Docker 容器创建命令（统一方法）
+   * @param config 容器配置
+   * @returns docker run 命令字符串
+   */
   private buildDockerRunCommand(config: {
     containerName: string
     port: number
-    workspacePath: string
+    workspacePath?: string | null
     resourceArgs: string[]
     userId?: string
     userTier?: UserTier
@@ -1285,9 +1148,10 @@ class ContainerOrchestrator {
     // - 每个容器只有一个主要工作目录挂载到 /workspace
     // - 避免嵌套挂载导致的路径冲突
     // - 实现用户间完全隔离
-    const bindMounts = [
-      `-v ${workspacePath}:/workspace`
-    ]
+    // - 热池容器不挂载工作空间（workspacePath 为 null）
+    const bindMounts = workspacePath
+      ? [`-v ${workspacePath}:/workspace`]
+      : []
 
     // 构建完整命令
     const dockerCmd = [
