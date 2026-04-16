@@ -109,6 +109,13 @@ export function isDatabaseAvailable(): boolean {
 }
 
 export async function initDatabase(): Promise<void> {
+  // Worker 模式下禁止初始化数据库
+  // 所有数据库操作由 Master 容器负责，Worker 只执行 Agent 和工具
+  if (isWorkerMode()) {
+    console.log('[DB] Worker mode: skip database initialization')
+    return
+  }
+
   const config = loadDbConfig()
 
   const tempPool = mysql.createPool({
