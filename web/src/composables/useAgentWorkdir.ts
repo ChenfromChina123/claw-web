@@ -15,6 +15,7 @@ import apiClient from '@/api/client'
 import { resolveBrowserApiBase } from '@/config/apiBase'
 import * as monaco from 'monaco-editor'
 import { sessionApi } from '@/api/sessionApi'
+import { WORKDIR_ENDPOINTS } from '@/api/endpoints'
 
 /**
  * 已打开文件（多标签）
@@ -94,11 +95,6 @@ export interface WorkdirContext {
  * Injection Key
  */
 export const WORKDIR_INJECTION_KEY: InjectionKey<WorkdirContext> = Symbol('workdir-context')
-
-/**
- * API 基础路径
- */
-const API_WORKDIR_BASE = '/agent/workdir'
 
 /** Word/Excel/PPT：不在浏览器内嵌预览，PreviewPanel 显示说明并提供下载 */
 export const UNPREVIEWABLE_OFFICE_EXTS = new Set([
@@ -358,7 +354,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     let lastErr: unknown
     for (const p of unique) {
       try {
-        const response = await apiClient.get(`${API_WORKDIR_BASE}/content`, {
+        const response = await apiClient.get(WORKDIR_ENDPOINTS.CONTENT, {
           params: { sessionId: sessionIdRef.value, path: p }
         }) as { data?: { data?: Record<string, unknown>; success?: boolean } }
         const data = response.data?.data as Record<string, unknown> | undefined
@@ -795,7 +791,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
    */
   async function downloadFile(filePath: string, fileName: string): Promise<void> {
     const baseUrl = resolveBrowserApiBase().replace(/\/$/, '')
-    const url = `${baseUrl}${API_WORKDIR_BASE}/download?sessionId=${encodeURIComponent(sessionIdRef.value)}&path=${encodeURIComponent(filePath)}`
+    const url = `${baseUrl}${WORKDIR_ENDPOINTS.DOWNLOAD}?sessionId=${encodeURIComponent(sessionIdRef.value)}&path=${encodeURIComponent(filePath)}`
     const token = localStorage.getItem('token')
     const res = await fetch(url, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -816,7 +812,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
 
   async function downloadFolderZip(folderPath: string): Promise<void> {
     const baseUrl = resolveBrowserApiBase().replace(/\/$/, '')
-    const url = `${baseUrl}${API_WORKDIR_BASE}/download-zip?sessionId=${encodeURIComponent(sessionIdRef.value)}&path=${encodeURIComponent(folderPath)}`
+    const url = `${baseUrl}${WORKDIR_ENDPOINTS.DOWNLOAD_ZIP}?sessionId=${encodeURIComponent(sessionIdRef.value)}&path=${encodeURIComponent(folderPath)}`
     const token = localStorage.getItem('token')
     const res = await fetch(url, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -896,7 +892,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
         : `${parent.replace(/\/+$/, '')}/${trimmed}`.replace(/\/+/g, '/')
 
     try {
-      await apiClient.post(`${API_WORKDIR_BASE}/create`, {
+      await apiClient.post(WORKDIR_ENDPOINTS.CREATE, {
         sessionId: sessionIdRef.value,
         targetPath,
         kind,
@@ -929,7 +925,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     }
 
     try {
-      await apiClient.delete(`${API_WORKDIR_BASE}/delete`, {
+      await apiClient.delete(WORKDIR_ENDPOINTS.DELETE, {
         data: {
           sessionId: sessionIdRef.value,
           path,
@@ -999,7 +995,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
         let timeoutId: ReturnType<typeof setTimeout> | null = null
 
         const response = await Promise.race([
-          apiClient.get(`${API_WORKDIR_BASE}/list`, {
+          apiClient.get(WORKDIR_ENDPOINTS.LIST, {
             params: { sessionId: sid, path: normalizedPath }
           }),
           new Promise<never>((_, reject) => {
@@ -1090,7 +1086,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
       loading.value = true
       const content = model.getValue()
 
-      await apiClient.post(`${API_WORKDIR_BASE}/save`, {
+      await apiClient.post(WORKDIR_ENDPOINTS.SAVE, {
         sessionId: sessionIdRef.value,
         filePath: entry.path,
         content
@@ -1401,7 +1397,7 @@ export function useAgentWorkdir(sessionIdRef: Ref<string>, options?: { provided?
     }
 
     const baseUrl = resolveBrowserApiBase().replace(/\/$/, '')
-    const url = `${baseUrl}${API_WORKDIR_BASE}/upload`
+    const url = `${baseUrl}${WORKDIR_ENDPOINTS.UPLOAD}`
 
     uploading.value = true
     try {

@@ -70,6 +70,8 @@ export const WORKDIR_ENDPOINTS = {
   CREATE: '/api/agent/workdir/create',
   /** 下载文件 */
   DOWNLOAD: '/api/agent/workdir/download',
+  /** 下载文件夹（ZIP） */
+  DOWNLOAD_ZIP: '/api/agent/workdir/download-zip',
   /** 上传文件 */
   UPLOAD: '/api/agent/workdir/upload',
   /** 删除文件/文件夹 */
