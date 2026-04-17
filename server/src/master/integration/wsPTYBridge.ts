@@ -476,13 +476,20 @@ export class WebSocketPTYBridge {
   private registerOutputForwarding(frontendSessionId: string, connectionId: string): void {
     // 获取映射信息
     const mapping = sessionMappings.get(frontendSessionId)
-    if (!mapping) return
+    if (!mapping) {
+      console.warn(`[PTY Bridge] registerOutputForwarding: 找不到映射 ${frontendSessionId}`)
+      return
+    }
+
+    console.log(`[PTY Bridge] 注册输出转发: frontendSessionId=${frontendSessionId}, userId=${mapping.userId}`)
 
     // 监听 Worker 输出
     workerForwarder.onWorkerMessage(mapping.userId, (receivedSessionId, data) => {
       if (receivedSessionId === frontendSessionId) {
         // 更新活跃时间
         mapping.lastActiveAt = Date.now()
+
+        console.log(`[PTY Bridge] 转发输出到前端: sessionId=${receivedSessionId}, data长度=${data?.length || 0}`)
 
         // 转发到前端 WebSocket
         const connection = wsManager.getConnection(connectionId)
@@ -497,6 +504,8 @@ export class WebSocketPTYBridge {
               outputType: 'stdout',
             },
           } as any)
+        } else {
+          console.warn(`[PTY Bridge] 前端连接不可用: connectionId=${connectionId}`)
         }
       }
     })

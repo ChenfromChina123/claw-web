@@ -145,6 +145,7 @@ export class WorkerInternalAPI {
 
                 // 注册 PTY 输出监听
                 session.pty.onData((data: string) => {
+                  console.log(`[Worker WS] PTY 输出: sessionId=${session.id}, data=${JSON.stringify(data.substring(0, 100))}`)
                   ws.send(JSON.stringify({
                     type: 'output',
                     sessionId: session.id,

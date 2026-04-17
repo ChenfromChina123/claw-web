@@ -253,9 +253,12 @@ export class WorkerForwarder {
 
         // 处理 Worker 的 output 消息（PTY 输出数据）
         if (message.type === 'output' && message.sessionId) {
+          console.log(`[WorkerForwarder] 收到 Worker output: workerSessionId=${message.sessionId}, data长度=${message.data?.length || 0}`)
+
           // 查找 workerSessionId 对应的 frontendSessionId
           for (const [frontendId, workerId] of connection.sessionMappings.entries()) {
             if (workerId === message.sessionId) {
+              console.log(`[WorkerForwarder] 匹配到 frontendSessionId=${frontendId}, 回调数=${connection.outputCallbacks.size}`)
               // 调用所有注册的回调
               for (const callback of connection.outputCallbacks.values()) {
                 callback(frontendId, message.data)
@@ -264,7 +267,7 @@ export class WorkerForwarder {
             }
           }
         }
-      } catch {
+      } catch (e) {
         // 忽略解析错误
       }
     })

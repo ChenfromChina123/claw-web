@@ -46,18 +46,15 @@ services:
   worker:
     # 使用已构建的镜像
     image: claw-web-backend-worker:latest
-    
+
+    # 注意：Windows Docker Desktop 上 Bind Mount 不稳定，暂不挂载源代码
+    # 代码修改后需要重新构建：docker-compose build worker
     volumes:
-      # ✅ 挂载 Worker 源代码
-      - ./server/src:/app/src:ro
-      - ./server/shared:/app/shared:ro
       # 保留工作空间和日志卷
       - worker_workspace:/workspace
       - worker_logs:/app/logs
-    
-    # ✅ 使用 Bun 的热重载模式
-    command: ["bun", "run", "--watch", "src/index.ts"]
-    
+
+    # Worker 镜像内置 CMD：["bun", "run", "src/index.ts"]
     environment:
       # 开发环境配置
       NODE_ENV: development
@@ -77,10 +74,22 @@ services:
 
   # ==================== Frontend 服务（开发模式）====================
   frontend:
-    # ✅ 使用 Vite 开发服务器而非 Nginx 生产服务器
-    # Vite 提供 HMR（热模块替换），修改代码后毫秒级更新
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "80"]
-    
+    # ✅ 开发模式使用 Node.js 镜像（带 npm），而非 Nginx 生产镜像
+    image: node:20-alpine
+
+    # 先安装依赖，再启动开发服务器
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ ! -d "node_modules" ] || [ ! -f "node_modules/.bin/vite" ]; then
+          echo "[Frontend] 安装依赖..."
+          npm install --legacy-peer-deps
+        fi
+        echo "[Frontend] 启动 Vite 开发服务器..."
+        exec npm run dev -- --host 0.0.0.0 --port 80
+
+    working_dir: /app
+
     volumes:
       # ✅ 挂载前端源代码
       - ./web/src:/app/src:ro
@@ -88,6 +97,11 @@ services:
       # 挂载配置文件，修改后自动重载
       - ./web/vite.config.ts:/app/vite.config.ts:ro
       - ./web/index.html:/app/index.html:ro
+      # 持久化 node_modules（避免每次重启重新安装）
+      - frontend_node_modules:/app/node_modules
+      # 复制 package.json 以便安装依赖
+      - ./web/package.json:/app/package.json:ro
+      - ./web/package-lock.json:/app/package-lock.json:ro
     
     environment:
       - NODE_ENV=development
@@ -124,11 +138,15 @@ volumes:
   master_logs:
     driver: local
     name: claw-web-master-logs
-    
+
   worker_workspace:
     driver: local
     name: claw-web-worker-workspace
-    
+
   worker_logs:
     driver: local
     name: claw-web-worker-logs
+
+  frontend_node_modules:
+    driver: local
+    name: claw-web-frontend-node-modules
