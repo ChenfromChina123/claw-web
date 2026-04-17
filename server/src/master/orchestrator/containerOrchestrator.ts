@@ -1405,10 +1405,12 @@ class ContainerOrchestrator {
     const { containerName, port, workspacePath, resourceArgs, userId, userTier, quota } = config
 
     // 基础安全加固参数
+    // 注意：PTY 功能需要保留默认的 Linux capabilities
+    // --cap-drop=ALL 会阻止 PTY 正常工作（signal=1 SIGHUP）
     const securityArgs = [
       '--read-only',
       '--security-opt=no-new-privileges',
-      '--cap-drop=ALL',
+      '--tty',
       '--pids-limit 100',
       '--ulimit nproc=100:100',
       '--ulimit nofile=1024:1024'
@@ -1450,15 +1452,22 @@ class ContainerOrchestrator {
 
     // Bind Mount 配置
     // 安全修复：只挂载当前用户的工作目录，避免路径重叠和覆盖问题
-    // 
+    //
     // 设计原则：
     // - 每个容器只有一个主要工作目录挂载到 /workspace
     // - 避免嵌套挂载导致的路径冲突
     // - 实现用户间完全隔离
     // - 热池容器不挂载工作空间（workspacePath 为 null）
-    const bindMounts = workspacePath
-      ? [`-v ${workspacePath}:/workspace`]
-      : []
+    const bindMounts = []
+
+    // 挂载用户工作空间目录
+    if (workspacePath) {
+      bindMounts.push(`-v ${workspacePath}:/workspace`)
+    }
+
+    // 开发模式说明：
+    // 代码修改后需要重新构建镜像：docker-compose build worker
+    // Bind Mount 在 Windows Docker Desktop 上不稳定，暂不使用
 
     // 构建完整命令
     const dockerCmd = [
@@ -1791,9 +1800,6 @@ class ContainerOrchestrator {
             }
           }
         }
-
-        // 补充热池到最小数量（带冷却期与指数退避）
-        await this.replenishWarmPool()
       } catch (error) {
         console.error('[ContainerOrchestrator] 健康检查循环出错:', error)
       } finally {
