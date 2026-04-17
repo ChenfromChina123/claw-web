@@ -112,16 +112,22 @@ interface FrontendSessionMapping {
 const sessionMappings = new Map<string, FrontendSessionMapping>()
 
 /**
- * 获取用户的 Worker 容器信息
+ * 获取用户的 Worker 容器信息（自动分配）
  */
 async function getUserWorkerInfo(userId: string): Promise<{ containerId: string; hostPort: number }> {
   const orchestrator = getContainerOrchestrator()
-  const mapping = orchestrator.getUserMapping(userId)
-  
+  let mapping = orchestrator.getUserMapping(userId)
+
   if (!mapping) {
-    throw new Error('用户未分配 Worker 容器，请先触发容器调度')
+    console.log(`[PTY Bridge] 用户 ${userId} 未分配容器，自动触发容器调度...`)
+    const assignResult = await orchestrator.assignContainerToUser(userId)
+    if (!assignResult.success || !assignResult.data) {
+      throw new Error(assignResult.error || '容器分配失败，请稍后重试')
+    }
+    mapping = assignResult.data
+    console.log(`[PTY Bridge] 用户 ${userId} 容器分配成功: ${mapping.container.containerId}`)
   }
-  
+
   return {
     containerId: mapping.container.containerName,
     hostPort: mapping.container.hostPort,
