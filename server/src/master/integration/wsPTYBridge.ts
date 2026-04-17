@@ -121,13 +121,23 @@ async function getUserWorkerInfo(userId: string): Promise<{ containerId: string;
   let mapping = await orchestrator.getOrLoadUserMapping(userId)
 
   if (!mapping) {
-    console.log(`[PTY Bridge] 用户 ${userId} 未分配容器，自动触发容器调度...`)
-    const assignResult = await orchestrator.assignContainerToUser(userId)
-    if (!assignResult.success || !assignResult.data) {
-      throw new Error(assignResult.error || '容器分配失败，请稍后重试')
+    console.log(`[PTY Bridge] 用户 ${userId} 未分配容器，尝试从Docker扫描已运行容器...`)
+    
+    // 先尝试扫描Docker中已运行的用户容器
+    const dockerScanResult = await orchestrator.scanAndRecoverUserContainer(userId)
+    if (dockerScanResult) {
+      mapping = dockerScanResult
+      console.log(`[PTY Bridge] 从Docker恢复用户容器: ${mapping.container.containerId}`)
+    } else {
+      // Docker中也没有，触发容器调度
+      console.log(`[PTY Bridge] 用户 ${userId} 在Docker中也未找到容器，自动触发容器调度...`)
+      const assignResult = await orchestrator.assignContainerToUser(userId)
+      if (!assignResult.success || !assignResult.data) {
+        throw new Error(assignResult.error || '容器分配失败，请稍后重试')
+      }
+      mapping = assignResult.data
+      console.log(`[PTY Bridge] 用户 ${userId} 容器分配成功: ${mapping.container.containerId}`)
     }
-    mapping = assignResult.data
-    console.log(`[PTY Bridge] 用户 ${userId} 容器分配成功: ${mapping.container.containerId}`)
   }
 
   return {

@@ -2,19 +2,23 @@
  * ContainerOrchestrator - 容器编排调度器
  *
  * 功能：
- * - 容器生命周期管理（创建、启动、停止、销毁）
- * - 用户到容器的映射与分配
- * - 热容器池维护（预启动、获取、归还）
+ * - 容器生命周期管理（创建、休眠、恢复、销毁）
+ * - 用户到容器的映射与分配（一个用户一个容器）
+ * - 容器休眠/恢复机制（Docker pause/unpause）
  * - 资源监控与健康检查
  * - 故障检测与自动恢复
+ *
+ * 架构原则：
+ * - 一个用户 = 一个 Worker 容器 = 一个工作空间
+ * - 用户离开时休眠容器（CPU=0，保留所有状态）
+ * - 用户回来时秒级恢复容器（状态丝毫不丢）
  *
  * 使用场景：
  * - Master服务中调度Worker容器
  * - 多用户隔离环境中的容器管理
- * - 动态扩缩容支持
  */
 
-import { DEFAULT_WORKER_PORT } from '../../shared/constants'
+                                                                                                        import { DEFAULT_WORKER_PORT } from '../../shared/constants'
 import { execSync, exec } from 'child_process'
 import { promisify } from 'util'
 import * as path from 'path'
@@ -49,7 +53,7 @@ export interface ContainerInstance {
   /** 映射到宿主机的端口 */
   hostPort: number
   /** 容器状态 */
-  status: 'running' | 'stopped' | 'creating' | 'error' | 'idle' | 'assigned'
+  status: 'running' | 'stopped' | 'creating' | 'error' | 'assigned' | 'paused'
   /** 关联的用户ID（如果有） */
   assignedUserId?: string
   /** 创建时间 */
@@ -87,12 +91,6 @@ export interface UserContainerMapping {
  * 容器池配置
  */
 export interface PoolConfig {
-  /** 最小热容器数量 */
-  minPoolSize: number
-  /** 最大热容器数量 */
-  maxPoolSize: number
-  /** 空闲超时时间（毫秒）*/
-  idleTimeoutMs: number
   /** 容器健康检查间隔（毫秒）*/
   healthCheckIntervalMs: number
   /** Docker镜像名称 */
@@ -135,10 +133,7 @@ export interface OrchestratorResult<T = any> {
  * 默认配置（优先从环境变量读取，提供合理的默认值）
  */
 const DEFAULT_POOL_CONFIG: Required<PoolConfig> = {
-  minPoolSize: parseInt(process.env.CONTAINER_POOL_MIN_SIZE || '3', 10),
-  maxPoolSize: parseInt(process.env.CONTAINER_POOL_MAX_SIZE || '10', 10),
-  idleTimeoutMs: parseInt(process.env.CONTAINER_IDLE_TIMEOUT_MS || '300000', 10),
-  healthCheckIntervalMs: parseInt(process.env.CONTAINER_HEALTH_CHECK_INTERVAL || '15000', 10),
+  healthCheckIntervalMs: parseInt(process.env.CONTAINER_HEALTH_CHECK_INTERVAL || '60000', 10),
   imageName: process.env.WORKER_IMAGE_NAME || 'claw-web-backend-worker:latest',
   networkName: process.env.DOCKER_NETWORK_NAME || 'claw-web_worker-network',
   basePort: parseInt(process.env.CONTAINER_BASE_PORT || '3100', 10),
@@ -155,12 +150,8 @@ const DEFAULT_POOL_CONFIG: Required<PoolConfig> = {
 
 class ContainerOrchestrator {
   private config: Required<PoolConfig>
-  private warmPool: Map<string, ContainerInstance> = new Map()
   private userMappings: Map<string, UserContainerMapping> = new Map()
-  private portCounter: number = 0
-  private usedPorts: Set<number> = new Set() // 跟踪已使用的端口
   private healthCheckTimer: NodeJS.Timeout | null = null
-  private cleanupTimer: NodeJS.Timeout | null = null
   private dockerCleanupTimer: NodeJS.Timeout | null = null
   private lastContainerCreationTime: number = 0
   private consecutiveFailures: number = 0
@@ -216,11 +207,6 @@ class ContainerOrchestrator {
         console.warn(`[ContainerOrchestrator] 磁盘空间告警: ${diskStatus.used}%`)
       }
 
-      // 首先扫描已存在的热容器
-      console.log('[ContainerOrchestrator] 扫描已存在的热容器...')
-      const existingContainers = await this.scanExistingContainers()
-      console.log(`[ContainerOrchestrator] 发现 ${existingContainers} 个已存在的热容器`)
-
       // 从数据库加载用户映射（Master 重启后恢复）
       console.log('[ContainerOrchestrator] 从数据库加载用户映射...')
       await this.loadUserMappingsFromDB()
@@ -229,51 +215,16 @@ class ContainerOrchestrator {
       console.log('[ContainerOrchestrator] 扫描Docker中已运行的用户容器...')
       await this.scanAndRecoverUserContainers()
 
-      // 计算需要创建的容器数量
-      const containersNeeded = Math.max(0, this.config.minPoolSize - existingContainers)
-      
-      // 预启动热容器池（带间隔延迟，避免资源竞争）
-      if (containersNeeded > 0) {
-        console.log(`[ContainerOrchestrator] 需要创建 ${containersNeeded} 个新热容器...`)
-        for (let i = 0; i < containersNeeded; i++) {
-          const created = await this.prewarmContainer()
-          if (created) {
-            this.lastContainerCreationTime = Date.now()
-            this.consecutiveFailures = 0
-          } else {
-            this.consecutiveFailures++
-          }
-          // 每个容器之间等待10秒，避免同时创建导致资源竞争
-          if (i < containersNeeded - 1) {
-            console.log(`[ContainerOrchestrator] 等待10秒后创建下一个容器...`)
-            await new Promise(resolve => setTimeout(resolve, 10000))
-          }
-        }
-      } else {
-        console.log(`[ContainerOrchestrator] 热容器池已满，无需创建新容器`)
+      // 启动健康检查定时任务
+      this.startHealthCheckLoop()
+
+      // 启动 Docker 系统清理定时任务
+      if (this.config.enableAutoCleanup) {
+        this.startDockerCleanupLoop()
+        console.log(`[ContainerOrchestrator] Docker 自动清理已启用（间隔: ${this.config.cleanupIntervalMs}ms）`)
       }
 
-      // 开发环境检查：如果 maxPoolSize 为 0，禁用所有定时任务
-      const isDevMode = this.config.maxPoolSize === 0
-      
-      if (!isDevMode) {
-        // 启动健康检查定时任务
-        this.startHealthCheckLoop()
-
-        // 启动空闲清理定时任务
-        this.startIdleCleanupLoop()
-        console.log('[ContainerOrchestrator] 健康检查和空闲清理已启用')
-
-        // 启动 Docker 系统清理定时任务
-        if (this.config.enableAutoCleanup) {
-          this.startDockerCleanupLoop()
-          console.log(`[ContainerOrchestrator] Docker 自动清理已启用（间隔: ${this.config.cleanupIntervalMs}ms）`)
-        }
-      } else {
-        console.log('[ContainerOrchestrator] 开发模式：禁用健康检查、空闲清理和 Docker 自动清理')
-      }
-
-      console.log(`[ContainerOrchestrator] 初始化完成，当前热池大小: ${this.warmPool.size}`)
+      console.log('[ContainerOrchestrator] 初始化完成')
       return { success: true }
 
     } catch (error) {
@@ -283,84 +234,6 @@ class ContainerOrchestrator {
         error: error instanceof Error ? error.message : '初始化失败',
         code: 'INIT_FAILED'
       }
-    }
-  }
-
-  /**
-   * 扫描已存在的热容器（Worker容器）
-   * 在初始化时调用，避免重复创建容器
-   * @returns 发现的容器数量
-   */
-  private async scanExistingContainers(): Promise<number> {
-    try {
-      // 获取所有正在运行的 Worker 容器
-      const { stdout } = await execAsync(
-        `docker ps --filter "name=claude-worker-warm-" --filter "status=running" --format "{{.ID}}|{{.Names}}|{{.Ports}}"`
-      )
-
-      if (!stdout.trim()) {
-        console.log('[ContainerOrchestrator] 未发现已存在的热容器')
-        return 0
-      }
-
-      const containers = stdout.trim().split('\n')
-      let addedCount = 0
-
-      for (const containerLine of containers) {
-        const [containerId, containerName, ports] = containerLine.split('|')
-        
-        if (!containerId || !containerName) continue
-
-        // 解析端口映射
-        const portMatch = ports.match(/:(\d+)->(3000|4000)\/tcp/)
-        const hostPort = portMatch ? parseInt(portMatch[1], 10) : 0
-
-        // 检查容器是否已经在热池中
-        if (this.warmPool.has(containerId)) {
-          console.log(`[ContainerOrchestrator] 容器已在热池中: ${containerName}`)
-          addedCount++
-          continue
-        }
-
-        // 检查容器是否已被分配给用户
-        let isAssigned = false
-        for (const mapping of this.userMappings.values()) {
-          if (mapping.container.containerId === containerId) {
-            isAssigned = true
-            break
-          }
-        }
-
-        if (isAssigned) {
-          console.log(`[ContainerOrchestrator] 容器已被分配，跳过: ${containerName}`)
-          continue
-        }
-
-        // 将容器添加到热池
-        const container: ContainerInstance = {
-          containerId,
-          containerName,
-          hostPort,
-          status: 'idle',
-          createdAt: new Date(),
-          lastActivityAt: new Date()
-        }
-
-        this.warmPool.set(containerId, container)
-        
-        // 将端口添加到已使用端口池
-        if (hostPort > 0) {
-          this.usedPorts.add(hostPort)
-        }
-        
-        console.log(`[ContainerOrchestrator] 已扫描并添加到热池: ${containerName} (端口: ${hostPort})`)
-        addedCount++
-      }
-
-      return addedCount
-    } catch (error) {
-      console.error('[ContainerOrchestrator] 扫描已存在容器失败:', error)
-      return 0
     }
   }
 
@@ -416,48 +289,47 @@ class ContainerOrchestrator {
 
   /**
    * 内部容器分配逻辑（已持有锁）
+   * 新逻辑：优先检查用户是否已有容器（包括休眠状态），否则新建
    */
   private async assignContainerToUserInternal(userId: string, username?: string, userTier?: UserTier, lockKey?: string): Promise<OrchestratorResult<UserContainerMapping>> {
     try {
       // ========== 再次检查用户是否已有容器（锁内二次确认） ==========
       const existingMapping = this.userMappings.get(userId)
       if (existingMapping) {
-        // 更新最后活动时间
-        existingMapping.lastActivityAt = new Date()
-        existingMapping.container.lastActivityAt = new Date()
-        console.log(`[ContainerOrchestrator] 用户 ${userId} 已有容器（锁内二次确认）: ${existingMapping.container.containerId}`)
-        return { success: true, data: existingMapping }
+        // 恢复容器（如果是暂停状态）
+        if (existingMapping.container.status === 'paused') {
+          console.log(`[ContainerOrchestrator] 用户 ${userId} 的容器处于休眠状态，正在恢复...`)
+          const unpaused = await this.unpauseContainer(existingMapping.container.containerId)
+          if (unpaused) {
+            existingMapping.container.status = 'assigned'
+            existingMapping.container.lastActivityAt = new Date()
+            existingMapping.lastActivityAt = new Date()
+            console.log(`[ContainerOrchestrator] 用户 ${userId} 的容器已恢复`)
+          } else {
+            console.warn(`[ContainerOrchestrator] 用户 ${userId} 的容器恢复失败，将销毁并重建`)
+            await this.destroyContainer(existingMapping.container.containerId)
+            this.userMappings.delete(userId)
+            // 继续创建新容器
+          }
+        } else {
+          // 更新最后活动时间
+          existingMapping.lastActivityAt = new Date()
+          existingMapping.container.lastActivityAt = new Date()
+          console.log(`[ContainerOrchestrator] 用户 ${userId} 已有容器（锁内二次确认）: ${existingMapping.container.containerId}`)
+          return { success: true, data: existingMapping }
+        }
       }
 
       // ========== 确保用户工作空间目录存在 ==========
       const workspaceResult = await this.ensureUserWorkspaceExists(userId)
       if (!workspaceResult.success) {
         console.warn(`[ContainerOrchestrator] 确保工作空间目录存在失败: ${workspaceResult.error}`)
-        // 不阻塞容器创建，继续
-      }
-
-      // ========== 从热池获取容器 ==========
-      let acquiredPort: number | null = null
-      const warmContainer = await this.acquireFromWarmPool()
-      if (warmContainer) {
-        // 热池容器没有工作空间挂载，需要销毁并重建
-        acquiredPort = warmContainer.hostPort
-        const oldContainerId = warmContainer.containerId
-        console.log(`[ContainerOrchestrator] 从热池获取容器 ${oldContainerId} (端口: ${acquiredPort})，将销毁并创建用户专用容器...`)
-        await this.destroyContainer(oldContainerId)
-      } else {
-        console.log(`[ContainerOrchestrator] 热池为空，将为用户 ${userId} 创建新容器...`)
       }
 
       // ========== 创建新的用户专用容器 ==========
-      const createResult = await this.createContainer(userId, username, userTier, acquiredPort || undefined)
+      const createResult = await this.createContainer(userId, username, userTier)
       if (!createResult.success) {
-        // 容器创建失败，记录错误但不在这里释放锁
         console.error(`[ContainerOrchestrator] 用户 ${userId} 容器创建失败: ${createResult.error}`)
-        
-        // 立即尝试补充热池（不等待冷却期）
-        await this.forceReplenishWarmPool()
-        
         return createResult as OrchestratorResult<UserContainerMapping>
       }
       const container = createResult.data!
@@ -489,9 +361,13 @@ class ContainerOrchestrator {
   }
 
   /**
-   * 释放用户容器（归还到热池或销毁）
+   * 释放用户容器（当用户所有活动都结束时调用）
+   * 一个用户一个容器，不区分会话
+   * 
+   * 新逻辑：休眠容器而不是销毁
+   * 
    * @param userId 用户ID
-   * @param force 是否强制销毁（不归还热池）
+   * @param force 是否强制销毁（不推荐，除非用户明确要求）
    * @returns 释放结果
    */
   async releaseUserContainer(userId: string, force: boolean = false): Promise<OrchestratorResult<void>> {
@@ -505,19 +381,32 @@ class ContainerOrchestrator {
       const container = mapping.container
 
       if (force) {
-        // 强制销毁容器
+        // 强制销毁容器（创建快照后销毁）
+        await this.createSnapshotBeforeDestroy(container.containerId)
         await this.destroyContainer(container.containerId)
+        console.log(`[ContainerOrchestrator] 用户 ${userId} 的容器已强制销毁`)
       } else {
-        // 归还到热池（先清理用户数据）
-        await this.returnToWarmPool(container)
+        // 休眠容器（推荐）
+        const paused = await this.pauseContainer(container.containerId)
+        if (paused) {
+          container.status = 'paused'
+          console.log(`[ContainerOrchestrator] 用户 ${userId} 的容器已休眠，可秒级恢复`)
+        } else {
+          console.error(`[ContainerOrchestrator] 用户 ${userId} 的容器休眠失败`)
+          return {
+            success: false,
+            error: '容器休眠失败',
+            code: 'PAUSE_FAILED'
+          }
+        }
       }
 
-      // 移除映射
-      this.userMappings.delete(userId)
+      // 更新最后活动时间
+      mapping.lastActivityAt = new Date()
       console.log(`[ContainerOrchestrator] 已释放用户 ${userId} 的容器`)
 
       // 更新数据库状态
-      await this.updateUserMappingStatusInDB(userId, 'released')
+      await this.updateUserMappingStatusInDB(userId, force ? 'destroyed' : 'paused')
 
       return { success: true }
 
@@ -531,184 +420,15 @@ class ContainerOrchestrator {
     }
   }
 
-  /**
-   * 预启动一个容器并加入热池
-   * 热池容器不挂载任何工作空间目录，仅保持 Worker 进程运行
-   * 分配给用户时，热池容器会先销毁，再创建新的用户专用容器（挂载用户工作目录）
-   * @returns 新创建的容器实例
-   */
-  async prewarmContainer(): Promise<ContainerInstance | null> {
-    try {
-      // 检查热池是否已满
-      if (this.warmPool.size >= this.config.maxPoolSize) {
-        console.warn('[ContainerOrchestrator] 热池已达上限，跳过预启动')
-        return null
-      }
-
-      // 生成唯一容器名称
-      const timestamp = Date.now().toString(36)
-      const randomStr = Math.random().toString(36).substring(2, 8)
-      const containerName = `claude-worker-warm-${timestamp}-${randomStr}`
-
-      // 分配端口（异步，带冲突检测）
-      const port = await this.allocatePort()
-
-      // 热池容器使用固定的资源限制（512MB）
-      const warmResourceArgs = [
-        '-m 512m',
-        '--memory-swap 512m'
-      ]
-
-      // 热池容器使用默认的配额配置
-      const warmQuota = {
-        storageQuotaMB: 200,
-        maxSessions: 5,
-        maxPtyProcesses: 2,
-        maxFiles: 100,
-        maxFileSizeMB: 10
-      }
-
-      // 注意：热池容器不挂载任何工作空间目录
-      // 热池容器仅保持 Worker 进程运行，分配给用户时会销毁并创建新的用户专用容器
-      const dockerCmd = this.buildDockerRunCommand({
-        containerName,
-        port,
-        workspacePath: null,
-        resourceArgs: warmResourceArgs,
-        quota: warmQuota
-      })
-
-      console.log(`[ContainerOrchestrator] 预热容器(无工作空间挂载): ${dockerCmd}`)
-
-      const { stdout } = await execAsync(dockerCmd)
-      const containerId = stdout.trim()
-
-      // 创建容器实例
-      const instance: ContainerInstance = {
-        containerId,
-        containerName,
-        hostPort: port,
-        status: 'creating',
-        createdAt: new Date(),
-        lastActivityAt: new Date()
-      }
-
-      // 加入热池
-      this.warmPool.set(containerId, instance)
-
-      // 异步等待容器就绪（不阻塞返回）
-      this.waitForContainerReady(containerId, instance).catch(err => {
-        console.error(`[ContainerOrchestrator] 容器 ${containerName} 就绪等待失败:`, err)
-      })
-
-      return instance
-
-    } catch (error) {
-      console.error('[ContainerOrchestrator] 预启动容器失败:', error)
-      return null
-    }
-  }
-
-  /**
-   * 等待容器就绪
-   * @param containerId 容器ID
-   * @param instance 容器实例
-   */
-  private async waitForContainerReady(containerId: string, instance: ContainerInstance): Promise<void> {
-    const maxWaitMs = 90000  // 最多等待 90 秒
-    const start = Date.now()
-
-    while (Date.now() - start < maxWaitMs) {
-      // 检查容器是否还存在（可能已被健康检查循环销毁）
-      if (!this.warmPool.has(containerId)) {
-        console.log(`[ContainerOrchestrator] 容器 ${instance.containerName} 已被移除，停止就绪等待`)
-        return
-      }
-
-      const healthy = await this.checkContainerHealth(containerId)
-      if (healthy) {
-        instance.status = 'idle'
-        console.log(`[ContainerOrchestrator] 热容器就绪: ${instance.containerName} (端口: ${instance.hostPort})`)
-        return
-      }
-      await new Promise(resolve => setTimeout(resolve, 3000))  // 3 秒重试
-    }
-
-    // 超时标记错误并销毁
-    instance.status = 'error'
-    console.error(`[ContainerOrchestrator] 容器启动超时: ${instance.containerName}`)
-    await this.destroyContainer(containerId)
-  }
-
-  /**
-   * 从热池获取可用容器
-   * @returns 可用的容器实例，如果没有则返回null
-   */
-  async acquireFromWarmPool(): Promise<ContainerInstance | null> {
-    for (const [containerId, container] of this.warmPool) {
-      if (container.status === 'idle') {
-        // 验证容器健康状态
-        const isHealthy = await this.checkContainerHealth(containerId)
-        if (isHealthy) {
-          // 从热池移除
-          this.warmPool.delete(containerId)
-          return container
-        } else {
-          // 不健康的容器从热池移除并销毁
-          console.warn(`[ContainerOrchestrator] 发现不健康容器: ${containerId}，正在销毁...`)
-          this.warmPool.delete(containerId)
-          await this.destroyContainer(containerId)
-        }
-      }
-    }
-
-    return null
-  }
-
-  /**
-   * 将容器归还到热池（清理后复用）
-   * 用户容器挂载的是用户工作目录，无法直接复用为热池容器
-   * 因此需要先保存快照，然后销毁旧容器，再创建新的无挂载的热池容器
-   * @param container 要归还的容器实例
-   */
-  async returnToWarmPool(container: ContainerInstance): Promise<void> {
-    try {
-      console.log(`[ContainerOrchestrator] 容器 ${container.containerName} 归还热池，将销毁并重建...`)
-
-      // 销毁旧容器（会触发快照保存）
-      await this.destroyContainer(container.containerId)
-
-      // 创建新的热池容器（无工作空间挂载）
-      const newContainer = await this.prewarmContainer()
-      if (newContainer) {
-        console.log(`[ContainerOrchestrator] 已创建新的热池容器替换旧容器`)
-      } else {
-        console.warn(`[ContainerOrchestrator] 创建新热池容器失败，热池可能会缩小`)
-      }
-
-      console.log(`[ContainerOrchestrator] 容器已归还热池: ${container.containerName}`)
-
-      // 如果热池超过最大大小，考虑销毁多余的
-      if (this.warmPool.size > this.config.maxPoolSize) {
-        await this.shrinkWarmPool()
-      }
-
-    } catch (error) {
-      console.error(`[ContainerOrchestrator] 归还容器到热池失败:`, error)
-      // 失败时直接销毁容器
-      await this.destroyContainer(container.containerId)
-    }
-  }
 
   /**
    * 创建新的用户专用容器
    * @param userId 用户ID
    * @param username 用户名
    * @param userTier 用户等级（可选，默认为free）
-   * @param preferredPort 指定端口（可选，用于复用热池容器端口）
    * @returns 创建结果
    */
-  private async createContainer(userId: string, username?: string, userTier?: UserTier, preferredPort?: number): Promise<OrchestratorResult<ContainerInstance>> {
+  private async createContainer(userId: string, username?: string, userTier?: UserTier): Promise<OrchestratorResult<ContainerInstance>> {
     try {
       // 生成唯一容器名：用户ID前12位 + 时间戳后6位 + 随机4位
       // 确保同一用户的多次会话也不会冲突
@@ -730,12 +450,7 @@ class ContainerOrchestrator {
       }
 
       // 分配端口（异步，带冲突检测）
-      const port = preferredPort ?? await this.allocatePort()
-
-      // 如果指定了端口，添加到已使用端口池
-      if (preferredPort && port === preferredPort) {
-        this.usedPorts.add(port)
-      }
+      const port = await this.allocatePort()
 
       // 获取用户等级的硬件配额
       const tier = userTier || UserTier.FREE
@@ -858,6 +573,60 @@ class ContainerOrchestrator {
   }
 
   /**
+   * 休眠容器（用户离开时调用）
+   * 使用 docker pause 冻结容器进程，CPU 占用降为 0
+   * 保留所有状态：文件、环境、进程、内存数据
+   * 
+   * @param containerId 容器 ID
+   * @returns 是否成功
+   */
+  async pauseContainer(containerId: string): Promise<boolean> {
+    try {
+      console.log(`[ContainerOrchestrator] 休眠容器: ${containerId}`)
+      await execAsync(`docker pause ${containerId}`)
+      console.log(`[ContainerOrchestrator] 容器已休眠: ${containerId}`)
+      return true
+    } catch (error) {
+      console.error(`[ContainerOrchestrator] 休眠容器失败 (${containerId}):`, error)
+      return false
+    }
+  }
+
+  /**
+   * 恢复容器（用户回来时调用）
+   * 使用 docker unpause 秒级恢复容器
+   * 所有状态丝毫不丢
+   * 
+   * @param containerId 容器 ID
+   * @returns 是否成功
+   */
+  async unpauseContainer(containerId: string): Promise<boolean> {
+    try {
+      console.log(`[ContainerOrchestrator] 恢复容器: ${containerId}`)
+      await execAsync(`docker unpause ${containerId}`)
+      console.log(`[ContainerOrchestrator] 容器已恢复: ${containerId}`)
+      return true
+    } catch (error) {
+      console.error(`[ContainerOrchestrator] 恢复容器失败 (${containerId}):`, error)
+      return false
+    }
+  }
+
+  /**
+   * 检查容器是否处于暂停状态
+   */
+  async isContainerPaused(containerId: string): Promise<boolean> {
+    try {
+      const { stdout } = await execAsync(
+        `docker inspect --format='{{.State.Status}}' ${containerId}`
+      )
+      return stdout.trim() === 'paused'
+    } catch {
+      return false
+    }
+  }
+
+  /**
    * 销毁容器（支持幂等性，防止重复销毁）
    * @param containerId 容器ID
    * @returns 是否成功
@@ -868,7 +637,6 @@ class ContainerOrchestrator {
       if (destroyingContainers.has(containerId)) {
         console.log(`[ContainerOrchestrator] 容器 ${containerId} 正在销毁中，跳过重复调用（幂等性保护）`)
 
-        // 等待容器销毁完成（最多等待30秒）
         const maxWaitMs = 30000
         const start = Date.now()
         while (destroyingContainers.has(containerId) && Date.now() - start < maxWaitMs) {
@@ -879,25 +647,18 @@ class ContainerOrchestrator {
           console.warn(`[ContainerOrchestrator] 容器 ${containerId} 销毁超时，但已接受幂等性请求`)
         }
 
-        // 幂等性成功：即使还在销毁中，也认为请求已被接受
         return true
       }
 
       // ========== 幂等性检查 2：容器是否已不存在 ==========
       let containerPort: number | undefined
-      const warmContainer = this.warmPool.get(containerId)
-      if (warmContainer) {
-        containerPort = warmContainer.hostPort
-      } else {
-        for (const mapping of this.userMappings.values()) {
-          if (mapping.container.containerId === containerId) {
-            containerPort = mapping.container.hostPort
-            break
-          }
+      for (const mapping of this.userMappings.values()) {
+        if (mapping.container.containerId === containerId) {
+          containerPort = mapping.container.hostPort
+          break
         }
       }
 
-      // 检查容器是否存在
       let containerExists = true
       try {
         await execAsync(`docker inspect ${containerId}`)
@@ -907,17 +668,11 @@ class ContainerOrchestrator {
       }
 
       if (!containerExists) {
-        // 从所有数据结构中移除
-        this.warmPool.delete(containerId)
         for (const [userId, mapping] of this.userMappings) {
           if (mapping.container.containerId === containerId) {
             this.userMappings.delete(userId)
             break
           }
-        }
-        // 释放端口
-        if (containerPort) {
-          this.releasePort(containerPort)
         }
         return true
       }
@@ -929,45 +684,34 @@ class ContainerOrchestrator {
         // 销毁前：尝试保存工作快照
         await this.createSnapshotBeforeDestroy(containerId)
 
-        // 停止并删除容器（使用 -f 强制删除，避免容器卡住）
         console.log(`[ContainerOrchestrator] 停止容器: ${containerId}`)
         await execAsync(`docker stop -t 5 ${containerId}`)
 
         console.log(`[ContainerOrchestrator] 删除容器: ${containerId}`)
         await execAsync(`docker rm ${containerId}`)
 
-        // 从所有数据结构中移除
-        this.warmPool.delete(containerId)
         for (const [userId, mapping] of this.userMappings) {
           if (mapping.container.containerId === containerId) {
             this.userMappings.delete(userId)
             break
           }
         }
-        // 释放端口
-        if (containerPort) {
-          this.releasePort(containerPort)
-        }
 
         console.log(`[ContainerOrchestrator] 容器已销毁: ${containerId}`)
         return true
 
       } finally {
-        // ========== 无论成功失败，都移除销毁标记 ==========
         destroyingContainers.delete(containerId)
       }
 
     } catch (error) {
       console.error(`[ContainerOrchestrator] 销毁容器失败 (${containerId}):`, error)
-      // 即使销毁失败，也要从内存中移除容器记录
-      this.warmPool.delete(containerId)
       for (const [userId, mapping] of this.userMappings) {
         if (mapping.container.containerId === containerId) {
           this.userMappings.delete(userId)
           break
         }
       }
-      // 确保销毁标记被清理
       destroyingContainers.delete(containerId)
       return false
     }
@@ -986,14 +730,6 @@ class ContainerOrchestrator {
         if (mapping.container.containerId === containerId) {
           userId = uid
           break
-        }
-      }
-
-      // 如果没找到，再在 warmPool 中查找（热池容器）
-      if (!userId) {
-        const container = this.warmPool.get(containerId)
-        if (container && container.assignedUserId) {
-          userId = container.assignedUserId
         }
       }
 
@@ -1052,9 +788,7 @@ class ContainerOrchestrator {
       try {
         await execAsync(`docker inspect ${containerId}`)
       } catch (error) {
-        console.warn(`[ContainerOrchestrator] 容器不存在，从热池移除: ${containerId}`)
-        // 从热池中移除不存在的容器记录
-        this.warmPool.delete(containerId)
+        console.warn(`[ContainerOrchestrator] 容器不存在: ${containerId}`)
         return false
       }
 
@@ -1294,6 +1028,115 @@ class ContainerOrchestrator {
   }
 
   /**
+   * 扫描Docker中指定用户的已运行容器并恢复映射
+   * @param userId 用户ID
+   * @returns 恢复的映射，如果未找到则返回 undefined
+   */
+  async scanAndRecoverUserContainer(userId: string): Promise<UserContainerMapping | undefined> {
+    try {
+      // 获取所有正在运行的用户容器
+      const { stdout } = await execAsync(
+        `docker ps --filter "name=claude-user-" --filter "status=running" --format "{{.ID}}|{{.Names}}|{{.Ports}}"`
+      )
+
+      if (!stdout.trim()) {
+        return undefined
+      }
+
+      const containers = stdout.trim().split('\n')
+
+      for (const containerLine of containers) {
+        const parts = containerLine.split('|')
+        if (parts.length < 3) continue
+
+        const [containerId, containerName, ports] = parts
+
+        if (!containerId || !containerName) continue
+
+        // 从环境变量中提取userId
+        let foundUserId: string | undefined
+        let username: string | undefined
+        let userTier: UserTier = UserTier.REGULAR
+
+        try {
+          const { stdout: envOutput } = await execAsync(
+            `docker inspect --format '{{json .Config.Env}}' ${containerId}`
+          )
+          const envVars: string[] = JSON.parse(envOutput.trim())
+
+          for (const env of envVars) {
+            if (env.startsWith('TENANT_USER_ID=')) {
+              foundUserId = env.substring('TENANT_USER_ID='.length)
+            } else if (env.startsWith('USER_USERNAME=')) {
+              username = env.substring('USER_USERNAME='.length)
+            } else if (env.startsWith('USER_TIER=')) {
+              const tier = env.substring('USER_TIER='.length)
+              userTier = tier as UserTier
+            }
+          }
+        } catch {
+          continue
+        }
+
+        // 检查是否匹配目标用户
+        if (!foundUserId || foundUserId !== userId) {
+          continue
+        }
+
+        // 解析端口映射
+        const portMatch = ports.match(/0\.0\.0\.0:(\d+)->(3000|4000)\/tcp/)
+        if (!portMatch) {
+          console.warn(`[ContainerOrchestrator] 无法解析容器 ${containerName} 的端口`)
+          continue
+        }
+
+        const hostPort = parseInt(portMatch[1], 10)
+
+        // 检查内存中是否已有映射
+        if (this.userMappings.has(userId)) {
+          return this.userMappings.get(userId)
+        }
+
+        // 创建映射
+        const mapping: UserContainerMapping = {
+          userId,
+          username,
+          userTier,
+          container: {
+            containerId,
+            containerName,
+            hostPort,
+            status: 'running',
+            assignedUserId: userId,
+            createdAt: new Date(),
+            lastActivityAt: new Date(),
+          },
+          assignedAt: new Date(),
+          sessionCount: 0,
+          lastActivityAt: new Date(),
+        }
+
+        this.userMappings.set(userId, mapping)
+
+        // 保存到数据库
+        try {
+          await this.saveUserMappingToDB(mapping)
+        } catch (error) {
+          console.warn(`[ContainerOrchestrator] 保存恢复的映射到数据库失败: ${error}`)
+        }
+
+        console.log(`[ContainerOrchestrator] 从Docker恢复用户容器: ${userId} -> ${containerName} (端口: ${hostPort})`)
+        return mapping
+      }
+
+      return undefined
+    } catch (error) {
+      console.error(`[ContainerOrchestrator] 扫描用户 ${userId} 的容器失败:`, error)
+      return undefined
+    }
+  }
+
+  /**
    * 保存用户映射到数据库
    */
   private async saveUserMappingToDB(mapping: UserContainerMapping): Promise<void> {
@@ -1463,19 +1306,19 @@ class ContainerOrchestrator {
     activeUsers: number
     poolUtilization: number
   } {
-    let idleCount = 0
-    for (const container of this.warmPool.values()) {
-      if (container.status === 'idle') {
-        idleCount++
+    let pausedCount = 0
+    for (const mapping of this.userMappings.values()) {
+      if (mapping.container.status === 'paused') {
+        pausedCount++
       }
     }
 
     return {
-      totalContainers: this.warmPool.size + this.userMappings.size,
-      idleContainers: idleCount,
+      totalContainers: this.userMappings.size,
+      idleContainers: pausedCount,
       activeUsers: this.userMappings.size,
-      poolUtilization: this.warmPool.size > 0
-        ? Math.round(((this.warmPool.size - idleCount) / this.warmPool.size) * 10000) / 100
+      poolUtilization: this.userMappings.size > 0
+        ? Math.round(((this.userMappings.size - pausedCount) / this.userMappings.size) * 10000) / 100
         : 0
     }
   }
@@ -1505,24 +1348,13 @@ class ContainerOrchestrator {
       this.healthCheckTimer = null
     }
 
-    // 停止清理定时器
-    if (this.cleanupTimer) {
-      clearTimeout(this.cleanupTimer)
-      this.cleanupTimer = null
-    }
-
     if (this.dockerCleanupTimer) {
       clearTimeout(this.dockerCleanupTimer)
       this.dockerCleanupTimer = null
     }
 
-    // 销毁所有热池容器
-    for (const [containerId] of this.warmPool) {
-      await this.destroyContainer(containerId)
-    }
-
     // 注意：不主动销毁用户容器，因为可能还有活跃会话
-    // 可以根据业务需求调整此行为
+    // 用户容器会在下次健康检查时根据状态决定是否休眠
 
     console.log('[ContainerOrchestrator] 编排器已关闭')
   }
@@ -1705,53 +1537,27 @@ class ContainerOrchestrator {
   }
 
   /**
-   * 分配下一个可用端口（带冲突检测和端口池管理）
+   * 分配下一个可用端口（带冲突检测）
    */
   private async allocatePort(): Promise<number> {
     const maxPort = this.config.basePort + 200 // 最大尝试端口范围
-    const startCounter = this.portCounter
-    
-    while (this.config.basePort + this.portCounter < maxPort) {
-      const port = this.config.basePort + this.portCounter
-      this.portCounter++
-      
-      // 跳过已在端口池中的端口
-      if (this.usedPorts.has(port)) {
-        console.warn(`[ContainerOrchestrator] 端口 ${port} 已在端口池中，跳过`)
-        continue
-      }
-      
+
+    for (let offset = 0; offset < 200; offset++) {
+      const port = this.config.basePort + offset
+
       // 检查端口是否已被系统占用
       const isAvailable = await this.isPortAvailable(port)
       if (isAvailable) {
-        this.usedPorts.add(port) // 添加到已使用端口池
         console.log(`[ContainerOrchestrator] 成功分配端口: ${port}`)
         return port
       }
-      
+
       console.warn(`[ContainerOrchestrator] 端口 ${port} 已被占用，尝试下一个端口`)
     }
-    
-    // 如果一轮没找到，重置计数器再试一次（可能有端口被释放了）
-    if (startCounter > 0) {
-      console.log('[ContainerOrchestrator] 重置端口计数器，重新搜索可用端口')
-      this.portCounter = 0
-      return this.allocatePort()
-    }
-    
+
     throw new Error(`无法分配可用端口，范围 ${this.config.basePort}-${maxPort} 已被耗尽`)
   }
-  
-  /**
-   * 释放端口（当容器被销毁时调用）
-   */
-  private releasePort(port: number): void {
-    if (this.usedPorts.has(port)) {
-      this.usedPorts.delete(port)
-      console.log(`[ContainerOrchestrator] 端口 ${port} 已释放`)
-    }
-  }
-  
+
   /**
    * 检查端口是否可用（使用多种方法）
    */
@@ -1831,11 +1637,6 @@ class ContainerOrchestrator {
    * 根据ID查找容器实例
    */
   private findContainerById(containerId: string): ContainerInstance | undefined {
-    // 在热池中查找
-    if (this.warmPool.has(containerId)) {
-      return this.warmPool.get(containerId)
-    }
-
     // 在用户映射中查找
     for (const mapping of this.userMappings.values()) {
       if (mapping.container.containerId === containerId) {
@@ -1886,31 +1687,6 @@ class ContainerOrchestrator {
       return true
     } catch {
       return false
-    }
-  }
-
-  /**
-   * 缩小热池（销毁多余容器）
-   */
-  private async shrinkWarmPool(): Promise<void> {
-    while (this.warmPool.size > this.config.minPoolSize) {
-      // 找到最长时间未使用的空闲容器
-      let oldestContainer: [string, ContainerInstance] | null = null
-      let oldestTime = Date.now()
-
-      for (const [id, container] of this.warmPool) {
-        if (container.status === 'idle' && container.lastActivityAt.getTime() < oldestTime) {
-          oldestTime = container.lastActivityAt.getTime()
-          oldestContainer = [id, container]
-        }
-      }
-
-      if (oldestContainer) {
-        console.log(`[ContainerOrchestrator] 缩小热池，销毁容器: ${oldestContainer[1].containerName}`)
-        await this.destroyContainer(oldestContainer[0])
-      } else {
-        break
-      }
     }
   }
 
@@ -1994,31 +1770,13 @@ class ContainerOrchestrator {
   private startHealthCheckLoop(): void {
     const healthCheckLoop = async () => {
       try {
-        // 检查热池容器
-        const containersToRemove: string[] = []
-        for (const [containerId, container] of this.warmPool) {
-          const ageMs = Date.now() - container.createdAt.getTime()
-
-          // 创建后 60 秒内不检查（除非状态已标记为 error）
-          if (ageMs < 60000 && container.status !== 'error') {
+        // 检查用户容器（跳过休眠状态的容器）
+        for (const [userId, mapping] of this.userMappings) {
+          // 跳过休眠状态的容器
+          if (mapping.container.status === 'paused') {
             continue
           }
 
-          const isHealthy = await this.checkContainerHealth(containerId)
-          if (!isHealthy) {
-            console.warn(`[ContainerOrchestrator] 发现不健康的热容器: ${container.containerName}，正在销毁...`)
-            containersToRemove.push(containerId)
-          }
-        }
-
-        // 移除不健康的容器
-        for (const containerId of containersToRemove) {
-          await this.destroyContainer(containerId)
-          this.consecutiveFailures++
-        }
-
-        // 检查用户容器
-        for (const [userId, mapping] of this.userMappings) {
           const isHealthy = await this.checkContainerHealth(mapping.container.containerId)
           if (!isHealthy) {
             console.error(`[ContainerOrchestrator] 用户 ${userId} 的容器不健康，尝试自动恢复...`)
@@ -2048,136 +1806,6 @@ class ContainerOrchestrator {
 
     // 首次启动健康检查循环
     this.healthCheckTimer = setTimeout(healthCheckLoop, this.config.healthCheckIntervalMs) as any
-  }
-
-  /**
-   * 补充热池到最小数量（带冷却期与指数退避）
-   */
-  private async replenishWarmPool(): Promise<void> {
-    const now = Date.now()
-    // 指数退避：连续失败越多，冷却时间越长，最多5分钟
-    const minInterval = Math.min(30000 * (this.consecutiveFailures + 1), 300000)
-
-    if (now - this.lastContainerCreationTime < minInterval) {
-      return  // 冷却中，暂不补充
-    }
-
-    while (this.warmPool.size < this.config.minPoolSize) {
-      const created = await this.prewarmContainer()
-      if (created) {
-        this.lastContainerCreationTime = Date.now()
-        this.consecutiveFailures = 0  // 重置失败计数
-        break  // 一次只创建一个容器
-      } else {
-        this.consecutiveFailures++
-        break  // 失败后等待下次定时器重试
-      }
-    }
-  }
-
-  /**
-   * 强制补充热池（忽略冷却期，用于容器创建失败后立即补充）
-   */
-  private async forceReplenishWarmPool(): Promise<void> {
-    // 检查是否需要补充
-    if (this.warmPool.size >= this.config.minPoolSize) {
-      return
-    }
-
-    console.log(`[ContainerOrchestrator] 强制补充热池（当前: ${this.warmPool.size}/${this.config.minPoolSize}）`)
-    
-    while (this.warmPool.size < this.config.minPoolSize) {
-      const created = await this.prewarmContainer()
-      if (created) {
-        this.lastContainerCreationTime = Date.now()
-        this.consecutiveFailures = 0  // 重置失败计数
-        break  // 一次只创建一个容器
-      } else {
-        this.consecutiveFailures++
-        console.warn(`[ContainerOrchestrator] 强制补充热池失败，连续失败次数: ${this.consecutiveFailures}`)
-        break  // 失败后停止
-      }
-    }
-  }
-
-  /**
-   * 启动空闲清理循环
-   */
-  private startIdleCleanupLoop(): void {
-    const idleCleanupLoop = async () => {
-      try {
-        const now = Date.now()
-
-        // 策略1: 清理空闲超时的容器
-        for (const [containerId, container] of this.warmPool) {
-          if (container.status !== 'idle') continue
-
-          const idleTime = now - container.lastActivityAt.getTime()
-          if (idleTime > this.config.idleTimeoutMs) {
-            console.log(`[ContainerOrchestrator] 回收空闲超时容器: ${container.containerName} (空闲${Math.round(idleTime / 1000)}秒)`)
-            await this.destroyContainer(containerId)
-          }
-        }
-
-        // 策略2: 如果容器数量超过最大值，删除最老的空闲容器
-        await this.cleanupExcessContainers()
-      } catch (error) {
-        console.error('[ContainerOrchestrator] 空闲清理循环出错:', error)
-      } finally {
-        // 使用 setTimeout 代替 setInterval，防止并发执行
-        if (this.cleanupTimer) {
-          this.cleanupTimer = setTimeout(idleCleanupLoop, 60000) as any
-        }
-      }
-    }
-
-    // 首次启动空闲清理循环
-    this.cleanupTimer = setTimeout(idleCleanupLoop, 60000) as any
-  }
-
-  /**
-   * 清理超出最大值的容器
-   * 当热池中的容器数量超过 maxPoolSize 时，删除最老的空闲容器
-   */
-  private async cleanupExcessContainers(): Promise<void> {
-    const totalContainers = this.warmPool.size + this.userMappings.size
-
-    if (totalContainers <= this.config.maxPoolSize) {
-      return // 未超过最大值，无需清理
-    }
-
-    const excessCount = totalContainers - this.config.maxPoolSize
-    console.log(`[ContainerOrchestrator] 容器总数(${totalContainers})超过最大值(${this.config.maxPoolSize})，需要清理${excessCount}个容器`)
-
-    // 按最后活动时间排序，找出最老的空闲容器
-    const idleContainers: Array<[string, ContainerInstance]> = []
-    for (const [id, container] of this.warmPool) {
-      if (container.status === 'idle') {
-        idleContainers.push([id, container])
-      }
-    }
-
-    // 按最后活动时间升序排序（最老的在前）
-    idleContainers.sort((a, b) => a[1].lastActivityAt.getTime() - b[1].lastActivityAt.getTime())
-
-    // 删除超出数量的最老容器
-    let deletedCount = 0
-    for (let i = 0; i < Math.min(excessCount, idleContainers.length); i++) {
-      const [containerId, container] = idleContainers[i]
-      console.log(`[ContainerOrchestrator] 删除超出最大值的容器: ${container.containerName}`)
-      await this.destroyContainer(containerId)
-      deletedCount++
-    }
-
-    if (deletedCount > 0) {
-      console.log(`[ContainerOrchestrator] 已清理${deletedCount}个超出最大值的容器`)
-    }
-
-    // 如果仍然超过最大值（可能是因为空闲容器不够），记录警告
-    const remainingContainers = this.warmPool.size + this.userMappings.size
-    if (remainingContainers > this.config.maxPoolSize) {
-      console.warn(`[ContainerOrchestrator] 警告: 清理后容器数量(${remainingContainers})仍超过最大值(${this.config.maxPoolSize})，可能所有容器都在使用中`)
-    }
   }
 
   /**
