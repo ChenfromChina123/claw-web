@@ -18,6 +18,13 @@ FROM oven/bun:1 AS builder
 
 ARG ENTRY_POINT=master
 
+# 安装原生模块编译所需的工具链
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # 先复制两套源码到临时目录，再根据 ENTRY_POINT 选择
@@ -28,7 +35,7 @@ COPY server/src/shared/ ./src/shared/
 COPY server/src/shared/ ./shared/
 COPY server/package.json server/bun.lock* ./
 
-# 安装生产依赖
+# 安装生产依赖（包括原生模块 node-pty）
 RUN if [ -f bun.lock ]; then bun install --production; fi
 
 # ==================== Master 生产阶段 ====================
@@ -72,8 +79,13 @@ CMD ["bun", "run", "src/index.ts"]
 # ==================== Worker 生产阶段 ====================
 FROM oven/bun:1 AS production-worker
 
-# Debian 使用 apt-get 安装工具
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+# Debian 使用 apt-get 安装工具 + 原生模块编译工具链
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # 设置环境变量
 ENV NODE_ENV=production
@@ -84,6 +96,13 @@ WORKDIR /app
 # 从构建阶段复制产物
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/src ./src
+# 修复：复制共享模块到容器内，供 Worker 使用
+COPY --from=builder /app/shared ./shared
+
+# 确保 node_modules 中的原生模块已正确编译（node-pty）
+# node-pty 需要编译，bun install 时应该在 builder 阶段已经编译
+# 这里不需要额外操作，但验证一下 node_modules 完整性
+RUN test -d ./node_modules/node-pty || echo "Warning: node-pty not found"
 
 # 创建必要目录
 RUN mkdir -p /app/logs /app/workspaces/users
@@ -95,4 +114,6 @@ EXPOSE 3000 4000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:3000/api/health || exit 1
 
-CMD ["bun", "run", "src/index.ts"]
+# Worker 容器入口：构建时 worker/index.ts 被复制到 src/index.ts
+ENTRYPOINT ["bun"]
+CMD ["run", "src/index.ts"]

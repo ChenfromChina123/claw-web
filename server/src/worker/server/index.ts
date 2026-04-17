@@ -24,6 +24,7 @@ export class WorkerInternalAPI {
 
   async start(port = 4000): Promise<void> {
     const Bun = globalThis.Bun || await import('bun')
+    const self = this
     
     this.server = Bun.serve({
       port,
@@ -93,7 +94,7 @@ export class WorkerInternalAPI {
           }, { status: 400 })
         }
 
-        const response = await this.handleRequest(userId, body!)
+        const response = await self.handleRequest(userId, body!)
 
         return Response.json(response, {
           headers: {

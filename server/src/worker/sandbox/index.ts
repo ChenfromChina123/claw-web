@@ -139,19 +139,28 @@ export class WorkerSandbox {
     }
 
     try {
-      const { stdout } = await execAsync(`ls -la "${path}"`, { timeout: 5000, maxBuffer: 1024 * 1024 })
-      const lines = stdout.split('\n').slice(1)
-      const files = lines
-        .filter(line => line.trim())
-        .map(line => {
-          const parts = line.split(/\s+/)
-          if (parts.length < 9) return null
-          const isDirectory = parts[0].startsWith('d')
-          const size = parseInt(parts[4], 10) || 0
-          const name = parts.slice(8).join(' ')
-          return { name, isDirectory, size }
+      // 使用 Node.js fs 模块跨平台读取目录
+      const fs = await import('fs/promises')
+      const pathModule = await import('path')
+      const entries = await fs.readdir(path, { withFileTypes: true })
+      
+      const files = await Promise.all(
+        entries.map(async (entry) => {
+          const fullPath = pathModule.join(path, entry.name)
+          let size = 0
+          try {
+            const stats = await fs.stat(fullPath)
+            size = stats.size
+          } catch {
+            // 忽略无法访问的文件
+          }
+          return {
+            name: entry.name,
+            isDirectory: entry.isDirectory(),
+            size,
+          }
         })
-        .filter((f): f is { name: string; isDirectory: boolean; size: number } => f !== null)
+      )
 
       return { files }
     } catch (error: any) {
@@ -180,7 +189,8 @@ export class WorkerSandbox {
 
     try {
       const fs = await import('fs/promises')
-      const dir = path.substring(0, path.lastIndexOf('/'))
+      const pathModule = await import('path')
+      const dir = pathModule.dirname(path)
       if (dir) {
         await fs.mkdir(dir, { recursive: true })
       }
@@ -211,4 +221,9 @@ export class WorkerSandbox {
   }
 }
 
-export const workerSandbox = new WorkerSandbox()
+// 在 Windows 上映射 /workspace 到实际路径
+const workspaceDir = process.platform === 'win32' 
+  ? (process.env.WORKSPACE_DIR || 'C:\\workspace') 
+  : '/workspace'
+
+export const workerSandbox = new WorkerSandbox(workspaceDir)

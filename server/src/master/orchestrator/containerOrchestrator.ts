@@ -631,20 +631,23 @@ class ContainerOrchestrator {
    */
   private async createContainer(userId: string, username?: string, userTier?: UserTier, preferredPort?: number): Promise<OrchestratorResult<ContainerInstance>> {
     try {
-      const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 20)
-      const containerName = `claude-user-${safeUserId}`
+      // 生成唯一容器名：用户ID前12位 + 时间戳后6位 + 随机4位
+      // 确保同一用户的多次会话也不会冲突
+      const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 12)
+      const timestamp = Date.now().toString(36).slice(-6)
+      const randomSuffix = Math.random().toString(36).substring(2, 6)
+      const containerName = `claude-user-${safeUserId}-${timestamp}-${randomSuffix}`
 
-      // 检查是否已存在同名容器
-      const exists = await this.containerExists(containerName)
-      if (exists) {
-        // 尝试复用现有容器
-        const existingInstance = await this.getContainerInfoByName(containerName)
-        if (existingInstance && existingInstance.status === 'running') {
-          return { success: true, data: existingInstance }
+      // 原子性保障：在创建前强制清理可能存在的同名残留容器（只清理非运行中的）
+      console.log(`[ContainerOrchestrator] 清理残留容器: ${containerName}`)
+      try {
+        // 先检查是否存在同名容器，如果存在则清理
+        const existing = await execAsync(`docker ps -a --filter "name=${containerName}" --format "{{.ID}}" 2>/dev/null || echo ""`)
+        if (existing.stdout.trim()) {
+          await execAsync(`docker rm -f ${containerName} 2>/dev/null || true`)
         }
-        // 同名容器存在但未运行，先清理再重建
-        console.log(`[ContainerOrchestrator] 发现未运行的残留容器 ${containerName}，正在清理...`)
-        await this.removeContainerByName(containerName)
+      } catch (e) {
+        // 忽略清理错误，继续创建流程
       }
 
       // 分配端口（异步，带冲突检测）

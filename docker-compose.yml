@@ -141,13 +141,15 @@ services:
 
   # ==================== Worker 服务（执行层）====================
   # 注意：Worker 容器通常由 Master 动态创建和管理
-  # 这里定义一个模板供参考，实际通过 ContainerOrchestrator 管理
-  worker-template:
+  # 此服务定义了用于创建热备容器的镜像
+  worker:
     build:
       context: .
       dockerfile: server/Dockerfile
+      target: production-worker
       args:
         ENTRY_POINT: worker
+    image: claw-web-backend-worker:latest  # 显式命名镜像
     container_name: claw-web-worker-template
     restart: unless-stopped
     environment:
@@ -155,18 +157,18 @@ services:
       CONTAINER_ROLE: worker
       NODE_ENV: production
       TZ: Asia/Shanghai
-      
+
       # 端口配置
       PORT: 4000
       WORKER_INTERNAL_PORT: 4000
-      
+
       # 内部通信 Token（必须与 Master 一致）
       MASTER_INTERNAL_TOKEN: ${MASTER_INTERNAL_TOKEN:-internal-master-worker-token-2024}
-      
+
       # 工作空间配置
       WORKSPACE_DIR: /workspace
       USER_ID: template-user
-      
+
       # Anthropic API 配置（Worker 执行 Agent 时需要）
       ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
@@ -177,8 +179,6 @@ services:
       # 资源限制
       WORKER_MAX_MEMORY_MB: 256
       WORKER_MAX_THREADS: 2
-    ports:
-      - "${WORKER_TEMPLATE_PORT:-4000}:4000"
     volumes:
       - worker_workspace:/workspace
       - worker_logs:/app/logs
@@ -200,7 +200,7 @@ services:
           cpus: '0.25'
           memory: 128M
     profiles:
-      - worker  # 默认不启动，仅作为模板使用
+      - worker  # 默认不启动，仅作为模板镜像使用
 
   # ==================== 前端服务（Nginx）====================
   frontend:
