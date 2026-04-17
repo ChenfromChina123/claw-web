@@ -38,7 +38,7 @@ export class WorkerForwarder {
       return existing
     }
 
-    const wsUrl = `ws://localhost:${hostPort}/internal/pty`
+    const wsUrl = `ws://${containerId}:3000/internal/pty`
     const token = getMasterInternalToken()
 
     return new Promise((resolve, reject) => {
