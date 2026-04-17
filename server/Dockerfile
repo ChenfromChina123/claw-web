@@ -96,6 +96,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     make \
     g++ \
+    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # 设置环境变量
