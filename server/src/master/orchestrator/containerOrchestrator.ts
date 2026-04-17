@@ -1405,10 +1405,10 @@ class ContainerOrchestrator {
     const { containerName, port, workspacePath, resourceArgs, userId, userTier, quota } = config
 
     // 基础安全加固参数
-    // 注意：PTY 功能需要保留默认的 Linux capabilities
+    // 注意：PTY 功能需要保留默认的 Linux capabilities 和可写文件系统
     // --cap-drop=ALL 会阻止 PTY 正常工作（signal=1 SIGHUP）
+    // --read-only 会阻止 /dev/pts 写入
     const securityArgs = [
-      '--read-only',
       '--security-opt=no-new-privileges',
       '--tty',
       '--pids-limit 100',
