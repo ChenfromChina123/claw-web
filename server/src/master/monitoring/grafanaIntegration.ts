@@ -387,17 +387,16 @@ export function generatePrometheusServiceConfig(): object {
     image: 'prom/prometheus:v2.45.0',
     container_name: 'claude-prometheus',
     ports:
-      - '${PROMETHEUS_PORT:-9090}:9090'
-    ,
-    volumes:
-      - './monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro'
-      , 'prometheus_data:/prometheus'
-    ,
-    command:
-      '--config.file=/etc/prometheus/prometheus.yml'
-      , '--storage.tsdb.retention.time=15d'
-      , '--web.enable-lifecycle'
-    ,
+      - '${PROMETHEUS_PORT:-9090}:9090',
+    volumes: [
+      './monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro',
+      'prometheus_data:/prometheus'
+    ],
+    command: [
+      '--config.file=/etc/prometheus/prometheus.yml',
+      '--storage.tsdb.retention.time=15d',
+      '--web.enable-lifecycle'
+    ],
     networks:
       ['claude-network']
     ,

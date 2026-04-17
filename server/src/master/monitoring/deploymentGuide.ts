@@ -175,16 +175,14 @@ export function generateProductionComposeConfig(): object {
           ...RECOMMENDED_ENV_CONFIG,
           NODE_OPTIONS: '--max-old-space-size=768 --optimize-for-size'
         },
-        volumes:
-          ['/var/run/docker.sock:/var/run/docker.sock']
-          , 'prod_user_workspaces:/app/workspaces/users'
-          , 'prod_session_workspaces:/app/workspaces/sessions'
-          , 'prod_backup_data:/app/backups'
-          , 'prod_logs:/app/logs'
-        ,
-        depends_on:
-          ['mysql']
-        ,
+        volumes: [
+          '/var/run/docker.sock:/var/run/docker.sock',
+          'prod_user_workspaces:/app/workspaces/users',
+          'prod_session_workspaces:/app/workspaces/sessions',
+          'prod_backup_data:/app/backups',
+          'prod_logs:/app/logs'
+        ],
+        depends_on: ['mysql'],
         networks: ['claude-network'],
         deploy: {
           resources: {
@@ -235,10 +233,10 @@ export function generateProductionComposeConfig(): object {
         image: 'prom/prometheus:v2.45.0',
         container_name: 'claude-prometheus-prod',
         ports: ['9090:9090'],
-        volumes:
-          ['./monitoring/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro']
-          , 'prometheus_prod_data:/prometheus'
-        ,
+        volumes: [
+          './monitoring/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro',
+          'prometheus_prod_data:/prometheus'
+        ],
         networks: ['claude-network']
       },
 
@@ -249,10 +247,10 @@ export function generateProductionComposeConfig(): object {
         environment: {
           GF_SECURITY_ADMIN_PASSWORD: '${GRAFANA_ADMIN_PASSWORD}'
         },
-        volumes:
-          ['grafana_prod_data:/var/lib/grafana']
-          , './monitoring/grafana/provisioning:/etc/grafana/provisioning:ro'
-        ,
+        volumes: [
+          'grafana_prod_data:/var/lib/grafana',
+          './monitoring/grafana/provisioning:/etc/grafana/provisioning:ro'
+        ],
         depends_on: ['prometheus'],
         networks: ['claude-network']
       }

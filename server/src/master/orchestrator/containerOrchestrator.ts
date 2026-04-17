@@ -18,7 +18,7 @@
  * - 多用户隔离环境中的容器管理
  */
 
-                                                                                                        import { DEFAULT_WORKER_PORT } from '../../shared/constants'
+import { DEFAULT_WORKER_PORT } from '../../shared/constants'
 import { execSync, exec } from 'child_process'
 import { promisify } from 'util'
 import * as path from 'path'
