@@ -111,9 +111,8 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/shared ./shared
 
 # 确保 node_modules 中的原生模块已正确编译（node-pty）
-# node-pty 需要编译，bun install 时应该在 builder 阶段已经编译
-# 这里不需要额外操作，但验证一下 node_modules 完整性
-RUN test -d ./node_modules/node-pty || echo "Warning: node-pty not found"
+# node-pty 是原生模块，需要使用 npm 安装以获取预编译的二进制文件
+RUN cd /app && npm install --production && npm rebuild node-pty
 
 # 创建必要目录
 RUN mkdir -p /app/logs /app/workspaces/users
