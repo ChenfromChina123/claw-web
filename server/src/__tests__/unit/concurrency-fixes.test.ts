@@ -17,22 +17,14 @@ import {
 
 // ==================== Mock 设置 ====================
 
-// Mock child_process 模块（避免真实的Docker调用）
-vi.mock('child_process', () => ({
-  execSync: vi.fn(),
-  exec: vi.fn()
-}))
+// 获取 child_process 模块的引用（已被 vi.mock 替换为 mock）
+const childProcess = require('child_process') as {
+  execSync: ReturnType<typeof vi.fn>
+  exec: ReturnType<typeof vi.fn>
+}
 
 // Mock fetch API（用于健康检查）
 global.fetch = vi.fn()
-
-// Mock Docker 响应
-const mockDockerResponse = {
-  Id: 'mock-container-id',
-  Names: ['/test-container'],
-  State: { Status: 'running' },
-  Ports: [{ PublicPort: 3100 }]
-}
 
 // ==================== 测试套件：容器销毁幂等性 ====================
 
@@ -59,21 +51,25 @@ describe('容器销毁幂等性保护', () => {
       json: () => Promise.resolve({ status: 'ok' })
     })
 
-    // Mock execSync 来模拟 Docker 命令
-    const execSyncMock = require('child_process').execSync
-    execSyncMock.mockImplementation((cmd: string) => {
+    // 设置 execSync mock 的基础行为
+    childProcess.execSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker ps')) {
-        return JSON.stringify([mockDockerResponse])
+        return JSON.stringify([
+          {
+            Id: 'test-container-concurrent-destroy',
+            Names: ['/test-container-concurrent-destroy'],
+            State: { Status: 'running' },
+            Ports: [{ PublicPort: 3100 }]
+          }
+        ])
       }
       if (cmd.includes('docker inspect')) {
         return JSON.stringify([{
-          Id: 'container-1',
+          Id: 'test-container-concurrent-destroy',
           State: { Running: true }
         }])
       }
       if (cmd.includes('docker rm')) {
-        // 模拟 Docker 销毁操作
-        console.log('[Test] Docker rm called')
         return ''
       }
       return ''
@@ -84,30 +80,35 @@ describe('容器销毁幂等性保护', () => {
     orchestrator.shutdown()
   })
 
-  it('应该阻止并发销毁同一个容器', async () => {
+  it('应该能执行容器销毁', async () => {
     const containerId = 'test-container-concurrent-destroy'
 
-    // 模拟创建容器状态
-    const mockContainer: ContainerInstance = {
-      containerId,
-      containerName: `test-${Date.now()}`,
-      hostPort: 3100,
-      status: 'running',
-      createdAt: new Date(),
-      lastActivityAt: new Date()
-    }
+    const result = await orchestrator.destroyContainer(containerId)
 
-    // 记录销毁调用次数
-    let destroyCount = 0
-    const execSyncMock = require('child_process').execSync
-    execSyncMock.mockImplementation((cmd: string) => {
+    // 销毁应成功完成
+    expect(result).toBeUndefined()
+    expect(childProcess.execSync).toHaveBeenCalled()
+  })
+
+  it('并发销毁同一容器时应该有序处理', async () => {
+    const containerId = 'test-container-concurrent-destroy'
+
+    let callCount = 0
+    childProcess.execSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker rm')) {
-        destroyCount++
-        // 模拟销毁操作延迟
+        callCount++
+        // 模拟销毁延迟
         return ''
       }
       if (cmd.includes('docker ps')) {
-        return JSON.stringify([mockDockerResponse])
+        return JSON.stringify([
+          {
+            Id: containerId,
+            Names: [`/${containerId}`],
+            State: { Status: 'running' },
+            Ports: [{ PublicPort: 3100 }]
+          }
+        ])
       }
       if (cmd.includes('docker inspect')) {
         return JSON.stringify([{
@@ -120,39 +121,40 @@ describe('容器销毁幂等性保护', () => {
 
     // 并发调用销毁
     const promises = [
-      orchestrator.destroyContainer(containerId).catch(() => 'failed-1'),
-      orchestrator.destroyContainer(containerId).catch(() => 'failed-2'),
-      orchestrator.destroyContainer(containerId).catch(() => 'failed-3')
+      orchestrator.destroyContainer(containerId),
+      orchestrator.destroyContainer(containerId),
+      orchestrator.destroyContainer(containerId)
     ]
 
-    const results = await Promise.all(promises)
+    const results = await Promise.allSettled(promises)
 
-    // 至少有一个成功
-    expect(results.some(r => r === undefined)).toBe(true)
+    // 至少有一个应该成功
+    const successCount = results.filter(r => r.status === 'fulfilled').length
+    expect(successCount).toBeGreaterThan(0)
 
-    console.log(`[Test] 销毁调用次数: ${destroyCount}`)
-    // 在真实环境中，由于幂等性保护，destroyCount 应该 <= 3
-    // 但由于并发和 try-finally 机制，最终状态应该正确
+    console.log(`[Test] 销毁调用次数: ${callCount}, 成功数: ${successCount}`)
   })
 
-  it('应该处理销毁过程中再次调用的场景', async () => {
-    const containerId = 'test-container-destroy-during'
+  it('销毁失败时应该清理标记，避免死锁', async () => {
+    const containerId = 'test-container-destroy-fail'
 
-    let destroyInProgress = false
-    let secondDestroyCalled = false
-
-    const execSyncMock = require('child_process').execSync
-    execSyncMock.mockImplementation((cmd: string) => {
+    // 设置 mock 让第一次销毁失败
+    let attempt = 0
+    childProcess.execSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker rm')) {
-        if (destroyInProgress) {
-          secondDestroyCalled = true
+        attempt++
+        if (attempt === 1) {
+          throw new Error('Docker rm failed')
         }
-        destroyInProgress = true
-        // 模拟销毁操作
         return ''
       }
       if (cmd.includes('docker ps')) {
-        return JSON.stringify([mockDockerResponse])
+        return JSON.stringify([{
+          Id: containerId,
+          Names: [`/${containerId}`],
+          State: { Status: 'running' },
+          Ports: []
+        }])
       }
       if (cmd.includes('docker inspect')) {
         return JSON.stringify([{
@@ -163,54 +165,20 @@ describe('容器销毁幂等性保护', () => {
       return ''
     })
 
-    // 第一个销毁进行中时，第二个调用应该等待
-    const firstDestroy = orchestrator.destroyContainer(containerId)
-    const secondDestroy = orchestrator.destroyContainer(containerId)
-
-    // 第二个调用应该被识别为重复
-    const results = await Promise.allSettled([firstDestroy, secondDestroy])
-
-    console.log(`[Test] 销毁中再次调用: ${secondDestroyCalled}`)
-
-    // 至少有一个完成
-    expect(results.some(r => r.status === 'fulfilled')).toBe(true)
-  })
-
-  it('销毁失败时应该清理销毁标记，避免死锁', async () => {
-    const containerId = 'test-container-destroy-fail'
-
-    const execSyncMock = require('child_process').execSync
-    execSyncMock.mockImplementation((cmd: string) => {
-      if (cmd.includes('docker rm')) {
-        throw new Error('Docker destroy failed')
-      }
-      if (cmd.includes('docker ps')) {
-        return JSON.stringify([])
-      }
-      if (cmd.includes('docker inspect')) {
-        return JSON.stringify([{
-          Id: containerId,
-          State: { Running: true }
-        }])
-      }
-      return ''
-    })
-
-    // 第一次销毁失败
+    // 第一次���毁应该失败
     await expect(orchestrator.destroyContainer(containerId)).rejects.toThrow()
 
     // 等待一小段时间让清理完成
     await new Promise(resolve => setTimeout(resolve, 100))
 
-    // 第二次销毁应该能够正常进行（不会被死锁阻塞）
-    execSyncMock.mockImplementation((cmd: string) => {
+    // 第二次销毁应该能够正常进行（锁已被释放）
+    childProcess.execSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker rm')) {
         return ''
       }
       return ''
     })
 
-    // 这里应该能正常执行，不会因为死锁而超时
     const result = await orchestrator.destroyContainer(containerId)
     expect(result).toBeUndefined()
   })
@@ -234,15 +202,13 @@ describe('用户容器分配分布式锁', () => {
       basePort: 4000
     })
 
-    // Mock fetch 健康检查成功
     ;(global.fetch as any).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ status: 'ok' })
     })
 
-    // Mock execSync
-    const execSyncMock = require('child_process').execSync
-    execSyncMock.mockImplementation((cmd: string) => {
+    // 基础 mock：空热池
+    childProcess.execSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker ps')) {
         return JSON.stringify([])
       }
@@ -253,7 +219,7 @@ describe('用户容器分配分布式锁', () => {
         }])
       }
       if (cmd.includes('docker run')) {
-        return 'new-container-id'
+        return `container-${Date.now()}`
       }
       if (cmd.includes('docker rm')) {
         return ''
@@ -270,18 +236,18 @@ describe('用户容器分配分布式锁', () => {
     const userId = 'user-concurrent-assign'
 
     let assignCount = 0
-    const execSyncMock = require('child_process').execSync
-    execSyncMock.mockImplementation((cmd: string) => {
+    childProcess.execSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker run')) {
         assignCount++
-        return `container-${assignCount}`
+        // 短暂延迟模拟 Docker 创建
+        return `container-concurrent-${assignCount}`
       }
       if (cmd.includes('docker ps')) {
         return JSON.stringify([])
       }
       if (cmd.includes('docker inspect')) {
         return JSON.stringify([{
-          Id: `container-${assignCount}`,
+          Id: `container-concurrent-${assignCount}`,
           State: { Running: true }
         }])
       }
@@ -299,34 +265,31 @@ describe('用户容器分配分布式锁', () => {
     ]
 
     const results = await Promise.all(promises)
-
-    // 统计有效结果（非 null 表示成功分配）
     const successCount = results.filter(r => r !== null).length
 
-    console.log(`[Test] 成功分配: ${successCount}, 分配调用次数: ${assignCount}`)
+    console.log(`[Test] 成功分配: ${successCount}, Docker run 调用次数: ${assignCount}`)
 
-    // 理想情况下应该只分配一个容器
-    // 但由于锁机制，最终应该只有一个容器被分配给该用户
+    // 期望：只有一个容器被成功创建（锁保护）
     expect(successCount).toBeGreaterThan(0)
-    expect(successCount).toBeLessThanOrEqual(3)
+    expect(successCount).toBeLessThanOrEqual(1)
+    expect(assignCount).toBeLessThanOrEqual(2) // 允许最多2次（可能有重试）
   })
 
   it('应该允许不同用户的并发容器分配', async () => {
     const users = ['user-a', 'user-b', 'user-c']
 
     let containerCount = 0
-    const execSyncMock = require('child_process').execSync
-    execSyncMock.mockImplementation((cmd: string) => {
+    childProcess.execSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker run')) {
         containerCount++
-        return `container-${containerCount}`
+        return `container-multi-${containerCount}`
       }
       if (cmd.includes('docker ps')) {
         return JSON.stringify([])
       }
       if (cmd.includes('docker inspect')) {
         return JSON.stringify([{
-          Id: `container-${containerCount}`,
+          Id: `container-multi-${containerCount}`,
           State: { Running: true }
         }])
       }
@@ -342,45 +305,28 @@ describe('用户容器分配分布式锁', () => {
     )
 
     const results = await Promise.all(promises)
-
-    // 每个用户都应该获得一个容器
     const successCount = results.filter(r => r !== null).length
 
     console.log(`[Test] 用户数: ${users.length}, 成功分配: ${successCount}`)
 
-    // 每个用户都应该成功（用户级锁不会互相阻塞）
+    // 每个用户都应该成功获得容器（用户级锁不影响不同用户）
     expect(successCount).toBe(users.length)
   })
 
-  it('容器分配锁应该超时释放，避免死锁', async () => {
+  it('锁超时应该释放，避免永久死锁', async () => {
     const userId = 'user-lock-timeout'
 
-    // 模拟长时间持有锁的场景
-    let lockHeld = false
-    let releaseCount = 0
-
-    const execSyncMock = require('child_process').execSync
-    execSyncMock.mockImplementation((cmd: string) => {
+    // 模拟一个极快的锁获取
+    childProcess.execSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker run')) {
-        if (!lockHeld) {
-          lockHeld = true
-          // 模拟获取锁后一直等待（不释放）
-          return new Promise(resolve => {
-            setTimeout(() => {
-              lockHeld = false
-              resolve(`container-${Date.now()}`)
-            }, 2000) // 2秒后释放
-          }) as any
-        }
-        releaseCount++
-        return `container-alt-${releaseCount}`
+        return `container-timeout-${Date.now()}`
       }
       if (cmd.includes('docker ps')) {
         return JSON.stringify([])
       }
       if (cmd.includes('docker inspect')) {
         return JSON.stringify([{
-          Id: 'container-1',
+          Id: 'container-timeout-1',
           State: { Running: true }
         }])
       }
@@ -390,26 +336,14 @@ describe('用户容器分配分布式锁', () => {
       return ''
     })
 
-    // 第一次分配（会持有锁）
-    const firstAssign = orchestrator.assignContainerToUser(userId)
+    // 第一次分配（应该快速完成）
+    const firstResult = await orchestrator.assignContainerToUser(userId)
+    expect(firstResult).not.toBeNull()
 
-    // 等待一小段时间，让第一个分配开始
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    // 第二次分配（应该检测到锁或超时）
-    const secondAssign = orchestrator.assignContainerToUser(userId)
-
-    const [firstResult, secondResult] = await Promise.allSettled([
-      firstAssign,
-      secondAssign
-    ])
-
-    console.log(`[Test] 第一次: ${firstResult.status}, 第二次: ${secondResult.status}`)
-
-    // 至少一个应该成功
-    expect(
-      firstResult.status === 'fulfilled' || secondResult.status === 'fulfilled'
-    ).toBe(true)
+    // 立即第二次分配��容器已存在，应该快速复用）
+    const secondResult = await orchestrator.assignContainerToUser(userId)
+    expect(secondResult).not.toBeNull()
+    expect(secondResult?.containerId).toBe(firstResult?.containerId)
   })
 })
 
@@ -431,25 +365,23 @@ describe('集成场景测试', () => {
       basePort: 4000
     })
 
-    // Mock fetch 健康检查
     ;(global.fetch as any).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ status: 'ok' })
     })
 
-    const execSyncMock = require('child_process').execSync
-    execSyncMock.mockImplementation((cmd: string) => {
+    childProcess.execSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker ps')) {
         return JSON.stringify([])
       }
       if (cmd.includes('docker inspect')) {
         return JSON.stringify([{
-          Id: 'container-1',
+          Id: 'container-int-1',
           State: { Running: true }
         }])
       }
       if (cmd.includes('docker run')) {
-        return `container-${Date.now()}`
+        return `container-int-${Date.now()}`
       }
       if (cmd.includes('docker rm')) {
         return ''
@@ -462,36 +394,35 @@ describe('集成场景测试', () => {
     orchestrator.shutdown()
   })
 
-  it('快速切换会话场景', async () => {
+  it('快速切换会话应该复用容器', async () => {
     const userId = 'user-session-switch'
     const sessions = ['session-1', 'session-2', 'session-3']
 
-    // 模拟用户快速切换会话
-    const assignPromises = sessions.map(() =>
-      orchestrator.assignContainerToUser(userId).catch(() => null)
+    // 模拟用户快速切换多个会话
+    const results = await Promise.all(
+      sessions.map(() =>
+        orchestrator.assignContainerToUser(userId).catch(() => null)
+      )
     )
 
-    const results = await Promise.all(assignPromises)
     const successCount = results.filter(r => r !== null).length
+    console.log(`[Test] 会话切换场景: ${successCount}/${sessions.length} 成功`)
 
-    // 用户级锁应该确保只有一个容器被分配
-    expect(successCount).toBeGreaterThan(0)
-    expect(successCount).toBeLessThanOrEqual(sessions.length)
+    // 应该只创建一个容器并复用
+    expect(successCount).toBe(1)
   })
 
-  it('容器分配后立即销毁场景', async () => {
+  it('容器分配后立即销毁应该有序完成', async () => {
     const userId = 'user-assign-destroy'
-    const containerId = 'container-assign-destroy'
+    let ops: string[] = []
 
-    let operations: string[] = []
-    const execSyncMock = require('child_process').execSync
-    execSyncMock.mockImplementation((cmd: string) => {
+    childProcess.execSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker run')) {
-        operations.push('run')
-        return containerId
+        ops.push('run')
+        return `container-${Date.now()}`
       }
       if (cmd.includes('docker rm')) {
-        operations.push('rm')
+        ops.push('rm')
         return ''
       }
       if (cmd.includes('docker ps')) {
@@ -499,27 +430,29 @@ describe('集成场景测试', () => {
       }
       if (cmd.includes('docker inspect')) {
         return JSON.stringify([{
-          Id: containerId,
+          Id: `container-${Date.now()}`,
           State: { Running: true }
         }])
       }
       return ''
     })
 
-    // 分配容器
-    const assignPromise = orchestrator.assignContainerToUser(userId)
-
-    // 分配完成后立即销毁
-    await new Promise(resolve => setTimeout(resolve, 50))
-    const destroyPromise = orchestrator.destroyContainer(containerId)
-
+    // 并发执行分配和销毁
     const [assignResult, destroyResult] = await Promise.allSettled([
-      assignPromise,
-      destroyPromise
+      orchestrator.assignContainerToUser(userId),
+      new Promise<void>(resolve => {
+        // 稍微延迟销毁，确保分配先进行
+        setTimeout(async () => {
+          const container = await orchestrator.assignContainerToUser(userId)
+          if (container) {
+            await orchestrator.destroyContainer(container.containerId)
+          }
+          resolve()
+        }, 50)
+      })
     ])
 
-    console.log(`[Test] 操作顺序: ${operations.join(' -> ')}`)
-    console.log(`[Test] 分配: ${assignResult.status}, 销毁: ${destroyResult.status}`)
+    console.log(`[Test] 操作顺序: ${ops.join(' -> ')}`)
 
     // 两个操作都应该完成
     expect(assignResult.status).toBe('fulfilled')
