@@ -88,15 +88,16 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 CMD ["bun", "run", "src/index.ts"]
 
 # ==================== Worker 生产阶段 ====================
-FROM oven/bun:1 AS production-worker
+# 重要：使用 Node.js 而不是 Bun！
+# node-pty 是原生模块，Bun 不支持其使用的 libuv 函数（uv_version_string）
+FROM node:20-slim AS production-worker
 
-# Debian 使用 apt-get 安装工具 + 原生模块编译工具链
+# 安装工具链和运行时依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     python3 \
     make \
     g++ \
-    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # 设置环境变量
@@ -108,12 +109,15 @@ WORKDIR /app
 # 从构建阶段复制产物
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/src ./src
-# 修复：复制共享模块到容器内，供 Worker 使用
+# 复制共享模块到容器内，供 Worker 使用
 COPY --from=builder /app/shared ./shared
 
 # 确保 node_modules 中的原生模块已正确编译（node-pty）
 # node-pty 是原生模块，需要在 Linux 环境下重新安装以获取正确的预编译二进制文件
-RUN cd /app && rm -rf node_modules/node-pty && npm install node-pty@1.1.0 --build-from-source || bun add node-pty@1.1.0
+RUN cd /app && rm -rf node_modules/node-pty && npm install node-pty@1.1.0 --build-from-source
+
+# 安装 tsx 用于运行 TypeScript（比 ts-node 更快）
+RUN npm install -g tsx
 
 # 创建必要目录
 RUN mkdir -p /app/logs /app/workspaces/users
@@ -125,6 +129,6 @@ EXPOSE 3000 4000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:4000/internal/health || exit 1
 
-# Worker 容器入口：构建时 worker/index.ts 被复制到 src/index.ts
-ENTRYPOINT ["bun"]
-CMD ["run", "src/index.ts"]
+# Worker 容器入口：使用 Node.js + tsx 运行 TypeScript
+ENTRYPOINT ["node"]
+CMD ["--import", "tsx", "src/index.ts"]
