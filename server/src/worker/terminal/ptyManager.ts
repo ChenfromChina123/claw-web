@@ -58,17 +58,23 @@ export class WorkerPTYManager {
 
     console.log(`[PTY Manager] 创建 PTY: userId=${userId}, shell=${shell}, cwd=${cwd}, cols=${cols}, rows=${rows}`)
 
-    const ptyProcess = pty.spawn(shell, [], {
+    /**
+     * 使用 --login 参数确保 bash 作为登录 shell 启动
+     * 这可以避免某些配置文件导致的问题
+     */
+    const shellArgs = shell.includes('bash') ? ['--login'] : []
+
+    const ptyProcess = pty.spawn(shell, shellArgs, {
       name: 'xterm-256color',
       cols,
       rows,
       cwd,
       env: {
-        ...process.env,
         HOME: cwd,
         USER: userId,
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
+        LANG: 'en_US.UTF-8',
       } as Record<string, string>,
     })
 
@@ -84,9 +90,20 @@ export class WorkerPTYManager {
 
     this.sessions.set(sessionId, session)
 
-    ptyProcess.onExit(() => {
+    ptyProcess.onExit((event: { exitCode: number; signal?: number }) => {
+      console.log(`[PTY Manager] PTY 退出: sessionId=${sessionId}, exitCode=${event.exitCode}, signal=${event.signal}`)
       this.sessions.delete(sessionId)
     })
+
+    // 延迟检查 PTY 状态
+    setTimeout(() => {
+      if (this.sessions.has(sessionId)) {
+        const session = this.sessions.get(sessionId)
+        console.log(`[PTY Manager] PTY 运行状态检查: sessionId=${sessionId}, pid=${session?.pty.pid}`)
+      } else {
+        console.log(`[PTY Manager] PTY 已不存在: sessionId=${sessionId}`)
+      }
+    }, 2000)
 
     return session
   }
