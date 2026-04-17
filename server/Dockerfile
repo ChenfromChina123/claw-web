@@ -121,9 +121,9 @@ RUN mkdir -p /app/logs /app/workspaces/users
 # 暴露端口
 EXPOSE 3000 4000
 
-# 健康检查（Worker 内部 API 在 3000 端口）
+# 健康检查（Worker 内部 API 在 4000 端口）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:3000/internal/health || exit 1
+    CMD curl -f http://localhost:4000/internal/health || exit 1
 
 # Worker 容器入口：构建时 worker/index.ts 被复制到 src/index.ts
 ENTRYPOINT ["bun"]
