@@ -74,3 +74,11 @@ server/workspaces/
 
 # Floating pet assets (large files)
 浮动电子宠物/
+
+# ✅ Docker 构建缓存（减小上下文大小）
+.docker/
+*.dockerfile
+
+# ✅ 开发环境配置文件（可选排除）
+docker-compose.override.yml
+docker-compose.dev.yml

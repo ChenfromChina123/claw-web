@@ -10,27 +10,26 @@
 # 国内用户可使用：docker pull registry.cn-hangzhou.aliyuncs.com/library/node:20-alpine && docker tag registry.cn-hangzhou.aliyuncs.com/library/node:20-alpine node:20-alpine
 FROM node:20-alpine AS builder
 
-# ✅ 增大 Node.js 堆内存限制，防止 OOM
-ENV NODE_OPTIONS="--max-old-space-size=6144"
-
 # ✅ 使用国内镜像源加速（阿里云镜像）
 RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories
 
 WORKDIR /app
 
-# 复制依赖文件
+# ✅ 关键优化：先复制依赖文件（变化少，利用缓存）
 COPY web/package.json web/package-lock.json ./
 
-# 安装依赖（使用 npm install 解决 lock 文件不同步问题）
+# ✅ 安装依赖（package.json 不变时复用缓存层）
+# 使用国内 npm 镜像加速
 RUN npm install --legacy-peer-deps --registry=https://registry.npmmirror.com
 
-# 复制源代码
+# ✅ 再复制源代码（代码变化不影响依赖层缓存）
 COPY web/ .
 
-# 构建生产版本（跳过类型检查，仅打包）
+# ✅ 构建优化
 ENV NODE_ENV=production
 ENV VITE_FEATURE_PTY_SHELL=true
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+# 根据机器配置调整内存限制（默认 2GB）
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 RUN npx vite build
 
 # ==================== 生产阶段（Nginx） ====================

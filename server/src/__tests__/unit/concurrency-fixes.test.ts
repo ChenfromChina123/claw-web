@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import {
   getContainerOrchestrator,
   type ContainerInstance
-} from '../../orchestrator/containerOrchestrator'
+} from '../../master/orchestrator/containerOrchestrator'
 
 // ==================== Mock 设置 ====================
 

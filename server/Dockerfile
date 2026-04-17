@@ -27,16 +27,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# 先复制两套源码到临时目录，再根据 ENTRY_POINT 选择
-COPY server/src/master/ /tmp/master-src/
-COPY server/src/worker/ /tmp/worker-src/
-RUN mkdir -p ./src && if [ "$ENTRY_POINT" = "worker" ]; then cp -r /tmp/worker-src/* ./src/; else cp -r /tmp/master-src/* ./src/; fi && rm -rf /tmp/master-src /tmp/worker-src
-COPY server/src/shared/ ./src/shared/
-COPY server/src/shared/ ./shared/
+# ✅ 关键优化：先复制依赖文件（变化少，利用缓存）
 COPY server/package.json server/bun.lock* ./
 
-# 安装生产依赖（包括原生模块 node-pty）
-RUN if [ -f bun.lock ]; then bun install --production; fi
+# ✅ 安装依赖（package.json 不变时复用缓存层）
+# node-pty 等原生模块在此阶段编译
+RUN if [ -f bun.lock ]; then bun install --production; else bun install --production; fi
+
+# ✅ 再复制源代码（代码变化不影响依赖层缓存）
+COPY server/src/shared/ ./src/shared/
+COPY server/src/shared/ ./shared/
+
+# 根据 ENTRY_POINT 复制对应代码到临时目录，再选择
+COPY server/src/master/ /tmp/master-src/
+COPY server/src/worker/ /tmp/worker-src/
+RUN mkdir -p ./src && \
+    if [ "$ENTRY_POINT" = "worker" ]; then \
+        cp -r /tmp/worker-src/* ./src/; \
+    else \
+        cp -r /tmp/master-src/* ./src/; \
+    fi && \
+    rm -rf /tmp/master-src /tmp/worker-src
 
 # ==================== Master 生产阶段 ====================
 FROM debian:bookworm-slim AS production-master
