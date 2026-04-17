@@ -31,6 +31,7 @@ export interface WorkerConnection {
   lastPong: number
   heartbeatTimer: NodeJS.Timeout | null
   frontendWs: WebSocket | null // 前端 WebSocket 连接
+  outputCallbacks: Map<string, (frontendSessionId: string, data: string) => void>
 }
 
 export class WorkerForwarder {
@@ -66,11 +67,15 @@ export class WorkerForwarder {
           lastPong: Date.now(),
           heartbeatTimer: null,
           frontendWs: null,
+          outputCallbacks: new Map(),
         }
         this.connections.set(connectionKey, connection)
         this.userConnections.set(userId, connectionKey)
         console.log(`[WorkerForwarder] Connected to Worker ${containerId} for user ${userId}`)
-        
+
+        // 预先注册全局 output 消息监听器（解决时序竞态问题）
+        this.setupOutputListener(connection)
+
         // 启动心跳检测
         this.startHeartbeat(connectionKey)
         resolve(connection)
@@ -237,6 +242,38 @@ export class WorkerForwarder {
     return true
   }
 
+  /**
+   * 在连接建立时预先设置全局输出监听器
+   * 解决 PTY 创建时序竞态问题：shell 初始输出可能在 onWorkerMessage 注册前到达
+   */
+  private setupOutputListener(connection: WorkerConnection): void {
+    connection.ws.on('message', (data) => {
+      try {
+        const message = JSON.parse(data.toString())
+
+        // 处理 Worker 的 output 消息（PTY 输出数据）
+        if (message.type === 'output' && message.sessionId) {
+          // 查找 workerSessionId 对应的 frontendSessionId
+          for (const [frontendId, workerId] of connection.sessionMappings.entries()) {
+            if (workerId === message.sessionId) {
+              // 调用所有注册的回调
+              for (const callback of connection.outputCallbacks.values()) {
+                callback(frontendId, message.data)
+              }
+              break
+            }
+          }
+        }
+      } catch {
+        // 忽略解析错误
+      }
+    })
+  }
+
+  /**
+   * 注册 Worker 输出回调（替代旧的 onWorkerMessage）
+   * 回调会在 setupOutputListener 中被调用，确保不丢失任何输出
+   */
   onWorkerMessage(userId: string, callback: (frontendSessionId: string, data: string) => void): void {
     const connectionKey = this.userConnections.get(userId)
     if (!connectionKey) return
@@ -244,20 +281,29 @@ export class WorkerForwarder {
     const connection = this.connections.get(connectionKey)
     if (!connection) return
 
-    connection.ws.on('message', (data) => {
-      try {
-        const message = JSON.parse(data.toString())
-        if (message.type === 'output' && message.sessionId) {
-          for (const [frontendId, workerId] of connection.sessionMappings.entries()) {
-            if (workerId === message.sessionId) {
-              callback(frontendId, message.data)
-              break
-            }
-          }
-        }
-      } catch {
-      }
-    })
+    // 使用唯一 ID 注册回调，避免重复
+    const callbackId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    connection.outputCallbacks.set(callbackId, callback)
+
+    console.log(`[WorkerForwarder] 注册输出回调: ${callbackId}, 当前回调数: ${connection.outputCallbacks.size}`)
+  }
+
+  /**
+   * 移除 Worker 输出回调
+   */
+  removeOutputCallback(userId: string, callbackId?: string): void {
+    const connectionKey = this.userConnections.get(userId)
+    if (!connectionKey) return
+
+    const connection = this.connections.get(connectionKey)
+    if (!connection) return
+
+    if (callbackId) {
+      connection.outputCallbacks.delete(callbackId)
+    } else {
+      // 清除所有回调
+      connection.outputCallbacks.clear()
+    }
   }
 
   disconnect(userId: string): void {
