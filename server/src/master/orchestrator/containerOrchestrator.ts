@@ -1069,7 +1069,7 @@ class ContainerOrchestrator {
       // 这样可以避免网络映射问题
       try {
         const { stdout: healthOutput } = await execAsync(
-          `docker exec ${containerId} curl -s -o /dev/null -w "%{http_code}" http://localhost:${getWorkerInternalPort()}/api/health || echo "000"`
+          `docker exec ${containerId} curl -s -o /dev/null -w "%{http_code}" http://localhost:${getWorkerInternalPort()}/internal/health || echo "000"`
         )
         const statusCode = parseInt(healthOutput.trim(), 10)
         // 只要HTTP服务器能够响应（状态码小于500），就认为容器健康
