@@ -69,6 +69,10 @@ export interface ContainerInstance {
 export interface UserContainerMapping {
   /** 用户ID */
   userId: string
+  /** 用户名（可选） */
+  username?: string
+  /** 用户等级（可选） */
+  userTier?: UserTier
   /** 容器实例 */
   container: ContainerInstance
   /** 分配时间 */
@@ -220,6 +224,10 @@ class ContainerOrchestrator {
       // 从数据库加载用户映射（Master 重启后恢复）
       console.log('[ContainerOrchestrator] 从数据库加载用户映射...')
       await this.loadUserMappingsFromDB()
+
+      // 扫描Docker中已运行的用户容器并恢复映射（兼容旧版本未持久化的容器）
+      console.log('[ContainerOrchestrator] 扫描Docker中已运行的用户容器...')
+      await this.scanAndRecoverUserContainers()
 
       // 计算需要创建的容器数量
       const containersNeeded = Math.max(0, this.config.minPoolSize - existingContainers)
@@ -1169,6 +1177,119 @@ class ContainerOrchestrator {
       console.log(`[ContainerOrchestrator] 从数据库恢复了 ${this.userMappings.size} 个用户映射`)
     } catch (error) {
       console.error('[ContainerOrchestrator] 从数据库加载用户映射失败:', error)
+    }
+  }
+
+  /**
+   * 扫描Docker中已运行的用户容器并恢复映射（用于Master重启后恢复旧版本未持久化的容器）
+   */
+  private async scanAndRecoverUserContainers(): Promise<void> {
+    try {
+      // 获取所有正在运行的用户容器
+      const { stdout } = await execAsync(
+        `docker ps --filter "name=claude-user-" --filter "status=running" --format "{{.ID}}|{{.Names}}|{{.Ports}}"`
+      )
+
+      if (!stdout.trim()) {
+        console.log('[ContainerOrchestrator] 未发现已运行的用户容器')
+        return
+      }
+
+      const containers = stdout.trim().split('\n')
+      let recoveredCount = 0
+
+      for (const containerLine of containers) {
+        const parts = containerLine.split('|')
+        if (parts.length < 3) continue
+
+        const [containerId, containerName, ports] = parts
+
+        if (!containerId || !containerName) continue
+
+        // 解析端口映射
+        const portMatch = ports.match(/0\.0\.0\.0:(\d+)->(3000|4000)\/tcp/)
+        if (!portMatch) {
+          console.warn(`[ContainerOrchestrator] 无法解析容器 ${containerName} 的端口`)
+          continue
+        }
+
+        const hostPort = parseInt(portMatch[1], 10)
+
+        // 从环境变量中提取userId、username和tier
+        let userId: string | undefined
+        let username: string | undefined
+        let userTier: UserTier = UserTier.REGULAR
+
+        try {
+          const { stdout: envOutput } = await execAsync(
+            `docker inspect --format '{{json .Config.Env}}' ${containerId}`
+          )
+          const envVars: string[] = JSON.parse(envOutput.trim())
+
+          for (const env of envVars) {
+            if (env.startsWith('TENANT_USER_ID=')) {
+              userId = env.substring('TENANT_USER_ID='.length)
+            } else if (env.startsWith('USER_USERNAME=')) {
+              username = env.substring('USER_USERNAME='.length)
+            } else if (env.startsWith('USER_TIER=')) {
+              const tier = env.substring('USER_TIER='.length)
+              userTier = tier as UserTier
+            }
+          }
+        } catch (error) {
+          console.warn(`[ContainerOrchestrator] 解析容器 ${containerName} 环境变量失败`)
+          continue
+        }
+
+        // 如果没有找到userId，跳过
+        if (!userId) {
+          console.warn(`[ContainerOrchestrator] 容器 ${containerName} 中未找到TENANT_USER_ID环境变量`)
+          continue
+        }
+
+        // 检查内存中是否已有映射
+        if (this.userMappings.has(userId)) {
+          console.log(`[ContainerOrchestrator] 用户 ${userId} 已有映射，跳过恢复`)
+          continue
+        }
+
+        // 创建映射
+        const mapping: UserContainerMapping = {
+          userId,
+          username,
+          userTier,
+          container: {
+            containerId,
+            containerName,
+            hostPort,
+            status: 'running',
+            assignedUserId: userId,
+            createdAt: new Date(), // 无法从Docker获取真实创建时间
+            lastActivityAt: new Date(),
+          },
+          assignedAt: new Date(),
+          sessionCount: 0,
+          lastActivityAt: new Date(),
+        }
+
+        this.userMappings.set(userId, mapping)
+        recoveredCount++
+
+        // 保存到数据库（如果可用）
+        try {
+          await this.saveUserMappingToDB(mapping)
+        } catch (error) {
+          console.warn(`[ContainerOrchestrator] 保存恢复的映射到数据库失败: ${error}`)
+        }
+
+        console.log(`[ContainerOrchestrator] 从Docker恢复用户容器: ${userId} -> ${containerName} (端口: ${hostPort})`)
+      }
+
+      if (recoveredCount > 0) {
+        console.log(`[ContainerOrchestrator] 成功从Docker恢复 ${recoveredCount} 个用户容器映射`)
+      }
+    } catch (error) {
+      console.error('[ContainerOrchestrator] 扫描并恢复用户容器失败:', error)
     }
   }
 
