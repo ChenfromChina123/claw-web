@@ -51,6 +51,7 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
+      target: production-master
       args:
         ENTRY_POINT: master
     container_name: claw-web-master
