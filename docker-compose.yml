@@ -108,10 +108,13 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+
+      # PTY 终端配置（生产模式启用）
+      PTY_ENABLED: ${PTY_ENABLED:-true}
     ports:
       - "${MASTER_PORT:-3000}:3000"
     volumes:
-      - workspaces_data:/app/workspaces
+      - ${HOST_WORKSPACE_PATH:-/data/claws/workspaces}:/app/workspaces
       - master_logs:/app/logs
       - /var/run/docker.sock:/var/run/docker.sock  # Docker socket 访问权限
     networks:
@@ -166,7 +169,10 @@ services:
       # Anthropic API 配置（Worker 执行 Agent 时需要）
       ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
-      
+
+      # PTY 终端配置（生产模式启用）
+      PTY_ENABLED: ${PTY_ENABLED:-true}
+
       # 资源限制
       WORKER_MAX_MEMORY_MB: 256
       WORKER_MAX_THREADS: 2
@@ -243,11 +249,7 @@ volumes:
   mysql_data:
     driver: local
     name: claw-web-mysql-data
-    
-  workspaces_data:
-    driver: local
-    name: claw-web-workspaces
-    
+
   master_logs:
     driver: local
     name: claw-web-master-logs

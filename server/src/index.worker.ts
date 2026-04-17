@@ -26,6 +26,8 @@ console.log('[Env] ANTHROPIC_AUTH_TOKEN exists:', !!process.env.ANTHROPIC_AUTH_T
 console.log('[Env] ANTHROPIC_AUTH_TOKEN length:', process.env.ANTHROPIC_AUTH_TOKEN?.length)
 console.log('[Env] ANTHROPIC_BASE_URL:', process.env.ANTHROPIC_BASE_URL)
 console.log('[Env] MASTER_INTERNAL_TOKEN configured:', !!process.env.MASTER_INTERNAL_TOKEN)
+console.log('[Env] PTY_ENABLED:', process.env.PTY_ENABLED)
+console.log('[Env] PTY_ENABLED (bool):', process.env.PTY_ENABLED === 'true')
 
 // 导入 Worker 入口（内部 API + PTY + Sandbox）
 import './worker/index'

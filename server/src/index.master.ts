@@ -33,6 +33,12 @@ async function startMasterServer(): Promise<void> {
   }
 
   try {
+    // 显示环境配置
+    console.log('\n[Master] 环境配置:')
+    console.log(`  - PTY_ENABLED: ${process.env.PTY_ENABLED || 'undefined (默认: true)'}`)
+    console.log(`  - NODE_ENV: ${process.env.NODE_ENV || 'development'}`)
+    console.log(`  - MASTER_INTERNAL_TOKEN: ${process.env.MASTER_INTERNAL_TOKEN ? 'configured' : 'NOT SET'}`)
+
     // 1. 初始化容器编排器
     console.log('\n[Master] Step 1: 初始化容器编排器...')
     const orchestrator = getContainerOrchestrator()

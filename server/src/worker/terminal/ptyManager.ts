@@ -31,6 +31,11 @@ export class WorkerPTYManager {
   private sessions: Map<string, PTYSession> = new Map()
 
   create(userId: string, options: PTYOptions = {}): PTYSession {
+    // 检查 PTY 是否启用
+    if (process.env.PTY_ENABLED !== 'true') {
+      throw new Error('PTY 功能已禁用（PTY_ENABLED !== "true"）')
+    }
+
     const sessionId = generateRequestId()
     const cols = options.cols || 120
     const rows = options.rows || 30

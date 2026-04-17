@@ -1118,7 +1118,8 @@ class ContainerOrchestrator {
       `-e MASTER_HOST=${process.env.MASTER_HOST || 'claude-backend-master'}`,
       `-e MASTER_PORT=${process.env.MASTER_PORT || '3000'}`,
       `-e HOST=0.0.0.0`,
-      `-e PORT=3000`
+      `-e PORT=3000`,
+      `-e PTY_ENABLED=${process.env.PTY_ENABLED || 'true'}`
     ]
 
     // 用户相关环境变量（使用配额配置）
