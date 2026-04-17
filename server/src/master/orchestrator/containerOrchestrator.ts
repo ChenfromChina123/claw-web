@@ -354,6 +354,7 @@ class ContainerOrchestrator {
 
   /**
    * 为用户分配容器（从热池获取或新建）
+   * 使用分布式锁防止并发请求创建重复容器
    * @param userId 用户ID
    * @param username 用户名（可选）
    * @param userTier 用户等级（可选，默认为free）
@@ -361,62 +362,100 @@ class ContainerOrchestrator {
    */
   async assignContainerToUser(userId: string, username?: string, userTier?: UserTier): Promise<OrchestratorResult<UserContainerMapping>> {
     try {
-      // 检查用户是否已有容器
-      const existingMapping = this.userMappings.get(userId)
-      if (existingMapping) {
-        // 更新最后活动时间
-        existingMapping.lastActivityAt = new Date()
-        existingMapping.container.lastActivityAt = new Date()
-        console.log(`[ContainerOrchestrator] 用户 ${userId} 已有容器: ${existingMapping.container.containerId}`)
-        return { success: true, data: existingMapping }
+      // ========== 分布式锁检查（防止并发重复创建） ==========
+      const now = Date.now()
+      const lockKey = `user_container_${userId}`
+      const existingLock = userContainerLocks.get(lockKey)
+
+      // 检查锁是否存在且未过期（锁超时时间：60秒）
+      const LOCK_TIMEOUT_MS = 60000
+      if (existingLock && (now - existingLock.timestamp) < LOCK_TIMEOUT_MS) {
+        console.warn(`[ContainerOrchestrator] 用户 ${userId} 的容器分配锁已被持有，跳过重复创建（锁时间: ${new Date(existingLock.timestamp).toISOString()})`)
+        // 返回当前已有的映射（如果有）
+        const existingMapping = this.userMappings.get(userId)
+        if (existingMapping) {
+          console.log(`[ContainerOrchestrator] 用户 ${userId} 已有容器，直接返回现有映射`)
+          return { success: true, data: existingMapping }
+        }
+        // 如果锁存在但容器还未创建，返回创建中状态
+        return {
+          success: false,
+          error: '容器创建中，请稍后重试',
+          code: 'CONTAINER_CREATION_IN_PROGRESS'
+        }
       }
 
-      // 确保用户工作空间目录存在
-      const workspaceResult = await this.ensureUserWorkspaceExists(userId)
-      if (!workspaceResult.success) {
-        console.warn(`[ContainerOrchestrator] 确保工作空间目录存在失败: ${workspaceResult.error}`)
-        // 不阻塞容器创建，继续
+      // 获取锁（原子操作）
+      userContainerLocks.set(lockKey, { locked: true, timestamp: now })
+      console.log(`[ContainerOrchestrator] 获取用户容器分配锁: ${userId}`)
+
+      try {
+        // ========== 再次检查用户是否已有容器（锁内二次确认） ==========
+        const existingMapping = this.userMappings.get(userId)
+        if (existingMapping) {
+          // 更新最后活动时间
+          existingMapping.lastActivityAt = new Date()
+          existingMapping.container.lastActivityAt = new Date()
+          console.log(`[ContainerOrchestrator] 用户 ${userId} 已有容器（锁内二次确认）: ${existingMapping.container.containerId}`)
+          return { success: true, data: existingMapping }
+        }
+
+        // ========== 确保用户工作空间目录存在 ==========
+        const workspaceResult = await this.ensureUserWorkspaceExists(userId)
+        if (!workspaceResult.success) {
+          console.warn(`[ContainerOrchestrator] 确保工作空间目录存在失败: ${workspaceResult.error}`)
+          // 不阻塞容器创建，继续
+        }
+
+        // ========== 从热池获取容器 ==========
+        let acquiredPort: number | null = null
+        const warmContainer = await this.acquireFromWarmPool()
+        if (warmContainer) {
+          // 热池容器没有工作空间挂载，需要销毁并重建
+          acquiredPort = warmContainer.hostPort
+          const oldContainerId = warmContainer.containerId
+          console.log(`[ContainerOrchestrator] 从热池获取容器 ${oldContainerId} (端口: ${acquiredPort})，将销毁并创建用户专用容器...`)
+          await this.destroyContainer(oldContainerId)
+        } else {
+          console.log(`[ContainerOrchestrator] 热池为空，将为用户 ${userId} 创建新容器...`)
+        }
+
+        // ========== 创建新的用户专用容器 ==========
+        const createResult = await this.createContainer(userId, username, userTier, acquiredPort || undefined)
+        if (!createResult.success) {
+          return createResult as OrchestratorResult<UserContainerMapping>
+        }
+        const container = createResult.data!
+
+        // ========== 创建用户映射 ==========
+        const mapping: UserContainerMapping = {
+          userId,
+          container,
+          assignedAt: new Date(),
+          sessionCount: 0,
+          lastActivityAt: new Date()
+        }
+
+        this.userMappings.set(userId, mapping)
+        console.log(`[ContainerOrchestrator] 成功为用户 ${userId} 分配容器：${container.containerId}`)
+
+        // ========== 保存映射到数据库 ==========
+        await this.saveUserMappingToDB(mapping)
+
+        return { success: true, data: mapping }
+
+      } finally {
+        // ========== 释放锁 ==========
+        userContainerLocks.delete(lockKey)
+        console.log(`[ContainerOrchestrator] 释放用户容器分配锁: ${userId}`)
       }
-
-      // 尝试从热池获取可用容器，目的是复用其端口
-      let acquiredPort: number | null = null
-      const warmContainer = await this.acquireFromWarmPool()
-      if (warmContainer) {
-        // 热池容器没有工作空间挂载，需要销毁并重建
-        acquiredPort = warmContainer.hostPort
-        const oldContainerId = warmContainer.containerId
-        console.log(`[ContainerOrchestrator] 从热池获取容器 ${oldContainerId} (端口: ${acquiredPort})，将销毁并创建用户专用容器...`)
-        await this.destroyContainer(oldContainerId)
-      } else {
-        console.log(`[ContainerOrchestrator] 热池为空，将为用户 ${userId} 创建新容器...`)
-      }
-
-      // 创建新的用户专用容器（挂载用户工作目录）
-      const createResult = await this.createContainer(userId, username, userTier, acquiredPort || undefined)
-      if (!createResult.success) {
-        return createResult as OrchestratorResult<UserContainerMapping>
-      }
-      const container = createResult.data!
-
-      // 创建用户映射
-      const mapping: UserContainerMapping = {
-        userId,
-        container,
-        assignedAt: new Date(),
-        sessionCount: 0,
-        lastActivityAt: new Date()
-      }
-
-      this.userMappings.set(userId, mapping)
-      console.log(`[ContainerOrchestrator] 成功为用户 ${userId} 分配容器：${container.containerId}`)
-
-      // 保存映射到数据库
-      await this.saveUserMappingToDB(mapping)
-
-      return { success: true, data: mapping }
 
     } catch (error) {
       console.error(`[ContainerOrchestrator] 为用户 ${userId} 分配容器失败:`, error)
+      // 发生异常时也要释放锁
+      const lockKey = `user_container_${userId}`
+      userContainerLocks.delete(lockKey)
+
       return {
         success: false,
         error: error instanceof Error ? error.message : '分配容器失败',
