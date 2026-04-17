@@ -642,6 +642,9 @@ class ContainerOrchestrator {
         if (existingInstance && existingInstance.status === 'running') {
           return { success: true, data: existingInstance }
         }
+        // 同名容器存在但未运行，先清理再重建
+        console.log(`[ContainerOrchestrator] 发现未运行的残留容器 ${containerName}，正在清理...`)
+        await this.removeContainerByName(containerName)
       }
 
       // 分配端口（异步，带冲突检测）
@@ -757,6 +760,18 @@ class ContainerOrchestrator {
         error: error instanceof Error ? error.message : '创建容器失败',
         code: 'CREATE_FAILED'
       }
+    }
+  }
+
+  /**
+   * 按名称移除残留容器（不触发完整销毁流程）
+   * @param containerName 容器名称
+   */
+  async removeContainerByName(containerName: string): Promise<void> {
+    try {
+      await execAsync(`docker rm -f ${containerName}`)
+    } catch (error) {
+      console.warn(`[ContainerOrchestrator] 清理残留容器失败: ${containerName}`, error)
     }
   }
 

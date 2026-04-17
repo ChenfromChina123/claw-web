@@ -25,6 +25,7 @@ COPY server/src/master/ /tmp/master-src/
 COPY server/src/worker/ /tmp/worker-src/
 RUN mkdir -p ./src && if [ "$ENTRY_POINT" = "worker" ]; then cp -r /tmp/worker-src/* ./src/; else cp -r /tmp/master-src/* ./src/; fi && rm -rf /tmp/master-src /tmp/worker-src
 COPY server/src/shared/ ./src/shared/
+COPY server/src/shared/ ./shared/
 COPY server/package.json server/bun.lock* ./
 
 # 安装生产依赖
@@ -54,6 +55,7 @@ WORKDIR /app
 ARG CACHE_BUST=master
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/src ./src
+COPY --from=builder /app/shared ./shared
 
 # 创建必要目录
 RUN mkdir -p /app/logs /app/workspaces/users

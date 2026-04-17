@@ -22,11 +22,11 @@ async function main() {
   try {
     console.log('[Master] Initializing services...')
     
-    const { startHTTPServer } = await import('./server/httpServer')
+    const { startServer } = await import('./server/httpServer')
     const { startMasterServices } = await import('./services/index')
 
     console.log('[Master] Starting HTTP server...')
-    await startHTTPServer()
+    await startServer()
 
     console.log('[Master] Starting Master services...')
     await startMasterServices()
