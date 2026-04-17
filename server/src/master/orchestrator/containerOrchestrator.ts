@@ -19,8 +19,14 @@ import { promisify } from 'util'
 import * as path from 'path'
 import * as fs from 'fs/promises'
 import { getHardwareResourceManager, UserTier } from '../config/hardwareResourceConfig'
+import { getPool } from '../db/mysql'
+import { v4 as uuidv4 } from 'uuid'
 
 const execAsync = promisify(exec)
+
+// 容器操作状态跟踪（用于幂等性和并发控制）
+const destroyingContainers = new Set<string>() // 正在销毁的容器ID集合
+const userContainerLocks = new Map<string, { locked: boolean; timestamp: number }>() // 用户容器分配锁
 
 // ==================== 类型定义 ====================
 
@@ -206,6 +212,10 @@ class ContainerOrchestrator {
       console.log('[ContainerOrchestrator] 扫描已存在的热容器...')
       const existingContainers = await this.scanExistingContainers()
       console.log(`[ContainerOrchestrator] 发现 ${existingContainers} 个已存在的热容器`)
+
+      // 从数据库加载用户映射（Master 重启后恢复）
+      console.log('[ContainerOrchestrator] 从数据库加载用户映射...')
+      await this.loadUserMappingsFromDB()
 
       // 计算需要创建的容器数量
       const containersNeeded = Math.max(0, this.config.minPoolSize - existingContainers)
@@ -398,7 +408,10 @@ class ContainerOrchestrator {
       }
 
       this.userMappings.set(userId, mapping)
-      console.log(`[ContainerOrchestrator] 成功为用户 ${userId} 分配容器: ${container.containerId}`)
+      console.log(`[ContainerOrchestrator] 成功为用户 ${userId} 分配容器：${container.containerId}`)
+
+      // 保存映射到数据库
+      await this.saveUserMappingToDB(mapping)
 
       return { success: true, data: mapping }
 
@@ -439,6 +452,9 @@ class ContainerOrchestrator {
       // 移除映射
       this.userMappings.delete(userId)
       console.log(`[ContainerOrchestrator] 已释放用户 ${userId} 的容器`)
+
+      // 更新数据库状态
+      await this.updateUserMappingStatusInDB(userId, 'released')
 
       return { success: true }
 
@@ -779,12 +795,32 @@ class ContainerOrchestrator {
   }
 
   /**
-   * 销毁容器
+   * 销毁容器（支持幂等性，防止重复销毁）
    * @param containerId 容器ID
+   * @returns 是否成功
    */
   async destroyContainer(containerId: string): Promise<boolean> {
     try {
-      // 查找容器信息以获取端口
+      // ========== 幂等性检查 1：容器是否正在销毁中 ==========
+      if (destroyingContainers.has(containerId)) {
+        console.log(`[ContainerOrchestrator] 容器 ${containerId} 正在销毁中，跳过重复调用（幂等性保护）`)
+
+        // 等待容器销毁完成（最多等待30秒）
+        const maxWaitMs = 30000
+        const start = Date.now()
+        while (destroyingContainers.has(containerId) && Date.now() - start < maxWaitMs) {
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+
+        if (destroyingContainers.has(containerId)) {
+          console.warn(`[ContainerOrchestrator] 容器 ${containerId} 销毁超时，但已接受幂等性请求`)
+        }
+
+        // 幂等性成功：即使还在销毁中，也认为请求已被接受
+        return true
+      }
+
+      // ========== 幂等性检查 2：容器是否已不存在 ==========
       let containerPort: number | undefined
       const warmContainer = this.warmPool.get(containerId)
       if (warmContainer) {
@@ -799,13 +835,17 @@ class ContainerOrchestrator {
       }
 
       // 检查容器是否存在
+      let containerExists = true
       try {
         await execAsync(`docker inspect ${containerId}`)
       } catch (error) {
         console.warn(`[ContainerOrchestrator] 容器不存在，跳过销毁: ${containerId}`)
+        containerExists = false
+      }
+
+      if (!containerExists) {
         // 从所有数据结构中移除
         this.warmPool.delete(containerId)
-        // 从用户映射中移除
         for (const [userId, mapping] of this.userMappings) {
           if (mapping.container.containerId === containerId) {
             this.userMappings.delete(userId)
@@ -819,29 +859,40 @@ class ContainerOrchestrator {
         return true
       }
 
-      // 销毁前：尝试保存工作快照
-      await this.createSnapshotBeforeDestroy(containerId)
+      // ========== 标记为正在销毁（防止并发重复调用） ==========
+      destroyingContainers.add(containerId)
 
-      // 停止并删除容器
-      await execAsync(`docker stop -t 5 ${containerId}`)
-      await execAsync(`docker rm ${containerId}`)
+      try {
+        // 销毁前：尝试保存工作快照
+        await this.createSnapshotBeforeDestroy(containerId)
 
-      // 从所有数据结构中移除
-      this.warmPool.delete(containerId)
-      // 从用户映射中移除
-      for (const [userId, mapping] of this.userMappings) {
-        if (mapping.container.containerId === containerId) {
-          this.userMappings.delete(userId)
-          break
+        // 停止并删除容器（使用 -f 强制删除，避免容器卡住）
+        console.log(`[ContainerOrchestrator] 停止容器: ${containerId}`)
+        await execAsync(`docker stop -t 5 ${containerId}`)
+
+        console.log(`[ContainerOrchestrator] 删除容器: ${containerId}`)
+        await execAsync(`docker rm ${containerId}`)
+
+        // 从所有数据结构中移除
+        this.warmPool.delete(containerId)
+        for (const [userId, mapping] of this.userMappings) {
+          if (mapping.container.containerId === containerId) {
+            this.userMappings.delete(userId)
+            break
+          }
         }
-      }
-      // 释放端口
-      if (containerPort) {
-        this.releasePort(containerPort)
-      }
+        // 释放端口
+        if (containerPort) {
+          this.releasePort(containerPort)
+        }
 
-      console.log(`[ContainerOrchestrator] 容器已销毁: ${containerId}`)
-      return true
+        console.log(`[ContainerOrchestrator] 容器已销毁: ${containerId}`)
+        return true
+
+      } finally {
+        // ========== 无论成功失败，都移除销毁标记 ==========
+        destroyingContainers.delete(containerId)
+      }
 
     } catch (error) {
       console.error(`[ContainerOrchestrator] 销毁容器失败 (${containerId}):`, error)
@@ -853,6 +904,8 @@ class ContainerOrchestrator {
           break
         }
       }
+      // 确保销毁标记被清理
+      destroyingContainers.delete(containerId)
       return false
     }
   }
@@ -982,12 +1035,238 @@ class ContainerOrchestrator {
   }
 
   /**
+   * 从数据库加载用户映射
+   */
+  private async loadUserMappingsFromDB(): Promise<void> {
+    try {
+      const pool = getPool()
+      if (!pool) {
+        console.log('[ContainerOrchestrator] 数据库不可用，跳过加载用户映射')
+        return
+      }
+
+      const [rows] = await pool.execute(
+        `SELECT * FROM user_worker_mappings WHERE status = 'active' ORDER BY last_activity_at DESC`
+      )
+
+      const dbRows = rows as any[]
+      if (dbRows.length === 0) {
+        console.log('[ContainerOrchestrator] 数据库中没有活跃的用户映射')
+        return
+      }
+
+      for (const row of dbRows) {
+        // 检查内存中是否已有映射
+        if (this.userMappings.has(row.user_id)) {
+          console.log(`[ContainerOrchestrator] 用户 ${row.user_id} 已有映射，跳过数据库加载`)
+          continue
+        }
+
+        // 检查容器是否还在运行
+        try {
+          const { stdout } = await execAsync(
+            `docker ps --filter "id=${row.container_id}" --filter "status=running" --format "{{.ID}}|{{.Names}}|{{.Ports}}"`
+          )
+
+          if (!stdout.trim()) {
+            console.log(`[ContainerOrchestrator] 用户 ${row.user_id} 的容器 ${row.container_id} 已停止，跳过`)
+            // 更新数据库状态
+            await pool.execute(
+              `UPDATE user_worker_mappings SET status = 'released' WHERE id = ?`,
+              [row.id]
+            )
+            continue
+          }
+
+          const [containerId, containerName, ports] = stdout.trim().split('|')
+          const portMatch = ports.match(/0\.0\.0\.0:(\d+)->3000\/tcp/)
+          if (!portMatch) {
+            console.log(`[ContainerOrchestrator] 无法解析容器 ${containerId} 的端口`)
+            continue
+          }
+
+          const hostPort = parseInt(portMatch[1], 10)
+
+          // 创建映射
+          const mapping: UserContainerMapping = {
+            userId: row.user_id,
+            container: {
+              containerId: row.container_id,
+              containerName: row.container_name,
+              hostPort: row.host_port || hostPort,
+              status: 'running',
+              assignedUserId: row.user_id,
+              createdAt: new Date(row.created_at),
+              lastActivityAt: new Date(row.last_activity_at),
+            },
+            assignedAt: new Date(row.assigned_at),
+            sessionCount: row.session_count || 0,
+            lastActivityAt: new Date(row.last_activity_at),
+          }
+
+          this.userMappings.set(row.user_id, mapping)
+          console.log(`[ContainerOrchestrator] 从数据库恢复用户 ${row.user_id} 的映射：${containerName}`)
+        } catch (error) {
+          console.error(`[ContainerOrchestrator] 检查容器 ${row.container_id} 状态失败:`, error)
+        }
+      }
+
+      console.log(`[ContainerOrchestrator] 从数据库恢复了 ${this.userMappings.size} 个用户映射`)
+    } catch (error) {
+      console.error('[ContainerOrchestrator] 从数据库加载用户映射失败:', error)
+    }
+  }
+
+  /**
+   * 保存用户映射到数据库
+   */
+  private async saveUserMappingToDB(mapping: UserContainerMapping): Promise<void> {
+    try {
+      const pool = getPool()
+      if (!pool) {
+        console.warn('[ContainerOrchestrator] 数据库不可用，跳过保存用户映射')
+        return
+      }
+
+      const mappingId = uuidv4()
+      await pool.execute(
+        `INSERT INTO user_worker_mappings 
+         (id, user_id, container_id, container_name, host_port, assigned_at, last_activity_at, session_count, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
+         ON DUPLICATE KEY UPDATE 
+         container_id = VALUES(container_id),
+         container_name = VALUES(container_name),
+         host_port = VALUES(host_port),
+         last_activity_at = VALUES(last_activity_at),
+         session_count = VALUES(session_count),
+         updated_at = CURRENT_TIMESTAMP`,
+        [
+          mappingId,
+          mapping.userId,
+          mapping.container.containerId,
+          mapping.container.containerName,
+          mapping.container.hostPort,
+          mapping.assignedAt,
+          mapping.lastActivityAt,
+          mapping.sessionCount,
+        ]
+      )
+      console.log(`[ContainerOrchestrator] 用户映射已保存到数据库：${mapping.userId} -> ${mapping.container.containerName}`)
+    } catch (error) {
+      console.error('[ContainerOrchestrator] 保存用户映射到数据库失败:', error)
+    }
+  }
+
+  /**
+   * 更新数据库中的用户映射状态
+   */
+  private async updateUserMappingStatusInDB(userId: string, status: 'active' | 'released' | 'error'): Promise<void> {
+    try {
+      const pool = getPool()
+      if (!pool) return
+
+      await pool.execute(
+        `UPDATE user_worker_mappings SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`,
+        [status, userId]
+      )
+      console.log(`[ContainerOrchestrator] 用户映射状态已更新：${userId} -> ${status}`)
+    } catch (error) {
+      console.error('[ContainerOrchestrator] 更新用户映射状态失败:', error)
+    }
+  }
+
+  /**
    * 获取用户的容器映射
-   * @param userId 用户ID
+   * @param userId 用户 ID
    * @returns 映射信息
    */
   getUserMapping(userId: string): UserContainerMapping | undefined {
     return this.userMappings.get(userId)
+  }
+
+  /**
+   * 获取或加载用户的容器映射（从内存或数据库）
+   * @param userId 用户 ID
+   * @returns 映射信息
+   */
+  async getOrLoadUserMapping(userId: string): Promise<UserContainerMapping | undefined> {
+    // 先从内存获取
+    let mapping = this.userMappings.get(userId)
+    if (mapping) {
+      return mapping
+    }
+
+    // 内存中没有，尝试从数据库加载
+    try {
+      const pool = getPool()
+      if (!pool) {
+        return undefined
+      }
+
+      const [rows] = await pool.execute(
+        `SELECT * FROM user_worker_mappings WHERE user_id = ? AND status = 'active' LIMIT 1`,
+        [userId]
+      )
+
+      const dbRows = rows as any[]
+      if (dbRows.length === 0) {
+        return undefined
+      }
+
+      const row = dbRows[0]
+
+      // 检查容器是否还在运行
+      try {
+        const { stdout } = await execAsync(
+          `docker ps --filter "id=${row.container_id}" --filter "status=running" --format "{{.ID}}|{{.Names}}|{{.Ports}}"`
+        )
+
+        if (!stdout.trim()) {
+          console.log(`[ContainerOrchestrator] 用户 ${userId} 的容器 ${row.container_id} 已停止`)
+          // 更新数据库状态
+          await pool.execute(
+            `UPDATE user_worker_mappings SET status = 'released' WHERE user_id = ?`,
+            [userId]
+          )
+          return undefined
+        }
+
+        const [containerId, containerName, ports] = stdout.trim().split('|')
+        const portMatch = ports.match(/0\.0\.0\.0:(\d+)->3000\/tcp/)
+        if (!portMatch) {
+          return undefined
+        }
+
+        const hostPort = parseInt(portMatch[1], 10)
+
+        // 创建映射
+        mapping = {
+          userId: row.user_id,
+          container: {
+            containerId: row.container_id,
+            containerName: row.container_name,
+            hostPort: row.host_port || hostPort,
+            status: 'running',
+            assignedUserId: row.user_id,
+            createdAt: new Date(row.created_at),
+            lastActivityAt: new Date(row.last_activity_at),
+          },
+          assignedAt: new Date(row.assigned_at),
+          sessionCount: row.session_count || 0,
+          lastActivityAt: new Date(row.last_activity_at),
+        }
+
+        this.userMappings.set(userId, mapping)
+        console.log(`[ContainerOrchestrator] 从数据库加载用户 ${userId} 的映射：${containerName}`)
+        return mapping
+      } catch (error) {
+        console.error(`[ContainerOrchestrator] 检查容器状态失败:`, error)
+        return undefined
+      }
+    } catch (error) {
+      console.error('[ContainerOrchestrator] 从数据库加载用户映射失败:', error)
+      return undefined
+    }
   }
 
   /**

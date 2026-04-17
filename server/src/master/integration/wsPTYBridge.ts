@@ -116,7 +116,9 @@ const sessionMappings = new Map<string, FrontendSessionMapping>()
  */
 async function getUserWorkerInfo(userId: string): Promise<{ containerId: string; hostPort: number }> {
   const orchestrator = getContainerOrchestrator()
-  let mapping = orchestrator.getUserMapping(userId)
+  
+  // 使用新的 getOrLoadUserMapping 方法，会自动从数据库加载
+  let mapping = await orchestrator.getOrLoadUserMapping(userId)
 
   if (!mapping) {
     console.log(`[PTY Bridge] 用户 ${userId} 未分配容器，自动触发容器调度...`)
