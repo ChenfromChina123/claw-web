@@ -9,8 +9,15 @@
  */
 
 import { WebSocket } from 'ws'
-import { validateMasterToken, getMasterInternalToken, getWorkerInternalPort, generateRequestId } from '../../shared/utils'
+import { validateMasterToken, getMasterInternalToken, getWorkerInternalPort, generateRequestId, DEFAULT_WORKER_PORT } from '../../shared'
 import type { InternalAPIRequest, InternalAPIResponse } from '../../shared/types'
+
+/**
+ * 获取Worker端口（从环境变量或默认值）
+ */
+function getWorkerPort(): number {
+  return parseInt(process.env.WORKER_PORT || String(DEFAULT_WORKER_PORT), 10)
+}
 
 const HEARTBEAT_INTERVAL = 30000 // 30秒心跳间隔
 const HEARTBEAT_TIMEOUT = 60000 // 60秒超时
@@ -38,7 +45,7 @@ export class WorkerForwarder {
       return existing
     }
 
-    const wsUrl = `ws://${containerId}:3000/internal/pty`
+    const wsUrl = `ws://${containerId}:${getWorkerPort()}/internal/pty`
     const token = getMasterInternalToken()
 
     return new Promise((resolve, reject) => {

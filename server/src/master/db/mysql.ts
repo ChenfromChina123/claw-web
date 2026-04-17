@@ -57,11 +57,23 @@ function loadDbConfig(): DbConfig {
   }
 
   return {
-    host: config['DB_HOST'] || 'localhost',
+    host: config['DB_HOST'] || (() => {
+      console.warn('[DB] DB_HOST not configured, using localhost as fallback')
+      return 'localhost'
+    })(),
     port: parseInt(config['DB_PORT'] || '3306', 10),
-    user: config['DB_USER'] || 'root',
-    password: config['DB_PASSWORD'] || '',
-    database: config['DB_NAME'] || 'claude_code_haha',
+    user: config['DB_USER'] || (() => {
+      console.warn('[DB] DB_USER not configured, using root as fallback')
+      return 'root'
+    })(),
+    password: config['DB_PASSWORD'] || (() => {
+      console.warn('[DB] DB_PASSWORD not configured, using empty password')
+      return ''
+    })(),
+    database: config['DB_NAME'] || (() => {
+      console.warn('[DB] DB_NAME not configured, using claw_web as fallback')
+      return 'claw_web'
+    })(),
   }
 }
 

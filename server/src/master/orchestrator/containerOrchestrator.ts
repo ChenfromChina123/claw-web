@@ -14,6 +14,7 @@
  * - 动态扩缩容支持
  */
 
+import { DEFAULT_WORKER_PORT } from '../../shared/constants'
 import { execSync, exec } from 'child_process'
 import { promisify } from 'util'
 import * as path from 'path'
@@ -21,6 +22,13 @@ import * as fs from 'fs/promises'
 import { getHardwareResourceManager, UserTier } from '../config/hardwareResourceConfig'
 import { getPool } from '../db/mysql'
 import { v4 as uuidv4 } from 'uuid'
+
+/**
+ * 获取Worker容器内部端口（用于容器内健康检查）
+ */
+function getWorkerInternalPort(): number {
+  return DEFAULT_WORKER_PORT
+}
 
 const execAsync = promisify(exec)
 
@@ -119,28 +127,24 @@ export interface OrchestratorResult<T = any> {
   code?: string
 }
 
-// ==================== 默认配置 ====================
-
+/**
+ * 默认配置（优先从环境变量读取，提供合理的默认值）
+ */
 const DEFAULT_POOL_CONFIG: Required<PoolConfig> = {
   minPoolSize: parseInt(process.env.CONTAINER_POOL_MIN_SIZE || '3', 10),
   maxPoolSize: parseInt(process.env.CONTAINER_POOL_MAX_SIZE || '10', 10),
-  idleTimeoutMs: parseInt(process.env.CONTAINER_IDLE_TIMEOUT_MS || '300000', 10), // 5分钟
+  idleTimeoutMs: parseInt(process.env.CONTAINER_IDLE_TIMEOUT_MS || '300000', 10),
   healthCheckIntervalMs: parseInt(process.env.CONTAINER_HEALTH_CHECK_INTERVAL || '15000', 10),
-  imageName: process.env.WORKER_IMAGE_NAME || 'claw-web-backend-worker:latest', // 确保使用 Worker 镜像
-  // 安全加固：Worker 容器使用独立的 worker-network，无法直接访问 MySQL
-  // Master 同时连接 claude-network（MySQL）和 worker-network（Worker）
+  imageName: process.env.WORKER_IMAGE_NAME || 'claw-web-backend-worker:latest',
   networkName: process.env.DOCKER_NETWORK_NAME || 'claw-web_worker-network',
   basePort: parseInt(process.env.CONTAINER_BASE_PORT || '3100', 10),
-  // 宿主机工作空间目录（Bind Mount）
   hostWorkspacePath: process.env.HOST_WORKSPACE_PATH || '/data/claws/workspaces',
-  // 磁盘空间告警阈值
   diskWarningThreshold: parseInt(process.env.DISK_WARNING_THRESHOLD || '80', 10),
   diskCriticalThreshold: parseInt(process.env.DISK_CRITICAL_THRESHOLD || '90', 10),
-  // Docker 自动清理配置
   enableAutoCleanup: process.env.ENABLE_DOCKER_AUTO_CLEANUP === 'true',
-  cleanupIntervalMs: parseInt(process.env.DOCKER_CLEANUP_INTERVAL_MS || '3600000', 10), // 默认 1 小时
-  cleanupUnusedImages: process.env.DOCKER_CLEANUP_IMAGES !== 'false', // 默认开启
-  cleanupOrphanedVolumes: process.env.DOCKER_CLEANUP_VOLUMES === 'true', // 默认关闭（可能丢失数据）
+  cleanupIntervalMs: parseInt(process.env.DOCKER_CLEANUP_INTERVAL_MS || '3600000', 10),
+  cleanupUnusedImages: process.env.DOCKER_CLEANUP_IMAGES !== 'false',
+  cleanupOrphanedVolumes: process.env.DOCKER_CLEANUP_VOLUMES === 'true',
 }
 
 // ==================== ContainerOrchestrator 类 ====================
@@ -300,7 +304,7 @@ class ContainerOrchestrator {
         if (!containerId || !containerName) continue
 
         // 解析端口映射
-        const portMatch = ports.match(/:(\d+)->3000\/tcp/)
+        const portMatch = ports.match(/:(\d+)->(3000|4000)\/tcp/)
         const hostPort = portMatch ? parseInt(portMatch[1], 10) : 0
 
         // 检查容器是否已经在热池中
@@ -361,105 +365,117 @@ class ContainerOrchestrator {
    * @returns 分配结果
    */
   async assignContainerToUser(userId: string, username?: string, userTier?: UserTier): Promise<OrchestratorResult<UserContainerMapping>> {
+    const lockKey = `user_container_${userId}`
+    const now = Date.now()
+    const existingLock = userContainerLocks.get(lockKey)
+
+    // 检查锁是否存在且未过期（锁超时时间：120秒，确保覆盖容器创建时间）
+    const LOCK_TIMEOUT_MS = 120000
+    if (existingLock && (now - existingLock.timestamp) < LOCK_TIMEOUT_MS) {
+      console.warn(`[ContainerOrchestrator] 用户 ${userId} 的容器分配锁已被持有，跳过重复创建（锁时间: ${new Date(existingLock.timestamp).toISOString()})`)
+      // 返回当前已有的映射（如果有）
+      const existingMapping = this.userMappings.get(userId)
+      if (existingMapping) {
+        console.log(`[ContainerOrchestrator] 用户 ${userId} 已有容器，直接返回现有映射`)
+        return { success: true, data: existingMapping }
+      }
+      // 如果锁存在但容器还未创建，返回创建中状态
+      return {
+        success: false,
+        error: '容器创建中，请稍后重试',
+        code: 'CONTAINER_CREATION_IN_PROGRESS'
+      }
+    }
+
+    // 获取锁（原子操作）
+    userContainerLocks.set(lockKey, { locked: true, timestamp: now })
+    console.log(`[ContainerOrchestrator] 获取用户容器分配锁: ${userId}`)
+
     try {
-      // ========== 分布式锁检查（防止并发重复创建） ==========
-      const now = Date.now()
-      const lockKey = `user_container_${userId}`
-      const existingLock = userContainerLocks.get(lockKey)
-
-      // 检查锁是否存在且未过期（锁超时时间：60秒）
-      const LOCK_TIMEOUT_MS = 60000
-      if (existingLock && (now - existingLock.timestamp) < LOCK_TIMEOUT_MS) {
-        console.warn(`[ContainerOrchestrator] 用户 ${userId} 的容器分配锁已被持有，跳过重复创建（锁时间: ${new Date(existingLock.timestamp).toISOString()})`)
-        // 返回当前已有的映射（如果有）
-        const existingMapping = this.userMappings.get(userId)
-        if (existingMapping) {
-          console.log(`[ContainerOrchestrator] 用户 ${userId} 已有容器，直接返回现有映射`)
-          return { success: true, data: existingMapping }
-        }
-        // 如果锁存在但容器还未创建，返回创建中状态
-        return {
-          success: false,
-          error: '容器创建中，请稍后重试',
-          code: 'CONTAINER_CREATION_IN_PROGRESS'
-        }
-      }
-
-      // 获取锁（原子操作）
-      userContainerLocks.set(lockKey, { locked: true, timestamp: now })
-      console.log(`[ContainerOrchestrator] 获取用户容器分配锁: ${userId}`)
-
-      try {
-        // ========== 再次检查用户是否已有容器（锁内二次确认） ==========
-        const existingMapping = this.userMappings.get(userId)
-        if (existingMapping) {
-          // 更新最后活动时间
-          existingMapping.lastActivityAt = new Date()
-          existingMapping.container.lastActivityAt = new Date()
-          console.log(`[ContainerOrchestrator] 用户 ${userId} 已有容器（锁内二次确认）: ${existingMapping.container.containerId}`)
-          return { success: true, data: existingMapping }
-        }
-
-        // ========== 确保用户工作空间目录存在 ==========
-        const workspaceResult = await this.ensureUserWorkspaceExists(userId)
-        if (!workspaceResult.success) {
-          console.warn(`[ContainerOrchestrator] 确保工作空间目录存在失败: ${workspaceResult.error}`)
-          // 不阻塞容器创建，继续
-        }
-
-        // ========== 从热池获取容器 ==========
-        let acquiredPort: number | null = null
-        const warmContainer = await this.acquireFromWarmPool()
-        if (warmContainer) {
-          // 热池容器没有工作空间挂载，需要销毁并重建
-          acquiredPort = warmContainer.hostPort
-          const oldContainerId = warmContainer.containerId
-          console.log(`[ContainerOrchestrator] 从热池获取容器 ${oldContainerId} (端口: ${acquiredPort})，将销毁并创建用户专用容器...`)
-          await this.destroyContainer(oldContainerId)
-        } else {
-          console.log(`[ContainerOrchestrator] 热池为空，将为用户 ${userId} 创建新容器...`)
-        }
-
-        // ========== 创建新的用户专用容器 ==========
-        const createResult = await this.createContainer(userId, username, userTier, acquiredPort || undefined)
-        if (!createResult.success) {
-          return createResult as OrchestratorResult<UserContainerMapping>
-        }
-        const container = createResult.data!
-
-        // ========== 创建用户映射 ==========
-        const mapping: UserContainerMapping = {
-          userId,
-          container,
-          assignedAt: new Date(),
-          sessionCount: 0,
-          lastActivityAt: new Date()
-        }
-
-        this.userMappings.set(userId, mapping)
-        console.log(`[ContainerOrchestrator] 成功为用户 ${userId} 分配容器：${container.containerId}`)
-
-        // ========== 保存映射到数据库 ==========
-        await this.saveUserMappingToDB(mapping)
-
-        return { success: true, data: mapping }
-
-      } finally {
-        // ========== 释放锁 ==========
-        userContainerLocks.delete(lockKey)
-        console.log(`[ContainerOrchestrator] 释放用户容器分配锁: ${userId}`)
-      }
-
+      return await this.assignContainerToUserInternal(userId, username, userTier, lockKey)
     } catch (error) {
       console.error(`[ContainerOrchestrator] 为用户 ${userId} 分配容器失败:`, error)
       // 发生异常时也要释放锁
-      const lockKey = `user_container_${userId}`
       userContainerLocks.delete(lockKey)
 
       return {
         success: false,
         error: error instanceof Error ? error.message : '分配容器失败',
         code: 'ASSIGN_FAILED'
+      }
+    }
+  }
+
+  /**
+   * 内部容器分配逻辑（已持有锁）
+   */
+  private async assignContainerToUserInternal(userId: string, username?: string, userTier?: UserTier, lockKey?: string): Promise<OrchestratorResult<UserContainerMapping>> {
+    try {
+      // ========== 再次检查用户是否已有容器（锁内二次确认） ==========
+      const existingMapping = this.userMappings.get(userId)
+      if (existingMapping) {
+        // 更新最后活动时间
+        existingMapping.lastActivityAt = new Date()
+        existingMapping.container.lastActivityAt = new Date()
+        console.log(`[ContainerOrchestrator] 用户 ${userId} 已有容器（锁内二次确认）: ${existingMapping.container.containerId}`)
+        return { success: true, data: existingMapping }
+      }
+
+      // ========== 确保用户工作空间目录存在 ==========
+      const workspaceResult = await this.ensureUserWorkspaceExists(userId)
+      if (!workspaceResult.success) {
+        console.warn(`[ContainerOrchestrator] 确保工作空间目录存在失败: ${workspaceResult.error}`)
+        // 不阻塞容器创建，继续
+      }
+
+      // ========== 从热池获取容器 ==========
+      let acquiredPort: number | null = null
+      const warmContainer = await this.acquireFromWarmPool()
+      if (warmContainer) {
+        // 热池容器没有工作空间挂载，需要销毁并重建
+        acquiredPort = warmContainer.hostPort
+        const oldContainerId = warmContainer.containerId
+        console.log(`[ContainerOrchestrator] 从热池获取容器 ${oldContainerId} (端口: ${acquiredPort})，将销毁并创建用户专用容器...`)
+        await this.destroyContainer(oldContainerId)
+      } else {
+        console.log(`[ContainerOrchestrator] 热池为空，将为用户 ${userId} 创建新容器...`)
+      }
+
+      // ========== 创建新的用户专用容器 ==========
+      const createResult = await this.createContainer(userId, username, userTier, acquiredPort || undefined)
+      if (!createResult.success) {
+        // 容器创建失败，记录错误但不在这里释放锁
+        console.error(`[ContainerOrchestrator] 用户 ${userId} 容器创建失败: ${createResult.error}`)
+        
+        // 立即尝试补充热池（不等待冷却期）
+        await this.forceReplenishWarmPool()
+        
+        return createResult as OrchestratorResult<UserContainerMapping>
+      }
+      const container = createResult.data!
+
+      // ========== 创建用户映射 ==========
+      const mapping: UserContainerMapping = {
+        userId,
+        container,
+        assignedAt: new Date(),
+        sessionCount: 0,
+        lastActivityAt: new Date()
+      }
+
+      this.userMappings.set(userId, mapping)
+      console.log(`[ContainerOrchestrator] 成功为用户 ${userId} 分配容器：${container.containerId}`)
+
+      // ========== 保存映射到数据库 ==========
+      await this.saveUserMappingToDB(mapping)
+
+      return { success: true, data: mapping }
+
+    } finally {
+      // ========== 释放锁 ==========
+      if (lockKey) {
+        userContainerLocks.delete(lockKey)
+        console.log(`[ContainerOrchestrator] 释放用户容器分配锁: ${userId}`)
       }
     }
   }
@@ -1053,7 +1069,7 @@ class ContainerOrchestrator {
       // 这样可以避免网络映射问题
       try {
         const { stdout: healthOutput } = await execAsync(
-          `docker exec ${containerId} curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health || echo "000"`
+          `docker exec ${containerId} curl -s -o /dev/null -w "%{http_code}" http://localhost:${getWorkerInternalPort()}/api/health || echo "000"`
         )
         const statusCode = parseInt(healthOutput.trim(), 10)
         // 只要HTTP服务器能够响应（状态码小于500），就认为容器健康
@@ -1118,7 +1134,7 @@ class ContainerOrchestrator {
           }
 
           const [containerId, containerName, ports] = stdout.trim().split('|')
-          const portMatch = ports.match(/0\.0\.0\.0:(\d+)->3000\/tcp/)
+          const portMatch = ports.match(/0\.0\.0\.0:(\d+)->(3000|4000)\/tcp/)
           if (!portMatch) {
             console.log(`[ContainerOrchestrator] 无法解析容器 ${containerId} 的端口`)
             continue
@@ -1271,7 +1287,7 @@ class ContainerOrchestrator {
         }
 
         const [containerId, containerName, ports] = stdout.trim().split('|')
-        const portMatch = ports.match(/0\.0\.0\.0:(\d+)->3000\/tcp/)
+        const portMatch = ports.match(/0\.0\.0\.0:(\d+)->(3000|4000)\/tcp/)
         if (!portMatch) {
           return undefined
         }
@@ -1495,7 +1511,7 @@ class ContainerOrchestrator {
     const dockerCmd = [
       'docker run -d',
       `--name ${containerName}`,
-      `-p ${port}:3000`,
+      `-p ${port}:4000`,
       `--network ${this.config.networkName}`,
       '--restart unless-stopped',
       ...securityArgs,
@@ -1934,6 +1950,31 @@ class ContainerOrchestrator {
       } else {
         this.consecutiveFailures++
         break  // 失败后等待下次定时器重试
+      }
+    }
+  }
+
+  /**
+   * 强制补充热池（忽略冷却期，用于容器创建失败后立即补充）
+   */
+  private async forceReplenishWarmPool(): Promise<void> {
+    // 检查是否需要补充
+    if (this.warmPool.size >= this.config.minPoolSize) {
+      return
+    }
+
+    console.log(`[ContainerOrchestrator] 强制补充热池（当前: ${this.warmPool.size}/${this.config.minPoolSize}）`)
+    
+    while (this.warmPool.size < this.config.minPoolSize) {
+      const created = await this.prewarmContainer()
+      if (created) {
+        this.lastContainerCreationTime = Date.now()
+        this.consecutiveFailures = 0  // 重置失败计数
+        break  // 一次只创建一个容器
+      } else {
+        this.consecutiveFailures++
+        console.warn(`[ContainerOrchestrator] 强制补充热池失败，连续失败次数: ${this.consecutiveFailures}`)
+        break  // 失败后停止
       }
     }
   }

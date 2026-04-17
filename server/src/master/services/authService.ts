@@ -5,7 +5,30 @@ import { generateToken } from './jwtService'
 import { sendVerificationCodeEmail } from './emailService'
 import type { User, AuthResponse, LoginRequest, RegisterRequest, ResetPasswordRequest } from '../models/types'
 
-const CODE_EXPIRE_MINUTES = 5
+/**
+ * 验证码过期时间（分钟），从环境变量或默认值
+ */
+const CODE_EXPIRE_MINUTES = parseInt(process.env.CODE_EXPIRE_MINUTES || '5', 10)
+
+/**
+ * 默认用户名前缀，从环境变量或默认值
+ */
+const USERNAME_PREFIX = process.env.USERNAME_PREFIX || 'user_'
+
+/**
+ * 默认头像路径，从环境变量或默认值
+ */
+const DEFAULT_AVATAR_PATH = process.env.DEFAULT_AVATAR_PATH || '/avatars/default.png'
+
+/**
+ * 密码最小长度，从环境变量或默认值
+ */
+const PASSWORD_MIN_LENGTH = parseInt(process.env.PASSWORD_MIN_LENGTH || '6', 10)
+
+/**
+ * Bcrypt加密轮数，从环境变量或默认值
+ */
+const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS || '10', 10)
 
 function emailRegex(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -17,11 +40,11 @@ function generateCode(): string {
 
 /**
  * 生成随机用户名
- * 格式: user_ + 8位随机字母数字
+ * 格式: 前缀 + 8位随机字母数字
  */
 function generateRandomUsername(): string {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-  let result = 'user_'
+  let result = USERNAME_PREFIX
   for (let i = 0; i < 8; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length))
   }
@@ -51,7 +74,7 @@ async function generateUniqueUsername(pool: any, baseUsername?: string): Promise
 
   if (!isUnique) {
     // 如果尝试多次仍未找到唯一用户名，使用 UUID 前8位
-    username = `user_${uuidv4().substring(0, 8)}`
+    username = `${USERNAME_PREFIX}${uuidv4().substring(0, 8)}`
   }
 
   return username
@@ -88,8 +111,8 @@ export class AuthService {
       throw new Error('邮箱格式不正确')
     }
 
-    if (password.length < 6) {
-      throw new Error('密码至少6位')
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      throw new Error(`密码至少${PASSWORD_MIN_LENGTH}位`)
     }
 
     const pool = getPool()
@@ -118,7 +141,7 @@ export class AuthService {
       ? await generateUniqueUsername(pool, username.trim())
       : await generateUniqueUsername(pool)
 
-    const passwordHash = await bcrypt.hash(password, 10)
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
     const userId = uuidv4()
 
     await pool.query(
@@ -137,7 +160,7 @@ export class AuthService {
       username: finalUsername,
       email,
       isAdmin: false,
-      avatar: '/avatars/default.png',
+      avatar: DEFAULT_AVATAR_PATH,
     }
   }
 
@@ -180,7 +203,7 @@ export class AuthService {
       username: user.username,
       email: user.email,
       isAdmin: user.is_admin || false,
-      avatar: user.avatar || '/avatars/default.png',
+      avatar: user.avatar || DEFAULT_AVATAR_PATH,
     }
   }
 
@@ -214,8 +237,8 @@ export class AuthService {
       throw new Error('邮箱格式不正确')
     }
 
-    if (newPassword.length < 6) {
-      throw new Error('密码至少6位')
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
+      throw new Error(`密码至少${PASSWORD_MIN_LENGTH}位`)
     }
 
     const pool = getPool()
@@ -233,7 +256,7 @@ export class AuthService {
 
     await pool.query('UPDATE verification_codes SET is_used = TRUE WHERE id = ?', [validCode.id])
 
-    const passwordHash = await bcrypt.hash(newPassword, 10)
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS)
     await pool.query('UPDATE users SET password_hash = ? WHERE email = ?', [passwordHash, email])
 
     console.log(`用户重置密码成功: ${email}`)

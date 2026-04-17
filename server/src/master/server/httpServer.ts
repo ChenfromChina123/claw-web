@@ -24,6 +24,14 @@ import { getContainerOrchestrator } from '../orchestrator/containerOrchestrator'
 import { getSchedulingPolicy } from '../orchestrator/schedulingPolicy'
 import { executeAgentOnWorker } from './agentApi'
 import { SSEParser } from './sseParser'
+import { DEFAULT_WORKER_PORT } from '../../shared/constants'
+
+/**
+ * 获取Worker端口（从环境变量或默认值）
+ */
+function getWorkerPort(): number {
+  return parseInt(process.env.WORKER_PORT || String(DEFAULT_WORKER_PORT), 10)
+}
 
 // 导入所有需要初始化的服务
 import '../services/sessionManager'
@@ -647,8 +655,8 @@ async function proxyToWorkerContainer(req: Request, containerName: string, path:
     console.log(`[RequestRouter] 开发模式：使用本地 Worker ${targetUrl}`)
   } else {
     // 生产环境：使用 Docker 网络，通过容器名称访问
-    targetUrl = `http://${containerName}:3000${path}`
-    hostHeader = `${containerName}:3000`
+    targetUrl = `http://${containerName}:${getWorkerPort()}${path}`
+    hostHeader = `${containerName}:${getWorkerPort()}`
   }
   
   const startTime = Date.now()
