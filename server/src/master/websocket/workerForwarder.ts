@@ -9,7 +9,7 @@
  */
 
 import { WebSocket } from 'ws'
-import { validateMasterToken, getWorkerInternalPort, generateRequestId } from '../../shared/utils'
+import { validateMasterToken, getMasterInternalToken, getWorkerInternalPort, generateRequestId } from '../../shared/utils'
 import type { InternalAPIRequest, InternalAPIResponse } from '../../shared/types'
 
 const HEARTBEAT_INTERVAL = 30000 // 30秒心跳间隔
