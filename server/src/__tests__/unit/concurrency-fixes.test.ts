@@ -10,18 +10,16 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 
+// 必须在导入被测试模块之前 mock 掉 child_process
+vi.mock('child_process', () => ({
+  execSync: vi.fn(),
+  exec: vi.fn()
+}))
+
 import {
   getContainerOrchestrator,
   type ContainerInstance
 } from '../../master/orchestrator/containerOrchestrator'
-
-// ==================== Mock 设置 ====================
-
-// 获取 child_process 模块的引用（已被 vi.mock 替换为 mock）
-const childProcess = require('child_process') as {
-  execSync: ReturnType<typeof vi.fn>
-  exec: ReturnType<typeof vi.fn>
-}
 
 // Mock fetch API（用于健康检查）
 global.fetch = vi.fn()
@@ -30,9 +28,12 @@ global.fetch = vi.fn()
 
 describe('容器销毁幂等性保护', () => {
   let orchestrator: ReturnType<typeof getContainerOrchestrator>
+  let mockExecSync: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // 获取 mock 函数引用
+    mockExecSync = vi.mocked(require('child_process').execSync)
 
     // 每次测试使用新实例
     orchestrator = getContainerOrchestrator({
@@ -52,7 +53,7 @@ describe('容器销毁幂等性保护', () => {
     })
 
     // 设置 execSync mock 的基础行为
-    childProcess.execSync.mockImplementation((cmd: string) => {
+    mockExecSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker ps')) {
         return JSON.stringify([
           {
@@ -87,14 +88,14 @@ describe('容器销毁幂等性保护', () => {
 
     // 销毁应成功完成
     expect(result).toBeUndefined()
-    expect(childProcess.execSync).toHaveBeenCalled()
+    expect(mockExecSync).toHaveBeenCalled()
   })
 
   it('并发销毁同一容器时应该有序处理', async () => {
     const containerId = 'test-container-concurrent-destroy'
 
     let callCount = 0
-    childProcess.execSync.mockImplementation((cmd: string) => {
+    mockExecSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker rm')) {
         callCount++
         // 模拟销毁延迟
@@ -140,7 +141,7 @@ describe('容器销毁幂等性保护', () => {
 
     // 设置 mock 让第一次销毁失败
     let attempt = 0
-    childProcess.execSync.mockImplementation((cmd: string) => {
+    mockExecSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker rm')) {
         attempt++
         if (attempt === 1) {
@@ -165,14 +166,14 @@ describe('容器销毁幂等性保护', () => {
       return ''
     })
 
-    // 第一次���毁应该失败
+    // 第一次销毁应该失败
     await expect(orchestrator.destroyContainer(containerId)).rejects.toThrow()
 
     // 等待一小段时间让清理完成
     await new Promise(resolve => setTimeout(resolve, 100))
 
     // 第二次销毁应该能够正常进行（锁已被释放）
-    childProcess.execSync.mockImplementation((cmd: string) => {
+    mockExecSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker rm')) {
         return ''
       }
@@ -188,9 +189,11 @@ describe('容器销毁幂等性保护', () => {
 
 describe('用户容器分配分布式锁', () => {
   let orchestrator: ReturnType<typeof getContainerOrchestrator>
+  let mockExecSync: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockExecSync = vi.mocked(require('child_process').execSync)
 
     orchestrator = getContainerOrchestrator({
       minPoolSize: 0,
@@ -208,7 +211,7 @@ describe('用户容器分配分布式锁', () => {
     })
 
     // 基础 mock：空热池
-    childProcess.execSync.mockImplementation((cmd: string) => {
+    mockExecSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker ps')) {
         return JSON.stringify([])
       }
@@ -236,7 +239,7 @@ describe('用户容器分配分布式锁', () => {
     const userId = 'user-concurrent-assign'
 
     let assignCount = 0
-    childProcess.execSync.mockImplementation((cmd: string) => {
+    mockExecSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker run')) {
         assignCount++
         // 短暂延迟模拟 Docker 创建
@@ -279,7 +282,7 @@ describe('用户容器分配分布式锁', () => {
     const users = ['user-a', 'user-b', 'user-c']
 
     let containerCount = 0
-    childProcess.execSync.mockImplementation((cmd: string) => {
+    mockExecSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker run')) {
         containerCount++
         return `container-multi-${containerCount}`
@@ -317,7 +320,7 @@ describe('用户容器分配分布式锁', () => {
     const userId = 'user-lock-timeout'
 
     // 模拟一个极快的锁获取
-    childProcess.execSync.mockImplementation((cmd: string) => {
+    mockExecSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker run')) {
         return `container-timeout-${Date.now()}`
       }
@@ -340,7 +343,7 @@ describe('用户容器分配分布式锁', () => {
     const firstResult = await orchestrator.assignContainerToUser(userId)
     expect(firstResult).not.toBeNull()
 
-    // 立即第二次分配��容器已存在，应该快速复用）
+    // 立即第二次分配（容器已存在，应该快速复用）
     const secondResult = await orchestrator.assignContainerToUser(userId)
     expect(secondResult).not.toBeNull()
     expect(secondResult?.containerId).toBe(firstResult?.containerId)
@@ -351,9 +354,11 @@ describe('用户容器分配分布式锁', () => {
 
 describe('集成场景测试', () => {
   let orchestrator: ReturnType<typeof getContainerOrchestrator>
+  let mockExecSync: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockExecSync = vi.mocked(require('child_process').execSync)
 
     orchestrator = getContainerOrchestrator({
       minPoolSize: 0,
@@ -370,7 +375,7 @@ describe('集成场景测试', () => {
       json: () => Promise.resolve({ status: 'ok' })
     })
 
-    childProcess.execSync.mockImplementation((cmd: string) => {
+    mockExecSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker ps')) {
         return JSON.stringify([])
       }
@@ -416,7 +421,7 @@ describe('集成场景测试', () => {
     const userId = 'user-assign-destroy'
     let ops: string[] = []
 
-    childProcess.execSync.mockImplementation((cmd: string) => {
+    mockExecSync.mockImplementation((cmd: string) => {
       if (cmd.includes('docker run')) {
         ops.push('run')
         return `container-${Date.now()}`

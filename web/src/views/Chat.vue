@@ -31,6 +31,9 @@ const isInitializing = ref(true)
 const initError = ref<string | null>(null)
 const sidebarCollapsed = ref(false)
 
+// 防止重复初始化的锁
+let isPageInitializing = false
+
 /**
  * 消息搜索弹窗
  */
@@ -211,6 +214,13 @@ watch([() => agentStore.currentAgents, () => agentStore.agentTree], () => {
 }, { deep: true, immediate: true })
 
 onMounted(async () => {
+  // 防止重复初始化
+  if (isPageInitializing) {
+    console.warn('[Chat] Page already initializing, skipping duplicate onMounted call')
+    return
+  }
+  isPageInitializing = true
+  
   // 检查是否已登录
   if (!authStore.token || !authStore.isLoggedIn) {
     console.warn('[Chat] 用户未登录，重定向到登录页面')
@@ -227,7 +237,7 @@ onMounted(async () => {
     // 连接 WebSocket
     console.log('[Chat] 连接 WebSocket...')
     await chatStore.connect(authStore.token || undefined)
-    console.log('[Chat] WebSocket 连接成功， isConnected:', chatStore.isConnected)
+    console.log('[Chat] WebSocket 连接成功，isConnected:', chatStore.isConnected)
     
     // 设置 Agent Store 的 WebSocket 监听
     agentStore.setupWebSocketListeners()
@@ -237,9 +247,10 @@ onMounted(async () => {
     await chatStore.listSessions()
     console.log('[Chat] 会话列表获取完成，sessions:', chatStore.sessions)
     
-    // 加载或创建会话
+    // 加载或创建会话（优先恢复已有会话）
     const sessions = chatStore.sessions || []
     console.log('[Chat] 会话数量:', sessions.length)
+    
     if (sessions.length > 0) {
       // 优先加载上次选中的会话（持久化的），其次加载第一个
       const lastSessionId = chatStore.currentSessionId
@@ -247,11 +258,20 @@ onMounted(async () => {
         ? sessions.find(s => s.id === lastSessionId)
         : sessions[0]
       console.log('[Chat] 加载会话:', targetSession?.id, '上次会话:', lastSessionId)
-      await chatStore.loadSession(targetSession?.id || sessions[0].id)
+      
+      try {
+        await chatStore.loadSession(targetSession?.id || sessions[0].id)
+        console.log('[Chat] 会话加载成功，currentSessionId:', chatStore.currentSessionId)
+      } catch (loadError: any) {
+        console.error('[Chat] 会话加载失败:', loadError)
+        // 会话加载失败（可能是容器不存在），尝试创建新会话
+        console.warn('[Chat] 会话加载失败，尝试创建新会话...')
+        await createSessionWithRetry()
+      }
     } else {
-      // 没有会话，强制创建第一��会话
-      console.log('[Chat] 没有会话，创建新会话...')
-      await chatStore.createSession(undefined, undefined, true)
+      // 会话列表为空，创建新会话
+      console.log('[Chat] 会话列表为空，创建新会话...')
+      await createSessionWithRetry()
     }
     
     console.log('[Chat] 初始化完成，currentSessionId:', chatStore.currentSessionId)
@@ -270,6 +290,7 @@ onMounted(async () => {
     message.error(initError.value || '初始化失败')
   } finally {
     isInitializing.value = false
+    isPageInitializing = false
   }
   
   // 监听键盘事件
@@ -304,48 +325,97 @@ function handleKeyDown(e: KeyboardEvent): void {
 }
 
 /**
+ * 创建会话（带重试机制）
+ * 容器分配失败时自动重试一次，并提供友好的错误提示
+ */
+async function createSessionWithRetry(maxRetries = 2): Promise<void> {
+  let lastError: Error | null = null
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[Chat] 创建会话，第 ${attempt} 次尝试...`)
+      await chatStore.createSession(undefined, undefined, true)
+      console.log('[Chat] 会话创建成功')
+      return
+    } catch (error: any) {
+      lastError = error
+      console.error(`[Chat] 第 ${attempt} 次创建失败:`, error)
+      
+      // 判断是否是容器分配超时错误
+      const isContainerTimeout = error?.message?.includes('超时') || 
+                                 error?.message?.includes('容器启动') ||
+                                 error?.message?.includes('分配失败')
+      
+      if (isContainerTimeout && attempt < maxRetries) {
+        // 容器分配超时，等待后重试
+        const waitTime = 2000 * attempt // 指数退避：2 秒，4 秒
+        console.warn(`[Chat] 容器分配超时，${waitTime / 1000}秒后重试...`)
+        message.warning(`容器分配超时，${waitTime / 1000}秒后重试...`)
+        await new Promise(resolve => setTimeout(resolve, waitTime))
+      } else {
+        // 其他错误或最后一次重试失败
+        break
+      }
+    }
+  }
+  
+  // 所有重试都失败
+  const errorMsg = lastError?.message || '创建会话失败'
+  console.error('[Chat] 会话创建最终失败:', errorMsg)
+  
+  // 提供友好的错误提示
+  if (errorMsg.includes('超时')) {
+    message.error('容器分配超时，请稍后重试或联系管理员')
+  } else if (errorMsg.includes('资源')) {
+    message.error('系统资源不足，请稍后重试')
+  } else {
+    message.error(errorMsg)
+  }
+  
+  throw lastError
+}
+
+/**
  * 重新初始化
  */
 async function handleRetry(): Promise<void> {
-  // 检查是否已登录
-  if (!authStore.token || !authStore.isLoggedIn) {
-    console.warn('[Chat] 用户未登录，重定向到登录页面')
-    router.replace('/login')
-    return
-  }
-  
+  console.log('[Chat] 用户点击重试，重新初始化...')
   isInitializing.value = true
   initError.value = null
+  isPageInitializing = true
   
   try {
-    console.log('[Chat] 开始重新初始化...')
-    
+    // 重连 WebSocket
     await chatStore.connect(authStore.token || undefined)
-    console.log('[Chat] WebSocket 重新连接成功')
+    
+    // 获取会话列表
     await chatStore.listSessions()
-    console.log('[Chat] 会话列表重新获取完成，sessions:', chatStore.sessions)
-
-    const sessionsAfterList = chatStore.sessions || []
-    console.log('[Chat] 会话数量:', sessionsAfterList.length)
-    if (sessionsAfterList.length === 0) {
-      await chatStore.createSession(undefined, undefined, true)
-    } else if (chatStore.currentSessionId) {
-      await chatStore.loadSession(chatStore.currentSessionId)
-    } else if (sessionsAfterList.length > 0) {
-      await chatStore.loadSession(sessionsAfterList[0].id)
+    
+    // 加载或创建会话
+    const sessions = chatStore.sessions || []
+    if (sessions.length > 0) {
+      const lastSessionId = chatStore.currentSessionId
+      const targetSession = lastSessionId && sessions.find(s => s.id === lastSessionId)
+        ? sessions.find(s => s.id === lastSessionId)
+        : sessions[0]
+      try {
+        await chatStore.loadSession(targetSession?.id || sessions[0].id)
+      } catch {
+        await createSessionWithRetry()
+      }
+    } else {
+      await createSessionWithRetry()
     }
     
-    nextTick(() => {
-      inputRef.value?.focus()
-    })
-    
-    message.success('重新连接成功')
+    // 加载 Agent 类型列表
+    await agentStore.loadAvailableAgentTypes()
   } catch (error: any) {
-    console.error('重新初始化失败:', error)
-    initError.value = error?.message || '初始化失败，请重试'
-    message.error(initError.value || '初始化失败')
+    console.error('[Chat] 重试失败:', error)
+    initError.value = error?.message || '重试失败'
+    message.error(initError.value)
   } finally {
     isInitializing.value = false
+    isPageInitializing = false
   }
 }
 
