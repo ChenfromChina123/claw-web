@@ -13,21 +13,21 @@
  */
 export const AUTH_ENDPOINTS = {
   /** 发送注册验证码 */
-  SEND_REGISTER_CODE: '/api/auth/register/send-code',
+  SEND_REGISTER_CODE: '/auth/register/send-code',
   /** 用户注册 */
-  REGISTER: '/api/auth/register',
+  REGISTER: '/auth/register',
   /** 用户登录 */
-  LOGIN: '/api/auth/login',
+  LOGIN: '/auth/login',
   /** 发送忘记密码验证码 */
-  SEND_FORGOT_PASSWORD_CODE: '/api/auth/forgot-password/send-code',
+  SEND_FORGOT_PASSWORD_CODE: '/auth/forgot-password/send-code',
   /** 重置密码 */
-  FORGOT_PASSWORD: '/api/auth/forgot-password',
+  FORGOT_PASSWORD: '/auth/forgot-password',
   /** 获取当前用户信息 */
-  ME: '/api/auth/me',
+  ME: '/auth/me',
   /** GitHub OAuth 登录 */
-  GITHUB: '/api/auth/github',
+  GITHUB: '/auth/github',
   /** GitHub OAuth 回调 */
-  GITHUB_CALLBACK: '/api/auth/github/callback',
+  GITHUB_CALLBACK: '/auth/github/callback',
 } as const
 
 /**
@@ -35,25 +35,25 @@ export const AUTH_ENDPOINTS = {
  */
 export const SESSION_ENDPOINTS = {
   /** 获取用户会话列表 */
-  LIST: '/api/sessions',
+  LIST: '/sessions',
   /** 创建新会话 */
-  CREATE: '/api/sessions',
+  CREATE: '/sessions',
   /** 获取会话详情 */
-  DETAIL: (id: string) => `/api/sessions/${id}`,
+  DETAIL: (id: string) => `/sessions/${id}`,
   /** 更新会话 */
-  UPDATE: (id: string) => `/api/sessions/${id}`,
+  UPDATE: (id: string) => `/sessions/${id}`,
   /** 删除会话 */
-  DELETE: (id: string) => `/api/sessions/${id}`,
+  DELETE: (id: string) => `/sessions/${id}`,
   /** 清空会话消息 */
-  CLEAR: (id: string) => `/api/sessions/${id}/clear`,
+  CLEAR: (id: string) => `/sessions/${id}/clear`,
   /** 获取会话已打开文件 */
-  OPEN_FILES: (id: string) => `/api/sessions/${id}/open-files`,
+  OPEN_FILES: (id: string) => `/sessions/${id}/open-files`,
   /** 保存会话已打开文件 */
-  SAVE_OPEN_FILES: (id: string) => `/api/sessions/${id}/open-files`,
+  SAVE_OPEN_FILES: (id: string) => `/sessions/${id}/open-files`,
   /** 删除会话已打开文件记录 */
-  DELETE_OPEN_FILES: (id: string) => `/api/sessions/${id}/open-files`,
+  DELETE_OPEN_FILES: (id: string) => `/sessions/${id}/open-files`,
   /** 搜索消息 */
-  SEARCH_MESSAGES: '/api/sessions/messages/search',
+  SEARCH_MESSAGES: '/sessions/messages/search',
 } as const
 
 /**
@@ -61,21 +61,21 @@ export const SESSION_ENDPOINTS = {
  */
 export const WORKDIR_ENDPOINTS = {
   /** 获取目录列表 */
-  LIST: '/api/agent/workdir/list',
+  LIST: '/agent/workdir/list',
   /** 获取文件内容 */
-  CONTENT: '/api/agent/workdir/content',
+  CONTENT: '/agent/workdir/content',
   /** 保存文件 */
-  SAVE: '/api/agent/workdir/save',
+  SAVE: '/agent/workdir/save',
   /** 创建文件/文件夹 */
-  CREATE: '/api/agent/workdir/create',
+  CREATE: '/agent/workdir/create',
   /** 下载文件 */
-  DOWNLOAD: '/api/agent/workdir/download',
+  DOWNLOAD: '/agent/workdir/download',
   /** 下载文件夹（ZIP） */
-  DOWNLOAD_ZIP: '/api/agent/workdir/download-zip',
+  DOWNLOAD_ZIP: '/agent/workdir/download-zip',
   /** 上传文件 */
-  UPLOAD: '/api/agent/workdir/upload',
+  UPLOAD: '/agent/workdir/upload',
   /** 删除文件/文件夹 */
-  DELETE: '/api/agent/workdir/delete',
+  DELETE: '/agent/workdir/delete',
 } as const
 
 /**
@@ -83,21 +83,29 @@ export const WORKDIR_ENDPOINTS = {
  */
 export const AGENT_ENDPOINTS = {
   /** 获取 Agent 列表 */
-  LIST: '/api/agents',
+  LIST: '/agents',
   /** 获取 Agent 详情 */
-  DETAIL: (type: string) => `/api/agents/${type}`,
+  DETAIL: (type: string) => `/agents/${type}`,
   /** 获取协调状态 */
-  ORCHESTRATION_STATE: '/api/agents/orchestration/state',
+  ORCHESTRATION_STATE: '/agents/orchestration/state',
   /** 初始化多 Agent 协调 */
-  ORCHESTRATION_INIT: '/api/agents/orchestration/init',
+  ORCHESTRATION_INIT: '/agents/orchestration/init',
   /** 执行 Agent 任务 */
-  EXECUTE: '/api/agents/execute',
+  EXECUTE: '/agents/execute',
   /** 中断 Agent */
-  INTERRUPT: (agentId: string) => `/api/agents/${agentId}/interrupt`,
+  INTERRUPT: (agentId: string) => `/agents/${agentId}/interrupt`,
   /** 发送消息到 Agent */
-  MESSAGE: (agentId: string) => `/api/agents/${agentId}/message`,
+  MESSAGE: (agentId: string) => `/agents/${agentId}/message`,
   /** 获取有效工作区路径 */
-  EFFECTIVE_WORKSPACE: '/api/agent/session/effective-workspace',
+  EFFECTIVE_WORKSPACE: '/agent/session/effective-workspace',
+} as const
+
+/**
+ * 模型管理 API
+ */
+export const MODEL_ENDPOINTS = {
+  /** 获取可用模型列表 */
+  LIST: '/models',
 } as const
 
 /**
@@ -105,17 +113,17 @@ export const AGENT_ENDPOINTS = {
  */
 export const TOOL_ENDPOINTS = {
   /** 获取工具列表 */
-  LIST: '/api/tools',
+  LIST: '/tools',
   /** 获取工具详情 */
-  DETAIL: (name: string) => `/api/tools/${name}`,
+  DETAIL: (name: string) => `/tools/${name}`,
   /** 执行工具 */
-  EXECUTE: '/api/tools/execute',
+  EXECUTE: '/tools/execute',
   /** 获取工具执行历史 */
-  HISTORY: '/api/tools/history',
+  HISTORY: '/tools/history',
   /** 清空工具执行历史 */
-  CLEAR_HISTORY: '/api/tools/history/clear',
+  CLEAR_HISTORY: '/tools/history/clear',
   /** 验证工具输入 */
-  VALIDATE: '/api/tools/validate',
+  VALIDATE: '/tools/validate',
 } as const
 
 /**
@@ -123,21 +131,21 @@ export const TOOL_ENDPOINTS = {
  */
 export const MCP_ENDPOINTS = {
   /** 获取 MCP 服务器列表 */
-  SERVERS: '/api/mcp/servers',
+  SERVERS: '/mcp/servers',
   /** 添加 MCP 服务器 */
-  ADD_SERVER: '/api/mcp/servers',
+  ADD_SERVER: '/mcp/servers',
   /** 移除 MCP 服务器 */
-  REMOVE_SERVER: (id: string) => `/api/mcp/servers/${id}`,
+  REMOVE_SERVER: (id: string) => `/mcp/servers/${id}`,
   /** 启用/禁用 MCP 服务器 */
-  TOGGLE_SERVER: (id: string) => `/api/mcp/servers/${id}/toggle`,
+  TOGGLE_SERVER: (id: string) => `/mcp/servers/${id}/toggle`,
   /** 测试 MCP 服务器连接 */
-  TEST_SERVER: (id: string) => `/api/mcp/servers/${id}/test`,
+  TEST_SERVER: (id: string) => `/mcp/servers/${id}/test`,
   /** 获取 MCP 工具列表 */
-  TOOLS: '/api/mcp/tools',
+  TOOLS: '/mcp/tools',
   /** 调用 MCP 工具 */
-  CALL: '/api/mcp/call',
+  CALL: '/mcp/call',
   /** 获取 MCP 状态 */
-  STATUS: '/api/mcp/status',
+  STATUS: '/mcp/status',
 } as const
 
 /**
@@ -145,17 +153,17 @@ export const MCP_ENDPOINTS = {
  */
 export const MONITORING_ENDPOINTS = {
   /** 性能统计 */
-  PERFORMANCE: '/api/monitoring/performance',
+  PERFORMANCE: '/monitoring/performance',
   /** 资源使用情况 */
-  RESOURCES: '/api/monitoring/resources',
+  RESOURCES: '/monitoring/resources',
   /** 系统健康状态 */
-  HEALTH: '/api/monitoring/health',
+  HEALTH: '/monitoring/health',
   /** 容器状态 */
-  CONTAINERS: '/api/monitoring/containers',
+  CONTAINERS: '/monitoring/containers',
   /** 健康检查 */
-  DIAGNOSTICS_HEALTH: '/api/diagnostics/health',
+  DIAGNOSTICS_HEALTH: '/diagnostics/health',
   /** 组件详细信息 */
-  DIAGNOSTICS_COMPONENTS: '/api/diagnostics/components',
+  DIAGNOSTICS_COMPONENTS: '/diagnostics/components',
 } as const
 
 /**
@@ -163,15 +171,15 @@ export const MONITORING_ENDPOINTS = {
  */
 export const WORKSPACE_ENDPOINTS = {
   /** 上传文件到工作区 */
-  UPLOAD: (sessionId: string) => `/api/workspace/${sessionId}/upload`,
+  UPLOAD: (sessionId: string) => `/workspace/${sessionId}/upload`,
   /** 获取工作区文件列表 */
-  FILES: (sessionId: string) => `/api/workspace/${sessionId}/files`,
+  FILES: (sessionId: string) => `/workspace/${sessionId}/files`,
   /** 删除工作区文件 */
-  DELETE_FILE: (sessionId: string, filename: string) => `/api/workspace/${sessionId}/files/${filename}`,
+  DELETE_FILE: (sessionId: string, filename: string) => `/workspace/${sessionId}/files/${filename}`,
   /** 获取工作区信息 */
-  INFO: (sessionId: string) => `/api/workspace/${sessionId}`,
+  INFO: (sessionId: string) => `/workspace/${sessionId}`,
   /** 清空工作区 */
-  CLEAR: (sessionId: string) => `/api/workspace/${sessionId}`,
+  CLEAR: (sessionId: string) => `/workspace/${sessionId}`,
 } as const
 
 /**
@@ -179,27 +187,27 @@ export const WORKSPACE_ENDPOINTS = {
  */
 export const PROMPT_TEMPLATE_ENDPOINTS = {
   /** 获取所有分类 */
-  CATEGORIES: '/api/prompt-templates/categories',
+  CATEGORIES: '/prompt-templates/categories',
   /** 创建分类 */
-  CREATE_CATEGORY: '/api/prompt-templates/categories',
+  CREATE_CATEGORY: '/prompt-templates/categories',
   /** 更新分类 */
-  UPDATE_CATEGORY: (id: string) => `/api/prompt-templates/categories/${id}`,
+  UPDATE_CATEGORY: (id: string) => `/prompt-templates/categories/${id}`,
   /** 删除分类 */
-  DELETE_CATEGORY: (id: string) => `/api/prompt-templates/categories/${id}`,
+  DELETE_CATEGORY: (id: string) => `/prompt-templates/categories/${id}`,
   /** 获取模板列表 */
-  LIST: '/api/prompt-templates',
+  LIST: '/prompt-templates',
   /** 创建模板 */
-  CREATE: '/api/prompt-templates',
+  CREATE: '/prompt-templates',
   /** 获取单个模板 */
-  DETAIL: (id: string) => `/api/prompt-templates/${id}`,
+  DETAIL: (id: string) => `/prompt-templates/${id}`,
   /** 更新模板 */
-  UPDATE: (id: string) => `/api/prompt-templates/${id}`,
+  UPDATE: (id: string) => `/prompt-templates/${id}`,
   /** 删除模板 */
-  DELETE: (id: string) => `/api/prompt-templates/${id}`,
+  DELETE: (id: string) => `/prompt-templates/${id}`,
   /** 切换收藏状态 */
-  FAVORITE: (id: string) => `/api/prompt-templates/${id}/favorite`,
+  FAVORITE: (id: string) => `/prompt-templates/${id}/favorite`,
   /** 使用模板 */
-  USE: (id: string) => `/api/prompt-templates/${id}/use`,
+  USE: (id: string) => `/prompt-templates/${id}/use`,
 } as const
 
 /**
@@ -207,21 +215,21 @@ export const PROMPT_TEMPLATE_ENDPOINTS = {
  */
 export const SKILL_ENDPOINTS = {
   /** 列出所有技能 */
-  LIST: '/api/skills',
+  LIST: '/skills',
   /** 获取技能详情 */
-  DETAIL: (id: string) => `/api/skills/${id}`,
+  DETAIL: (id: string) => `/skills/${id}`,
   /** 启用/禁用技能 */
-  TOGGLE: (id: string) => `/api/skills/${id}/toggle`,
+  TOGGLE: (id: string) => `/skills/${id}/toggle`,
   /** 获取所有类别 */
-  CATEGORIES: '/api/skills/categories',
+  CATEGORIES: '/skills/categories',
   /** 获取统计信息 */
-  STATS: '/api/skills/stats',
+  STATS: '/skills/stats',
   /** 从 URL 导入技能 */
-  IMPORT_URL: '/api/skills/import/url',
+  IMPORT_URL: '/skills/import/url',
   /** 上传技能文件 */
-  IMPORT_FILE: '/api/skills/import/file',
+  IMPORT_FILE: '/skills/import/file',
   /** 验证技能内容 */
-  VALIDATE: '/api/skills/validate',
+  VALIDATE: '/skills/validate',
 } as const
 
 /**
@@ -229,17 +237,17 @@ export const SKILL_ENDPOINTS = {
  */
 export const TIER_ENDPOINTS = {
   /** 获取所有配额配置 */
-  QUOTAS: '/api/tier/quotas',
+  QUOTAS: '/tier/quotas',
   /** 获取当前用户等级和配额 */
-  MY_QUOTA: '/api/tier/my-quota',
+  MY_QUOTA: '/tier/my-quota',
   /** 更新用户等级（管理员） */
-  UPDATE_USER: (userId: string) => `/api/tier/update/${userId}`,
+  UPDATE_USER: (userId: string) => `/tier/update/${userId}`,
   /** 设置自定义配额（管理员） */
-  CUSTOM_QUOTA: (userId: string) => `/api/tier/custom-quota/${userId}`,
+  CUSTOM_QUOTA: (userId: string) => `/tier/custom-quota/${userId}`,
   /** 获取用户资源使用统计 */
-  USAGE_STATS: (userId: string) => `/api/tier/usage-stats/${userId}`,
+  USAGE_STATS: (userId: string) => `/tier/usage-stats/${userId}`,
   /** 获取所有用户等级列表（管理员） */
-  USERS: '/api/tier/users',
+  USERS: '/tier/users',
 } as const
 
 /**
@@ -247,15 +255,15 @@ export const TIER_ENDPOINTS = {
  */
 export const SNAPSHOT_ENDPOINTS = {
   /** 获取用户快照列表 */
-  LIST: '/api/snapshots',
+  LIST: '/snapshots',
   /** 创建新快照 */
-  CREATE: '/api/snapshots',
+  CREATE: '/snapshots',
   /** 获取快照详情 */
-  DETAIL: (snapshotId: string) => `/api/snapshots/${snapshotId}`,
+  DETAIL: (snapshotId: string) => `/snapshots/${snapshotId}`,
   /** 删除快照 */
-  DELETE: (snapshotId: string) => `/api/snapshots/${snapshotId}`,
+  DELETE: (snapshotId: string) => `/snapshots/${snapshotId}`,
   /** 恢复快照 */
-  RESTORE: (snapshotId: string) => `/api/snapshots/${snapshotId}/restore`,
+  RESTORE: (snapshotId: string) => `/snapshots/${snapshotId}/restore`,
 } as const
 
 /**
@@ -263,19 +271,19 @@ export const SNAPSHOT_ENDPOINTS = {
  */
 export const EXPORT_ENDPOINTS = {
   /** 导出为 Markdown */
-  MARKDOWN: '/api/export/markdown',
+  MARKDOWN: '/export/markdown',
   /** 导出为 HTML */
-  HTML: '/api/export/html',
+  HTML: '/export/html',
   /** 导出为 JSON */
-  JSON: '/api/export/json',
+  JSON: '/export/json',
   /** 分享会话 */
-  SHARE: '/api/share',
+  SHARE: '/share',
   /** 获取分享内容 */
-  SHARE_DETAIL: (shareCode: string) => `/api/share/${shareCode}`,
+  SHARE_DETAIL: (shareCode: string) => `/share/${shareCode}`,
   /** 删除分享 */
-  SHARE_DELETE: (shareId: string) => `/api/share/${shareId}`,
+  SHARE_DELETE: (shareId: string) => `/share/${shareId}`,
   /** 获取用户分享列表 */
-  SHARE_LIST: '/api/share/user/list',
+  SHARE_LIST: '/share/user/list',
 } as const
 
 /**
@@ -283,23 +291,23 @@ export const EXPORT_ENDPOINTS = {
  */
 export const DEPLOYMENT_ENDPOINTS = {
   /** 创建部署 */
-  CREATE: '/api/deployments',
+  CREATE: '/deployments',
   /** 获取部署列表 */
-  LIST: '/api/deployments',
+  LIST: '/deployments',
   /** 获取部署详情 */
-  DETAIL: (projectId: string) => `/api/deployments/${projectId}`,
+  DETAIL: (projectId: string) => `/deployments/${projectId}`,
   /** 启动部署 */
-  START: (projectId: string) => `/api/deployments/${projectId}/start`,
+  START: (projectId: string) => `/deployments/${projectId}/start`,
   /** 停止部署 */
-  STOP: (projectId: string) => `/api/deployments/${projectId}/stop`,
+  STOP: (projectId: string) => `/deployments/${projectId}/stop`,
   /** 重启部署 */
-  RESTART: (projectId: string) => `/api/deployments/${projectId}/restart`,
+  RESTART: (projectId: string) => `/deployments/${projectId}/restart`,
   /** 删除部署 */
-  DELETE: (projectId: string) => `/api/deployments/${projectId}`,
+  DELETE: (projectId: string) => `/deployments/${projectId}`,
   /** 获取部署日志 */
-  LOGS: (projectId: string) => `/api/deployments/${projectId}/logs`,
+  LOGS: (projectId: string) => `/deployments/${projectId}/logs`,
   /** 获取部署状态 */
-  STATUS: (projectId: string) => `/api/deployments/${projectId}/status`,
+  STATUS: (projectId: string) => `/deployments/${projectId}/status`,
 } as const
 
 /**
@@ -307,15 +315,15 @@ export const DEPLOYMENT_ENDPOINTS = {
  */
 export const EXTERNAL_ACCESS_ENDPOINTS = {
   /** 创建域名 */
-  CREATE_DOMAIN: '/api/external-access/domain',
+  CREATE_DOMAIN: '/external-access/domain',
   /** 验证域名 */
-  VERIFY_DOMAIN: '/api/external-access/domain/verify',
+  VERIFY_DOMAIN: '/external-access/domain/verify',
   /** 配置 SSL */
-  SSL: '/api/external-access/ssl',
+  SSL: '/external-access/ssl',
   /** 创建隧道 */
-  TUNNEL: '/api/external-access/tunnel',
+  TUNNEL: '/external-access/tunnel',
   /** 配置代理 */
-  PROXY: '/api/external-access/proxy',
+  PROXY: '/external-access/proxy',
 } as const
 
 /**
@@ -323,21 +331,21 @@ export const EXTERNAL_ACCESS_ENDPOINTS = {
  */
 export const CONTAINER_ADMIN_ENDPOINTS = {
   /** 获取容器列表 */
-  LIST: '/api/admin/containers',
+  LIST: '/admin/containers',
   /** 获取容器详情 */
-  DETAIL: (containerId: string) => `/api/admin/containers/${containerId}`,
+  DETAIL: (containerId: string) => `/admin/containers/${containerId}`,
   /** 启动容器 */
-  START: (containerId: string) => `/api/admin/containers/${containerId}/start`,
+  START: (containerId: string) => `/admin/containers/${containerId}/start`,
   /** 停止容器 */
-  STOP: (containerId: string) => `/api/admin/containers/${containerId}/stop`,
+  STOP: (containerId: string) => `/admin/containers/${containerId}/stop`,
   /** 重启容器 */
-  RESTART: (containerId: string) => `/api/admin/containers/${containerId}/restart`,
+  RESTART: (containerId: string) => `/admin/containers/${containerId}/restart`,
   /** 删除容器 */
-  DELETE: (containerId: string) => `/api/admin/containers/${containerId}`,
+  DELETE: (containerId: string) => `/admin/containers/${containerId}`,
   /** 清理容器 */
-  PRUNE: '/api/admin/containers/prune',
+  PRUNE: '/admin/containers/prune',
   /** 获取容器池统计 */
-  POOL_STATS: '/api/admin/pool/stats',
+  POOL_STATS: '/admin/pool/stats',
 } as const
 
 /**
@@ -348,6 +356,7 @@ export const API_ENDPOINTS = {
   SESSION: SESSION_ENDPOINTS,
   WORKDIR: WORKDIR_ENDPOINTS,
   AGENT: AGENT_ENDPOINTS,
+  MODEL: MODEL_ENDPOINTS,
   TOOL: TOOL_ENDPOINTS,
   MCP: MCP_ENDPOINTS,
   MONITORING: MONITORING_ENDPOINTS,

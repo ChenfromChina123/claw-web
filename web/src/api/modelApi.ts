@@ -3,6 +3,7 @@
  */
 
 import apiClient from './client'
+import { API_ENDPOINTS } from './endpoints'
 
 export interface Model {
   id: string
@@ -16,7 +17,7 @@ export const modelApi = {
    * 获取所有可用模型列表
    */
   async listModels(): Promise<Model[]> {
-    const res = await apiClient.get<{ models: Model[] }>('/models')
+    const res = await apiClient.get<{ models: Model[] }>(API_ENDPOINTS.MODELS)
     const body = res.data as { success?: boolean; data?: { models: Model[] }; models?: Model[] }
     if (body?.success === false) return []
     return (body?.data?.models ?? body?.models) ?? []

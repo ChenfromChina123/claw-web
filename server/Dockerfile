@@ -10,7 +10,10 @@
 # 支持构建参数：ENTRY_POINT=master 或 worker
 ARG ENTRY_POINT=master
 
-# 构建阶段
+# ==================== Docker CLI 阶段 ====================
+FROM docker:cli AS docker-cli
+
+# ==================== 构建阶段 ====================
 FROM oven/bun:1 AS builder
 
 WORKDIR /app
@@ -18,25 +21,28 @@ WORKDIR /app
 # 根据 ENTRY_POINT 参数复制对应的源代码和共享模块
 COPY server/src/${ENTRY_POINT}/ ./src/
 COPY server/src/shared/ ./src/shared/
-COPY server/package.json server/bun.lockb* ./
+COPY server/package.json server/bun.lock* ./
 
 # 安装生产依赖
-RUN if [ -f bun.lockb ]; then bun install --production; fi
+RUN if [ -f bun.lock ]; then bun install --production; fi
 
-# ==================== 生产阶段 ====================
-FROM oven/bun:1-slim AS production
+# ==================== Master 生产阶段 ====================
+FROM debian:bookworm-slim AS production-master
 
-# 设置环境变量
-ENV NODE_ENV=production
-ENV TZ=Asia/Shanghai
-
-# 安装必要的系统依赖
-RUN apk add --no-cache \
+# 安装基础工具和 Bun
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    tzdata \
-    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
-    && echo "Asia/Shanghai" > /etc/timezone \
-    && rm -rf /var/cache/apk/*
+    ca-certificates \
+    gnupg \
+    unzip \
+    && curl -fsSL https://bun.sh/install | bash \
+    && cp /root/.bun/bin/bun /usr/local/bin/ \
+    && rm -rf /var/lib/apt/lists/*
+
+# 复制 docker CLI 到容器中
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker-cli /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+RUN chmod +x /usr/local/bin/docker
 
 WORKDIR /app
 
@@ -44,20 +50,42 @@ WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/src ./src
 
-# 根据 ENTRY_POINT 复制对应的 tsconfig
-COPY --from=builder /app/src/tsconfig.build.json ./src/tsconfig.json 2>/dev/null || true
+# 创建必要目录
+RUN mkdir -p /app/logs /app/workspaces/users
+
+# 暴露端口
+EXPOSE 3000 4000
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
+CMD ["bun", "run", "src/index.ts"]
+
+# ==================== Worker 生产阶段 ====================
+FROM oven/bun:1 AS production-worker
+
+# Debian 使用 apt-get 安装工具
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+# 设置环境变量
+ENV NODE_ENV=production
+ENV TZ=Asia/Shanghai
+
+WORKDIR /app
+
+# 从构建阶段复制产物
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/src ./src
 
 # 创建必要目录
 RUN mkdir -p /app/logs /app/workspaces/users
 
 # 暴露端口
-# - 3000: Master 公共 API 端口
-# - 4000: Worker Internal API 端口
 EXPOSE 3000 4000
 
-# 健康检查（根据角色使用不同端点）
+# 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-3000}${HEALTH_PATH:-/api/health} || exit 1
+    CMD curl -f http://localhost:3000/api/health || exit 1
 
-# 默认启动命令（通过 docker-compose 覆盖）
 CMD ["bun", "run", "src/index.ts"]

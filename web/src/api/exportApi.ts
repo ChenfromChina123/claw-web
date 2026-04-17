@@ -3,6 +3,7 @@
  */
 
 import apiClient from './client'
+import { EXPORT_ENDPOINTS } from './endpoints'
 
 export interface ShareInfo {
   shareId: string
@@ -29,21 +30,21 @@ export interface ExportOptions {
 }
 
 export async function exportAsMarkdown(options: ExportOptions): Promise<Blob> {
-  const response = await apiClient.post('/api/export/markdown', options, {
+  const response = await apiClient.post(EXPORT_ENDPOINTS.MARKDOWN, options, {
     responseType: 'blob',
   })
   return response.data
 }
 
 export async function exportAsHtml(options: ExportOptions): Promise<Blob> {
-  const response = await apiClient.post('/api/export/html', options, {
+  const response = await apiClient.post(EXPORT_ENDPOINTS.HTML, options, {
     responseType: 'blob',
   })
   return response.data
 }
 
 export async function exportAsJson(options: ExportOptions): Promise<Blob> {
-  const response = await apiClient.post('/api/export/json', options, {
+  const response = await apiClient.post(EXPORT_ENDPOINTS.JSON, options, {
     responseType: 'blob',
   })
   return response.data
@@ -54,7 +55,7 @@ export async function createShare(
   title?: string,
   expiresInHours?: number
 ): Promise<ShareInfo> {
-  const response = await apiClient.post('/api/share', {
+  const response = await apiClient.post(EXPORT_ENDPOINTS.SHARE, {
     sessionId,
     title,
     expiresInHours,
@@ -70,16 +71,16 @@ export async function getSharedSession(shareCode: string): Promise<{
   createdAt: string
   expiresAt: string | null
 }> {
-  const response = await apiClient.get(`/api/share/${shareCode}`)
+  const response = await apiClient.get(EXPORT_ENDPOINTS.SHARE_DETAIL(shareCode))
   return response.data.data
 }
 
 export async function deleteShare(shareId: string): Promise<void> {
-  await apiClient.delete(`/api/share/${shareId}`)
+  await apiClient.delete(EXPORT_ENDPOINTS.SHARE_DELETE(shareId))
 }
 
 export async function getUserShares(): Promise<SharedSession[]> {
-  const response = await apiClient.get('/api/share/user/list')
+  const response = await apiClient.get(EXPORT_ENDPOINTS.SHARE_LIST)
   return response.data.data.shares
 }
 

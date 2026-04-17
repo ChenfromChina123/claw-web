@@ -12,9 +12,13 @@
  * - 此模块仅用于 wsBridge 的连接清理回调兼容
  */
 
-import { wsPTYBridge } from './wsPTYBridge'
+// ==================== PTY Manager (Master 端纯转发层) ====================
 
-// ==================== Types ====================
+// 懒加载 wsPTYBridge 以避免循环依赖
+const getWsPTYBridge = () => {
+  const { wsPTYBridge } = require('./wsPTYBridge')
+  return wsPTYBridge
+}
 
 export interface PTYSession {
   id: string
@@ -140,7 +144,7 @@ export class PTYSessionManager {
    */
   destroyConnectionSessions(connectionId: string): number {
     // 通知 wsPTYBridge 清理该连接的会话
-    wsPTYBridge.cleanupConnection(connectionId)
+    getWsPTYBridge().cleanupConnection(connectionId)
     console.log(`[PTY] 清理连接 ${connectionId} 的所有会话`)
     return 0
   }

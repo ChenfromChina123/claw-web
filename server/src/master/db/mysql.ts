@@ -134,10 +134,8 @@ export async function initDatabase(): Promise<void> {
     await tempPool.query(`USE \`${config.database}\``)
     console.log(`Using database ${config.database}`)
 
-    // 使用 __dirname 获取当前文件所在目录，然后向上查找
-    const currentDir = __dirname // server/src/db/
-    const projectRoot = resolve(currentDir, '..', '..') // server/
-    const schemaPath = join(projectRoot, 'src', 'db', 'schema.sql')
+    // 使用 __dirname 获取当前文件所在目录，schema.sql 与当前文件在同一目录
+    const schemaPath = join(__dirname, 'schema.sql')
     const schema = readFileSync(schemaPath, 'utf-8')
 
     const statements = schema.split(';').filter(s => s.trim())
