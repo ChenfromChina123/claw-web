@@ -8,6 +8,7 @@
  */
 
 import * as pty from 'node-pty'
+import * as fs from 'fs'
 import { generateRequestId } from '../../shared/utils'
 
 export interface PTYSession {
@@ -39,8 +40,23 @@ export class WorkerPTYManager {
     const sessionId = generateRequestId()
     const cols = options.cols || 120
     const rows = options.rows || 30
-    const cwd = options.cwd || '/workspace'
+    const defaultCwd = '/workspace'
+    let cwd = options.cwd || defaultCwd
+    
+    // 确保 cwd 存在，如果不存在则使用默认值
+    try {
+      if (!fs.existsSync(cwd)) {
+        console.warn(`[PTY Manager] cwd ${cwd} 不存在，使用默认值 ${defaultCwd}`)
+        cwd = defaultCwd
+      }
+    } catch (error) {
+      console.warn(`[PTY Manager] 检查 cwd 失败，使用默认值 ${defaultCwd}`)
+      cwd = defaultCwd
+    }
+    
     const shell = options.shell || (process.platform === 'win32' ? 'cmd.exe' : '/bin/bash')
+
+    console.log(`[PTY Manager] 创建 PTY: userId=${userId}, shell=${shell}, cwd=${cwd}, cols=${cols}, rows=${rows}`)
 
     const ptyProcess = pty.spawn(shell, [], {
       name: 'xterm-256color',
