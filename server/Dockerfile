@@ -16,10 +16,14 @@ FROM docker:cli AS docker-cli
 # ==================== 构建阶段 ====================
 FROM oven/bun:1 AS builder
 
+ARG ENTRY_POINT=master
+
 WORKDIR /app
 
-# 根据 ENTRY_POINT 参数复制对应的源代码和共享模块
-COPY server/src/${ENTRY_POINT}/ ./src/
+# 先复制两套源码到临时目录，再根据 ENTRY_POINT 选择
+COPY server/src/master/ /tmp/master-src/
+COPY server/src/worker/ /tmp/worker-src/
+RUN mkdir -p ./src && if [ "$ENTRY_POINT" = "worker" ]; then cp -r /tmp/worker-src/* ./src/; else cp -r /tmp/master-src/* ./src/; fi && rm -rf /tmp/master-src /tmp/worker-src
 COPY server/src/shared/ ./src/shared/
 COPY server/package.json server/bun.lock* ./
 
@@ -46,7 +50,8 @@ RUN chmod +x /usr/local/bin/docker
 
 WORKDIR /app
 
-# 从构建阶段复制产物
+# 从构建阶段复制产物（CACHE_BUST: 随 ENTRY_POINT 变化而失效）
+ARG CACHE_BUST=master
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/src ./src
 

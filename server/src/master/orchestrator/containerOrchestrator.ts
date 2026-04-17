@@ -1119,6 +1119,7 @@ class ContainerOrchestrator {
       `-e MASTER_PORT=${process.env.MASTER_PORT || '3000'}`,
       `-e HOST=0.0.0.0`,
       `-e PORT=3000`,
+      `-e WORKER_INTERNAL_PORT=3000`,
       `-e PTY_ENABLED=${process.env.PTY_ENABLED || 'true'}`
     ]
 
