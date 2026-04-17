@@ -9,6 +9,9 @@ let wsListenersAttached = false
 
 const LAST_SESSION_KEY = 'lastSessionId'
 
+/** 避免重复调用 createSession 的锁 */
+let isCreatingSession = false
+
 export const useChatStore = defineStore('chat', () => {
   const sessions = ref<Session[]>([])
   // 从 localStorage 恢复上次选中的会话 ID，服务重启后自动恢复
@@ -457,42 +460,80 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
-   * 创建新会话
+   * 创建新会话（带防抖保护）
    * @param title 会话标题
    * @param model 使用的模型
    * @param force 是否强制创建（跳过验证）
    * @returns Promise，在会话创建成功后 resolve
    * @throws 如果当前会话没有消息且未强制创建，抛出错误
+   *
+   * 防抖说明：
+   * - 使用模块级 isCreatingSession 锁防止并发创建
+   * - 同一时间只允许一个创建请求
+   * - 如果创建中再次调用，等待第一个完成或返回第一个 Promise
    */
   function createSession(title?: string, model?: string, force?: boolean): Promise<void> {
+    // 如果已经在创建中，等待第一个完成
+    if (isCreatingSession) {
+      console.log('[ChatStore] createSession already in progress, waiting for completion...')
+      return new Promise((resolve, reject) => {
+        const checkInterval = setInterval(() => {
+          if (!isCreatingSession) {
+            clearInterval(checkInterval)
+            // 检查会话是否已创建成功
+            if (sessions.value.length > 0) {
+              resolve()
+            } else {
+              reject(new Error('创建会话失败'))
+            }
+          }
+        }, 100)
+        setTimeout(() => {
+          clearInterval(checkInterval)
+          reject(new Error('创建会话超时'))
+        }, 10000)
+      })
+    }
+
     // 如果不是强制创建，检查当前会话是否有消息
     if (!force && messages.value.length === 0) {
       return Promise.reject(new Error('当前会话没有消息，无法创建新会话'))
     }
-    
+
+    isCreatingSession = true
+    console.log('[ChatStore] Starting createSession, isCreatingSession set to true')
+
     return new Promise((resolve, reject) => {
       const timeout = 10000
       let timeoutId: ReturnType<typeof setTimeout> | null = null
       let resolved = false
-      
-      const unsubscribe = wsClient.on('session_created', () => {
+
+      const cleanup = () => {
         if (resolved) return
         resolved = true
+        isCreatingSession = false
+        console.log('[ChatStore] createSession finished, isCreatingSession set to false')
         if (timeoutId) {
           clearTimeout(timeoutId)
         }
         unsubscribe()
+      }
+
+      const unsubscribe = wsClient.on('session_created', () => {
+        cleanup()
         resolve()
       })
-      
+
       timeoutId = setTimeout(() => {
-        if (resolved) return
-        resolved = true
-        unsubscribe()
+        cleanup()
         reject(new Error('创建会话超时'))
       }, timeout)
-      
+
       wsClient.createSession(title, model, force)
+    }).finally(() => {
+      // 确保 finally 中也清理锁（防止异常情况）
+      isCreatingSession = false
+      console.log('[ChatStore] createSession promise settled, isCreatingSession cleared')
     })
   }
 
