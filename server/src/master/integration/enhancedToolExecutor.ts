@@ -357,16 +357,19 @@ export class EnhancedToolExecutor {
 
 // ==================== 单例模式 ====================
 
-let toolExecutor: EnhancedToolExecutor | null = null
+/**
+ * 内部单例实例（私有）
+ */
+let _toolExecutorInstance: EnhancedToolExecutor | null = null
 
 /**
  * 获取 EnhancedToolExecutor 单例实例
  */
 export function getToolExecutor(projectRoot?: string): EnhancedToolExecutor {
-  if (!toolExecutor) {
-    toolExecutor = new EnhancedToolExecutor(projectRoot)
+  if (!_toolExecutorInstance) {
+    _toolExecutorInstance = new EnhancedToolExecutor(projectRoot)
   }
-  return toolExecutor
+  return _toolExecutorInstance
 }
 
 // 导出类型供其他模块使用
@@ -374,7 +377,7 @@ export type { ToolDefinition, ToolExecutionContext, ToolResult, UserPermissions,
 
 /**
  * 获取或创建 EnhancedToolExecutor 单例实例
- * 提供便捷的命名导出供外部使用
+ * 提供便捷的命名导出供外部模块直接导入使用
  */
 export const toolExecutor = getToolExecutor()
 
