@@ -87,6 +87,28 @@ function normalizeForXterm(s: string): string {
   return s.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n')
 }
 
+// 输出缓冲区：批量写入避免光标位置混乱
+let outputBuffer = ''
+let outputFlushScheduled = false
+
+/**
+ * 安全地写入终端（带缓冲）
+ * 使用 requestAnimationFrame 批量写入，减少 xterm.js 光标重算次数
+ */
+function safeTermWrite(term: Terminal, data: string): void {
+  outputBuffer += data
+  if (!outputFlushScheduled) {
+    outputFlushScheduled = true
+    requestAnimationFrame(() => {
+      if (outputBuffer) {
+        term.write(outputBuffer)
+        outputBuffer = ''
+      }
+      outputFlushScheduled = false
+    })
+  }
+}
+
 function appendToPersistentLog(chunk: string): void {
   if (!chunk) return
   accumulatedLog.value += chunk
@@ -115,11 +137,12 @@ watch(
     if (!t) return
     t.clear()
     if (accumulatedLog.value.trim()) {
-      t.writeln('\x1b[2;37m—— 已加载该对话保存的终端记录 ——\x1b[0m')
-      t.write(normalizeForXterm(accumulatedLog.value))
+      safeTermWrite(t, '\x1b[2;37m—— 已加载该对话保存的终端记录 ——\x1b[0m\r\n')
+      safeTermWrite(t, normalizeForXterm(accumulatedLog.value))
     }
     if (props.connectToBackend && connectionStatus.value === 'connected') {
-      t.writeln(
+      safeTermWrite(
+        t,
         `\x1b[36m[会话 ${(newId || '…').slice(0, 8)}…] 后端 Shell 连接未断开；上方为本地保存记录。\x1b[0m\r\n`
       )
     }
@@ -158,7 +181,8 @@ function handleAgentToolProgress(data: unknown): void {
     tn === 'PowerShell' ||
     /^\$ /.test(d.output)
   if (!isShell) return
-  term.value.write(normalizeForXterm(d.output))
+  // 统一使用规范化后的换行符，确保光标同步
+  safeTermWrite(term.value, normalizeForXterm(d.output))
   appendToPersistentLog(d.output)
 }
 
@@ -168,15 +192,18 @@ const pty = usePTY({
   cwd: props.defaultCwd,
   onOutput: (data: string, type: 'stdout' | 'stderr' | 'exit', exitCode?: number) => {
     if (term.value) {
+      const t = term.value
       if (type === 'stderr') {
-        term.value.writeln(`\x1b[31m${data}\x1b[0m`)
+        // 使用 write + \r\n 而非 writeln，确保光标回到行首
+        safeTermWrite(t, `\x1b[31m${normalizeForXterm(data)}\x1b[0m\r\n`)
         appendToPersistentLog(data)
       } else if (type === 'exit') {
-        term.value.writeln(`\r\n\x1b[33m[Process exited with code ${exitCode ?? 0}]\x1b[0m`)
+        safeTermWrite(t, `\r\n\x1b[33m[Process exited with code ${exitCode ?? 0}]\x1b[0m\r\n`)
         appendToPersistentLog(`\n[Process exited with code ${exitCode ?? 0}]\n`)
         connectionStatus.value = 'disconnected'
       } else {
-        term.value.write(data)
+        // 规范化换行符后写入
+        safeTermWrite(t, normalizeForXterm(data))
         appendToPersistentLog(data)
       }
     }
@@ -424,30 +451,30 @@ async function initTerminal(): Promise<void> {
  */
 function initLocalMode(t: Terminal): void {
   if (accumulatedLog.value.trim()) {
-    t.writeln('\x1b[2;37m—— 本地保存的终端记录 ——\x1b[0m')
-    t.write(normalizeForXterm(accumulatedLog.value))
-    t.writeln('')
+    safeTermWrite(t, '\x1b[2;37m—— 本地保存的终端记录 ——\x1b[0m\r\n')
+    safeTermWrite(t, normalizeForXterm(accumulatedLog.value))
+    safeTermWrite(t, '\r\n')
   } else {
-    t.writeln(`${PROMPT}\x1b[37mnpm install --silent\x1b[0m`)
-    t.writeln('\x1b[2;37m... fetching packages from registry\x1b[0m')
-    t.writeln('')
-    t.writeln(`${PROMPT}ls -la`)
-    t.writeln(
-      'drwxr-xr-x  \x1b[34mconfig/\x1b[0m  \x1b[34mdata/\x1b[0m  \x1b[34mskills/\x1b[0m'
+    safeTermWrite(t, `${PROMPT}\x1b[37mnpm install --silent\x1b[0m\r\n`)
+    safeTermWrite(t, '\x1b[2;37m... fetching packages from registry\x1b[0m\r\n')
+    safeTermWrite(t, '\r\n')
+    safeTermWrite(t, `${PROMPT}ls -la\r\n`)
+    safeTermWrite(
+      'drwxr-xr-x  \x1b[34mconfig/\x1b[0m  \x1b[34mdata/\x1b[0m  \x1b[34mskills/\x1b[0m\r\n'
     )
   }
-  t.write(`\r\n${PROMPT}`)
+  safeTermWrite(t, `\r\n${PROMPT}`)
 
   let line = ''
 
   t.onData((data: string) => {
     if (data === '\r') {
-      t.writeln('')
+      safeTermWrite(t, '\r\n')
       if (line.trim()) {
-        t.writeln(`\x1b[2;37m(local demo) ${line}\x1b[0m`)
+        safeTermWrite(t, `\x1b[2;37m(local demo) ${line}\x1b[0m\r\n`)
       }
       line = ''
-      t.write(PROMPT)
+      safeTermWrite(t, PROMPT)
       return
     }
     if (data === '\u007f' || data === '\b') {
@@ -469,8 +496,8 @@ function initLocalMode(t: Terminal): void {
 async function initBackendMode(t: Terminal): Promise<void> {
   const connected = await connectToPTY()
   if (!connected) {
-    t.writeln(`\x1b[31mFailed to connect: ${errorMessage.value || 'Unknown error'}\x1b[0m`)
-    t.writeln('\x1b[33mFalling back to local mode...\x1b[0m')
+    safeTermWrite(t, `\x1b[31mFailed to connect: ${errorMessage.value || 'Unknown error'}\x1b[0m\r\n`)
+    safeTermWrite(t, '\x1b[33mFalling back to local mode...\x1b[0m\r\n')
     connectionStatus.value = 'disconnected'
     // 回退到本地模式
     initLocalMode(t)
@@ -479,9 +506,9 @@ async function initBackendMode(t: Terminal): Promise<void> {
 
   t.clear()
   if (accumulatedLog.value.trim()) {
-    t.writeln('\x1b[2;37m—— 本地保存的终端记录 ——\x1b[0m')
-    t.write(normalizeForXterm(accumulatedLog.value))
-    t.writeln('')
+    safeTermWrite(t, '\x1b[2;37m—— 本地保存的终端记录 ——\x1b[0m\r\n')
+    safeTermWrite(t, normalizeForXterm(accumulatedLog.value))
+    safeTermWrite(t, '\r\n')
   }
 
   // 设置数据处理 - 发送到后端
@@ -547,10 +574,10 @@ function clearTerminal(): void {
   flushPersistentLog()
   if (props.connectToBackend && connectionStatus.value === 'connected') {
     // 后端模式显示提示
-    t.writeln(`\x1b[32m[Terminal cleared]\x1b[0m`)
+    safeTermWrite(t, `\x1b[32m[Terminal cleared]\x1b[0m\r\n`)
   } else {
     // 本地模式显示提示
-    t.write(PROMPT)
+    safeTermWrite(t, PROMPT)
   }
 }
 
@@ -633,14 +660,14 @@ async function onNewSession(): Promise<void> {
     // 后端模式：先显示新会话提示
     const t = term.value
     if (t) {
-      t.writeln('\x1b[36m[Starting new session...]\x1b[0m')
+      safeTermWrite(t, '\x1b[36m[Starting new session...]\x1b[0m\r\n')
     }
 
     // 连接 PTY
     const connected = await connectToPTY()
     if (connected && term.value) {
-      term.value.writeln(`\x1b[32m[New session started]\x1b[0m`)
-      term.value.writeln('')  // 空行
+      safeTermWrite(term.value, '\x1b[32m[New session started]\x1b[0m\r\n')
+      safeTermWrite(term.value, '\r\n')  // 空行
     }
   } else {
     // 本地模式：显示提示符
@@ -686,8 +713,8 @@ defineExpose({
       void sendToPTY(command + '\r')
     } else {
       // 本地模式：本地回显
-      t.writeln(`${PROMPT}\x1b[37m${command.replace(/\r?\n/g, '')}\x1b[0m`)
-      t.write(PROMPT)
+      safeTermWrite(t, `${PROMPT}\x1b[37m${command.replace(/\r?\n/g, '')}\x1b[0m\r\n`)
+      safeTermWrite(t, PROMPT)
     }
   },
 

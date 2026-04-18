@@ -58,6 +58,36 @@ const shellToolIds = new Set<string>()
 let inputBuffer = ''
 const isWindowsPlatform = navigator.platform.includes('Win')
 
+// 输出缓冲区：批量写入避免光标位置混乱
+let outputBuffer = ''
+let outputFlushScheduled = false
+
+/**
+ * 规范化终端输出的换行符
+ * 确保 \r\n 配对完整，避免光标位置不同步
+ */
+function normalizeTerminalOutput(data: string): string {
+  return data.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n')
+}
+
+/**
+ * 安全地写入终端（带缓冲）
+ * 使用 requestAnimationFrame 批量写入，减少 xterm.js 光标重算次数
+ */
+function safeTermWrite(term: Terminal, data: string): void {
+  outputBuffer += data
+  if (!outputFlushScheduled) {
+    outputFlushScheduled = true
+    requestAnimationFrame(() => {
+      if (outputBuffer) {
+        term.write(outputBuffer)
+        outputBuffer = ''
+      }
+      outputFlushScheduled = false
+    })
+  }
+}
+
 // 右键菜单状态
 const contextMenuVisible = ref(false)
 const contextMenuX = ref(0)
@@ -100,7 +130,8 @@ async function setupAgentMirror() {
       tn === 'PowerShell' ||
       /^\$ /.test(d.output)
     if (!isShell) return
-    term.value.write(d.output.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n'))
+    // 统一使用规范化后的换行符，确保光标同步
+    safeTermWrite(term.value, normalizeTerminalOutput(d.output))
   }
 
   wsUnsubs = [
@@ -121,30 +152,57 @@ const pty = usePTY({
   cwd: props.defaultCwd,
   onOutput: (data: string, type: 'stdout' | 'stderr' | 'exit', exitCode?: number) => {
     if (!term.value) return
+    const t = term.value
+
     if (type === 'stderr') {
-      term.value.writeln(`\x1b[31m${data}\x1b[0m`)
+      // 使用 write + \r\n 而非 writeln，确保光标回到行首
+      safeTermWrite(t, `\x1b[31m${normalizeTerminalOutput(data)}\x1b[0m\r\n`)
     } else if (type === 'exit') {
-      term.value.writeln(`\r\n\x1b[33m[Process exited with code ${exitCode ?? 0}]\x1b[0m`)
+      safeTermWrite(t, `\r\n\x1b[33m[Process exited with code ${exitCode ?? 0}]\x1b[0m\r\n`)
       connectionStatus.value = 'disconnected'
     } else {
-      // Windows 平台：过滤掉空行
-      if (isWindowsPlatform) {
-        const lines = data.split('\n')
-        const filteredLines = lines.filter((line: string) => {
-          const trimmed = line.trim()
-          // 过滤掉空行
-          if (!trimmed) return false
-          return true
-        })
-        if (filteredLines.length === 0) return
-        data = filteredLines.join('\n')
+      // 规范化换行符，确保 \r\n 配对完整
+      let normalizedData = normalizeTerminalOutput(data)
+
+      // Windows 平台：智能过滤空行（保留格式）
+      if (isWindowsPlatform && normalizedData) {
+        // 按行分割时保留 \r
+        const lines = normalizedData.split('\n')
+        const processedLines: string[] = []
+
+        for (const line of lines) {
+          // 移除行尾的 \r 用于检查，但保留原始内容
+          const lineContent = line.replace(/\r$/, '')
+          // 只过滤纯空行（可能由命令回显产生），保留包含空格的行
+          if (lineContent.trim() === '' && processedLines.length > 0) {
+            // 检查前一行是否也是空行，避免连续空行
+            const prevLine = processedLines[processedLines.length - 1].replace(/\r$/, '')
+            if (prevLine.trim() !== '') {
+              processedLines.push(line)
+            }
+          } else {
+            processedLines.push(line)
+          }
+        }
+
+        if (processedLines.length > 0) {
+          normalizedData = processedLines.join('\n')
+        } else {
+          return
+        }
       }
 
-      // 过滤掉输入回显（由前端本地回显）
-      if (isWindowsPlatform && inputBuffer.length > 0 && data.includes(inputBuffer)) {
-        return
+      // Windows 平台：改进的输入回显过滤
+      // 只过滤完全匹配输入缓冲区的纯回显，不过滤包含命令的正常输出
+      if (isWindowsPlatform && inputBuffer.length > 0) {
+        // 检查是否为纯输入回显（以 prompt 开头 + 输入内容）
+        const echoPattern = new RegExp(`^.*${inputBuffer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`)
+        if (echoPattern.test(normalizedData.trim())) {
+          return
+        }
       }
-      term.value.write(data)
+
+      safeTermWrite(t, normalizedData)
     }
   },
 })
@@ -253,18 +311,17 @@ async function initTerminal(): Promise<void> {
   // 初始化时，尝试连接后端 PTY
   // 即使 defaultCwd 为空，后端也会使用默认工作目录
   if (props.connectToBackend) {
-    t.writeln('\x1b[36mConnecting to backend shell...\x1b[0m')
+    safeTermWrite(t, '\x1b[36mConnecting to backend shell...\x1b[0m\r\n')
     await connectToPTY()
     if (connectionStatus.value === 'connected') {
       t.clear()
-      t.writeln(`\x1b[32mConnected to ${pty.session.value?.shell || 'shell'}\x1b[0m`)
-      t.writeln('')
+      safeTermWrite(t, `\x1b[32mConnected to ${pty.session.value?.shell || 'shell'}\x1b[0m\r\n\r\n`)
     } else {
-      t.writeln(`\x1b[31mFailed to connect: ${errorMessage.value || 'Unknown error'}\x1b[0m`)
+      safeTermWrite(t, `\x1b[31mFailed to connect: ${errorMessage.value || 'Unknown error'}\x1b[0m\r\n`)
       connectionStatus.value = 'disconnected'
     }
   } else {
-    t.writeln(`\x1b[2;37mLocal mode (no backend PTY)\x1b[0m`)
+    safeTermWrite(t, `\x1b[2;37mLocal mode (no backend PTY)\x1b[0m\r\n`)
     t.write('\r\n')
   }
 
@@ -469,15 +526,14 @@ watch(
     }
 
     // 连接到后端 PTY
-    t.writeln('\x1b[36mConnecting to backend shell...\x1b[0m')
+    safeTermWrite(t, '\x1b[36mConnecting to backend shell...\x1b[0m\r\n')
     await connectToPTY()
 
     if (connectionStatus.value === 'connected') {
       t.clear()
-      t.writeln(`\x1b[32mConnected to ${pty.session.value?.shell || 'shell'}\x1b[0m`)
-      t.writeln('')
+      safeTermWrite(t, `\x1b[32mConnected to ${pty.session.value?.shell || 'shell'}\x1b[0m\r\n\r\n`)
     } else if (connectionStatus.value === 'error' && t) {
-      t.writeln(`\x1b[31m${errorMessage.value || '连接失败'}\x1b[0m`)
+      safeTermWrite(t, `\x1b[31m${errorMessage.value || '连接失败'}\x1b[0m\r\n`)
     }
   },
   { flush: 'post' }
@@ -490,14 +546,14 @@ defineExpose({
   writeAgentOutput(text: string) {
     const t = term.value
     if (!t) return
-    t.write(text.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n'))
+    safeTermWrite(t, normalizeTerminalOutput(text))
   },
 
   /** 写入一行带前缀的命令 */
   writePromptLine(command: string, prompt = '\x1b[32m$\x1b[0m ') {
     const t = term.value
     if (!t) return
-    t.write(`\r\n${prompt}\x1b[37m${command}\x1b[0m`)
+    safeTermWrite(t, `\r\n${prompt}\x1b[37m${command}\x1b[0m`)
   },
 
   /** 获取 PTY sessionId */
