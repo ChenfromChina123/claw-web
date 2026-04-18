@@ -32,7 +32,7 @@ COPY server/package.json server/bun.lock* ./
 
 # ✅ 安装依赖（package.json 不变时复用缓存层）
 # node-pty 等原生模块在此阶段编译
-RUN if [ -f bun.lock ]; then bun install --production; else bun install --production; fi
+RUN if [ -f bun.lock ]; then bun install --production --frozen-lockfile=false; else bun install --production; fi
 
 # ✅ 再复制源代码（代码变化不影响依赖层缓存）
 COPY server/src/shared/ ./src/shared/
