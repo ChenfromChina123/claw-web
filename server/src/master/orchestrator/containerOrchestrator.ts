@@ -36,7 +36,7 @@ const userContainerLocks = new Map<string, { locked: boolean; timestamp: number 
 
 // ==================== ContainerOrchestrator 类 ====================
 
-class ContainerOrchestrator {
+export class ContainerOrchestrator {
   private config: Required<PoolConfig>
   private userMappings: Map<string, UserContainerMapping> = new Map()
   

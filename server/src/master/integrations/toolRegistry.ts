@@ -208,15 +208,25 @@ export class ToolRegistry {
   getAllTools(): RegisteredTool[] {
     const tools = new Map<string, RegisteredTool>()
     
-    for (const [sourceMap] of [
-      [this.builtinTools, 'builtin'],
-      [this.cliTools, 'cli'],
-      [this.mcpTools, 'mcp'],
-      [this.customTools, 'custom'],
-    ] as Array<[Map<string, RegisteredTool>, string]>) {
-      for (const tool of sourceMap[0].values()) {
-        if (!tools.has(tool.name)) {
-          tools.set(tool.name, tool)
+    // 安全的遍历方式（避免解构兼容性问题）
+    const sourceMaps = [
+      { map: this.builtinTools, name: 'builtin' },
+      { map: this.cliTools, name: 'cli' },
+      { map: this.mcpTools, name: 'mcp' },
+      { map: this.customTools, name: 'custom' }
+    ]
+    
+    for (const source of sourceMaps) {
+      // 检查 map 是否存在且是 Map 实例
+      if (source.map && typeof source.map.values === 'function') {
+        try {
+          for (const tool of source.map.values()) {
+            if (!tools.has(tool.name)) {
+              tools.set(tool.name, tool)
+            }
+          }
+        } catch (e) {
+          console.warn(`[ToolRegistry] 遍历 ${source.name} 工具失败:`, e)
         }
       }
     }

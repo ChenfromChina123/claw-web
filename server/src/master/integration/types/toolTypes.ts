@@ -174,3 +174,34 @@ export interface ToolDefinition {
   /** 权限配置 */
   permissions?: ToolPermissions
 }
+
+// ==================== 运行时类型元数据（供测试使用）====================
+
+/**
+ * 运行时类型信息
+ */
+export const _toolTypeMetadata = {
+  interfaces: [
+    'ToolExecutionContext',
+    'ToolResult',
+    'UserPermissions',
+    'SandboxConfig',
+    'ToolPermissions',
+    'ToolDefinition'
+  ],
+  typeAliases: [
+    'PermissionLevel',
+    'ToolCategory'
+  ],
+  constants: [
+    'DEFAULT_SANDBOX_CONFIG'
+  ]
+} as const
+
+// 为了兼容性，导出类型名称字符串（运行时可访问）
+export const ToolExecutionContext = 'ToolExecutionContext' as any
+export const ToolResult = 'ToolResult' as any
+export const UserPermissions = 'UserPermissions' as any
+export const SandboxConfig = 'SandboxConfig' as any
+export const ToolPermissions = 'ToolPermissions' as any
+export const ToolDefinition = 'ToolDefinition' as any

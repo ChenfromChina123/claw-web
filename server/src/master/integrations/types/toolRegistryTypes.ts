@@ -197,3 +197,41 @@ export const PERMISSION_LEVELS = {
   EXECUTE: 3,
   ADMIN: 4,
 } as const
+
+// ==================== 运行时类型元数据（供测试使用）====================
+
+/**
+ * 运行时类型信息
+ */
+export const _registryTypeMetadata = {
+  interfaces: [
+    'ToolRegistrationConfig',
+    'ToolDependency',
+    'ExecutionTimeoutConfig',
+    'RegisteredTool',
+    'ToolExecutionRequest',
+    'ToolExecutionResult',
+    'ToolExecutionEvent',
+    'ToolPermission',
+    'ToolRegistryConfig'
+  ],
+  typeAliases: [
+    'ToolLifecycleEvent',
+    'ToolCategoryId'
+  ],
+  constants: [
+    'TOOL_CATEGORIES',
+    'PERMISSION_LEVELS'
+  ]
+} as const
+
+// 为了兼容性，导出类型名称字符串（运行时可访问）
+export const ToolRegistrationConfig = 'ToolRegistrationConfig' as any
+export const ToolDependency = 'ToolDependency' as any
+export const ExecutionTimeoutConfig = 'ExecutionTimeoutConfig' as any
+export const RegisteredTool = 'RegisteredTool' as any
+export const ToolExecutionRequest = 'ToolExecutionRequest' as any
+export const ToolExecutionResult = 'ToolExecutionResult' as any
+export const ToolExecutionEvent = 'ToolExecutionEvent' as any
+export const ToolPermission = 'ToolPermission' as any
+export const ToolRegistryConfig = 'ToolRegistryConfig' as any

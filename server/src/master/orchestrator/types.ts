@@ -130,3 +130,33 @@ export function getWorkerInternalPort(): number {
   const { DEFAULT_WORKER_PORT } = require('../../shared/constants')
   return DEFAULT_WORKER_PORT
 }
+
+// ==================== 运行时类型元数据（供测试使用）====================
+
+/**
+ * 运行时类型信息（TypeScript 类型在编译后会被擦除，此对象保留类型名称用于验证）
+ */
+export const _typeMetadata = {
+  // 接口类型
+  interfaces: [
+    'ContainerInstance',
+    'UserContainerMapping',
+    'PoolConfig',
+    'OrchestratorResult'
+  ],
+  // 类型别名
+  typeAliases: [
+    'PermissionLevel',
+    'ToolCategory'
+  ],
+  // 常量
+  constants: [
+    'DEFAULT_POOL_CONFIG'
+  ]
+} as const
+
+// 为了兼容性，导出类型名称字符串（运行时可访问）
+export const ContainerInstance = 'ContainerInstance' as any
+export const UserContainerMapping = 'UserContainerMapping' as any
+export const PoolConfig = 'PoolConfig' as any
+export const OrchestratorResult = 'OrchestratorResult' as any
