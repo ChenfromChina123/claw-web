@@ -186,14 +186,38 @@ install_docker_centos() {
     # 安装 yum-utils
     yum install -y -q yum-utils
     
-    # 添加 Docker 仓库
-    yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    # 配置 Docker 镜像源（使用阿里云镜像加速）
+    log_info "配置 Docker 镜像源（阿里云）..."
+    yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
     
     # 安装 Docker
     yum install -y -q docker-ce docker-ce-cli containerd.io docker-compose-plugin
     
+    # 配置 Docker 使用国内镜像加速器
+    mkdir -p /etc/docker
+    cat > /etc/docker/daemon.json <<EOF
+{
+  "registry-mirrors": [
+    "https://docker.mirrors.ustc.edu.cn",
+    "https://hub-mirror.c.163.com",
+    "https://mirror.baidubce.com"
+  ],
+  "max-concurrent-downloads": 10,
+  "log-driver": "json-file",
+  "log-level": "warn",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "data-root": "/var/lib/docker"
+}
+EOF
+    
+    # 重启 Docker 使配置生效
+    systemctl daemon-reload
+    systemctl restart docker
+    
     # 启动并设置开机自启
-    systemctl start docker
     systemctl enable docker
 }
 
@@ -458,6 +482,26 @@ start_services() {
         docker rmi claw-web-master:latest 2>/dev/null || true
         docker rmi claw-web-backend-worker:latest 2>/dev/null || true
         docker rmi claw-web-frontend:latest 2>/dev/null || true
+    fi
+    
+    # 配置 Docker 镜像源（如果未配置）
+    if [[ ! -f /etc/docker/daemon.json ]]; then
+        log_info "配置 Docker 镜像加速器..."
+        mkdir -p /etc/docker
+        cat > /etc/docker/daemon.json <<EOF
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io",
+    "https://docker.1panel.live",
+    "https://hub.rat.dev",
+    "https://dhub.kubesre.xyz"
+  ],
+  "max-concurrent-downloads": 10
+}
+EOF
+        systemctl daemon-reload
+        systemctl restart docker
+        log_info "Docker 镜像源配置完成"
     fi
     
     # 构建并启动（不使用缓存确保最新代码）
