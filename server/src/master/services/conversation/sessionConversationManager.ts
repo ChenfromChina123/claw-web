@@ -9,6 +9,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { v4 as uuidv4 } from 'uuid'
 import { SessionManager } from '../sessionManager'
 import { toolExecutor, EnhancedToolExecutor } from '../../integration/enhancedToolExecutor'
@@ -58,6 +59,31 @@ export class SessionConversationManager {
     if (process.env.ANTHROPIC_BASE_URL) clientOptions.baseURL = process.env.ANTHROPIC_BASE_URL
 
     return new Anthropic(clientOptions)
+  }
+
+  /**
+   * 获取 OpenAI 兼容客户端实例（用于通义千问等）
+   */
+  private async getOpenAIClient(): Promise<OpenAI> {
+    const apiKey = process.env.QWEN_API_KEY || process.env.OPENAI_API_KEY
+    const baseURL = process.env.QWEN_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+
+    return new OpenAI({
+      apiKey,
+      baseURL,
+      timeout: parseInt(process.env.API_TIMEOUT_MS || String(300000), 10),
+    })
+  }
+
+  /**
+   * 检测当前使用的 LLM 提供商
+   */
+  private detectLLMProvider(): 'anthropic' | 'qwen' {
+    const provider = (process.env.LLM_PROVIDER || 'anthropic').toLowerCase()
+    if (provider === 'qwen' && (process.env.QWEN_API_KEY || process.env.OPENAI_API_KEY)) {
+      return 'qwen'
+    }
+    return 'anthropic'
   }
 
   /**
@@ -375,6 +401,7 @@ export class SessionConversationManager {
 
   /**
    * 调用 AI API 并处理流式响应
+   * 支持 Anthropic (Claude) 和 OpenAI 兼容接口（通义千问等）
    */
   private async callAIWithStream(
     sessionId: string,
@@ -384,12 +411,12 @@ export class SessionConversationManager {
     signal?: AbortSignal
   ): Promise<StreamResult> {
     const messages = sessionManager.getInMemorySession(sessionId)?.messages || []
-    const client = this.getAnthropicClient()
+    const provider = this.detectLLMProvider()
 
     let assistantText = ''
     let pendingToolCalls: Array<{ id: string; name: string; input: string }> = []
 
-    console.log(`[${sessionId}] Calling AI API with ${messages.length} messages`)
+    console.log(`[${sessionId}] Calling AI API with ${messages.length} messages (provider: ${provider}, model: ${model})`)
 
     // 获取工作区信息
     let workspaceSummary: string | null = null
@@ -413,6 +440,30 @@ export class SessionConversationManager {
       useGlobalCacheScope: true,
     })
     const systemPrompt = systemPromptSections.join('\n\n')
+
+    // 根据提供商选择不同的调用方式
+    if (provider === 'qwen') {
+      return await this.callQwenWithStream(sessionId, model, messages, systemPrompt, sessionManager, sendEvent, signal)
+    } else {
+      return await this.callAnthropicWithStream(sessionId, model, messages, systemPrompt, sessionManager, sendEvent, signal)
+    }
+  }
+
+  /**
+   * 使用 Anthropic SDK 调用 AI（Claude）
+   */
+  private async callAnthropicWithStream(
+    sessionId: string,
+    model: string,
+    messages: any[],
+    systemPrompt: string,
+    sessionManager: SessionManager,
+    sendEvent: EventSender,
+    signal?: AbortSignal
+  ): Promise<StreamResult> {
+    const client = this.getAnthropicClient()
+    let assistantText = ''
+    let pendingToolCalls: Array<{ id: string; name: string; input: string }> = []
 
     const streamParams = {
       model,
@@ -445,7 +496,7 @@ export class SessionConversationManager {
               const toolName = event.content_block.name || ''
               console.log(`[${sessionId}] Tool use started: ${toolName}`)
               pendingToolCalls.push({ id: toolId, name: toolName, input: '' })
-              
+
               sendEvent('tool_use', { id: toolId, name: toolName })
             }
             break
@@ -458,9 +509,9 @@ export class SessionConversationManager {
               if (pendingToolCalls.length > 0) {
                 const lastTool = pendingToolCalls[pendingToolCalls.length - 1]
                 lastTool.input += event.delta.partial_json
-                sendEvent('tool_input_delta', { 
-                  id: lastTool.id, 
-                  partial_json: event.delta.partial_json 
+                sendEvent('tool_input_delta', {
+                  id: lastTool.id,
+                  partial_json: event.delta.partial_json
                 })
               }
             }
@@ -480,6 +531,34 @@ export class SessionConversationManager {
             break
         }
       }
+
+      // 解析工具调用
+      const finalMessage = await stream.finalMessage()
+      if (finalMessage.content) {
+        for (const block of finalMessage.content) {
+          if (block.type === 'tool_use') {
+            const existingCall = pendingToolCalls.find(tc => tc.id === block.id)
+            if (existingCall) {
+              existingCall.input = block.input as any
+            } else {
+              pendingToolCalls.push({
+                id: block.id,
+                name: block.name,
+                input: JSON.stringify(block.input),
+              })
+            }
+          }
+        }
+      }
+
+      return {
+        text: assistantText,
+        toolCalls: pendingToolCalls.map(tc => ({
+          id: tc.id,
+          name: tc.name,
+          input: typeof tc.input === 'string' ? JSON.parse(tc.input || '{}') : tc.input,
+        })),
+      }
     } catch (err) {
       const aborted =
         signal?.aborted === true ||
@@ -493,18 +572,153 @@ export class SessionConversationManager {
       }
       throw err
     }
+  }
 
-    if (signal?.aborted) {
-      return { text: assistantText, toolCalls: [], aborted: true }
-    }
+  /**
+   * 使用 OpenAI 兼容接口调用 AI（通义千问等）
+   */
+  private async callQwenWithStream(
+    sessionId: string,
+    model: string,
+    messages: any[],
+    systemPrompt: string,
+    sessionManager: SessionManager,
+    sendEvent: EventSender,
+    signal?: AbortSignal
+  ): Promise<StreamResult> {
+    const client = await this.getOpenAIClient()
+    let assistantText = ''
+    let pendingToolCalls: Array<{ id: string; name: string; input: any }> = []
 
-    return {
-      text: assistantText,
-      toolCalls: pendingToolCalls.map(tc => ({
-        id: tc.id,
-        name: tc.name,
-        input: tc.input ? JSON.parse(tc.input) : {},
-      }))
+    // 转换工具定义格式为 OpenAI function calling 格式
+    const anthropicTools = this.toolExecutor.getAnthropicTools() as Anthropic.Tool[]
+    const openaiTools = anthropicTools.map(tool => ({
+      type: 'function' as const,
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.input_schema,
+      },
+    }))
+
+    // 构建 OpenAI 格式的消息列表
+    const openaiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string | Array<any> }> = [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(m => {
+        let content: any = m.content
+        if (m.role === 'user' && typeof content === 'string') {
+          content = stripIdeUserDisplayLayer(content)
+        }
+        return {
+          role: m.role as 'user' | 'assistant',
+          content,
+        }
+      }),
+    ]
+
+    try {
+      // 创建 AbortController 用于取消请求
+      const abortController = new AbortController()
+      if (signal) {
+        signal.addEventListener('abort', () => abortController.abort(), { once: true })
+      }
+
+      const stream = await client.chat.completions.create({
+        model,
+        messages: openaiMessages,
+        tools: openaiTools,
+        max_tokens: 4096,
+        temperature: 0.7,
+        stream: true,
+        stream_options: { include_usage: true },
+      }, { signal: abortController.signal })
+
+      let finishReason = ''
+
+      for await (const chunk of stream) {
+        if (signal?.aborted) break
+
+        const delta = chunk.choices[0]?.delta
+
+        // 处理文本内容
+        if (delta?.content) {
+          assistantText += delta.content
+          sendEvent('content_block_delta', { text: delta.content })
+        }
+
+        // 处理工具调用
+        if (delta?.tool_calls) {
+          for (const toolCall of delta.tool_calls) {
+            if (toolCall.type === 'function') {
+              const idx = toolCall.index ?? 0
+
+              // 确保有足够的 pendingToolCalls 元素
+              while (pendingToolCalls.length <= idx) {
+                pendingToolCalls.push({ id: '', name: '', input: {} })
+              }
+
+              if (!pendingToolCalls[idx].id) {
+                // 新的工具调用开始
+                pendingToolCalls[idx] = {
+                  id: `tool_${Date.now()}_${idx}`,
+                  name: toolCall.function?.name || '',
+                  input: '',
+                }
+                console.log(`[${sessionId}] Tool use started: ${toolCall.function?.name}`)
+                sendEvent('tool_use', { id: pendingToolCalls[idx].id, name: toolCall.function?.name })
+              }
+
+              // 更新参数
+              if (toolCall.function?.arguments) {
+                try {
+                  const args = typeof toolCall.function.arguments === 'string'
+                    ? JSON.parse(toolCall.function.arguments)
+                    : toolCall.function.arguments
+                  if (typeof pendingToolCalls[idx].input === 'string') {
+                    pendingToolCalls[idx].input += toolCall.function.arguments as string
+                  } else {
+                    Object.assign(pendingToolCalls[idx].input, args)
+                  }
+                  sendEvent('tool_input_delta', {
+                    id: pendingToolCalls[idx].id,
+                    partial_json: toolCall.function.arguments,
+                  })
+                } catch (e) {
+                  // JSON 解析失败，累积原始字符串
+                  if (typeof pendingToolCalls[idx].input !== 'string') {
+                    pendingToolCalls[idx].input = ''
+                  }
+                  pendingToolCalls[idx].input += toolCall.function.arguments as string
+                }
+              }
+            }
+          }
+        }
+
+        // 检查完成原因
+        if (chunk.choices[0]?.finish_reason) {
+          finishReason = chunk.choices[0].finish_reason
+          console.log(`[${sessionId}] Qwen stream stop reason: ${finishReason}`)
+        }
+      }
+
+      // 过滤掉空的 pendingToolCalls
+      const validToolCalls = pendingToolCalls.filter(tc => tc.name)
+
+      console.log(`[${sessionId}] Qwen response completed. Text length: ${assistantText.length}, Tools: ${validToolCalls.length}`)
+
+      return {
+        text: assistantText,
+        toolCalls: validToolCalls.map(tc => ({
+          id: tc.id,
+          name: tc.name,
+          input: typeof tc.input === 'string' ? JSON.parse(tc.input || '{}') : tc.input,
+        })),
+      }
+    } catch (error: any) {
+      if (error?.name === 'AbortError' || error?.message?.includes('abort')) throw error
+      console.error(`[${sessionId}] Qwen stream error:`, error)
+      throw error
     }
   }
 
