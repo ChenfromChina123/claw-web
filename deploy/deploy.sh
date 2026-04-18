@@ -36,6 +36,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${SCRIPT_DIR}/.."
 INSTALL_DIR="/opt/claw-web"
 GIT_REPO="https://github.com/ChenfromChina123/claw-web.git"
+GIT_BRANCH="feature/api-auth-enhancement"  # 使用当前开发分支
 LOG_FILE="/var/log/claw-web-deploy.log"
 
 # ==================== 工具函数 ====================
@@ -246,7 +247,15 @@ setup_project() {
     if [[ -d "$INSTALL_DIR/.git" ]]; then
         log_warn "项目目录已存在，更新代码..."
         cd "$INSTALL_DIR"
-        git pull origin main || git pull origin master
+        
+        # 检查当前分支
+        local current_branch=$(git rev-parse --abbrev-ref HEAD)
+        if [[ "$current_branch" != "$GIT_BRANCH" ]]; then
+            log_info "切换到分支：$GIT_BRANCH"
+            git checkout "$GIT_BRANCH"
+        fi
+        
+        git pull origin "$GIT_BRANCH"
         log_info "项目代码已更新"
     else
         log_info "克隆项目代码到 ${INSTALL_DIR}..."
@@ -254,10 +263,10 @@ setup_project() {
         # 创建父目录
         mkdir -p "$(dirname "$INSTALL_DIR")"
         
-        # 克隆项目（浅克隆加快速度）
-        git clone --depth 1 "$GIT_REPO" "$INSTALL_DIR"
+        # 克隆项目（浅克隆加快速度，指定分支）
+        git clone --depth 1 --branch "$GIT_BRANCH" "$GIT_REPO" "$INSTALL_DIR"
         
-        log_info "项目代码克隆完成"
+        log_info "项目代码克隆完成（分支：$GIT_BRANCH）"
     fi
     
     # 创建必要目录
