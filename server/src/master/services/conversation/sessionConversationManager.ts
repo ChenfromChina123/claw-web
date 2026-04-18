@@ -601,19 +601,41 @@ export class SessionConversationManager {
       },
     }))
 
-    // 构建 OpenAI 格式的消息列表
-    const openaiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string | Array<any> }> = [
+    /**
+     * 转换消息内容格式为 Qwen 兼容格式
+     * Qwen API 要求：content 不能为空数组，必须是字符串或有效的 content 数组
+     */
+    const formatMessageContent = (role: string, content: any): string | Array<any> => {
+      if (typeof content === 'string') {
+        return role === 'user' ? stripIdeUserDisplayLayer(content) : content
+      }
+      
+      if (Array.isArray(content)) {
+        if (content.length === 0) {
+          return ''
+        }
+        
+        const formatted = content.map((item: any) => {
+          if (typeof item === 'string') return { type: 'text', text: item }
+          if (item && typeof item === 'object' && item.type) return item
+          return { type: 'text', text: String(item) }
+        })
+        
+        return formatted
+      }
+      
+      return String(content || '')
+    }
+
+    // 构建 OpenAI 格式的消息列表（兼容 Qwen API）
+    const openaiMessages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string | Array<any>; name?: string; tool_call_id?: string }> = [
       { role: 'system', content: systemPrompt },
-      ...messages.map(m => {
-        let content: any = m.content
-        if (m.role === 'user' && typeof content === 'string') {
-          content = stripIdeUserDisplayLayer(content)
-        }
-        return {
-          role: m.role as 'user' | 'assistant',
-          content,
-        }
-      }),
+      ...messages.map(m => ({
+        role: m.role,
+        content: formatMessageContent(m.role, m.content),
+        ...(m.name ? { name: m.name } : {}),
+        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+      })),
     ]
 
     try {
