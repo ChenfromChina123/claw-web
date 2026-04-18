@@ -116,8 +116,8 @@ COPY --from=builder /app/shared ./shared
 # node-pty 是原生模块，需要在 Linux 环境下重新安装以获取正确的预编译二进制文件
 RUN cd /app && rm -rf node_modules/node-pty && npm install node-pty@1.1.0 --build-from-source
 
-# 安装 tsx 用于运行 TypeScript（比 ts-node 更快）
-RUN npm install -g tsx
+# 安装 tsx 用于运行 TypeScript（作为项目依赖，确保 --import 能找到）
+RUN cd /app && npm install tsx
 
 # 创建必要目录
 RUN mkdir -p /app/logs /app/workspaces/users
@@ -131,4 +131,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 
 # Worker 容器入口：使用 Node.js + tsx 运行 TypeScript
 ENTRYPOINT ["node"]
-CMD ["--import", "tsx", "src/index.ts"]
+CMD ["--import", "./node_modules/tsx/index.js", "src/index.ts"]
