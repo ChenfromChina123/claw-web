@@ -113,8 +113,8 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/shared ./shared
 
 # 确保 node_modules 中的原生模块已正确编译（node-pty）
-# node-pty 是原生模块，需要在 Linux 环境下重新安装以获取正确的预编译二进制文件
-RUN cd /app && rm -rf node_modules/node-pty && npm install node-pty@1.1.0 --build-from-source
+# 使用预编译版本，避免从源码编译（需要下载 Node.js headers）
+RUN cd /app && npm install node-pty@1.1.0 --ignore-scripts || npm install node-pty@1.1.0
 
 # 安装 tsx 用于运行 TypeScript（作为项目依赖，确保 --import 能找到）
 RUN cd /app && npm install tsx
