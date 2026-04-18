@@ -31,7 +31,7 @@ services:
       - mysql_data:/var/lib/mysql
       - ./server/src/master/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./server/src/master/db/add_user_tier.sql:/docker-entrypoint-initdb.d/02-user-tier.sql:ro
-      - ./server/src/master/db/migrations:/docker-entrypoint-initdb.d/migrations:ro
+      - ./server/src/master/db/migrations/001_create_user_worker_mappings.sql:/docker-entrypoint-initdb.d/03-user-worker-mappings.sql:ro
     networks:
       - claude-network
     healthcheck:
