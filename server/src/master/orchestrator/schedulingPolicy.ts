@@ -88,13 +88,33 @@ export interface ResourceSnapshot {
 
 // ==================== 默认等级配置 ====================
 
+/**
+ * 获取环境变量配置的空闲超时时间
+ * 支持通过 IDLE_TIMEOUT_MS 全局覆盖所有等级的超时设置
+ *
+ * 设计原则：
+ * - 持久连接场景下，容器应保持长时间存活
+ * - 默认值设为 0（永不回收），除非显式配置
+ * - 可通过环境变量按需调整
+ */
+function getIdleTimeoutMs(defaultValue: number): number {
+  const envValue = process.env.IDLE_TIMEOUT_MS
+  if (envValue !== undefined) {
+    const parsed = parseInt(envValue, 10)
+    if (!isNaN(parsed) && parsed >= 0) {
+      return parsed
+    }
+  }
+  return defaultValue
+}
+
 const DEFAULT_TIER_CONFIGS: Record<UserTier, TierConfig> = {
   [UserTier.VIP]: {
     allowExclusiveContainer: true,
     maxSessions: 20,
     storageQuotaMB: 2000,
     maxPtyProcesses: 10,
-    idleTimeoutMs: 0,           // 永不回收
+    idleTimeoutMs: getIdleTimeoutMs(0),           // 永不回收（VIP用户）
     priority: 1,
     rateLimitPerMinute: 1000,
     allowAdvancedFeatures: true
@@ -104,7 +124,7 @@ const DEFAULT_TIER_CONFIGS: Record<UserTier, TierConfig> = {
     maxSessions: 15,
     storageQuotaMB: 1000,
     maxPtyProcesses: 8,
-    idleTimeoutMs: 1800000,     // 30分钟
+    idleTimeoutMs: getIdleTimeoutMs(3600000),     // 1小时（原30分钟太短）
     priority: 2,
     rateLimitPerMinute: 500,
     allowAdvancedFeatures: true
@@ -114,7 +134,7 @@ const DEFAULT_TIER_CONFIGS: Record<UserTier, TierConfig> = {
     maxSessions: 10,
     storageQuotaMB: 500,
     maxPtyProcesses: 5,
-    idleTimeoutMs: 300000,      // 5分钟
+    idleTimeoutMs: getIdleTimeoutMs(1800000),     // 30分钟（原5分钟太短）
     priority: 3,
     rateLimitPerMinute: 200,
     allowAdvancedFeatures: false
@@ -124,7 +144,7 @@ const DEFAULT_TIER_CONFIGS: Record<UserTier, TierConfig> = {
     maxSessions: 3,
     storageQuotaMB: 200,
     maxPtyProcesses: 2,
-    idleTimeoutMs: 120000,      // 2分钟
+    idleTimeoutMs: getIdleTimeoutMs(900000),      // 15分钟（原2分钟太短）
     priority: 4,
     rateLimitPerMinute: 50,
     allowAdvancedFeatures: false

@@ -19,8 +19,16 @@ function getWorkerPort(): number {
   return parseInt(process.env.WORKER_PORT || String(DEFAULT_WORKER_PORT), 10)
 }
 
-const HEARTBEAT_INTERVAL = 30000 // 30秒心跳间隔
-const HEARTBEAT_TIMEOUT = 60000 // 60秒超时
+/**
+ * 心跳配置（支持持久连接模式）
+ *
+ * 设计原则：
+ * - 长连接场景下，心跳主要用于检测网络异常，而非空闲管理
+ * - 超时时间应远大于正常空闲时长（如 10 分钟以上）
+ * - 可通过环境变量 WORKER_HEARTBEAT_TIMEOUT_MS 自定义
+ */
+const HEARTBEAT_INTERVAL = parseInt(process.env.WORKER_HEARTBEAT_INTERVAL_MS || '30000', 10)  // 30秒心跳间隔
+const HEARTBEAT_TIMEOUT = parseInt(process.env.WORKER_HEARTBEAT_TIMEOUT_MS || '600000', 10)    // 10分钟超时（原60s太短）
 
 export interface WorkerConnection {
   ws: WebSocket
@@ -331,23 +339,119 @@ export class WorkerForwarder {
   }
 
   /**
-   * 启动心跳检测
+   * 启动心跳检测（支持持久连接模式）
+   *
+   * 改进点：
+   * - 超时后不立即断开，而是先尝试重连
+   * - 记录断连原因，便于排查
+   * - 支持配置化超时时间
    */
   private startHeartbeat(connectionKey: string): void {
     const connection = this.connections.get(connectionKey)
     if (!connection) return
 
+    // 清除可能存在的旧定时器
+    this.stopHeartbeat(connectionKey)
+
     connection.heartbeatTimer = setInterval(() => {
-      if (Date.now() - connection.lastPong > HEARTBEAT_TIMEOUT) {
-        console.warn(`[WorkerForwarder] Worker heartbeat timeout, closing connection`)
-        connection.ws.close(4001, 'Heartbeat timeout')
+      const now = Date.now()
+      const elapsed = now - connection.lastPong
+
+      if (elapsed > HEARTBEAT_TIMEOUT) {
+        console.warn(
+          `[WorkerForwarder] Worker heartbeat timeout after ${Math.round(elapsed / 1000)}s, ` +
+          `attempting reconnect for user ${connection.userId}...`
+        )
+
+        // 尝试重新连接而非直接断开
+        this.attemptReconnect(connectionKey, connection)
+
         return
       }
-      
+
       if (connection.ws.readyState === WebSocket.OPEN) {
         connection.ws.ping()
       }
     }, HEARTBEAT_INTERVAL)
+  }
+
+  /**
+   * 尝试重新连接 Worker（断连恢复机制）
+   *
+   * 设计原则：
+   * - 保持 sessionId 映射，避免 PTY 会话丢失
+   * - 自动重连最多 3 次，超过后通知前端
+   * - 重连成功后恢复心跳检测
+   */
+  private async attemptReconnect(
+    connectionKey: string,
+    oldConnection: WorkerConnection,
+    retryCount: number = 0
+  ): Promise<void> {
+    const MAX_RETRIES = 3
+    const RETRY_DELAY_MS = 5000
+
+    if (retryCount >= MAX_RETRIES) {
+      console.error(
+        `[WorkerForwarder] Failed to reconnect to Worker after ${MAX_RETRIES} attempts, ` +
+        `closing connection for user ${oldConnection.userId}`
+      )
+      oldConnection.ws.close(4002, `Reconnect failed after ${MAX_RETRIES} attempts`)
+      return
+    }
+
+    console.log(
+      `[WorkerForwarder] Reconnect attempt ${retryCount + 1}/${MAX_RETRIES} for user ${oldConnection.userId}...`
+    )
+
+    // 等待一段时间再重试
+    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS))
+
+    try {
+      // 关闭旧连接
+      if (oldConnection.ws.readyState === WebSocket.OPEN) {
+        oldConnection.ws.close()
+      }
+
+      // 创建新连接
+      const newConnection = await this.connectToWorker(
+        oldConnection.userId,
+        oldConnection.containerId,
+        oldConnection.hostPort
+      )
+
+      // 迁移 session 映射到新连接（关键：保持 PTY 会话！）
+      for (const [frontendId, workerId] of oldConnection.sessionMappings.entries()) {
+        newConnection.sessionMappings.set(frontendId, workerId)
+      }
+
+      // 迁移输出回调
+      for (const [callbackId, callback] of oldConnection.outputCallbacks.entries()) {
+        newConnection.outputCallbacks.set(callbackId, callback)
+      }
+
+      // 迁移前端连接引用
+      newConnection.frontendWs = oldConnection.frontendWs
+
+      console.log(`[WorkerForwarder] Successfully reconnected to Worker for user ${oldConnection.userId}`)
+
+      // 通知前端重连成功
+      if (newConnection.frontendWs && newConnection.frontendWs.readyState === WebSocket.OPEN) {
+        newConnection.frontendWs.send(JSON.stringify({
+          type: 'worker_reconnected',
+          containerId: oldConnection.containerId,
+          timestamp: Date.now(),
+        }))
+      }
+    } catch (error) {
+      console.warn(
+        `[WorkerForwarder] Reconnect attempt ${retryCount + 1} failed:`,
+        error instanceof Error ? error.message : error
+      )
+
+      // 递归重试
+      await this.attemptReconnect(connectionKey, oldConnection, retryCount + 1)
+    }
   }
 
   /**

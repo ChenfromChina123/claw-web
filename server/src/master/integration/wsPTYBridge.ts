@@ -107,9 +107,40 @@ interface FrontendSessionMapping {
   cwd: string
   createdAt: number
   lastActiveAt: number
+  /** 会话状态：active（活跃）| suspended（挂起）*/
+  status: 'active' | 'suspended'
 }
 
 const sessionMappings = new Map<string, FrontendSessionMapping>()
+
+/**
+ * 挂起的会话集合（前端断开但 PTY 保持运行）
+ * 支持用户在一段时间后重新连接并恢复会话
+ *
+ * 设计原则：
+ * - 类似 tmux/screen 的 detach/attach 机制
+ * - 前端断开不等于销毁 PTY
+ * - 用户可随时恢复之前的会话状态
+ */
+const suspendedSessions = new Map<string, {
+  mapping: FrontendSessionMapping
+  suspendedAt: number
+  /** 自动清理时间（默认1小时后）*/
+  autoCleanupAt: number
+}>()
+
+/**
+ * 挂起会话的自动清理定时器间隔（5分钟检查一次）
+ */
+const SUSPENDED_SESSION_CLEANUP_INTERVAL_MS = 5 * 60 * 1000
+
+/**
+ * 挂起会话的最大存活时间（1小时）
+ */
+const SUSPENDED_SESSION_MAX_AGE_MS = parseInt(
+  process.env.SUSPENDED_SESSION_MAX_AGE_MS || String(60 * 60 * 1000),
+  10
+)
 
 /**
  * 获取用户的 Worker 容器信息（自动分配）
@@ -154,7 +185,8 @@ export class WebSocketPTYBridge {
   private constructor() {
     this.registerRPCMethods()
     this.setupWorkerOutputForwarder()
-    console.log('[PTY Bridge] Initialized (Worker Forwarding Mode)')
+    this.startSuspendedSessionCleanup()
+    console.log('[PTY Bridge] Initialized (Worker Forwarding Mode - Persistent Connection v2.0)')
   }
 
   static getInstance(): WebSocketPTYBridge {
@@ -513,34 +545,152 @@ export class WebSocketPTYBridge {
 
   /**
    * 清理连接的所有会话（连接断开时调用）
+   *
+   * 改进点（v2.0 - 持久连接模式）：
+   * - 不再立即销毁 PTY 会话
+   * - 改为"挂起"状态，保持 PTY 运行
+   * - 支持用户在一段时间后重新连接恢复
+   * - 类似 tmux/screen 的 detach 机制
+   *
+   * @param connectionId 前端 WebSocket 连接 ID
    */
   cleanupConnection(connectionId: string): void {
     // 获取该连接的用户 ID
     const connection = wsManager.getConnection(connectionId)
     if (!connection || !connection.userId) return
-    
+
     const userId = connection.userId
-    
-    // 找出该用户的所有 session 并清理
-    const sessionsToRemove: string[] = []
-    
+
+    // 找出该用户的所有 session 并挂起（非销毁）
+    const sessionsToSuspend: string[] = []
+
     for (const [frontendId, mapping] of sessionMappings.entries()) {
-      if (mapping.userId === userId) {
-        sessionsToRemove.push(frontendId)
+      if (mapping.userId === userId && mapping.status === 'active') {
+        sessionsToSuspend.push(frontendId)
       }
     }
 
-    for (const frontendId of sessionsToRemove) {
+    for (const frontendId of sessionsToSuspend) {
       const mapping = sessionMappings.get(frontendId)
       if (mapping) {
-        workerForwarder.destroyPTY(mapping.userId, mapping.containerId, frontendId)
-        sessionMappings.delete(frontendId)
+        // 标记为挂起状态
+        mapping.status = 'suspended'
+
+        // 移入挂起集合（保留 PTY 会话！）
+        suspendedSessions.set(frontendId, {
+          mapping,
+          suspendedAt: Date.now(),
+          autoCleanupAt: Date.now() + SUSPENDED_SESSION_MAX_AGE_MS,
+        })
+
+        console.log(
+          `[PTY Bridge] 挂起会话: sessionId=${frontendId}, ` +
+          `userId=${userId} (PTY 保持运行，可恢复)`
+        )
       }
     }
 
-    if (sessionsToRemove.length > 0) {
-      console.log(`[PTY Bridge] 清理了 ${sessionsToRemove.length} 个会话 (connection=${connectionId}, userId=${userId})`)
+    if (sessionsToSuspend.length > 0) {
+      console.log(
+        `[PTY Bridge] 已挂起 ${sessionsToSuspend.length} 个会话 ` +
+        `(connection=${connectionId}, userId=${userId})`
+      )
     }
+  }
+
+  /**
+   * 尝试恢复挂起的会话（前端重连时调用）
+   *
+   * @param userId 用户 ID
+   * @returns 可恢复的会话列表（按最近活跃时间排序）
+   */
+  getSuspendedSessions(userId: string): FrontendSessionMapping[] {
+    const now = Date.now()
+    const recoverableSessions: FrontendSessionMapping[] = []
+
+    for (const [frontendId, suspended] of suspendedSessions.entries()) {
+      if (
+        suspended.mapping.userId === userId &&
+        now < suspended.autoCleanupAt &&
+        suspended.mapping.status === 'suspended'
+      ) {
+        recoverableSessions.push(suspended.mapping)
+      }
+    }
+
+    // 按最后活跃时间降序排列（最近的优先）
+    return recoverableSessions.sort((a, b) => b.lastActiveAt - a.lastActiveAt)
+  }
+
+  /**
+   * 恢复指定的挂起会话
+   *
+   * @param frontendSessionId 前端 Session ID
+   * @returns 是否恢复成功
+   */
+  resumeSession(frontendSessionId: string): boolean {
+    const suspended = suspendedSessions.get(frontendSessionId)
+    if (!suspended || suspended.mapping.status !== 'suspended') {
+      return false
+    }
+
+    // 从挂起集合移回活跃集合
+    suspended.mapping.status = 'active'
+    suspended.mapping.lastActiveAt = Date.now()
+
+    // 重新注册到 sessionMappings
+    sessionMappings.set(frontendSessionId, suspended.mapping)
+    suspendedSessions.delete(frontendSessionId)
+
+    console.log(
+      `[PTY Bridge] 恢复会话: sessionId=${frontendSessionId}, ` +
+      `userId=${suspended.mapping.userId}`
+    )
+
+    return true
+  }
+
+  /**
+   * 启动挂起会话的自动清理定时任务
+   * 定期清理超时的挂起会话，释放 Worker 端资源
+   */
+  startSuspendedSessionCleanup(): void {
+    setInterval(() => {
+      const now = Date.now()
+      const sessionsToCleanup: string[] = []
+
+      for (const [frontendId, suspended] of suspendedSessions.entries()) {
+        if (now >= suspended.autoCleanupAt) {
+          sessionsToCleanup.push(frontendId)
+        }
+      }
+
+      for (const frontendId of sessionsToCleanup) {
+        const suspended = suspendedSessions.get(frontendId)
+        if (suspended) {
+          console.log(
+            `[PTY Bridge] 自动清理超时挂起会话: sessionId=${frontendId}, ` +
+            `userId=${suspended.mapping.userId}, ` +
+            `存活时间: ${Math.round((now - suspended.suspendedAt) / 1000)}s`
+          )
+
+          // 此时才真正销毁 Worker 端的 PTY 会话
+          workerForwarder.destroyPTY(
+            suspended.mapping.userId,
+            suspended.mapping.containerId,
+            frontendId
+          )
+
+          suspendedSessions.delete(frontendId)
+        }
+      }
+    }, SUSPENDED_SESSION_CLEANUP_INTERVAL_MS)
+
+    console.log(
+      `[PTY Bridge] 挂起会话自动清理已启动 ` +
+      `(间隔: ${SUSPENDED_SESSION_CLEANUP_INTERVAL_MS / 1000 / 60}分钟, ` +
+      `最大存活: ${SUSPENDED_SESSION_MAX_AGE_MS / 1000 / 60}分钟)`
+    )
   }
 }
 
