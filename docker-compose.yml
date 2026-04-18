@@ -94,6 +94,14 @@ services:
       ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
       
+      # 阿里云百炼（通义千问）API 配置
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      QWEN_BASE_URL: ${QWEN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      
+      # LLM 模型选择配置
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LLM_MODEL: ${LLM_MODEL:-claude-sonnet-4-20250514}
+      
       # Docker 配置（Master 需要 Docker socket 来管理容器）
       DOCKER_SOCKET_PATH: /var/run/docker.sock
       
@@ -172,6 +180,14 @@ services:
       # Anthropic API 配置（Worker 执行 Agent 时需要）
       ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
+      
+      # 阿里云百炼（通义千问）API 配置
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      QWEN_BASE_URL: ${QWEN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      
+      # LLM 模型选择配置
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LLM_MODEL: ${LLM_MODEL:-claude-sonnet-4-20250514}
 
       # PTY 终端配置（生产模式启用）
       PTY_ENABLED: ${PTY_ENABLED:-true}
