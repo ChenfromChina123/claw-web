@@ -113,8 +113,9 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/shared ./shared
 
 # 确保 node_modules 中的原生模块已正确编译（node-pty）
-# 先尝试正常安装（会下载预编译二进制），如果失败则忽略错误
-RUN cd /app && npm install node-pty@1.1.0 2>/dev/null || (cd /app && npm install node-pty@1.1.0 --ignore-scripts && cd /app/node_modules/node-pty && npx node-pre-gyp install --fallback-to-build=false 2>/dev/null || true)
+# 重要：必须在 Linux 容器内运行 npm install，以获取 linux-x64 预编译版本
+# Windows/Mac 上 bun install 只会下载对应平台的二进制文件
+RUN cd /app && rm -rf node_modules/node-pty && npm install node-pty@1.1.0 && npm install ws @types/ws
 
 # 安装 tsx 用于运行 TypeScript（作为项目依赖，确保 --import 能找到）
 RUN cd /app && npm install tsx
