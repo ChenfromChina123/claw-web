@@ -41,30 +41,22 @@ LOG_FILE="/var/log/claw-web-deploy.log"
 
 # ==================== 工具函数 ====================
 
-/**
- * 输出带颜色的信息日志
- */
+# 输出带颜色的信息日志
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $(date '+%Y-%m-%d %H:%M:%S') $1" | tee -a "$LOG_FILE"
 }
 
-/**
- * 输出警告日志
- */
+# 输出警告日志
 log_warn() {
     echo -e "${YELLOW}[WARN]${NC} $(date '+%Y-%m-%d %H:%M:%S') $1" | tee -a "$LOG_FILE"
 }
 
-/**
- * 输出错误日志
- */
+# 输出错误日志
 log_error() {
     echo -e "${RED}[ERROR]${NC} $(date '+%Y-%m-%d %H:%M:%S') $1" | tee -a "$LOG_FILE"
 }
 
-/**
- * 输出步骤标题
- */
+# 输出步骤标题
 log_step() {
     echo ""
     echo -e "${BLUE}========================================${NC}"
@@ -72,9 +64,7 @@ log_step() {
     echo -e "${BLUE}========================================${NC}"
 }
 
-/**
- * 显示进度条效果
- */
+# 显示进度条效果
 show_progress() {
     local duration=$1
     local message=$2
@@ -86,9 +76,7 @@ show_progress() {
     echo " ${GREEN}✓${NC}"
 }
 
-/**
- * 检查命令是否存在
- */
+# 检查命令是否存在
 check_command() {
     if command -v "$1" &> /dev/null; then
         return 0
@@ -97,34 +85,28 @@ check_command() {
     fi
 }
 
-/**
- * 生成随机密码（32位）
- */
+# 生成随机密码（32 位）
 generate_password() {
     openssl rand -base64 32 | tr -d '/+=' | head -c 32
 }
 
 # ==================== 系统检查函数 ====================
 
-/**
- * 检查是否为 root 用户运行
- */
+# 检查是否为 root 用户运行
 check_root() {
     if [[ $EUID -ne 0 ]]; then
-        log_error "此脚本必须以 root 用户运行！请使用: sudo ./deploy.sh"
+        log_error "此脚本必须以 root 用户运行！请使用：sudo ./deploy.sh"
         exit 1
     fi
     log_info "权限检查通过：当前为 root 用户"
 }
 
-/**
- * 检查并安装 Docker
- */
+# 检查并安装 Docker
 install_docker() {
     log_step "检查 Docker 环境"
     
     if check_command docker; then
-        log_info "Docker 已安装: $(docker --version)"
+        log_info "Docker 已安装：$(docker --version)"
         
         # 检查 Docker 服务状态
         if systemctl is-active --quiet docker; then
@@ -173,7 +155,7 @@ install_docker() {
     # 将当前用户添加到 docker 组（非 root 运行时需要）
     # usermod -aG docker $SUDO_USER
     
-    log_info "Docker 安装完成: $(docker --version)"
+    log_info "Docker 安装完成：$(docker --version)"
     
     # 安装 Docker Compose（如果系统版本较旧没有 plugin）
     if ! check_command docker-compose && ! docker compose version &>/dev/null; then
@@ -184,31 +166,27 @@ install_docker() {
     fi
 }
 
-/**
- * 检查并安装 Git
- */
+# 检查并安装 Git
 install_git() {
     log_step "检查 Git 环境"
     
     if check_command git; then
-        log_info "Git 已安装: $(git --version)"
+        log_info "Git 已安装：$(git --version)"
         return 0
     fi
     
     log_warn "Git 未安装，开始自动安装..."
     apt-get install -y -qq git
-    log_info "Git 安装完成: $(git --version)"
+    log_info "Git 安装完成：$(git --version)"
 }
 
-/**
- * 检查系统资源
- */
+# 检查系统资源
 check_system_resources() {
     log_step "检查系统资源"
     
     # CPU 核心数
     local cpu_cores=$(nproc)
-    log_info "CPU 核心数: ${cpu_cores}"
+    log_info "CPU 核心数：${cpu_cores}"
     
     if [[ $cpu_cores -lt 2 ]]; then
         log_warn "CPU 核心数较少（建议至少 2 核）"
@@ -216,7 +194,7 @@ check_system_resources() {
     
     # 内存
     local total_mem=$(free -g | awk '/Mem:/ {print $2}')
-    log_info "总内存: ${total_mem} GB"
+    log_info "总内存：${total_mem} GB"
     
     if [[ $total_mem -lt 4 ]]; then
         log_warn "内存较少（建议至少 4 GB）"
@@ -224,7 +202,7 @@ check_system_resources() {
     
     # 磁盘空间
     local disk_free=$(df -BG / | awk 'NR==2 {print $4}' | tr -d 'G')
-    log_info "可用磁盘空间: ${disk_free} GB"
+    log_info "可用磁盘空间：${disk_free} GB"
     
     if [[ $disk_free -lt 20 ]]; then
         log_error "磁盘空间不足（建议至少 20 GB 可用空间）"
@@ -233,14 +211,12 @@ check_system_resources() {
     
     # Docker 磁盘空间
     local docker_disk=$(docker system df 2>/dev/null | tail -1 | awk '{print $4}' || echo "未知")
-    log_info "Docker 占用空间: ${docker_disk}"
+    log_info "Docker 占用空间：${docker_disk}"
 }
 
 # ==================== 项目部署函数 ====================
 
-/**
- * 克隆或更新项目代码
- */
+# 克隆或更新项目代码
 setup_project() {
     log_step "配置项目代码"
     
@@ -276,9 +252,7 @@ setup_project() {
     log_info "目录结构创建完成"
 }
 
-/**
- * 生成交互式环境配置
- */
+# 生成交互式环境配置
 configure_environment() {
     log_step "配置环境变量"
     
@@ -304,7 +278,7 @@ configure_environment() {
     # 创建 .env 文件
     cat > "$env_file" << EOF
 # ==================== Claw-Web 自动生成的环境变量配置 ====================
-# 生成时间: $(date)
+# 生成时间：$(date)
 
 # ==================== MySQL 数据库配置 ====================
 MYSQL_ROOT_PASSWORD=${mysql_root_pass}
@@ -330,7 +304,7 @@ QWEN_API_KEY=
 QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 
 # LLM 模型选择配置
-# 可选值: anthropic, qwen
+# 可选值：anthropic, qwen
 LLM_PROVIDER=qwen
 LLM_MODEL=qwen-plus
 
@@ -366,13 +340,11 @@ EOF
     # 设置权限
     chmod 600 "$env_file"
     
-    log_info "环境配置文件已生成: ${env_file}"
+    log_info "环境配置文件已生成：${env_file}"
     log_warn "请根据需要修改 LLM API 密钥（QWEN_API_KEY 或 ANTHROPIC_AUTH_TOKEN）"
 }
 
-/**
- * 快速模式配置（使用默认值）
- */
+# 快速模式配置（使用默认值）
 configure_quick_mode() {
     log_step "快速模式配置环境变量"
     
@@ -409,9 +381,7 @@ EOF
 
 # ==================== 服务管理函数 ====================
 
-/**
- * 构建并启动所有服务
- */
+# 构建并启动所有服务
 start_services() {
     log_step "构建并启动服务"
     
@@ -445,9 +415,7 @@ start_services() {
     check_services_health
 }
 
-/**
- * 检查服务健康状态
- */
+# 检查服务健康状态
 check_services_health() {
     log_step "检查服务健康状态"
     
@@ -488,9 +456,7 @@ check_services_health() {
     fi
 }
 
-/**
- * 打印访问信息
- */
+# 打印访问信息
 print_access_info() {
     local host_ip=$(hostname -I | awk '{print $1}')
     local mysql_port=$(grep MYSQL_PORT "$INSTALL_DIR/.env" | cut -d'=' -f2)
@@ -506,17 +472,15 @@ print_access_info() {
     echo -e "  ${BLUE}MySQL:${NC}     ${host_ip}:${mysql_port}"
     echo ""
     echo -e "  ${YELLOW}常用命令：${NC}"
-    echo -e "    查看状态:  docker compose -f ${INSTALL_DIR}/docker-compose.yml ps"
-    echo -e "    查看日志:  docker compose -f ${INSTALL_DIR}/docker-compose.yml logs -f"
-    echo -e "    停止服务:  docker compose -f ${INSTALL_DIR}/docker-compose.yml down"
-    echo -e "    重启服务:  docker compose -f ${INSTALL_DIR}/docker-compose.yml restart"
+    echo -e "    查看状态：docker compose -f ${INSTALL_DIR}/docker-compose.yml ps"
+    echo -e "    查看日志：docker compose -f ${INSTALL_DIR}/docker-compose.yml logs -f"
+    echo -e "    停止服务：docker compose -f ${INSTALL_DIR}/docker-compose.yml down"
+    echo -e "    重启服务：docker compose -f ${INSTALL_DIR}/docker-compose.yml restart"
     echo ""
     echo -e "${GREEN}════════════════════════════════════════${NC}"
 }
 
-/**
- * 停止所有服务
- */
+# 停止所有服务
 stop_services() {
     log_step "停止所有服务"
     
@@ -526,9 +490,7 @@ stop_services() {
     log_info "所有服务已停止"
 }
 
-/**
- * 查看服务状态
- */
+# 查看服务状态
 show_status() {
     log_step "服务运行状态"
     
@@ -540,9 +502,7 @@ show_status() {
     docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" 2>/dev/null || true
 }
 
-/**
- * 查看实时日志
- */
+# 查看实时日志
 show_logs() {
     log_info "查看实时日志（Ctrl+C 退出）..."
     
@@ -550,9 +510,7 @@ show_logs() {
     docker compose logs -f --tail=100
 }
 
-/**
- * 重置所有数据（危险操作）
- */
+# 重置所有数据（危险操作）
 reset_all() {
     log_warn "⚠️  此操作将删除所有数据！包括数据库、工作区等"
     read -p "确认要继续吗？输入 'YES' 确认: " confirm
@@ -577,14 +535,12 @@ reset_all() {
 
 # ==================== 主函数 ====================
 
-/**
- * 显示帮助信息
- */
+# 显示帮助信息
 show_help() {
     echo ""
     echo -e "${GREEN}Claw-Web 一键部署脚本${NC}"
     echo ""
-    echo "用法: $0 [选项]"
+    echo "用法：$0 [选项]"
     echo ""
     echo "选项:"
     echo "  --quick     快速模式（使用默认配置，跳过交互）"
@@ -602,9 +558,7 @@ show_help() {
     echo ""
 }
 
-/**
- * 主入口函数
- */
+# 主入口函数
 main() {
     # 解析命令行参数
     case "${1:-}" in
@@ -649,7 +603,7 @@ main() {
             # 无参数，执行完整交互式部署
             ;;
         *)
-            log_error "未知参数: $1"
+            log_error "未知参数：$1"
             show_help
             exit 1
             ;;
