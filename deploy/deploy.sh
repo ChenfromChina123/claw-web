@@ -123,6 +123,34 @@ install_docker() {
     
     log_warn "Docker 未安装，开始自动安装..."
     
+    # 检测 Linux 发行版并安装
+    if command -v apt-get &> /dev/null; then
+        # Debian/Ubuntu
+        install_docker_ubuntu
+    elif command -v yum &> /dev/null; then
+        # CentOS/RHEL
+        install_docker_centos
+    elif command -v dnf &> /dev/null; then
+        # Fedora/newer CentOS
+        install_docker_fedora
+    else
+        log_error "不支持的 Linux 发行版，无法自动安装 Docker"
+        exit 1
+    fi
+    
+    log_info "Docker 安装完成：$(docker --version)"
+    
+    # 安装 Docker Compose（如果系统版本较旧没有 plugin）
+    if ! check_command docker-compose && ! docker compose version &>/dev/null; then
+        log_info "安装独立版 Docker Compose..."
+        curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" \
+            -o /usr/local/bin/docker-compose
+        chmod +x /usr/local/bin/docker-compose
+    fi
+}
+
+# 在 Ubuntu/Debian 上安装 Docker
+install_docker_ubuntu() {
     # 更新包索引
     apt-get update -qq
     
@@ -151,19 +179,38 @@ install_docker() {
     # 启动并设置开机自启
     systemctl start docker
     systemctl enable docker
+}
+
+# 在 CentOS/RHEL 上安装 Docker
+install_docker_centos() {
+    # 安装 yum-utils
+    yum install -y -q yum-utils
     
-    # 将当前用户添加到 docker 组（非 root 运行时需要）
-    # usermod -aG docker $SUDO_USER
+    # 添加 Docker 仓库
+    yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
     
-    log_info "Docker 安装完成：$(docker --version)"
+    # 安装 Docker
+    yum install -y -q docker-ce docker-ce-cli containerd.io docker-compose-plugin
     
-    # 安装 Docker Compose（如果系统版本较旧没有 plugin）
-    if ! check_command docker-compose && ! docker compose version &>/dev/null; then
-        log_info "安装独立版 Docker Compose..."
-        curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" \
-            -o /usr/local/bin/docker-compose
-        chmod +x /usr/local/bin/docker-compose
-    fi
+    # 启动并设置开机自启
+    systemctl start docker
+    systemctl enable docker
+}
+
+# 在 Fedora 上安装 Docker
+install_docker_fedora() {
+    # 安装 dnf-plugins-core
+    dnf -y -q install dnf-plugins-core
+    
+    # 添加 Docker 仓库
+    dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+    
+    # 安装 Docker
+    dnf install -y -q docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    
+    # 启动并设置开机自启
+    systemctl start docker
+    systemctl enable docker
 }
 
 # 检查并安装 Git
@@ -176,7 +223,22 @@ install_git() {
     fi
     
     log_warn "Git 未安装，开始自动安装..."
-    apt-get install -y -qq git
+    
+    # 检测 Linux 发行版
+    if command -v apt-get &> /dev/null; then
+        # Debian/Ubuntu
+        apt-get install -y -qq git
+    elif command -v yum &> /dev/null; then
+        # CentOS/RHEL
+        yum install -y -q git
+    elif command -v dnf &> /dev/null; then
+        # Fedora/newer CentOS
+        dnf install -y -q git
+    else
+        log_error "不支持的 Linux 发行版，无法自动安装 Git"
+        exit 1
+    fi
+    
     log_info "Git 安装完成：$(git --version)"
 }
 
