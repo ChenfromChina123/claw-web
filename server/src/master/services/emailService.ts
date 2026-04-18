@@ -56,11 +56,12 @@ export async function sendEmail(options: SendEmailOptions): Promise<void> {
   const transport = getTransporter()
 
   if (!transport) {
-    // 开发模式：邮件发送配置未完成，仅记录日志
-    console.log('[开发模式] 邮件发送已跳过（配置未完成）')
-    console.log(`[开发模式] 收件人: ${options.to}`)
-    console.log(`[开发模式] 主题: ${options.subject}`)
-    console.log(`[开发模式] 内容: ${options.text.substring(0, 100)}...`)
+    // 邮件服务未配置：仅记录日志，不阻塞业务流程
+    // 配置方法：在 .env 中设置 SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_FROM
+    console.log(`[Email Service] ⚠️ 邮件服务未配置，验证码已输出到日志`)
+    console.log(`[Email Service] 收件人: ${options.to}`)
+    console.log(`[Email Service] 主题: ${options.subject}`)
+    console.log(`[Email Service] 内容: ${options.text.substring(0, 100)}...`)
     return
   }
 

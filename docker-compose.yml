@@ -86,6 +86,14 @@ services:
       # 内部通信 Token（必须与 Worker 一致）
       MASTER_INTERNAL_TOKEN: ${MASTER_INTERNAL_TOKEN:-internal-master-worker-token-2024}
       
+      # SMTP 邮件服务配置（可选）
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      
       # 工作空间配置
       HOST_WORKSPACE_PATH: /data/claws/workspaces
       WORKSPACE_BASE_DIR: /app/workspaces
