@@ -602,40 +602,85 @@ export class SessionConversationManager {
     }))
 
     /**
-     * 转换消息内容格式为 Qwen 兼容格式
-     * Qwen API 要求：content 不能为空数组，必须是字符串或有效的 content 数组
+     * 将 Anthropic 格式消息转换为 OpenAI/Qwen 兼容格式
+     * 处理 tool_result 和 tool_use 等特殊格式
      */
-    const formatMessageContent = (role: string, content: any): string | Array<any> => {
-      if (typeof content === 'string') {
-        return role === 'user' ? stripIdeUserDisplayLayer(content) : content
-      }
+    const convertToOpenAIMessages = (msgs: any[]): Array<any> => {
+      const result: Array<any> = []
       
-      if (Array.isArray(content)) {
-        if (content.length === 0) {
-          return ''
+      for (const m of msgs) {
+        const content = m.content
+        const role = m.role
+        
+        // 处理 tool_result 消息（Anthropic 格式 → OpenAI 格式）
+        if (Array.isArray(content) && content.length > 0 && 
+            content[0]?.type === 'tool_result') {
+          // 转换为 { role: "tool", content: "...", tool_call_id: "..." }
+          for (const block of content) {
+            if (block.type === 'tool_result') {
+              result.push({
+                role: 'tool',
+                tool_call_id: block.tool_use_id,
+                content: typeof block.content === 'string' ? block.content : JSON.stringify(block.content || ''),
+              })
+            }
+          }
+          continue
         }
         
-        const formatted = content.map((item: any) => {
-          if (typeof item === 'string') return { type: 'text', text: item }
-          if (item && typeof item === 'object' && item.type) return item
-          return { type: 'text', text: String(item) }
-        })
+        // 处理 assistant 消息（可能包含 tool_use 块）
+        if (role === 'assistant' && Array.isArray(content)) {
+          let textContent = ''
+          const toolCallsFromContent: Array<any> = []
+          
+          for (const block of content) {
+            if (typeof block === 'string') {
+              textContent += block
+            } else if (block?.type === 'text') {
+              textContent += block.text || ''
+            } else if (block?.type === 'tool_use') {
+              // 提取工具调用信息
+              toolCallsFromContent.push({
+                id: block.id,
+                type: 'function',
+                function: {
+                  name: block.name,
+                  arguments: JSON.stringify(block.input || {}),
+                },
+              })
+            }
+          }
+          
+          result.push({
+            role: 'assistant',
+            content: textContent || null,
+            ...(toolCallsFromContent.length > 0 ? { tool_calls: toolCallsFromContent } : {}),
+          })
+          continue
+        }
         
-        return formatted
+        // 处理普通 user 消息
+        if (role === 'user' && typeof content === 'string') {
+          result.push({ role: 'user', content: stripIdeUserDisplayLayer(content) })
+          continue
+        }
+        
+        // 默认处理
+        result.push({
+          role,
+          content: typeof content === 'string' ? content : (Array.isArray(content) && content.length > 0 
+            ? content.find(b => b.type === 'text')?.text || '' 
+            : ''),
+        })
       }
       
-      return String(content || '')
+      return result
     }
 
-    // 构建 OpenAI 格式的消息列表（兼容 Qwen API）
-    const openaiMessages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string | Array<any>; name?: string; tool_call_id?: string }> = [
+    // 构建 OpenAI/Qwen 格式的消息列表
+    const openaiMessages: Array<any> = [
       { role: 'system', content: systemPrompt },
-      ...messages.map(m => ({
-        role: m.role,
-        content: formatMessageContent(m.role, m.content),
-        ...(m.name ? { name: m.name } : {}),
-        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
-      })),
+      ...convertToOpenAIMessages(messages),
     ]
 
     try {
