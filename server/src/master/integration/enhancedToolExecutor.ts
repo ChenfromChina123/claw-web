@@ -372,4 +372,10 @@ export function getToolExecutor(projectRoot?: string): EnhancedToolExecutor {
 // 导出类型供其他模块使用
 export type { ToolDefinition, ToolExecutionContext, ToolResult, UserPermissions, PermissionLevel }
 
+/**
+ * 获取或创建 EnhancedToolExecutor 单例实例
+ * 提供便捷的命名导出供外部使用
+ */
+export const toolExecutor = getToolExecutor()
+
 export default EnhancedToolExecutor
