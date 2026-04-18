@@ -19,18 +19,21 @@
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import * as fs from 'fs/promises'
-import type { Required<PoolConfig> } from './types'
+import type { PoolConfig } from './types'
 import { ContainerOperations } from './containerOperations'
+
+// 类型别名
+type RequiredPoolConfig = Required<PoolConfig>
 
 const execAsync = promisify(exec)
 
 // ==================== WorkspaceManager 类 ====================
 
 export class WorkspaceManager {
-  private config: Required<PoolConfig>
+  private config: RequiredPoolConfig
   private containerOps: ContainerOperations
 
-  constructor(config: Required<PoolConfig>, containerOps: ContainerOperations) {
+  constructor(config: RequiredPoolConfig, containerOps: ContainerOperations) {
     this.config = config
     this.containerOps = containerOps
   }

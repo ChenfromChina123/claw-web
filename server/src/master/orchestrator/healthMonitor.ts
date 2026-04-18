@@ -11,19 +11,22 @@
  * - 故障时自动尝试修复，减少人工干预
  */
 
-import type { UserContainerMapping, Required<PoolConfig> } from './types'
+import type { UserContainerMapping, PoolConfig } from './types'
 import { ContainerLifecycle } from './containerLifecycle'
+
+// 类型别名
+type RequiredPoolConfig = Required<PoolConfig>
 
 // ==================== HealthMonitor 类 ====================
 
 export class HealthMonitor {
-  private config: Required<PoolConfig>
+  private config: RequiredPoolConfig
   private containerLifecycle: ContainerLifecycle
   private userMappings: Map<string, UserContainerMapping>
   private healthCheckTimer: NodeJS.Timeout | null = null
 
   constructor(
-    config: Required<PoolConfig>,
+    config: RequiredPoolConfig,
     containerLifecycle: ContainerLifecycle,
     userMappings: Map<string, UserContainerMapping>
   ) {

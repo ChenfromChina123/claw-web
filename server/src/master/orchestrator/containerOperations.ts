@@ -13,17 +13,20 @@
 
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import type { ContainerInstance, Required<PoolConfig> } from './types'
+import type { ContainerInstance, PoolConfig } from './types'
 import { getWorkerInternalPort } from './types'
+
+// 类型别名，用于内部使用
+type RequiredPoolConfig = Required<PoolConfig>
 
 const execAsync = promisify(exec)
 
 // ==================== ContainerOperations 类 ====================
 
 export class ContainerOperations {
-  private config: Required<PoolConfig>
+  private config: RequiredPoolConfig
 
-  constructor(config: Required<PoolConfig>) {
+  constructor(config: RequiredPoolConfig) {
     this.config = config
   }
 

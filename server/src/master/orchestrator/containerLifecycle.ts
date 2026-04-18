@@ -14,11 +14,14 @@
 
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import type { ContainerInstance, UserContainerMapping, OrchestratorResult, Required<PoolConfig> } from './types'
+import type { ContainerInstance, UserContainerMapping, OrchestratorResult, PoolConfig } from './types'
 import { UserTier } from '../config/hardwareResourceConfig'
 import { getHardwareResourceManager } from '../config/hardwareResourceConfig'
 import { ContainerOperations } from './containerOperations'
 import { WorkspaceManager } from './workspaceManager'
+
+// 类型别名
+type RequiredPoolConfig = Required<PoolConfig>
 
 const execAsync = promisify(exec)
 
@@ -28,13 +31,13 @@ const destroyingContainers = new Set<string>() // 正在销毁的容器ID集合
 // ==================== ContainerLifecycle 类 ====================
 
 export class ContainerLifecycle {
-  private config: Required<PoolConfig>
+  private config: RequiredPoolConfig
   private containerOps: ContainerOperations
   private workspaceManager: WorkspaceManager
   private userMappings: Map<string, UserContainerMapping>
 
   constructor(
-    config: Required<PoolConfig>,
+    config: RequiredPoolConfig,
     containerOps: ContainerOperations,
     workspaceManager: WorkspaceManager,
     userMappings: Map<string, UserContainerMapping>

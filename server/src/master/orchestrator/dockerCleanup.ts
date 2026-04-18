@@ -13,19 +13,22 @@
 
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import type { Required<PoolConfig> } from './types'
+import type { PoolConfig } from './types'
 import { WorkspaceManager } from './workspaceManager'
+
+// 类型别名
+type RequiredPoolConfig = Required<PoolConfig>
 
 const execAsync = promisify(exec)
 
 // ==================== DockerCleanup 类 ====================
 
 export class DockerCleanup {
-  private config: Required<PoolConfig>
+  private config: RequiredPoolConfig
   private workspaceManager: WorkspaceManager
   private dockerCleanupTimer: NodeJS.Timeout | null = null
 
-  constructor(config: Required<PoolConfig>, workspaceManager: WorkspaceManager) {
+  constructor(config: RequiredPoolConfig, workspaceManager: WorkspaceManager) {
     this.config = config
     this.workspaceManager = workspaceManager
   }
