@@ -131,4 +131,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 
 # Worker 容器入口：使用 Node.js + tsx 运行 TypeScript
 ENTRYPOINT ["node"]
-CMD ["--import", "./node_modules/tsx/index.js", "src/index.ts"]
+CMD ["--import", "./node_modules/tsx/dist/loader.mjs", "src/index.ts"]
