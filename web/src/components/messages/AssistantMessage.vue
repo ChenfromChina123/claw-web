@@ -375,12 +375,22 @@ watch(() => props.message.content, () => {
 
 /* 代码块样式优化 */
 .message-body :deep(.markstream-vue pre) {
-  background: #0d1117;
+  background: #16161e;
   border-radius: 8px;
   padding: 12px;
   overflow-x: auto;
   margin: 12px 0;
   position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/**
+ * 强制设置代码块内所有文字为高亮色
+ * 解决在深色背景下代码文字不可见的问题
+ */
+.message-body :deep(.markstream-vue pre code) {
+  color: #f8fafc !important;
+  background: transparent !important;
 }
 
 .message-body :deep(.markstream-vue pre:hover .code-block-actions) {
@@ -426,13 +436,20 @@ watch(() => props.message.content, () => {
   font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
   font-size: 13px;
   line-height: 1.5;
+  color: #f1f5f9;
 }
 
+/**
+ * 行内代码样式优化 - 提高可见性
+ * 使用稍亮的背景和文字颜色
+ */
 .message-body :deep(.markstream-vue :not(pre) > code) {
-  background: #334155;
+  background: rgba(99, 102, 241, 0.15);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 13px;
+  color: #c7d2fe;
+  border: 1px solid rgba(99, 102, 241, 0.2);
 }
 
 /* Mermaid 图表容器样式 */

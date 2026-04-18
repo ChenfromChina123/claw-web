@@ -2200,18 +2200,33 @@ async function handleInterruptExecution() {
   50% { opacity: 0; }
 }
 
-/* 行内代码微调 */
+/* 行内代码微调 - 提高可见性 */
 .markdown-content :deep(.markstream-vue :not(pre) > code) {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(99, 102, 241, 0.15);
   padding: 2px 5px;
-  color: #c0c0c0;
+  color: #c7d2fe;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 4px;
 }
 
-/* 代码块更纯粹 */
+/**
+ * 代码块样式优化 - 提高可读性
+ * 使用稍亮的背景并强制设置文字颜色
+ */
 .markdown-content :deep(.markstream-vue pre) {
-  background: #080808 !important; /* 纯黑背景 */
-  border: 1px solid var(--ide-border) !important;
+  background: #16161e !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
   margin: 10px 0;
+  border-radius: 8px;
+}
+
+/**
+ * 强制代码块内的文字颜色为亮色
+ * 解决深色背景下代码不可见的问题
+ */
+.markdown-content :deep(.markstream-vue pre code) {
+  color: #f8fafc !important;
+  background: transparent !important;
 }
 
 .markdown-content :deep(.markstream-vue p) {
@@ -2265,10 +2280,14 @@ async function handleInterruptExecution() {
   overflow-y: hidden;
 }
 
+/**
+ * 代码字体基础样式 - 确保文字颜色足够亮
+ */
 .markdown-content :deep(.markstream-vue code) {
   font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
   font-size: 13px;
   line-height: 1.5;
+  color: #f1f5f9;
 }
 
 /* Mermaid 图表样式 */
