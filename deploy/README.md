@@ -35,6 +35,13 @@ chmod +x deploy/deploy.sh
 sudo ./deploy/deploy.sh
 ```
 
+### 方法 3：验证部署状态
+
+```bash
+# 部署后运行验证脚本
+sudo ./deploy/verify.sh
+```
+
 ---
 
 ## 📋 部署选项
@@ -82,8 +89,16 @@ sudo ./deploy/deploy.sh
 
 ## 🎯 前置条件
 
+### 支持的 Linux 发行版
+- **Ubuntu**: 20.04, 22.04, 24.04
+- **Debian**: 10, 11, 12
+- **CentOS**: 7, 8
+- **RHEL**: 7, 8, 9
+- **Fedora**: 36, 37, 38
+- **AlmaLinux**: 8, 9
+- **Rocky Linux**: 8, 9
+
 ### 最低要求
-- **操作系统**: Linux (Ubuntu 20.04+ 推荐)
 - **Docker**: 已安装（如未安装会自动安装）
 - **磁盘空间**: ≥ 20 GB 可用空间
 
@@ -284,6 +299,7 @@ ufw status
 |------|------|----------|
 | v1.0 | 2026-04-18 | 初始版本，支持一键部署 |
 | v1.1 | 2026-04-18 | 添加分支指定功能 |
+| v1.2 | 2026-04-18 | 修复 Bash 注释语法错误，添加 CentOS/RHEL/Fedora 支持 |
 
 ---
 
