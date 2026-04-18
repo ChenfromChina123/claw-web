@@ -116,6 +116,9 @@ COPY --from=builder /app/shared ./shared
 # 使用预编译版本，避免从源码编译（需要下载 Node.js headers）
 RUN cd /app && npm install node-pty@1.1.0 --ignore-scripts || npm install node-pty@1.1.0
 
+# 安装 Worker 运行时必需的依赖（ws 用于 WebSocket）
+RUN cd /app && npm install ws @types/ws
+
 # 安装 tsx 用于运行 TypeScript（作为项目依赖，确保 --import 能找到）
 RUN cd /app && npm install tsx
 
