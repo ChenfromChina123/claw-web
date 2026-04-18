@@ -117,6 +117,20 @@ export class EnhancedToolExecutor {
   }
 
   /**
+   * 转换工具定义为 Anthropic SDK 格式
+   * 用于 Agent 对话中的工具调用
+   */
+  getAnthropicTools(): Array<{ name: string; description: string; input_schema: Record<string, unknown> }> {
+    return this.getAllTools().map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      input_schema: (typeof tool.inputSchema === 'object' && tool.inputSchema !== null && 'properties' in (tool.inputSchema as object)
+        ? tool.inputSchema as { type?: string; properties?: Record<string, unknown>; required?: string[] }
+        : { type: 'object', properties: (tool.inputSchema as Record<string, unknown>) || {}, required: [] }),
+    }))
+  }
+
+  /**
    * 检查工具是否存在
    */
   hasTool(name: string): boolean {
