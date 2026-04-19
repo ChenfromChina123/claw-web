@@ -4,14 +4,12 @@
  * 提供的端点：
  * - GET /api/monitoring/performance - 获取性能统计
  * - GET /api/monitoring/resources - 获取资源使用情况
- * - GET /api/monitoring/health - 获取系统健康状态
  * - GET /api/monitoring/containers - 获取容器状态
  */
 
 import type { Request, Response } from 'express'
 import { createSuccessResponse, createErrorResponse } from '../utils/response'
 import { requireAdminAuth } from '../middleware/adminAuth'
-import { getPool } from '../db/mysql'
 import { cpus, totalmem, freemem, loadavg } from 'os'
 import { exec } from 'child_process'
 import { promisify } from 'util'
@@ -48,12 +46,6 @@ export async function handleMonitoringRoutes(req: Request): Promise<Response | n
   // GET /api/monitoring/resources
   if (path === '/api/monitoring/resources' && method === 'GET') {
     return handleGetResources(req)
-  }
-
-  // 获取系统健康状态
-  // GET /api/monitoring/health
-  if (path === '/api/monitoring/health' && method === 'GET') {
-    return handleGetHealth(req)
   }
 
   // 获取容器状态
@@ -115,6 +107,7 @@ async function handleGetPerformance(req: Request): Promise<Response> {
 
 /**
  * 获取资源使用情况
+ * GET /api/monitoring/resources
  */
 async function handleGetResources(req: Request): Promise<Response> {
   try {
@@ -177,69 +170,6 @@ async function handleGetResources(req: Request): Promise<Response> {
   } catch (error) {
     console.error('[MonitoringRoutes] 获取资源使用情况失败:', error)
     return createErrorResponse('GET_RESOURCES_FAILED', '获取资源使用情况失败', 500)
-  }
-}
-
-/**
- * 获取系统健康状态
- */
-async function handleGetHealth(req: Request): Promise<Response> {
-  try {
-    const pool = getPool()
-
-    // 检查数据库连接
-    let dbHealthy = false
-    try {
-      await pool.query('SELECT 1')
-      dbHealthy = true
-    } catch {
-      dbHealthy = false
-    }
-
-    // 检查 Docker 服务
-    let dockerHealthy = false
-    try {
-      await execAsync('docker info')
-      dockerHealthy = true
-    } catch {
-      dockerHealthy = false
-    }
-
-    // 检查磁盘空间
-    let diskHealthy = true
-    let diskUsage = 0
-    try {
-      const { stdout } = await execAsync("df -h / | tail -1 | awk '{print $5}' | sed 's/%//'")
-      diskUsage = parseInt(stdout.trim(), 10) || 0
-      diskHealthy = diskUsage < 90
-    } catch {
-      diskHealthy = false
-    }
-
-    const healthStatus = {
-      status: dbHealthy && dockerHealthy && diskHealthy ? 'healthy' : 'degraded',
-      components: {
-        database: {
-          status: dbHealthy ? 'healthy' : 'unhealthy',
-          message: dbHealthy ? '连接正常' : '连接失败'
-        },
-        docker: {
-          status: dockerHealthy ? 'healthy' : 'unhealthy',
-          message: dockerHealthy ? '运行正常' : '服务不可用'
-        },
-        disk: {
-          status: diskHealthy ? 'healthy' : 'warning',
-          usage: diskUsage,
-          message: diskHealthy ? '空间充足' : `空间使用率 ${diskUsage}%`
-        }
-      },
-      timestamp: new Date().toISOString()
-    }
-
-    return createSuccessResponse(healthStatus)
-  } catch (error) {
-    console.error('[MonitoringRoutes] 获取健康状态失败:', error)
-    return createErrorResponse('GET_HEALTH_FAILED', '获取健康状态失败', 500)
   }
 }
 

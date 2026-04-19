@@ -879,7 +879,7 @@ export class SessionConversationManager {
         })
 
         // 如果是文件操作工具，发送文件变更事件通知前端刷新文件树
-        const fileOperationTools = ['FileWrite', 'FileEdit', 'FileDelete', 'FileRename', 'Bash', 'PowerShell']
+        const fileOperationTools = ['FileWrite', 'FileEdit', 'Bash']
         if (fileOperationTools.includes(tool.name)) {
           sendEvent('workdir_changed', {
             sessionId,

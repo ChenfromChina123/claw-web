@@ -363,7 +363,21 @@ export class WebAgentRunner {
               result: toolResult.result,
               error: toolResult.error,
             })
-            
+
+            /**
+             * 检测文件操作工具并发送 workdir_changed 事件
+             * 解决 Agent 执行文件操作后前端不同步的问题
+             */
+            const fileOperationTools = ['FileWrite', 'FileEdit', 'Bash']
+            if (toolResult.success && fileOperationTools.includes(toolCall.name)) {
+              sendEvent('workdir_changed', {
+                sessionId: config.sessionId || '',
+                toolName: toolCall.name,
+                timestamp: new Date().toISOString(),
+              })
+              console.log(`[WebAgentRunner] 文件操作工具 ${toolCall.name} 执行完成，已发送 workdir_changed 事件`)
+            }
+
             // 将工具结果添加到对话
             conversationMessages.push({
               role: 'user',
