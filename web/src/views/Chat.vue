@@ -35,6 +35,14 @@ const sidebarCollapsed = ref(false)
 let isPageInitializing = false
 
 /**
+ * 会话创建去重锁
+ * 防止在短时间内（如页面刷新、组件重载）重复创建会话
+ * 使用时间戳判断，5秒内的重复创建请求将被忽略
+ */
+let lastSessionCreateTime = 0
+const SESSION_CREATE_DEBOUNCE_MS = 5000
+
+/**
  * 消息搜索弹窗
  */
 const showMessageSearch = ref(false)

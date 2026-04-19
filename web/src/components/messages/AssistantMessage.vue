@@ -467,6 +467,69 @@ watch(() => props.message.content, () => {
   color: #e2e8f0;
 }
 
+/**
+ * Monaco 编辑器样式优化 - 聊天消息中的代码块
+ * 解决"Plain Text"标题栏突兀、工具栏不协调等问题
+ */
+.message-body :deep(.monaco-editor) {
+  border-radius: 8px !important;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/** 隐藏Monaco编辑器的标题栏（显示"Plain Text"的部分） */
+.message-body :deep(.monaco-editor .monaco-editor-overlaymessage),
+.message-body :deep(.monaco-editor .monaco-editor-background:not(:first-child)) {
+  display: none !important;
+}
+
+/** 隐藏Monaco工具栏中的不必要按钮 */
+.message-body :deep(.monaco-editor .overflow-guard .monaco-scrollable-element > .monaco-editor .monaco-container) {
+  padding-top: 0 !important;
+}
+
+/** Monaco编辑器内容区域优化 */
+.message-body :deep(.monaco-editor .margin) {
+  background: transparent !important;
+}
+
+/** 确保Monaco代码文字颜色清晰 */
+.message-body :deep(.monaco-editor .mtk1),
+.message-body :deep(.monaco-editor .mtk2),
+.message-body :deep(.monaco-editor .mtk3),
+.message-body :deep(.monaco-editor .mtk4),
+.message-body :deep(.monaco-editor .mtk5),
+.message-body :deep(.monaco-editor .mtk6),
+.message-body :deep(.monaco-editor .mtk7),
+.message-body :deep(.monaco-editor .mtk8),
+.message-body :deep(.monaco-editor .mtk9),
+.message-body :deep(.monaco-editor .mtk10),
+.message-body :deep(.monaco-editor .mtk11),
+.message-body :deep(.monaco-editor .mtk12),
+.message-body :deep(.monaco-editor .mtk13),
+.message-body :deep(.monaco-editor .mtk14),
+.message-body :deep(.monaco-editor .mtk15),
+.message-body :deep(.monaco-editor .mtk16),
+.message-body :deep(.monaco-editor .mtk17),
+.message-body :deep(.monaco-editor .mtk18),
+.message-body :deep(.monaco-editor .mtk19),
+.message-body :deep(.monaco-editor .mtk20) {
+  color: #f8fafc !important;
+}
+
+/** 隐藏语言选择器下拉菜单图标 */
+.message-body :deep(.monaco-editor .monaco-selectbox) {
+  display: none !important;
+}
+
+/** 优化Monaco编辑器整体容器 */
+.message-body :deep(.markstream-vue > div:has(.monaco-editor)) {
+  margin: 12px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
 .message-time {
   font-size: 11px;
   color: #999;

@@ -9,8 +9,12 @@ let wsListenersAttached = false
 
 const LAST_SESSION_KEY = 'lastSessionId'
 
-/** 避免重复调用 createSession 的锁 */
-let isCreatingSession = false
+/**
+ * 会话创建并发控制
+ * 使用 Promise 单例模式确保同一时间只有一个创建请求
+ * 所有并发的 createSession 调用将共享同一个 Promise
+ */
+let createSessionPromise: Promise<void> | null = null
 
 export const useChatStore = defineStore('chat', () => {
   const sessions = ref<Session[]>([])
@@ -460,39 +464,25 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
-   * 创建新会话（带防抖保护）
+   * 创建新会话（带并发控制）
+   * 使用 Promise 单例模式防止重复创建
+   *
+   * 实现原理：
+   * - 维护模块级 createSessionPromise 变量
+   * - 第一个调用者创建 Promise 并保存
+   * - 后续调用者直接返回已存在的 Promise
+   * - Promise 完成（无论成功失败）后自动清空
+   *
    * @param title 会话标题
    * @param model 使用的模型
    * @param force 是否强制创建（跳过验证）
    * @returns Promise，在会话创建成功后 resolve
-   * @throws 如果当前会话没有消息且未强制创建，抛出错误
-   *
-   * 防抖说明：
-   * - 使用模块级 isCreatingSession 锁防止并发创建
-   * - 同一时间只允许一个创建请求
-   * - 如果创建中再次调用，等待第一个完成或返回第一个 Promise
    */
   function createSession(title?: string, model?: string, force?: boolean): Promise<void> {
-    // 如果已经在创建中，等待第一个完成
-    if (isCreatingSession) {
-      console.log('[ChatStore] createSession already in progress, waiting for completion...')
-      return new Promise((resolve, reject) => {
-        const checkInterval = setInterval(() => {
-          if (!isCreatingSession) {
-            clearInterval(checkInterval)
-            // 检查会话是否已创建成功
-            if (sessions.value.length > 0) {
-              resolve()
-            } else {
-              reject(new Error('创建会话失败'))
-            }
-          }
-        }, 100)
-        setTimeout(() => {
-          clearInterval(checkInterval)
-          reject(new Error('创建会话超时'))
-        }, 10000)
-      })
+    // 如果已有正在进行的创建请求，直接返回该 Promise（实现并发控制）
+    if (createSessionPromise) {
+      console.log('[ChatStore] createSession: 已有进行中的创建请求，复用现有 Promise')
+      return createSessionPromise
     }
 
     // 如果不是强制创建，检查当前会话是否有消息
@@ -500,41 +490,60 @@ export const useChatStore = defineStore('chat', () => {
       return Promise.reject(new Error('当前会话没有消息，无法创建新会话'))
     }
 
-    isCreatingSession = true
-    console.log('[ChatStore] Starting createSession, isCreatingSession set to true')
+    console.log('[ChatStore] createSession: 开始创建新会话...')
 
-    return new Promise((resolve, reject) => {
-      const timeout = 10000
+    // 创建新的 Promise 并保存到模块级变量
+    createSessionPromise = new Promise<void>((resolve, reject) => {
+      const timeout = 15000 // 15秒超时
       let timeoutId: ReturnType<typeof setTimeout> | null = null
-      let resolved = false
+      let settled = false
 
-      const cleanup = () => {
-        if (resolved) return
-        resolved = true
-        isCreatingSession = false
-        console.log('[ChatStore] createSession finished, isCreatingSession set to false')
+      /**
+       * 清理函数：确保资源释放和状态重置
+       */
+      const cleanup = (shouldReject?: boolean, error?: Error) => {
+        if (settled) return
+        settled = true
+
+        // 清空全局 Promise（允许下次创建）
+        createSessionPromise = null
+
         if (timeoutId) {
           clearTimeout(timeoutId)
+          timeoutId = null
         }
+
         unsubscribe()
+
+        if (shouldReject && error) {
+          reject(error)
+        } else if (!shouldReject) {
+          resolve()
+        }
       }
 
+      // 监听会话创建成功事件
       const unsubscribe = wsClient.on('session_created', () => {
-        cleanup()
-        resolve()
+        console.log('[ChatStore] createSession: 收到 session_created 事件，创建成功')
+        cleanup(false)
       })
 
+      // 设置超时
       timeoutId = setTimeout(() => {
-        cleanup()
-        reject(new Error('创建会话超时'))
+        console.warn('[ChatStore] createSession: 创建超时（15秒）')
+        cleanup(true, new Error('创建会话超时'))
       }, timeout)
 
+      // 发送创建请求
       wsClient.createSession(title, model, force)
     }).finally(() => {
-      // 确保 finally 中也清理锁（防止异常情况）
-      isCreatingSession = false
-      console.log('[ChatStore] createSession promise settled, isCreatingSession cleared')
+      // 确保 finally 中也清理（防止异常情况导致内存泄漏）
+      if (createSessionPromise) {
+        createSessionPromise = null
+      }
     })
+
+    return createSessionPromise
   }
 
   /**

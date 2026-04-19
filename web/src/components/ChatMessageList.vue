@@ -2299,6 +2299,64 @@ async function handleInterruptExecution() {
   text-align: center;
 }
 
+/**
+ * Monaco 编辑器样式优化 - 聊天消息中的代码块
+ * 解决"Plain Text"标题栏突兀、工具栏不协调等问题
+ */
+.markdown-content :deep(.monaco-editor) {
+  border-radius: 8px !important;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/** 隐藏Monaco编辑器的标题栏（显示"Plain Text"的部分） */
+.markdown-content :deep(.monaco-editor .monaco-editor-overlaymessage),
+.markdown-content :deep(.monaco-editor .monaco-editor-background:not(:first-child)) {
+  display: none !important;
+}
+
+/** Monaco编辑器内容区域优化 */
+.markdown-content :deep(.monaco-editor .margin) {
+  background: transparent !important;
+}
+
+/** 确保Monaco代码文字颜色清晰 */
+.markdown-content :deep(.monaco-editor .mtk1),
+.markdown-content :deep(.monaco-editor .mtk2),
+.markdown-content :deep(.monaco-editor .mtk3),
+.markdown-content :deep(.monaco-editor .mtk4),
+.markdown-content :deep(.monaco-editor .mtk5),
+.markdown-content :deep(.monaco-editor .mtk6),
+.markdown-content :deep(.monaco-editor .mtk7),
+.markdown-content :deep(.monaco-editor .mtk8),
+.markdown-content :deep(.monaco-editor .mtk9),
+.markdown-content :deep(.monaco-editor .mtk10),
+.markdown-content :deep(.monaco-editor .mtk11),
+.markdown-content :deep(.monaco-editor .mtk12),
+.markdown-content :deep(.monaco-editor .mtk13),
+.markdown-content :deep(.monaco-editor .mtk14),
+.markdown-content :deep(.monaco-editor .mtk15),
+.markdown-content :deep(.monaco-editor .mtk16),
+.markdown-content :deep(.monaco-editor .mtk17),
+.markdown-content :deep(.monaco-editor .mtk18),
+.markdown-content :deep(.monaco-editor .mtk19),
+.markdown-content :deep(.monaco-editor .mtk20) {
+  color: #f8fafc !important;
+}
+
+/** 隐藏语言选择器下拉菜单图标 */
+.markdown-content :deep(.monaco-editor .monaco-selectbox) {
+  display: none !important;
+}
+
+/** 优化Monaco编辑器整体容器 */
+.markdown-content :deep(.markstream-vue > div:has(.monaco-editor)) {
+  margin: 12px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
 /* 列表样式 */
 .markdown-content :deep(.markstream-vue ul),
 .markdown-content :deep(.markstream-vue ol) {
