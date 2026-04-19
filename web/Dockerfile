@@ -30,7 +30,9 @@ ENV NODE_ENV=production
 ENV VITE_FEATURE_PTY_SHELL=true
 # 根据机器配置调整内存限制（默认 2GB）
 ENV NODE_OPTIONS="--max-old-space-size=2048"
-RUN npx vite build
+
+# 修复权限问题：使用 npm 运行 vite
+RUN npm run build
 
 # ==================== 生产阶段（Nginx） ====================
 FROM nginx:1.25-alpine AS production
