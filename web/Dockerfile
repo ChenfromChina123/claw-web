@@ -22,6 +22,9 @@ COPY web/package.json web/package-lock.json ./
 # 使用国内 npm 镜像加速
 RUN npm install --legacy-peer-deps --registry=https://registry.npmmirror.com
 
+# 修复 node_modules 中二进制文件的权限问题
+RUN chmod +x node_modules/.bin/*
+
 # ✅ 再复制源代码（代码变化不影响依赖层缓存）
 COPY web/ .
 
