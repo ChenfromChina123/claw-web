@@ -23,7 +23,25 @@ build/
 server/node_modules/
 web/node_modules/
 
-# ==================== IDE ====================
+# ==================== 构建产物（大文件，不上传）====================
+# 前端打包输出
+web/dist/
+web/build/
+
+# 服务端打包输出
+server/dist/
+
+# Docker 镜像导出文件（通常几百MB到几GB）
+*.tar
+*.tar.gz
+*.zip
+
+# Docker 镜像相关（二进制文件，极大）
+*.image
+*.img
+docker-image-*
+
+# IDE 和编辑器
 .vscode/
 .idea/
 *.swp
@@ -47,3 +65,32 @@ coverage/
 # ==================== 工作空间数据 ====================
 workspaces/
 /data/
+
+# ==================== Docker 相关 ====================
+# Docker 体积数据（避免提交容器层缓存）
+.docker/
+
+# ==================== 数据库备份和转储 ====================
+*.sql.bak
+*.sql.dump
+*.db
+*.sqlite
+*.sqlite3
+
+# ==================== 性能分析和调试文件 ====================
+*.prof
+*.cpuprofile
+heapdump-*
+core.*
+
+# ==================== 临时文件和缓存 ====================
+.tmp/
+temp/
+cache/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.swp
+*.swo
+*~

@@ -4,15 +4,19 @@
  * 功能：
  * - 定期执行容器健康检查
  * - 自动检测故障容器并尝试恢复
+ * - 智能休眠空闲容器（基于 WebSocket 连接状态）
  * - 支持容器重启和重新分配策略
  *
- * 使用场景：
- * - 后台持续监控所有用户容器的健康状态
- * - 故障时自动尝试修复，减少人工干预
+ * 休眠算法优化：
+ * - 检查前端 WebSocket 连接数（有连接则不休眠）
+ * - 检查 Worker WebSocket 连接状态（活跃则不休眠）
+ * - 结合用户等级的 idleTimeoutMs 配置
+ * - 避免误杀活跃用户的容器
  */
 
 import type { UserContainerMapping, PoolConfig } from './types'
 import { ContainerLifecycle } from './containerLifecycle'
+import { getSchedulingPolicy, type UserTier } from './schedulingPolicy'
 
 // 类型别名
 type RequiredPoolConfig = Required<PoolConfig>
@@ -24,6 +28,7 @@ export class HealthMonitor {
   private containerLifecycle: ContainerLifecycle
   private userMappings: Map<string, UserContainerMapping>
   private healthCheckTimer: NodeJS.Timeout | null = null
+  private idleCheckTimer: NodeJS.Timeout | null = null
 
   constructor(
     config: RequiredPoolConfig,
@@ -74,6 +79,9 @@ export class HealthMonitor {
 
     // 首次启动健康检查循环
     this.healthCheckTimer = setTimeout(healthCheckLoop, this.config.healthCheckIntervalMs) as any
+
+    // 启动空闲检测和智能休眠循环（每60秒检查一次）
+    this.startIdleDetectionLoop()
   }
 
   /**
@@ -83,6 +91,11 @@ export class HealthMonitor {
     if (this.healthCheckTimer) {
       clearTimeout(this.healthCheckTimer)
       this.healthCheckTimer = null
+    }
+    // 同时停止空闲检测循环
+    if (this.idleCheckTimer) {
+      clearTimeout(this.idleCheckTimer)
+      this.idleCheckTimer = null
     }
   }
 
@@ -160,6 +173,158 @@ export class HealthMonitor {
 
     } catch (error) {
       console.error(`[HealthMonitor] 重新分配容器失败 (${userId}):`, error)
+    }
+  }
+
+  // ==================== 智能休眠算法 ====================
+
+  /**
+   * 启动空闲检测和智能休眠循环
+   *
+   * 核心算法：
+   * 1. 遍历所有非休眠状态的用户容器
+   * 2. 检查每个用户的空闲时间是否超过阈值
+   * 3. 如果超过阈值，进一步检查是否有活跃的 WebSocket 连接
+   * 4. 只有在无活跃连接时才执行休眠
+   */
+  private startIdleDetectionLoop(): void {
+    const idleDetectionInterval = 60000 // 每60秒检查一次
+
+    const idleCheckLoop = async () => {
+      try {
+        const schedulingPolicy = getSchedulingPolicy()
+
+        for (const [userId, mapping] of this.userMappings) {
+          // 跳过已休眠的容器
+          if (mapping.container.status === 'paused') {
+            continue
+          }
+
+          // 获取用户等级配置
+          const tierConfig = schedulingPolicy.getTierConfig(this.determineUserTier(userId)) as any
+          const idleTimeoutMs = tierConfig?.idleTimeoutMs ?? this.config.idleTimeoutMs
+
+          // idleTimeoutMs 为 0 表示永不回收（如 VIP 用户）
+          if (idleTimeoutMs === 0) {
+            continue
+          }
+
+          // 计算空闲时间
+          const now = Date.now()
+          const idleTime = now - mapping.lastActivityAt.getTime()
+
+          // 如果未超过空闲阈值，跳过
+          if (idleTime < idleTimeoutMs) {
+            continue
+          }
+
+          // 检查是否有活跃的 WebSocket 连接
+          const hasActiveConnections = await this.checkUserActiveConnections(userId)
+
+          if (hasActiveConnections) {
+            // 有活跃连接，更新最后活动时间并跳过休眠
+            console.log(`[HealthMonitor] 用户 ${userId} 有活跃 WebSocket 连接，跳过休眠（空闲 ${Math.round(idleTime / 1000)}s）`)
+            mapping.lastActivityAt = new Date()
+            mapping.container.lastActivityAt = new Date()
+            continue
+          }
+
+          // 无活跃连接且超过空闲时间，执行休眠
+          console.log(`[HealthMonitor] 用户 ${userId} 空闲超时（${Math.round(idleTime / 1000)}s），无活跃连接，开始休眠...`)
+          await this.pauseIdleUserContainer(userId, idleTime)
+        }
+      } catch (error) {
+        console.error('[HealthMonitor] 空闲检测循环出错:', error)
+      } finally {
+        if (this.idleCheckTimer) {
+          this.idleCheckTimer = setTimeout(idleCheckLoop, idleDetectionInterval) as any
+        }
+      }
+    }
+
+    this.idleCheckTimer = setTimeout(idleCheckLoop, idleDetectionInterval) as any
+    console.log('[HealthMonitor] 智能休眠检测已启动（基于 WebSocket 连接状态）')
+  }
+
+  /**
+   * 检查用户是否有活跃的 WebSocket 连接
+   *
+   * 检测维度：
+   * 1. 前端 WebSocket 连接数（wsManager）
+   * 2. Worker WebSocket 连接状态（workerForwarder）
+   *
+   * @param userId 用户ID
+   * @returns 是否有活跃连接
+   */
+  private async checkUserActiveConnections(userId: string): Promise<boolean> {
+    try {
+      // 动态导入避免循环依赖
+      const { wsManager } = await import('../integration/wsBridge')
+      const { getWorkerForwarder } = await import('./workerForwarder')
+
+      // 1. 检查前端 WebSocket 连接
+      const allConnections = wsManager.getAllConnections()
+      const userFrontendConnections = Array.from(allConnections.values()).filter(
+        conn => conn.meta?.userId === userId && conn.ws.readyState === 1 // WebSocket.OPEN = 1
+      )
+
+      if (userFrontendConnections.length > 0) {
+        console.log(`[HealthMonitor] 用户 ${userId} 有 ${userFrontendConnections.length} 个活跃前端连接`)
+        return true
+      }
+
+      // 2. 检查 Worker WebSocket 连接
+      const workerForwarder = getWorkerForwarder()
+      if (workerForwarder) {
+        const workerConnection = workerForwarder.getConnectionByUserId(userId)
+        if (workerConnection && workerConnection.ws.readyState === 1) { // WebSocket.OPEN = 1
+          // 进一步检查前端是否通过 Worker 转发器有活跃连接
+          if (workerConnection.frontendWs && workerConnection.frontendWs.readyState === 1) {
+            console.log(`[HealthMonitor] 用户 ${userId} 有活跃的 Worker-前端桥接连接`)
+            return true
+          }
+        }
+      }
+
+      return false
+    } catch (error) {
+      console.warn(`[HealthMonitor] 检查用户 ${userId} 连接状态失败:`, error)
+      // 出错时保守处理：假设有连接，不执行休眠
+      return true
+    }
+  }
+
+  /**
+   * 简单的用户等级判断（根据映射信息推断）
+   * @param userId 用户ID
+   * @returns 用户等级
+   */
+  private determineUserTier(userId: string): UserTier {
+    // 默认返回普通用户等级
+    return UserTier.REGULAR
+  }
+
+  /**
+   * 休眠空闲用户的容器
+   * @param userId 用户ID
+   * @param idleTime 空闲时间（毫秒）
+   */
+  private async pauseIdleUserContainer(userId: string, idleTime: number): Promise<void> {
+    try {
+      const mapping = this.userMappings.get(userId)
+      if (!mapping) {
+        return
+      }
+
+      // 调用容器的释放方法（会触发休眠而非销毁）
+      const { getContainerOrchestrator } = require('./containerOrchestrator')
+      const orchestrator = getContainerOrchestrator()
+
+      await orchestrator.releaseUserContainer(userId, false) // force=false 表示休眠而非销毁
+
+      console.log(`[HealthMonitor] 用户 ${userId} 的容器已休眠（空闲 ${Math.round(idleTime / 1000)}s）`)
+    } catch (error) {
+      console.error(`[HealthMonitor] 休眠用户 ${userId} 容器失败:`, error)
     }
   }
 }
