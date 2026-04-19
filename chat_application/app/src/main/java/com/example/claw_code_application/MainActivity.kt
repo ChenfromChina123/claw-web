@@ -10,11 +10,13 @@ import androidx.compose.runtime.*
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import com.example.claw_code_application.ui.auth.LoginScreen
+import com.example.claw_code_application.ui.auth.RegisterScreen
 import com.example.claw_code_application.ui.chat.ChatScreen
 import com.example.claw_code_application.ui.chat.SessionListScreen
 import com.example.claw_code_application.ui.theme.ClawCodeApplicationTheme
 import com.example.claw_code_application.viewmodel.AuthViewModel
 import com.example.claw_code_application.viewmodel.ChatViewModel
+import com.example.claw_code_application.viewmodel.SessionViewModel
 import kotlinx.coroutines.launch
 
 /**
@@ -62,7 +64,22 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             onNavigateToRegister = {
-                                // TODO: 实现注册页面跳转
+                                navController.navigate("register")
+                            }
+                        )
+                    }
+
+                    // ==================== 注册页面路由 ====================
+                    composable("register") {
+                        RegisterScreen(
+                            viewModel = AuthViewModel(ClawCodeApplication.authRepository),
+                            onRegisterSuccess = {
+                                navController.navigate("chat") {
+                                    popUpTo("register") { inclusive = true }
+                                }
+                            },
+                            onNavigateToLogin = {
+                                navController.popBackStack()
                             }
                         )
                     }
@@ -110,39 +127,125 @@ private fun AuthCheckScreen(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = androidx.compose.ui.Alignment.Center
     ) {
-        CircularProgressIndicator(
-            color = com.example.claw_code_application.ui.theme.Color.Primary
-        )
+        Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = com.example.claw_code_application.ui.theme.Color.Primary)
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text(
+                text = "正在检查登录状态...",
+                color = com.example.claw_code_application.ui.theme.Color.TextSecondary,
+                fontSize = 14.sp
+            )
+        }
     }
 }
 
 /**
  * 聊天主界面（包含会话列表和聊天详情）
+ * 集成SessionViewModel实现完整的会话管理功能
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatMainScreen(
     onLogout: () -> Unit
 ) {
+    // 创建会话ViewModel
+    val sessionViewModel = SessionViewModel(
+        chatRepository = ClawCodeApplication.chatRepository,
+        tokenManager = ClawCodeApplication.tokenManager
+    )
+    
     var selectedSessionId by remember { mutableStateOf<String?>(null) }
     var showSessionList by remember { mutableStateOf(true) }
+
+    // 监听会话列表UI状态
+    val sessionUiState by sessionViewModel.uiState.collectAsStateWithLifecycle()
+
+    // 初始加载会话列表
+    LaunchedEffect(Unit) {
+        sessionViewModel.loadSessions()
+    }
 
     Row(modifier = Modifier.fillMaxSize()) {
         // 左侧会话列表
         AnimatedVisibility(visible = showSessionList) {
-            SessionListScreen(
-                sessions = emptyList(),  // TODO: 从ViewModel加载
-                currentSessionId = selectedSessionId,
-                onSelect = { sessionId ->
-                    selectedSessionId = sessionId
-                    showSessionList = false
-                },
-                onCreateNew = {
-                    selectedSessionId = null
-                    showSessionList = false
-                },
-                onDelete = { /* TODO */ },
-                modifier = Modifier.width(300.dp)
-            )
+            Surface(
+                modifier = Modifier.width(320.dp),
+                color = com.example.claw_code_application.ui.theme.Color.BackgroundDark
+            ) {
+                when (val state = sessionUiState) {
+                    is SessionViewModel.UiState.Loading -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = androidx.compose.ui.Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = com.example.claw_code_application.ui.theme.Color.Primary
+                            )
+                        }
+                    }
+                    
+                    is SessionViewModel.UiState.Success -> {
+                        SessionListScreen(
+                            sessions = state.sessions,
+                            currentSessionId = selectedSessionId,
+                            onSelect = { sessionId ->
+                                sessionViewModel.selectSession(sessionId)
+                                selectedSessionId = sessionId
+                                showSessionList = false
+                            },
+                            onCreateNew = {
+                                // 创建新会话
+                                kotlinx.coroutines.MainScope().launch {
+                                    val newSessionId = sessionViewModel.createNewSession()
+                                    if (newSessionId != null) {
+                                        selectedSessionId = newSessionId
+                                        showSessionList = false
+                                    }
+                                }
+                            },
+                            onDelete = { sessionId ->
+                                sessionViewModel.deleteSession(sessionId)
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    
+                    is SessionViewModel.UiState.Error -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(32.dp),
+                            contentAlignment = androidx.compose.ui.Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "加载失败",
+                                    color = com.example.claw_code_application.ui.theme.Color.Error,
+                                    fontSize = 16.sp
+                                )
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                Text(
+                                    text = state.message,
+                                    color = com.example.claw_code_application.ui.theme.Color.TextSecondary,
+                                    fontSize = 14.sp
+                                )
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                Button(onClick = { sessionViewModel.refresh() }) {
+                                    Text("重试")
+                                }
+                            }
+                        }
+                    }
+                    
+                    else -> {}
+                }
+            }
         }
 
         // 右侧聊天详情
@@ -151,13 +254,43 @@ private fun ChatMainScreen(
                 viewModel = ChatViewModel(
                     chatRepository = ClawCodeApplication.chatRepository,
                     tokenManager = ClawCodeApplication.tokenManager
-                ),
+                ).also { viewModel ->
+                    // 如果有选中的会话，加载其历史消息
+                    selectedSessionId?.let { sessionId ->
+                        viewModel.loadSession(sessionId)
+                    }
+                },
                 onBack = {
                     showSessionList = true
-                    selectedSessionId = null
+                    // 不清空selectedSessionId，保持选中状态
                 },
                 modifier = Modifier.weight(1f)
             )
+        } else {
+            // 未选择会话时显示空状态
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(com.example.claw_code_application.ui.theme.Color.SurfaceDark),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Default.ChatBubbleOutline,
+                        contentDescription = null,
+                        tint = com.example.claw_code_application.ui.theme.Color.TextSecondary.copy(alpha = 0.5f),
+                        modifier = Modifier.size(80.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Text(
+                        text = "选择或创建一个会话开始聊天",
+                        color = com.example.claw_code_application.ui.theme.Color.TextSecondary,
+                        fontSize = 16.sp
+                    )
+                }
+            }
         }
     }
 }
