@@ -11,6 +11,7 @@
 import type { Request, Response } from 'express'
 import { createSuccessResponse, createErrorResponse } from '../utils/response'
 import { requireAdminAuth } from '../middleware/adminAuth'
+import { getPool } from '../db/mysql'
 import { cpus, totalmem, freemem, loadavg } from 'os'
 import { exec } from 'child_process'
 import { promisify } from 'util'
