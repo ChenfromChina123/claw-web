@@ -222,51 +222,54 @@ watch([() => agentStore.currentAgents, () => agentStore.agentTree], () => {
 }, { deep: true, immediate: true })
 
 onMounted(async () => {
-  // 防止重复初始化
+  // 防止重复初始化（Vue 3 的 <KeepAlive> 或热更新可能触发多次 onMounted）
   if (isPageInitializing) {
     console.warn('[Chat] Page already initializing, skipping duplicate onMounted call')
     return
   }
   isPageInitializing = true
-  
+
   // 检查是否已登录
   if (!authStore.token || !authStore.isLoggedIn) {
     console.warn('[Chat] 用户未登录，重定向到登录页面')
     router.replace('/login')
     return
   }
-  
+
   isInitializing.value = true
   initError.value = null
-  
+
   try {
     console.log('[Chat] 开始初始化...')
-    
-    // 连接 WebSocket
-    console.log('[Chat] 连接 WebSocket...')
+
+    // 步骤1：连接 WebSocket（等待完全认证完成）
+    console.log('[Chat] 步骤1: 连接 WebSocket...')
     await chatStore.connect(authStore.token || undefined)
     console.log('[Chat] WebSocket 连接成功，isConnected:', chatStore.isConnected)
-    
+
+    // 额外等待一小段时间，确保 WebSocket 完全就绪（避免竞态条件）
+    await new Promise(resolve => setTimeout(resolve, 100))
+
     // 设置 Agent Store 的 WebSocket 监听
     agentStore.setupWebSocketListeners()
-    
-    // 获取会话列表
-    console.log('[Chat] 获取会话列表...')
+
+    // 步骤2：获取会话列表（确保在 WebSocket 就绪后）
+    console.log('[Chat] 步骤2: 获取会话列表...')
     await chatStore.listSessions()
     console.log('[Chat] 会话列表获取完成，sessions:', chatStore.sessions)
-    
-    // 加载或创建会话（优先恢复已有会话）
+
+    // 步骤3：加载或创建会话（带去重检查）
     const sessions = chatStore.sessions || []
-    console.log('[Chat] 会话数量:', sessions.length)
-    
+    console.log('[Chat] 步骤3: 会话数量:', sessions.length)
+
     if (sessions.length > 0) {
-      // 优先加载上次选中的会话（持久化的），其次加载第一个
+      // 有现有会话：优先恢复上次选中的会话
       const lastSessionId = chatStore.currentSessionId
       const targetSession = lastSessionId && sessions.find(s => s.id === lastSessionId)
         ? sessions.find(s => s.id === lastSessionId)
         : sessions[0]
-      console.log('[Chat] 加载会话:', targetSession?.id, '上次会话:', lastSessionId)
-      
+      console.log('[Chat] 加载已有会话:', targetSession?.id, '上次会话:', lastSessionId)
+
       try {
         await chatStore.loadSession(targetSession?.id || sessions[0].id)
         console.log('[Chat] 会话加载成功，currentSessionId:', chatStore.currentSessionId)
@@ -274,21 +277,21 @@ onMounted(async () => {
         console.error('[Chat] 会话加载失败:', loadError)
         // 会话加载失败（可能是容器不存在），尝试创建新会话
         console.warn('[Chat] 会话加载失败，尝试创建新会话...')
-        await createSessionWithRetry()
+        await createSessionWithDebounce()
       }
     } else {
-      // 会话列表为空，创建新会话
-      console.log('[Chat] 会话列表为空，创建新会话...')
-      await createSessionWithRetry()
+      // 无现有会话：创建新会话（带去重检查）
+      console.log('[Chat] 会话列表为空，准备创建新会话...')
+      await createSessionWithDebounce()
     }
-    
+
     console.log('[Chat] 初始化完成，currentSessionId:', chatStore.currentSessionId)
-    
+
     // 聚焦输入框
     nextTick(() => {
       inputRef.value?.focus()
     })
-    
+
     // 加载 Agent 类型列表
     await agentStore.loadAvailableAgentTypes()
     console.log('[Chat] Agent 类型列表加载完成')
@@ -300,7 +303,7 @@ onMounted(async () => {
     isInitializing.value = false
     isPageInitializing = false
   }
-  
+
   // 监听键盘事件
   document.addEventListener('keydown', handleKeyDown)
 })
@@ -333,30 +336,60 @@ function handleKeyDown(e: KeyboardEvent): void {
 }
 
 /**
- * 创建会话（带重试机制）
- * 容器分配失败时自动重试一次，并提供友好的错误提示
+ * 创建会话（带去重和重试机制）
+ *
+ * 功能说明：
+ * 1. 去重检查：使用时间戳防止短时间内重复创建
+ * 2. 重试机制：容器分配失败时自动重试
+ * 3. 友好提示：提供清晰的错误反馈
+ *
+ * 去重原理：
+ * - 记录上次创建会话的时间戳
+ * - 如果距离上次创建不到5秒，跳过本次创建
+ * - 防止页面刷新、组件重载等场景下的重复创建
+ *
+ * @param maxRetries 最大重试次数（默认2次）
  */
-async function createSessionWithRetry(maxRetries = 2): Promise<void> {
+async function createSessionWithDebounce(maxRetries = 2): Promise<void> {
+  // 去重检查：如果短时间内已经创建过会话，直接返回
+  const now = Date.now()
+  if (now - lastSessionCreateTime < SESSION_CREATE_DEBOUNCE_MS) {
+    const timeLeft = Math.ceil((SESSION_CREATE_DEBOUNCE_MS - (now - lastSessionCreateTime)) / 1000)
+    console.log(`[Chat] 跳过重复创建会话（${timeLeft}秒内已创建过）`)
+    // 检查当前是否已有会话（可能是刚刚创建的）
+    if (chatStore.sessions.length > 0 && chatStore.currentSessionId) {
+      console.log('[Chat] 已有会话，跳过创建')
+      return
+    }
+    // 如果确实没有会话（异常情况），允许创建
+    console.warn('[Chat] 虽然在去重期内，但没有会话，强制创建')
+  }
+
   let lastError: Error | null = null
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`[Chat] 创建会话，第 ${attempt} 次尝试...`)
+
+      // 调用 store 的 createSession（已内置并发控制）
       await chatStore.createSession(undefined, undefined, true)
+
+      // 创建成功：记录时间戳
+      lastSessionCreateTime = Date.now()
       console.log('[Chat] 会话创建成功')
       return
     } catch (error: any) {
       lastError = error
       console.error(`[Chat] 第 ${attempt} 次创建失败:`, error)
-      
+
       // 判断是否是容器分配超时错误
-      const isContainerTimeout = error?.message?.includes('超时') || 
+      const isContainerTimeout = error?.message?.includes('超时') ||
                                  error?.message?.includes('容器启动') ||
                                  error?.message?.includes('分配失败')
-      
+
       if (isContainerTimeout && attempt < maxRetries) {
-        // 容器分配超时，等待后重试
-        const waitTime = 2000 * attempt // 指数退避：2 秒，4 秒
+        // 容器分配超时，等待后重试（指数退避）
+        const waitTime = 2000 * attempt // 2秒、4秒
         console.warn(`[Chat] 容器分配超时，${waitTime / 1000}秒后重试...`)
         message.warning(`容器分配超时，${waitTime / 1000}秒后重试...`)
         await new Promise(resolve => setTimeout(resolve, waitTime))
@@ -366,11 +399,11 @@ async function createSessionWithRetry(maxRetries = 2): Promise<void> {
       }
     }
   }
-  
+
   // 所有重试都失败
   const errorMsg = lastError?.message || '创建会话失败'
   console.error('[Chat] 会话创建最终失败:', errorMsg)
-  
+
   // 提供友好的错误提示
   if (errorMsg.includes('超时')) {
     message.error('容器分配超时，请稍后重试或联系管理员')
@@ -379,26 +412,32 @@ async function createSessionWithRetry(maxRetries = 2): Promise<void> {
   } else {
     message.error(errorMsg)
   }
-  
+
   throw lastError
 }
 
 /**
- * 重新初始化
+ * 重新初始化（用户点击重试按钮时调用）
  */
 async function handleRetry(): Promise<void> {
   console.log('[Chat] 用户点击重试，重新初始化...')
   isInitializing.value = true
   initError.value = null
   isPageInitializing = true
-  
+
+  // 重置去重锁（允许用户手动重试时创建会话）
+  lastSessionCreateTime = 0
+
   try {
     // 重连 WebSocket
     await chatStore.connect(authStore.token || undefined)
-    
+
+    // 等待 WebSocket 就绪
+    await new Promise(resolve => setTimeout(resolve, 100))
+
     // 获取会话列表
     await chatStore.listSessions()
-    
+
     // 加载或创建会话
     const sessions = chatStore.sessions || []
     if (sessions.length > 0) {
@@ -409,12 +448,12 @@ async function handleRetry(): Promise<void> {
       try {
         await chatStore.loadSession(targetSession?.id || sessions[0].id)
       } catch {
-        await createSessionWithRetry()
+        await createSessionWithDebounce()
       }
     } else {
-      await createSessionWithRetry()
+      await createSessionWithDebounce()
     }
-    
+
     // 加载 Agent 类型列表
     await agentStore.loadAvailableAgentTypes()
   } catch (error: any) {
