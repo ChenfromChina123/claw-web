@@ -16,10 +16,21 @@
 
 import type { UserContainerMapping, PoolConfig } from './types'
 import { ContainerLifecycle } from './containerLifecycle'
-import { getSchedulingPolicy, type UserTier } from './schedulingPolicy'
+import { getSchedulingPolicy } from './schedulingPolicy'
 
 // 类型别名
 type RequiredPoolConfig = Required<PoolConfig>
+
+/**
+ * 用户等级枚举（本地定义，避免循环依赖）
+ * 与 schedulingPolicy.ts 中的 UserTier 保持同步
+ */
+enum UserTier {
+  VIP = 'vip',
+  PREMIUM = 'premium',
+  REGULAR = 'regular',
+  TRIAL = 'trial'
+}
 
 // ==================== HealthMonitor 类 ====================
 
