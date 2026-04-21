@@ -64,3 +64,10 @@ export {
   SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
   buildCompleteSystemPrompt,
 } from './contextBuilder'
+
+// WebSearch 工具提示词
+export {
+  WEB_SEARCH_TOOL_NAME,
+  getWebSearchPrompt,
+  getWebSearchUsageGuidance,
+} from './webSearchPrompt'

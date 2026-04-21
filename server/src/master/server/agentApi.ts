@@ -12,6 +12,7 @@
 
 import { SessionManager, InMemorySession } from '../services/sessionManager'
 import { getAgentTools } from '../tools'
+import { buildCompleteSystemPrompt, getWebSearchPrompt } from '../prompts'
 import { getSchedulingPolicy } from '../orchestrator/schedulingPolicy'
 import { getContainerOrchestrator } from '../orchestrator/containerOrchestrator'
 import { SSEParser, type SSEParsedEvent } from './sseParser'
@@ -301,8 +302,8 @@ export async function prepareAgentContext(
   // 获取可用工具
   const tools = getAgentTools()
 
-  // 构建系统提示词
-  const systemPrompt = buildSystemPrompt(quota)
+  // 构建系统提示词 - 复用项目已有的提示词系统
+  const systemPrompt = await buildSystemPromptWithTools(quota, tools)
 
   return {
     sessionId,
@@ -357,60 +358,116 @@ export async function saveAgentResult(
 }
 
 /**
- * 构建系统提示词
+ * 构建系统提示词 - 复用项目已有的完整提示词系统
+ *
+ * 功能：
+ * - 使用 buildCompleteSystemPrompt 构建完整的系统提示词
+ * - 注入可用工具列表和网络搜索指导
+ * - 确保 AI 知道可以使用 WebSearch、WebFetch、HttpRequest 等工具
+ *
+ * @param quota 用户配额
+ * @param tools 可用工具列表
+ * @returns 完整的系统提示词字符串
  */
-function buildSystemPrompt(quota: any): string {
-  return `你是一个强大的 AI 智能体助手（Claw-Web AI Agent），可以帮助用户完成各种任务。
+async function buildSystemPromptWithTools(quota: any, tools: any[]): Promise<string> {
+  try {
+    // 收集已启用的工具名称
+    const enabledTools = new Set<string>()
+    for (const tool of tools) {
+      if (tool && tool.name) {
+        enabledTools.add(tool.name)
+      }
+    }
 
-## 🎯 核心能力
+    // 使用项目已有的 buildCompleteSystemPrompt 构建完整提示词
+    const promptSections = await buildCompleteSystemPrompt({
+      enabledTools,
+      injectRules: true,
+    })
 
-### 📁 文件操作
-- **读取文件**: FileRead, Glob, Grep - 读取、搜索、查找文件内容
-- **写入/编辑**: FileWrite, FileEdit - 创建、修改、编辑文件
-- **文件管理**: FileDelete, FileRename, FileList - 删除、重命名、列出文件
+    // 添加工具使用指导
+    const toolGuidance = buildToolGuidance(tools)
 
-### 💻 终端执行
-- **Bash**: 执行 Shell 命令（在 Worker 容器中以 root 权限运行）
-- **PowerShell**: 执行 PowerShell 命令
+    // 添加网络搜索专用指导
+    const webSearchGuidance = buildWebSearchGuidance()
 
-### 🔍 搜索能力
-- **本地搜索**: Grep - 在文件中搜索正则表达式匹配项
-- **Glob**: 文件模式匹配查找
+    // 组装最终提示词
+    const finalPrompt = [
+      ...promptSections,
+      toolGuidance,
+      webSearchGuidance,
+    ].join('\n\n')
 
-### 🌐 网络工具（重要！你可以访问互联网！）
-- **WebSearch**: ✅ 网络搜索 - 使用 DuckDuckGo 搜索引擎获取最新信息
-- **WebFetch**: ✅ 获取网页 - 访问指定 URL 并提取页面内容
-- **HttpRequest**: ✅ HTTP 请求 - 发起自定义 HTTP 请求（GET/POST/PUT/DELETE）
-
-### 📋 任务管理
-- **TodoWrite**: 创建和管理任务列表
-- **TaskCreate / TaskList**: 任务创建和列表
-
-### ⚙️ 配置与交互
-- **Config**: 读取和修改配置
-- **AskUserQuestion**: 向用户提问确认
-
-## 📝 使用指南
-
-1. **当用户要求搜索信息时**：优先使用 WebSearch 工具进行网络搜索
-2. **当用户要求访问特定网址时**：使用 WebFetch 或 HttpRequest 获取内容
-3. **当需要安装软件包或执行系统命令时**：使用 Bash 工具
-4. **所有网络操作都在 Master 服务端执行**，无需担心 Worker 容器的网络限制
-
-## ⚠️ 重要提醒
-- 你**可以访问互联网**！请积极使用 WebSearch 和 WebFetch 工具
-- 不要告诉用户"无法访问互联网"，这不符合事实
-- 当用户询问实时信息（如新闻、文档、API 等）时，应主动使用 WebSearch 搜索
-
-## 🔐 安全规则
-- 遵循用户权限设置
-- 危险操作前先征求用户同意
-- 不执行破坏性操作（除非用户明确授权）`
+    return finalPrompt
+  } catch (error) {
+    console.error('[AgentAPI] 构建系统提示词失败:', error)
+    // 降级到简单提示词
+    return buildFallbackSystemPrompt(tools)
+  }
 }
-- 网络操作：发送 HTTP 请求
 
-请根据用户的需求，合理使用工具来完成任务。
-`
+/**
+ * 构建工具使用指导
+ *
+ * @param tools 可用工具列表
+ * @returns 工具使用指导文本
+ */
+function buildToolGuidance(tools: any[]): string {
+  const toolList = tools
+    .filter((t) => t && t.name && t.description)
+    .map((t) => `- **${t.name}**: ${t.description}`)
+    .join('\n')
+
+  return `## 可用工具
+
+${toolList || '暂无可用工具'}
+
+请根据用户的需求，合理使用工具来完成任务。`
+}
+
+/**
+ * 构建网络搜索专用指导
+ *
+ * @returns 网络搜索指导文本
+ */
+function buildWebSearchGuidance(): string {
+  return `## 网络搜索工具（重要）
+
+你拥有以下网络搜索工具，可以实时访问互联网获取最新信息：
+
+- **WebSearch**: 使用 DuckDuckGo 搜索引擎搜索网络内容
+- **WebFetch**: 获取指定网页的详细内容
+- **HttpRequest**: 发送自定义 HTTP 请求
+
+**重要提示**：
+- 当用户询问需要实时信息、最新数据、新闻、天气、股价等内容时，**必须**使用 WebSearch 工具
+- 不要说你无法访问互联网或你的知识已过时 — 你拥有 WebSearch 工具可以实时搜索
+- 搜索后请在回复末尾包含 "Sources:" 部分，列出使用的搜索结果 URL
+- 使用当前年份确保搜索结果的时效性
+
+${getWebSearchPrompt()}`
+}
+
+/**
+ * 降级系统提示词（当完整提示词构建失败时使用）
+ *
+ * @param tools 可用工具列表
+ * @returns 简单的系统提示词
+ */
+function buildFallbackSystemPrompt(tools: any[]): string {
+  const toolList = tools
+    .filter((t) => t && t.name)
+    .map((t) => `- ${t.name}: ${t.description || ''}`)
+    .join('\n')
+
+  return `你是一个智能助手，可以帮助用户完成各种任务。
+
+当前可用工具：
+${toolList}
+
+**网络搜索**：当需要实时信息时，请使用 WebSearch 工具搜索网络内容。
+
+请根据用户的需求，合理使用工具来完成任务。`
 }
 
 /**

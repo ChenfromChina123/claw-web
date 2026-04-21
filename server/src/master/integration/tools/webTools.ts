@@ -4,15 +4,23 @@
  * 功能：
  * - WebFetch: 获取网页内容
  * - WebSearch: 网络搜索
+ * - HttpRequest: 通用 HTTP 请求
  * 
  * 参考 Claude Code 实现：
  * - src/tools/WebFetchTool/WebFetchTool.ts
  * - src/tools/WebSearchTool/WebSearchTool.ts
+ * 
+ * WebSearch 提示词：
+ * - 从 src/tools/WebSearchTool/prompt.ts 移植
+ * - 定义了搜索结果必须包含 Sources 引用
+ * - 支持域名过滤（allowed_domains/blocked_domains）
+ * - 使用当前年份确保搜索结果时效性
  */
 
 import { fetch } from 'undici'
 import type { ToolDefinition } from '../types/toolTypes'
 import { TOOL_RESULT_LIMITS, truncateString, formatBytes } from '../../utils/fileLimits'
+import { getWebSearchPrompt } from '../../prompts/webSearchPrompt'
 
 /**
  * WebFetch 配置
@@ -249,9 +257,11 @@ export function createWebTools(): ToolDefinition[] {
     },
 
     // ========== WebSearch 工具 ==========
+    // 提示词已从 src/tools/WebSearchTool/prompt.ts 移植到 prompts/webSearchPrompt.ts
+    // 使用 getWebSearchPrompt() 获取完整的工具使用规范
     {
       name: 'WebSearch',
-      description: 'Search the web for information',
+      description: 'Search the web for current information. Returns results with links that MUST be cited in Sources section. Use this for events, recent data, or info beyond knowledge cutoff.',
       inputSchema: {
         type: 'object',
         properties: {

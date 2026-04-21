@@ -6,6 +6,7 @@ import { ToolCallRepository } from '../db/repositories/toolCallRepository'
 import type { Session, Message, ConversationMessage, ToolCall } from '../models/types'
 import { generateSessionTitleWithLLM } from './sessionTitleGenerator'
 import { extractIdeUserDisplay } from '../utils/ideUserMessageMarkers'
+import { buildCompleteSystemPrompt, getWebSearchPrompt } from '../prompts'
 
 export interface InMemorySession {
   session: Session
@@ -814,8 +815,8 @@ export class SessionManager {
     const { getAgentTools } = await import('../tools')
     const tools = getAgentTools()
 
-    // 构建系统提示词
-    const systemPrompt = this.buildSystemPrompt(quota)
+    // 构建系统提示词 - 复用项目已有的提示词系统
+    const systemPrompt = await this.buildSystemPromptWithTools(quota, tools)
 
     return {
       sessionId,
