@@ -15,6 +15,7 @@ import {
   EyeOutline,
   CreateOutline,
   RefreshOutline,
+  CopyOutline as CopyIcon,
 } from '@vicons/ionicons5'
 import type { ToolCall } from '@/types/tool'
 
@@ -54,15 +55,18 @@ const filePath = computed(() => {
   }
 
   // 从输入中提取
-  const pathFields = ['path', 'file_path', 'targetPath', 'target_path', 'filePath', 'destPath', 'destination']
+  const pathFields = ['path', 'file_path', 'targetPath', 'target_path', 'filePath', 'destPath', 'destination', 'file', 'filename', 'name']
   for (const field of pathFields) {
     const val = input?.[field]
     if (typeof val === 'string' && val.length > 0) {
-      return val
+      // 标准化路径格式（统一使用正斜杠）
+      return val.replace(/\\/g, '/')
     }
   }
 
-  return '未知文件'
+  // 如果实在找不到路径，返回一个友好的提示信息
+  const toolName = props.toolCall.toolName || 'file_write'
+  return `[${toolName}] 路径信息暂缺，等待后端返回...`
 })
 
 /** 从工具输入中提取文件内容（预览用） */
@@ -180,13 +184,48 @@ const operationLabel = computed(() => {
   }
 })
 
-/** 格式化文件路径（缩短显示） */
+/** 格式化文件路径（智能缩短显示） */
 const displayPath = computed(() => {
   const path = filePath.value
-  if (path.length <= 50) return path
-  const start = path.substring(0, 25)
-  const end = path.substring(path.length - 20)
+  
+  // 如果是提示信息，直接返回
+  if (path.includes('路径信息暂缺')) {
+    return path
+  }
+  
+  // 提取文件名部分
+  const parts = path.split('/')
+  const fileName = parts[parts.length - 1]
+  const dirPath = parts.slice(0, -1).join('/')
+  
+  // 如果总长度不超过 60，显示完整路径
+  if (path.length <= 60) {
+    return path
+  }
+  
+  // 智能缩短：保留完整的文件名和开头结尾的目录
+  if (dirPath.length > 50) {
+    const dirParts = dirPath.split('/')
+    if (dirParts.length >= 3) {
+      const start = dirParts.slice(0, 2).join('/')
+      const end = dirParts.slice(-2).join('/')
+      return `${start}/.../${end}/${fileName}`
+    }
+  }
+  
+  // 简单缩短
+  const start = path.substring(0, 30)
+  const end = path.substring(path.length - 25)
   return `${start}...${end}`
+})
+
+/** 显示用的完整路径（用于 tooltip） */
+const fullDisplayPath = computed(() => {
+  const path = filePath.value
+  if (path.includes('路径信息暂缺')) {
+    return '路径信息将在文件写入完成后显示'
+  }
+  return path
 })
 
 /** 内容预览（最多显示前8行） */
@@ -215,6 +254,14 @@ const getFileTypeColor = () => {
     pdf: '#ef4444', zip: '#f59e0b', rar: '#f59e0b', gz: '#f59e0b',
   }
   return colors[ext] || '#6366f1'
+}
+
+/** 获取文件图标颜色（用于路径显示） */
+const getFileIconColor = () => {
+  if (filePath.value.includes('路径信息暂缺')) {
+    return '#9ca3af'
+  }
+  return getFileTypeColor()
 }
 
 /** 获取状态图标 */
@@ -324,9 +371,16 @@ onUnmounted(() => {
               {{ statusConfig.label }}
             </NTag>
           </div>
-          <div class="fw-file-path" :title="filePath">
-            <span class="path-separator">📁</span>
-            {{ displayPath }}
+          <div class="fw-file-path" :title="fullDisplayPath">
+            <span class="path-icon">
+              <NIcon :size="14" :component="DocumentTextOutline" :color="getFileIconColor()" />
+            </span>
+            <span class="path-text" :class="{ 'path-placeholder': filePath.includes('路径信息暂缺') }">
+              {{ displayPath }}
+            </span>
+            <span v-if="!filePath.includes('路径信息暂缺')" class="path-copy-hint">
+              <NIcon :size="12" :component="CopyIcon" />
+            </span>
           </div>
         </div>
       </div>

@@ -258,9 +258,9 @@ onMounted(async () => {
     await chatStore.listSessions()
     console.log('[Chat] 会话列表获取完成，sessions:', chatStore.sessions)
 
-    // 步骤3：加载或创建会话（带去重检查）
+    // 步骤 3：加载已有会话（不自动创建新会话）
     const sessions = chatStore.sessions || []
-    console.log('[Chat] 步骤3: 会话数量:', sessions.length)
+    console.log('[Chat] 步骤 3: 会话数量:', sessions.length)
 
     if (sessions.length > 0) {
       // 有现有会话：优先恢复上次选中的会话
@@ -275,14 +275,12 @@ onMounted(async () => {
         console.log('[Chat] 会话加载成功，currentSessionId:', chatStore.currentSessionId)
       } catch (loadError: any) {
         console.error('[Chat] 会话加载失败:', loadError)
-        // 会话加载失败（可能是容器不存在），尝试创建新会话
-        console.warn('[Chat] 会话加载失败，尝试创建新会话...')
-        await createSessionWithDebounce()
+        // 会话加载失败时不自动创建新会话，由用户手动创建
+        console.warn('[Chat] 会话加载失败，不自动创建新会话')
       }
     } else {
-      // 无现有会话：创建新会话（带去重检查）
-      console.log('[Chat] 会话列表为空，准备创建新会话...')
-      await createSessionWithDebounce()
+      // 无现有会话：不自动创建，由用户手动创建
+      console.log('[Chat] 会话列表为空，等待用户手动创建会话')
     }
 
     console.log('[Chat] 初始化完成，currentSessionId:', chatStore.currentSessionId)

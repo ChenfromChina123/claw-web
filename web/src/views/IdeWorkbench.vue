@@ -295,7 +295,8 @@ onMounted(async () => {
     // 获取会话列表
     await chatStore.listSessions()
 
-    // 加载或创建会话：优先恢复 localStorage 中的上次会话，避免与 useAgentWorkdir 的 sessionId 一致导致 watch 不触发、文件树永不加载
+    // 加载会话：优先恢复 localStorage 中的上次会话，避免与 useAgentWorkdir 的 sessionId 一致导致 watch 不触发、文件树永不加载
+    // 注意：不自动创建新会话，由用户手动创建
     const sessions = chatStore.sessions || []
     const persistedId = chatStore.currentSessionId
     const persistedOk =
@@ -305,7 +306,8 @@ onMounted(async () => {
       const targetId = persistedOk ? persistedId! : sessions[0].id
       await chatStore.loadSession(targetId)
     } else {
-      await chatStore.createSession(undefined, undefined, true)
+      // 无现有会话时不自动创建，等待用户手动创建
+      console.log('[IdeWorkbench] 会话列表为空，等待用户手动创建会话')
     }
 
     // 等待会话稳定后初始化文件树

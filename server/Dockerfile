@@ -92,12 +92,33 @@ CMD ["bun", "run", "src/index.ts"]
 # node-pty 是原生模块，Bun 不支持其使用的 libuv 函数（uv_version_string）
 FROM node:20-slim AS production-worker
 
-# 安装工具链和运行时依赖
+# 安装工具链、运行时依赖和常用系统工具
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     python3 \
     make \
     g++ \
+    # ===== 网络工具 =====
+    wget \
+    iputils-ping \        # ping 命令
+    dnsutils \            # nslookup, dig DNS查询
+    net-tools \           # ifconfig 网络配置
+    iproute2 \            # ip, ss 高级网络工具
+    # ===== 远程连接工具 =====
+    openssh-client \      # ssh, scp 远程连接
+    rsync \               # 远程同步
+    # ===== 文本编辑器 =====
+    vim-tiny \           # 轻量级 vim 编辑器
+    nano \                # 简单编辑器
+    # ===== 系统管理工具 =====
+    procps \              # ps, top, htop 进程管理
+    tree \                # 目录树显示
+    less \                # 分页查看器
+    file \                # 文件类型检测
+    # ===== 网络诊断工具（可选）=====
+    traceroute \          # 路由追踪
+    whois \               # 域名查询
+    ca-certificates \     # SSL证书（HTTPS必需）
     && rm -rf /var/lib/apt/lists/*
 
 # 设置环境变量
