@@ -878,20 +878,116 @@ export class SessionManager {
   }
 
   /**
-   * 构建系统提示词
+   * 构建系统提示词 - 复用项目已有的完整提示词系统
+   *
+   * 功能：
+   * - 使用 buildCompleteSystemPrompt 构建完整的系统提示词
+   * - 注入可用工具列表和网络搜索指导
+   * - 确保 AI 知道可以使用 WebSearch、WebFetch、HttpRequest 等工具
+   *
+   * @param quota 用户配额
+   * @param tools 可用工具列表
+   * @returns 完整的系统提示词字符串
    */
-  private buildSystemPrompt(quota: any): string {
-    // TODO: 根据用户配额构建系统提示词
-    return `你是一个智能助手，可以帮助用户完成各种任务。
-  
-当前可用工具：
-- 文件操作：读取、写入、创建、删除文件
-- 终端操作：执行命令
-- 搜索：搜索文件和内容
-- 网络操作：发送 HTTP 请求
+  private async buildSystemPromptWithTools(quota: any, tools: any[]): Promise<string> {
+    try {
+      // 收集已启用的工具名称
+      const enabledTools = new Set<string>()
+      for (const tool of tools) {
+        if (tool && tool.name) {
+          enabledTools.add(tool.name)
+        }
+      }
 
-请根据用户的需求，合理使用工具来完成任务。
-`
+      // 使用项目已有的 buildCompleteSystemPrompt 构建完整提示词
+      const promptSections = await buildCompleteSystemPrompt({
+        enabledTools,
+        injectRules: true,
+      })
+
+      // 添加工具使用指导
+      const toolGuidance = this.buildToolGuidance(tools)
+
+      // 添加网络搜索专用指导
+      const webSearchGuidance = this.buildWebSearchGuidance()
+
+      // 组装最终提示词
+      const finalPrompt = [
+        ...promptSections,
+        toolGuidance,
+        webSearchGuidance,
+      ].join('\n\n')
+
+      return finalPrompt
+    } catch (error) {
+      console.error('[SessionManager] 构建系统提示词失败:', error)
+      // 降级到简单提示词
+      return this.buildFallbackSystemPrompt(tools)
+    }
+  }
+
+  /**
+   * 构建工具使用指导
+   *
+   * @param tools 可用工具列表
+   * @returns 工具使用指导文本
+   */
+  private buildToolGuidance(tools: any[]): string {
+    const toolList = tools
+      .filter((t) => t && t.name && t.description)
+      .map((t) => `- **${t.name}**: ${t.description}`)
+      .join('\n')
+
+    return `## 可用工具
+
+${toolList || '暂无可用工具'}
+
+请根据用户的需求，合理使用工具来完成任务。`
+  }
+
+  /**
+   * 构建网络搜索专用指导
+   *
+   * @returns 网络搜索指导文本
+   */
+  private buildWebSearchGuidance(): string {
+    return `## 网络搜索工具（重要）
+
+你拥有以下网络搜索工具，可以实时访问互联网获取最新信息：
+
+- **WebSearch**: 使用 DuckDuckGo 搜索引擎搜索网络内容
+- **WebFetch**: 获取指定网页的详细内容
+- **HttpRequest**: 发送自定义 HTTP 请求
+
+**重要提示**：
+- 当用户询问需要实时信息、最新数据、新闻、天气、股价等内容时，**必须**使用 WebSearch 工具
+- 不要说你无法访问互联网或你的知识已过时 — 你拥有 WebSearch 工具可以实时搜索
+- 搜索后请在回复末尾包含 "Sources:" 部分，列出使用的搜索结果 URL
+- 使用当前年份确保搜索结果的时效性
+
+${getWebSearchPrompt()}`
+  }
+
+  /**
+   * 降级系统提示词（当完整提示词构建失败时使用）
+   *
+   * @param tools 可用工具列表
+   * @returns 简单的系统提示词
+   */
+  private buildFallbackSystemPrompt(tools: any[]): string {
+    const toolList = tools
+      .filter((t) => t && t.name)
+      .map((t) => `- ${t.name}: ${t.description || ''}`)
+      .join('\n')
+
+    return `你是一个智能助手，可以帮助用户完成各种任务。
+
+当前可用工具：
+${toolList}
+
+**网络搜索**：当需要实时信息时，请使用 WebSearch 工具搜索网络内容。
+
+请根据用户的需求，合理使用工具来完成任务。`
   }
 }
 

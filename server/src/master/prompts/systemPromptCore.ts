@@ -124,6 +124,23 @@ export function getSessionSpecificGuidanceSection(enabledTools: Set<string>): st
     `If you need the user to run a shell command themselves (e.g., an interactive login like \`gcloud auth login\`), suggest they type \`! <command>\` in the prompt — the \`!\` prefix runs the command in this session so its output lands directly in the conversation.`,
   ].filter(item => item !== null)
 
+  // 当启用了 WebSearch 工具时，添加网络搜索指导
+  if (enabledTools.has('WebSearch') || enabledTools.has('websearch') || enabledTools.has('search')) {
+    items.push(`You have access to web search tools. When the user asks for current events, latest news, real-time data, weather, stock prices, or any information that may be beyond your knowledge cutoff, you MUST use the WebSearch tool to search the internet. Do not say you cannot access the internet — you have WebSearch available.`)
+    items.push(`After using WebSearch, you MUST include a "Sources:" section at the end of your response with all relevant URLs as markdown hyperlinks: [Title](URL).`)
+    items.push(`The current date is ${new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}. Use this year when searching for recent information.`)
+  }
+
+  // 当启用了 WebFetch 工具时，添加网页获取指导
+  if (enabledTools.has('WebFetch') || enabledTools.has('webfetch') || enabledTools.has('fetch')) {
+    items.push(`You have access to the WebFetch tool. Use it to retrieve detailed content from specific URLs when you need more information than what search results provide.`)
+  }
+
+  // 当启用了 HttpRequest 工具时，添加 HTTP 请求指导
+  if (enabledTools.has('HttpRequest') || enabledTools.has('http') || enabledTools.has('request')) {
+    items.push(`You have access to the HttpRequest tool. Use it to send custom HTTP requests to APIs or web services when needed.`)
+  }
+
   if (items.length === 0) return null
   return ['# Session-specific guidance', ...prependBullets(items)].join('\n')
 }

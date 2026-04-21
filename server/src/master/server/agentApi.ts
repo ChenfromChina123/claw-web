@@ -68,8 +68,8 @@ export async function executeAgentOnWorker(
   sendEvent: (event: string, data: unknown) => void
 ): Promise<AgentExecutionResult> {
   
-  const debug = process.env.DEBUG === 'agent'
-  if (debug) {
+  const isDebug = process.env.DEBUG === 'agent'
+  if (isDebug) {
     console.log(`[AgentAPI] 加载会话上下文: sessionId=${sessionId}`)
   }
   
@@ -106,8 +106,7 @@ export async function executeAgentOnWorker(
     stream: true,
   }
 
-  const debug = process.env.DEBUG === 'agent'
-  if (debug) {
+  if (isDebug) {
     console.log(`[AgentAPI] 调用 Worker 执行 Agent`)
   }
   
