@@ -227,8 +227,12 @@ services:
       dockerfile: web/Dockerfile
     container_name: claw-web-frontend
     restart: unless-stopped
-    ports:
-      - "${FRONTEND_PORT:-80}:80"
+    # ✅ 生产模式才暴露 80 端口（开发模式使用 5173 端口）
+    profiles:
+      - production       # 默认不启动，使用 --profile production 启动
+    # ✅ 端口配置移到各模式文件中
+    # - 生产模式 (docker-compose.yml): 80 端口
+    # - 开发模式 (docker-compose.dev.yml): 5173 端口
     networks:
       - frontend-network
       - claude-network  # 需要访问 master:3000 进行 API 反向代理

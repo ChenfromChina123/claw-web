@@ -1,23 +1,20 @@
 # docker-compose.dev.yml
-# 开发环境专用配置 - 代码实时同步
+# 开发环境专用配置 - 代码实时同步 + 热更新
 #
 # 使用方式：
-#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 #
 # 特性：
-# - 源代码 Bind Mount 到容器，修改后自动同步
-# - 后端使用 Bun --watch 热重载
-# - 前端使用 Vite HMR 热模块替换
-# - 代码更新无需重建镜像，秒级生效
-
-version: '3.8'
+# ✅ 前端：Vite HMR 热模块替换（修改代码秒级生效）
+# ✅ 后端：Bun --watch 热重载（2-3秒自动重启）
+# ✅ Worker：保持生产模式（稳定运行）
+# ✅ Bind Mount：源代码自动同步到容器
 
 services:
   # ==================== Master 服务（开发模式）====================
   master:
     volumes:
-      # ✅ 关键：挂载源代码，修改后自动同步到容器
-      # 使用 :ro 表示只读，容器内无法修改宿主机代码
+      # ✅ 挂载源代码，修改后自动同步到容器
       - ./server/src:/app/src:ro
       - ./server/shared:/app/shared:ro
       # 保留原有卷
@@ -26,46 +23,35 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     
     # ✅ 使用 Bun 的热重载模式
-    # 修改代码后自动检测并重载（2-3 秒）
     command: ["bun", "run", "--watch", "src/index.ts"]
     
-    # 开发环境增加资源限制（可选）
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+    
     deploy:
       resources:
         limits:
           cpus: '4.0'
           memory: 2G
-    
-    # 开发环境变量（可选覆盖）
-    environment:
-      NODE_ENV: development
-      # 开发模式日志更详细
-      LOG_LEVEL: debug
 
   # ==================== Worker 服务（开发模式）====================
   worker:
-    # 使用已构建的镜像
     image: claw-web-backend-worker:latest
 
-    # 注意：Windows Docker Desktop 上 Bind Mount 不稳定，暂不挂载源代码
-    # 代码修改后需要重新构建：docker-compose build worker
     volumes:
-      # 保留工作空间和日志卷
       - worker_workspace:/workspace
       - worker_logs:/app/logs
 
-    # Worker 镜像内置 CMD：["bun", "run", "src/index.ts"]
     environment:
-      # 开发环境配置
       NODE_ENV: development
       PTY_ENABLED: "true"
-      # 开发模式日志更详细
       LOG_LEVEL: debug
     
     networks:
       - worker-network
+      - claude-network       # ✅ 联网支持
     
-    # 开发环境增加资源
     deploy:
       resources:
         limits:
@@ -74,79 +60,56 @@ services:
 
   # ==================== Frontend 服务（开发模式）====================
   frontend:
-    # ✅ 开发模式使用 Node.js 镜像（带 npm），而非 Nginx 生产镜像
+    # ✅ 使用 Node.js 镜像运行 Vite 开发服务器
     image: node:20-alpine
 
-    # 先安装依赖，再启动开发服务器
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        echo "[Frontend] 检查依赖..."
         if [ ! -d "node_modules" ] || [ ! -f "node_modules/.bin/vite" ]; then
           echo "[Frontend] 安装依赖..."
           npm install --legacy-peer-deps
         fi
-        echo "[Frontend] 启动 Vite 开发服务器..."
-        exec npm run dev -- --host 0.0.0.0 --port 80
+        
+        echo "[Frontend] 启动 Vite 开发服务器 (HMR)..."
+        echo "[Frontend] 访问地址: http://localhost:5173"
+        exec npm run dev -- --host 0.0.0.0 --port 5173
 
     working_dir: /app
 
+    ports:
+      # ✅ 开发模式使用 5173 端口（避免与生产 80 端口冲突）
+      - "${FRONTEND_PORT:-5173}:5173"
+
     volumes:
-      # ✅ 挂载前端源代码
+      # ✅ 挂载前端源代码（修改后自动同步）
       - ./web/src:/app/src:ro
       - ./web/public:/app/public:ro
-      # 挂载配置文件，修改后自动重载
+      
+      # ✅ 挂载配置文件（修改后自动重载）
       - ./web/vite.config.ts:/app/vite.config.ts:ro
       - ./web/index.html:/app/index.html:ro
-      # 持久化 node_modules（避免每次重启重新安装）
-      - frontend_node_modules:/app/node_modules
-      # 复制 package.json 以便安装依赖
+      - ./web/tsconfig.json:/app/tsconfig.json:ro
+      
+      # ✅ 挂载 package 文件（用于依赖安装检测）
       - ./web/package.json:/app/package.json:ro
       - ./web/package-lock.json:/app/package-lock.json:ro
-    
+      
+      # ✅ 持久化 node_modules（避免每次重启重新安装）
+      - frontend_node_modules:/app/node_modules
+
     environment:
       - NODE_ENV=development
       - VITE_FEATURE_PTY_SHELL=true
-      # 根据实际部署调整 API 地址
-      - VITE_API_BASE_URL=http://localhost:3000
+      # ✅ 关键：设置 API 代理目标为 Master 容器
+      - VITE_DEV_PROXY_TARGET=http://master:3000
     
-    # 开发环境增加资源
+    networks:
+      - claude-network       # ✅ 连接到主网络以访问 Master
+    
     deploy:
       resources:
         limits:
           cpus: '2.0'
           memory: 1G
-
-# 开发环境网络配置（复用主配置）
-networks:
-  frontend-network:
-    driver: bridge
-  
-  claude-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.28.0.0/16
-  
-  worker-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.29.0.0/16
-
-# 开发环境卷配置（复用主配置）
-volumes:
-  master_logs:
-    driver: local
-    name: claw-web-master-logs
-
-  worker_workspace:
-    driver: local
-    name: claw-web-worker-workspace
-
-  worker_logs:
-    driver: local
-    name: claw-web-worker-logs
-
-  frontend_node_modules:
-    driver: local
-    name: claw-web-frontend-node-modules
