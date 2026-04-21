@@ -71,10 +71,13 @@ export class WorkerPTYManager {
       cwd,
       env: {
         HOME: cwd,
-        USER: userId,
+        USER: 'root',  // 使用 root 用户，确保 AI Agent 有完整权限
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
         LANG: 'en_US.UTF-8',
+        // 添加 root 环境变量，确保命令执行时有最高权限
+        LOGNAME: 'root',
+        SHELL: shell,
       } as Record<string, string>,
     })
 

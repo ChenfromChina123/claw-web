@@ -4,7 +4,7 @@
  * 动态展示 Agent 正在写入文件的进度状态
  * 支持 pending(等待中) / executing(写入中) / completed(完成) / error(错误) 四种状态
  */
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { NIcon, NTag, NSpin, NProgress, NButton, NTooltip } from 'naive-ui'
 import {
   DocumentTextOutline,
@@ -13,6 +13,8 @@ import {
   TimeOutline,
   DownloadOutline,
   EyeOutline,
+  CreateOutline,
+  RefreshOutline,
 } from '@vicons/ionicons5'
 import type { ToolCall } from '@/types/tool'
 
@@ -29,28 +31,36 @@ const emit = defineEmits<{
 }>()
 
 /** 展开状态 */
-const isExpanded = ref(props.expanded ?? false)
+const isExpanded = ref(props.expanded ?? true)
 
 /** 模拟写入进度（仅用于 executing 状态的动画效果） */
 const writeProgress = ref(0)
 let progressTimer: ReturnType<typeof setInterval> | null = null
 
-/** 从工具输入/输出中提取文件路径（后端 FileWrite 使用 path，与 IDE 一致时用 virtualPath） */
+/** 从工具输入/输出中提取文件路径 */
 const filePath = computed(() => {
   const input = props.toolCall.toolInput as Record<string, unknown> | undefined
   const out = props.toolCall.toolOutput as Record<string, unknown> | null | undefined
 
+  // 优先级：output.virtualPath > output.filePath > input.path > input.file_path > input.targetPath
   const virtualPath = out?.virtualPath
   if (typeof virtualPath === 'string' && virtualPath.length > 0) {
     return virtualPath.startsWith('/') ? virtualPath : `/${virtualPath}`
   }
 
-  const fromInput =
-    (input?.path as string) ||
-    (input?.file_path as string) ||
-    (input?.filePath as string) ||
-    ''
-  if (fromInput) return fromInput
+  const outFilePath = out?.filePath
+  if (typeof outFilePath === 'string' && outFilePath.length > 0) {
+    return outFilePath
+  }
+
+  // 从输入中提取
+  const pathFields = ['path', 'file_path', 'targetPath', 'target_path', 'filePath', 'destPath', 'destination']
+  for (const field of pathFields) {
+    const val = input?.[field]
+    if (typeof val === 'string' && val.length > 0) {
+      return val
+    }
+  }
 
   return '未知文件'
 })
@@ -58,7 +68,23 @@ const filePath = computed(() => {
 /** 从工具输入中提取文件内容（预览用） */
 const fileContent = computed(() => {
   const input = props.toolCall.toolInput as Record<string, unknown> | undefined
-  return (input?.content || '') as string
+  const out = props.toolCall.toolOutput as Record<string, unknown> | null | undefined
+
+  // 优先从 output 获取（后端返回的完整内容）
+  if (out?.content && typeof out.content === 'string') {
+    return out.content
+  }
+
+  // 从 input 获取
+  const contentFields = ['content', 'text', 'data', 'body']
+  for (const field of contentFields) {
+    const val = input?.[field]
+    if (typeof val === 'string' && val.length > 0) {
+      return val
+    }
+  }
+
+  return ''
 })
 
 /** 获取文件名（从路径中提取） */
@@ -95,30 +121,35 @@ const statusConfig = computed(() => {
   const configs: Record<string, {
     label: string
     color: string
+    bgColor: string
     icon: typeof DocumentTextOutline
     animating: boolean
   }> = {
     pending: {
       label: '准备写入',
       color: '#f59e0b',
+      bgColor: 'rgba(245, 158, 11, 0.15)',
       icon: TimeOutline,
       animating: false,
     },
     executing: {
-      label: '正在写入...',
+      label: '写入中...',
       color: '#3b82f6',
-      icon: DocumentTextOutline,
+      bgColor: 'rgba(59, 130, 246, 0.15)',
+      icon: RefreshOutline,
       animating: true,
     },
     completed: {
       label: '写入完成',
       color: '#22c55e',
+      bgColor: 'rgba(34, 197, 94, 0.15)',
       icon: CheckmarkCircleOutline,
       animating: false,
     },
     error: {
       label: '写入失败',
       color: '#ef4444',
+      bgColor: 'rgba(239, 68, 68, 0.15)',
       icon: CloseCircleOutline,
       animating: false,
     },
@@ -132,7 +163,10 @@ const operationType = computed(() => {
   if (output && typeof output.type === 'string') {
     return output.type === 'create' ? 'create' : 'update'
   }
-  // 根据状态推断：completed 且有输出时默认为 create（新文件）
+  // 检查 input 中是否有 create 标志
+  const input = props.toolCall.toolInput as Record<string, unknown> | undefined
+  if (input?.type === 'create') return 'create'
+  // 根据状态推断
   if (props.toolCall.status === 'completed') return 'create'
   return 'pending'
 })
@@ -140,8 +174,8 @@ const operationType = computed(() => {
 /** 操作类型标签 */
 const operationLabel = computed(() => {
   switch (operationType.value) {
-    case 'create': return '新建文件'
-    case 'update': return '更新文件'
+    case 'create': return '新建'
+    case 'update': return '更新'
     default: return '待定'
   }
 })
@@ -155,13 +189,13 @@ const displayPath = computed(() => {
   return `${start}...${end}`
 })
 
-/** 内容预览（最多显示前5行） */
+/** 内容预览（最多显示前8行） */
 const contentPreview = computed(() => {
   if (!fileContent.value) return ''
   const lines = fileContent.value.split('\n')
-  const previewLines = lines.slice(0, 5)
+  const previewLines = lines.slice(0, 8)
   let preview = previewLines.join('\n')
-  if (lines.length > 5) preview += '\n...'
+  if (lines.length > 8) preview += `\n... 共 ${lines.length} 行`
   return preview
 })
 
@@ -176,8 +210,19 @@ const getFileTypeColor = () => {
     json: '#cb8c07', yaml: '#cb171e', yml: '#cb171e', html: '#e34c26',
     css: '#264de4', scss: '#cd6799', sql: '#e38c00', sh: '#89e051',
     bash: '#89e051', dockerfile: '#384d54', toml: '#9c4121', xml: '#e34c26',
+    txt: '#6b7280', log: '#6b7280', csv: '#22c55e', png: '#a78bfa',
+    jpg: '#a78bfa', jpeg: '#a78bfa', gif: '#a78bfa', svg: '#ffb74d',
+    pdf: '#ef4444', zip: '#f59e0b', rar: '#f59e0b', gz: '#f59e0b',
   }
   return colors[ext] || '#6366f1'
+}
+
+/** 获取状态图标 */
+const getStatusIcon = () => {
+  if (props.toolCall.status === 'executing') {
+    return RefreshOutline
+  }
+  return statusConfig.value.icon
 }
 
 /** 切换展开/收起 */
@@ -196,19 +241,38 @@ function handleDownloadFile() {
 }
 
 /** 模拟进度更新 */
-onMounted(() => {
-  if (props.toolCall.status === 'executing') {
-    progressTimer = setInterval(() => {
-      if (writeProgress.value < 90) {
-        writeProgress.value += Math.random() * 15
-        if (writeProgress.value > 90) writeProgress.value = 90
-      }
-    }, 300)
+function startProgressAnimation() {
+  if (progressTimer) {
+    clearInterval(progressTimer)
+    progressTimer = null
   }
-  // 如果已经是完成状态，直接设为100%
-  if (props.toolCall.status === 'completed') {
+
+  if (props.toolCall.status === 'executing') {
+    writeProgress.value = 0
+    progressTimer = setInterval(() => {
+      if (writeProgress.value < 95) {
+        writeProgress.value += Math.random() * 12 + 3
+        if (writeProgress.value > 95) writeProgress.value = 95
+      }
+    }, 200)
+  } else if (props.toolCall.status === 'completed') {
+    writeProgress.value = 100
+  } else if (props.toolCall.status === 'error') {
+    writeProgress.value = 0
+  }
+}
+
+// 监听状态变化，重启动画
+watch(() => props.toolCall.status, (newStatus) => {
+  if (newStatus === 'executing') {
+    startProgressAnimation()
+  } else if (newStatus === 'completed') {
     writeProgress.value = 100
   }
+}, { immediate: false })
+
+onMounted(() => {
+  startProgressAnimation()
 })
 
 onUnmounted(() => {
@@ -232,28 +296,36 @@ onUnmounted(() => {
     <div class="fw-header" @click="toggleExpand">
       <!-- 左侧：图标和工具信息 -->
       <div class="fw-main">
-        <div class="fw-icon" :style="{ background: getFileTypeColor() + '20', borderColor: getFileTypeColor() + '60' }">
+        <div class="fw-icon" :style="{ background: getFileTypeColor() + '18', borderColor: getFileTypeColor() + '40' }">
           <template v-if="statusConfig.animating">
-            <NSpin size="16" :stroke="statusConfig.color" />
+            <NIcon :size="18" :component="getStatusIcon()" :color="statusConfig.color" class="spin-animation" />
           </template>
           <template v-else>
             <NIcon :size="18" :component="statusConfig.icon" :color="statusConfig.color" />
           </template>
         </div>
-        
+
         <div class="fw-info">
           <div class="fw-title-row">
-            <span class="fw-tool-name">FileWrite</span>
+            <span class="fw-tool-name">
+              <NIcon :size="12" :component="operationType === 'create' ? CreateOutline : DocumentTextOutline" />
+              {{ operationType === 'create' ? '创建文件' : '更新文件' }}
+            </span>
             <NTag
-size="small" round :bordered="false" :style="{
-              background: statusConfig.color + '20',
-              color: statusConfig.color,
-              '--n-font-weight-strong': '500',
-            } as any">
+              size="tiny" round :bordered="false"
+              :style="{
+                background: statusConfig.bgColor,
+                color: statusConfig.color,
+                fontWeight: '500',
+              }">
+              <template #icon>
+                <span v-if="statusConfig.animating" class="mini-spinner"></span>
+              </template>
               {{ statusConfig.label }}
             </NTag>
           </div>
           <div class="fw-file-path" :title="filePath">
+            <span class="path-separator">📁</span>
             {{ displayPath }}
           </div>
         </div>
@@ -263,14 +335,15 @@ size="small" round :bordered="false" :style="{
       <div class="fw-status-area">
         <!-- 执行中的进度条 -->
         <div v-if="statusConfig.animating" class="fw-progress-mini">
+          <span class="progress-text">{{ Math.round(writeProgress) }}%</span>
           <NProgress
             type="line"
             :percentage="Math.round(writeProgress)"
             :show-indicator="false"
             :height="4"
-            :rail-color="'rgba(255,255,255,0.06)'"
+            :rail-color="'rgba(255,255,255,0.08)'"
             :fill-color="statusConfig.color"
-            style="width: 80px"
+            style="width: 60px"
           />
         </div>
 
@@ -279,53 +352,44 @@ size="small" round :bordered="false" :style="{
           {{ operationLabel }}
         </span>
 
+        <!-- 文件信息 -->
+        <span class="fw-file-info">
+          <span class="file-size">{{ contentSize }}</span>
+          <span class="file-lines">{{ lineCount }}行</span>
+        </span>
+
         <!-- 展开/收起按钮 -->
-        <span class="fw-expand-btn">{{ isExpanded ? '▼' : '▶' }}</span>
+        <span class="fw-expand-btn">
+          <NIcon :size="14" :component="isExpanded ? ChevronDownIcon : ChevronForwardIcon" />
+        </span>
       </div>
     </div>
 
     <!-- 展开内容区 -->
     <Transition name="fw-slide">
       <div v-if="isExpanded" class="fw-body">
-        <!-- 文件元信息 -->
-        <div class="fw-meta-grid">
-          <div class="meta-item">
-            <span class="meta-label">文件名</span>
-            <span class="meta-value">{{ fileName }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">类型</span>
-            <span class="meta-value">
-              <span class="file-ext-tag" :style="{ background: getFileTypeColor() + '20', color: getFileTypeColor() }">
-                .{{ fileExtension || '无扩展名' }}
-              </span>
-            </span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">行数</span>
-            <span class="meta-value">{{ lineCount }} 行</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">大小</span>
-            <span class="meta-value">{{ contentSize }}</span>
-          </div>
-        </div>
-
-        <!-- 写入进度（执行中状态） -->
+        <!-- 执行中的进度条（详细） -->
         <div v-if="statusConfig.animating" class="fw-progress-section">
           <div class="progress-header">
-            <span class="progress-title">写入进度</span>
+            <span class="progress-title">
+              <NIcon :size="14" :component="RefreshOutline" class="spin-animation" />
+              正在写入文件
+            </span>
             <span class="progress-percent">{{ Math.round(writeProgress) }}%</span>
           </div>
           <NProgress
             type="line"
             :percentage="Math.round(writeProgress)"
-            :height="8"
+            :height="6"
             :rail-color="'rgba(255,255,255,0.06)'"
             :fill-color="statusConfig.color"
             :indicator-text-color="'#fff'"
+            :show-indicator="false"
           />
-          <div class="progress-hint">正在将内容写入磁盘...</div>
+          <div class="progress-detail">
+            <span>文件: {{ fileName }}</span>
+            <span>{{ lineCount }} 行 · {{ contentSize }}</span>
+          </div>
         </div>
 
         <!-- 完成状态的结果展示 -->
@@ -334,7 +398,7 @@ size="small" round :bordered="false" :style="{
             <NIcon :size="16" :component="CheckmarkCircleOutline" color="#22c55e" />
             <span>文件{{ operationType === 'create' ? '创建' : '更新' }}成功</span>
           </div>
-          
+
           <!-- 操作按钮组 -->
           <div class="result-actions">
             <NTooltip trigger="hover">
@@ -346,7 +410,7 @@ size="small" round :bordered="false" :style="{
               </template>
               预览文件完整内容
             </NTooltip>
-            
+
             <NTooltip trigger="hover">
               <template #trigger>
                 <NButton size="small" secondary @click.stop="handleDownloadFile">
@@ -372,8 +436,11 @@ size="small" round :bordered="false" :style="{
         <!-- 内容预览 -->
         <div v-if="fileContent" class="fw-preview-section">
           <div class="preview-header">
-            <span class="preview-title">内容预览</span>
-            <span class="preview-lines">{{ lineCount }} 行</span>
+            <span class="preview-title">
+              <NIcon :size="12" :component="DocumentTextOutline" />
+              内容预览
+            </span>
+            <span class="preview-lines">{{ lineCount }} 行 · {{ contentSize }}</span>
           </div>
           <pre class="preview-code"><code>{{ contentPreview }}</code></pre>
         </div>
@@ -382,18 +449,26 @@ size="small" round :bordered="false" :style="{
   </div>
 </template>
 
+<script lang="ts">
+// 图标组件
+import { ChevronDownOutline, ChevronForwardOutline } from '@vicons/ionicons5'
+const ChevronDownIcon = ChevronDownOutline
+const ChevronForwardIcon = ChevronForwardOutline
+export default { name: 'FileWriteToolInline' }
+</script>
+
 <style scoped>
 .file-write-tool {
-  background: rgba(30, 30, 60, 0.5);
+  background: linear-gradient(145deg, rgba(30, 30, 55, 0.7) 0%, rgba(25, 25, 45, 0.85) 100%);
   border-radius: 10px;
-  border: 1px solid rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.12);
   overflow: hidden;
-  transition: all 0.25s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .file-write-tool:hover {
-  border-color: rgba(99, 102, 241, 0.35);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.1);
 }
 
 /* 状态边框 */
@@ -403,7 +478,7 @@ size="small" round :bordered="false" :style="{
 
 .file-write-tool.status-error {
   border-left: 3px solid #ef4444;
-  background: rgba(60, 20, 20, 0.3);
+  background: linear-gradient(145deg, rgba(50, 20, 20, 0.7) 0%, rgba(40, 15, 15, 0.85) 100%);
 }
 
 .file-write-tool.status-executing {
@@ -412,12 +487,28 @@ size="small" round :bordered="false" :style="{
 }
 
 @keyframes borderPulse {
-  0%, 100% { border-left-color: #3b82f6; box-shadow: -2px 0 8px rgba(59, 130, 246, 0.2); }
-  50% { border-left-color: #60a5fa; box-shadow: -2px 0 16px rgba(59, 130, 246, 0.4); }
+  0%, 100% {
+    border-left-color: #3b82f6;
+    box-shadow: -2px 0 10px rgba(59, 130, 246, 0.2);
+  }
+  50% {
+    border-left-color: #60a5fa;
+    box-shadow: -2px 0 20px rgba(59, 130, 246, 0.4);
+  }
 }
 
 .file-write-tool.status-pending {
   border-left: 3px solid #f59e0b;
+}
+
+/* 旋转动画 */
+.spin-animation {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* 头部区域 */
@@ -432,7 +523,7 @@ size="small" round :bordered="false" :style="{
 }
 
 .fw-header:hover {
-  background: rgba(50, 50, 100, 0.25);
+  background: rgba(50, 50, 100, 0.2);
 }
 
 .fw-main {
@@ -467,7 +558,7 @@ size="small" round :bordered="false" :style="{
 .fw-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
@@ -479,10 +570,13 @@ size="small" round :bordered="false" :style="{
 
 .fw-tool-name {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: #e5e7eb;
   font-family: 'Monaco', 'Menlo', monospace;
   letter-spacing: -0.3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .fw-file-path {
@@ -492,19 +586,47 @@ size="small" round :bordered="false" :style="{
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 320px;
+  max-width: 360px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.path-separator {
+  font-size: 10px;
+  opacity: 0.6;
 }
 
 .fw-status-area {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-shrink: 0;
 }
 
 .fw-progress-mini {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.progress-text {
+  font-size: 10px;
+  font-weight: 600;
+  color: #60a5fa;
+  font-family: 'Monaco', 'Menlo', monospace;
+}
+
+.mini-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 2px;
 }
 
 .fw-operation-tag {
@@ -525,10 +647,27 @@ size="small" round :bordered="false" :style="{
   color: #60a5fa;
 }
 
-.fw-expand-btn {
-  font-size: 9px;
+.fw-file-info {
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
   color: #6b7280;
-  transition: transform 0.2s ease;
+}
+
+.file-size, .file-lines {
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.fw-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: #6b7280;
+  transition: all 0.2s ease;
 }
 
 .file-write-tool.expanded .fw-expand-btn {
@@ -544,46 +683,9 @@ size="small" round :bordered="false" :style="{
   gap: 12px;
 }
 
-/* 元信息网格 */
-.fw-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  padding-top: 12px;
-}
-
-.meta-item {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.meta-label {
-  font-size: 10px;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 600;
-}
-
-.meta-value {
-  font-size: 12px;
-  color: #d1d5db;
-  font-weight: 500;
-}
-
-.file-ext-tag {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-family: 'Monaco', 'Menlo', monospace;
-  font-weight: 600;
-}
-
 /* 进度区域 */
 .fw-progress-section {
-  padding: 12px;
+  padding: 14px;
   background: rgba(30, 30, 60, 0.5);
   border-radius: 8px;
   border: 1px solid rgba(59, 130, 246, 0.15);
@@ -593,27 +695,31 @@ size="small" round :bordered="false" :style="{
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .progress-title {
   font-size: 12px;
   font-weight: 600;
   color: #93c5fd;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .progress-percent {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #60a5fa;
   font-family: 'Monaco', 'Menlo', monospace;
 }
 
-.progress-hint {
-  margin-top: 6px;
+.progress-detail {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
   font-size: 11px;
   color: #6b7280;
-  text-align: center;
 }
 
 /* 结果区域 */
@@ -673,7 +779,7 @@ size="small" round :bordered="false" :style="{
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   padding-top: 4px;
 }
 
@@ -681,6 +787,9 @@ size="small" round :bordered="false" :style="{
   font-size: 11px;
   font-weight: 600;
   color: #888;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -693,13 +802,13 @@ size="small" round :bordered="false" :style="{
 .preview-code {
   background: rgba(15, 15, 30, 0.85);
   border-radius: 6px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   margin: 0;
   font-size: 11px;
   font-family: 'Monaco', 'Menlo', 'Fira Code', monospace;
   color: #a5b4fc;
   line-height: 1.55;
-  max-height: 180px;
+  max-height: 200px;
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
@@ -719,24 +828,26 @@ size="small" round :bordered="false" :style="{
   max-height: 0;
   padding-top: 0;
   padding-bottom: 0;
-  transform: translateY(-8px);
 }
 
 .fw-slide-enter-to,
 .fw-slide-leave-from {
   opacity: 1;
   max-height: 500px;
-  transform: translateY(0);
 }
 
 /* 响应式适配 */
 @media (max-width: 640px) {
-  .fw-meta-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .fw-file-path {
+    max-width: 180px;
   }
 
-  .fw-file-path {
-    max-width: 160px;
+  .fw-status-area {
+    gap: 6px;
+  }
+
+  .fw-file-info {
+    display: none;
   }
 }
 </style>

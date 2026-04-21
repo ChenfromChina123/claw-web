@@ -2,10 +2,15 @@
  * Worker Sandbox - 在 Worker 容器中安全执行命令
  *
  * 职责：
- * - 执行用户命令
- * - 限制文件系统访问
+ * - 执行用户命令（以 root 权限运行）
+ * - 限制文件系统访问（仅限制路径遍历，不限制命令）
  * - 超时控制
- * - 命令安全验证
+ * - 基本安全验证（仅阻止容器破坏性操作）
+ *
+ * 权限说明：
+ * - Worker 容器以 --privileged 模式运行
+ * - 所有命令均以 root 权限执行
+ * - AI Agent 需要完整的系统权限来执行管理任务
  */
 
 import { spawn } from 'child_process'
@@ -16,30 +21,29 @@ import { isPathSafe, parseEnvironmentVariables } from '../../shared/utils'
 const execAsync = promisify(exec)
 
 /**
- * 验证命令是否包含危险的路径遍历
+ * 验证命令是否包含破坏性操作（宽松模式）
+ * 只阻止真正危险的操作，允许系统管理命令
+ *
  * @param command 要验证的命令
  * @returns 是否安全
  */
 function isCommandSafe(command: string): { safe: boolean; reason?: string } {
-  // 检测 cd .. 切换到父目录
-  if (/^\s*(cd|pushd)\s+\.\./.test(command)) {
-    return { safe: false, reason: '禁止使用 "cd .." 切换到父目录' }
-  }
-  
-  // 检测路径中的 ..
-  if (/\.\.[\/\\]/.test(command) || /[\/\\]\.\./.test(command)) {
-    return { safe: false, reason: '检测到路径包含 ".."（父目录引用）' }
-  }
-  
-  // 检测敏感系统路径
-  const sensitivePaths = ['/etc/passwd', '/etc/shadow', '/etc/ssh', '.ssh/', 'credentials']
-  const commandLower = command.toLowerCase()
-  for (const sensitive of sensitivePaths) {
-    if (commandLower.includes(sensitive.toLowerCase())) {
-      return { safe: false, reason: `尝试访问敏感路径: ${sensitive}` }
+  // 仅阻止容器破坏性操作
+  const destructivePatterns = [
+    /shutdown|reboot|halt/i,        // 关机/重启
+    /mkfs\b/,                        // 格式化
+    /rm\s+-rf\s+\/($|\s)/,          // 删除根目录
+    /dd\s+.*of=\/dev\//,             // 破坏性写入设备
+    /:\(\)\{.*\};:/,                 // Fork bomb
+  ]
+
+  for (const pattern of destructivePatterns) {
+    if (pattern.test(command)) {
+      return { safe: false, reason: `检测到破坏性操作: ${pattern}` }
     }
   }
-  
+
+  // 允许所有其他命令（包括 sudo, systemctl, mount 等）
   return { safe: true }
 }
 

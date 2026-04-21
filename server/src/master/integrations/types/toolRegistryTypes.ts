@@ -114,6 +114,12 @@ export interface ToolExecutionResult {
   duration: number
   timestamp: number
   timedOut?: boolean
+  /** 是否被截断 */
+  truncated?: boolean
+  /** 原始输出大小（字节） */
+  originalOutputSize?: number
+  /** 持久化的工具结果 ID */
+  persistedId?: string
 }
 
 /**
@@ -167,11 +173,14 @@ export const TOOL_CATEGORIES = {
   FILE: { id: 'file', name: '文件操作', icon: 'file' },
   SHELL: { id: 'shell', name: 'Shell 命令', icon: 'terminal' },
   WEB: { id: 'web', name: '网络工具', icon: 'globe' },
+  SEARCH: { id: 'search', name: '搜索工具', icon: 'search' },
   TASK: { id: 'task', name: '任务管理', icon: 'check-square' },
   AGENT: { id: 'agent', name: 'Agent', icon: 'bot' },
   MCP: { id: 'mcp', name: 'MCP', icon: 'plug' },
   SKILL: { id: 'skill', name: '技能', icon: 'star' },
   SYSTEM: { id: 'system', name: '系统', icon: 'settings' },
+  API: { id: 'api', name: 'API 工具', icon: 'code-json' },
+  NETWORK: { id: 'network', name: '网络诊断', icon: 'network' },
   PLAN: { id: 'plan', name: '计划模式', icon: 'map' },
   TEAM: { id: 'team', name: '团队协作', icon: 'users' },
   CRON: { id: 'cron', name: '定时任务', icon: 'clock' },
@@ -180,6 +189,10 @@ export const TOOL_CATEGORIES = {
   DEVOPS: { id: 'devops', name: 'DevOps', icon: 'container' },
   VCS: { id: 'vcs', name: '版本控制', icon: 'git' },
   CLOUD: { id: 'cloud', name: '云服务', icon: 'cloud' },
+  // ========== 新增工具类别 ==========
+  LANGUAGE: { id: 'language', name: '编程语言', icon: 'terminal-square' },
+  BUILDER: { id: 'builder', name: '构建工具', icon: 'hammer' },
+  PACKAGE: { id: 'package', name: '包管理器', icon: 'package' },
   OTHER: { id: 'other', name: '其他', icon: 'box' },
 } as const
 

@@ -78,49 +78,21 @@ export class ScriptValidator {
       // 4. 读取脚本内容
       const content = await readFile(filePath, 'utf-8')
 
-      // 5. 检测危险模式
+      // 5. 检测危险模式（宽松模式：仅阻止真正危险的操作）
       const dangerousPatterns = [
-        // 系统调用
-        /\bos\.system\s*\(/i,
-        /\bsubprocess\./i,
-        /\bexec\s*\(/i,
-        /\beval\s*\(/i,
-        /\brequire\s*\(['"]child_process['"]\)/i,
-        /\bshell_exec\s*\(/i,
-        /\bsystem\s*\(/i,
-        /\bpassthru\s*\(/i,
-        /\bexecve\s*\(/i,
-        /\bspawn\s*\(/i,
-        /\bfork\s*\(/i,
-        
-        // 网络攻击
-        /\bsocket\./i,
-        /\brequests\.post\s*\(/i,
-        /\bfetch\s*\(/i,
-        /\/dev\/tcp\//i,
-        /\bsocket\.connect\s*\(/i,
-        
-        // 文件操作
-        /\bopen\s*\(\s*['"]\/etc\//i,
-        /\bopen\s*\(\s*['"]\/proc\//i,
-        /\bopen\s*\(\s*['"]\/sys\//i,
-        /\bshutil\.rmtree\s*\(/i,
-        /\bos\.remove\s*\(/i,
-        /\bos\.unlink\s*\(/i,
-        /\bos\.rmdir\s*\(/i,
-        
-        // 权限提升
-        /\bsudo\s+/i,
-        /\bsu\s+/i,
-        /\bsetuid\s*\(/i,
-        /\bsetgid\s*\(/i,
-        /\bchmod\s+\+?s/i,
-        
-        // 代码注入
-        /\b__import__\s*\(/i,
-        /\bimportlib\s*\./i,
-        /\bcompile\s*\(/i,
-        /\bexecfile\s*\(/i,
+        // 容器破坏性操作
+        /\bshutdown\b/i,
+        /\breboot\b/i,
+        /\bmkfs\b/i,
+        /rm\s+-rf\s+\/($|\s)/,           // 删除根目录
+        /dd\s+.*of=\/dev\//,              // 破坏性写入设备
+        /:\(\)\{.*\};:/,                  // Fork bomb
+
+        // 注意：以下模式已移除
+        // - sudo/su: AI Agent 需要权限提升能力
+        // - subprocess/exec/eval: 脚本执行需要这些
+        // - socket/fetch: 网络操作是合法需求
+        // - os.system/shell_exec: 命令执行是基本功能
       ]
 
       for (const pattern of dangerousPatterns) {

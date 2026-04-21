@@ -12,9 +12,24 @@
  */
 
 import { readFile, writeFile, readdir, stat, chmod, rename, unlink } from 'fs/promises'
-import { join, resolve, relative, dirname } from 'path'
+import { join, resolve, relative, dirname, extname } from 'path'
 import { glob as globAsync } from 'glob'
 import type { ToolDefinition, ToolExecutionContext, ToolResult } from '../types/toolTypes'
+import { FILE_READ_LIMITS, TOOL_RESULT_LIMITS, formatBytes, truncateString } from '../../utils/fileLimits'
+
+/**
+ * 二进制文件扩展名（不应该被读取为文本）
+ */
+const BINARY_EXTENSIONS = new Set([
+  '.exe', '.dll', '.so', '.dylib', '.bin', '.dat',
+  '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.webp', '.svg',
+  '.mp3', '.mp4', '.wav', '.avi', '.mov', '.mkv', '.flv',
+  '.zip', '.tar', '.gz', '.rar', '.7z',
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.ttf', '.otf', '.woff', '.woff2', '.eot',
+  '.db', '.sqlite', '.mdb',
+  '.class', '.pyc', '.pyd', '.pyo',
+])
 
 /**
  * 创建文件操作工具定义列表
@@ -41,7 +56,17 @@ export function createFileTools(resolvePathFn: (path: string) => string, ensureD
         const offset = input.offset as number
         const encoding = (input.encoding as string) || 'utf-8'
 
-        const st = await stat(filePath)
+        // 检查文件是否存在
+        let st
+        try {
+          st = await stat(filePath)
+        } catch {
+          return {
+            success: false,
+            error: `文件不存在: ${filePath}`,
+          }
+        }
+
         if (st.isDirectory()) {
           return {
             success: false,
@@ -49,20 +74,72 @@ export function createFileTools(resolvePathFn: (path: string) => string, ensureD
           }
         }
 
+        // 检查文件大小限制
+        if (st.size > FILE_READ_LIMITS.MAX_BYTES) {
+          return {
+            success: false,
+            error: `文件过大 (${formatBytes(st.size)})，超过限制 (${formatBytes(FILE_READ_LIMITS.MAX_BYTES)})。请使用 offset 和 limit 参数读取部分内容。`,
+          }
+        }
+
+        // 检查是否为二进制文件
+        const ext = extname(filePath).toLowerCase()
+        if (BINARY_EXTENSIONS.has(ext)) {
+          return {
+            success: false,
+            error: `无法读取二进制文件: ${extname(filePath)}。请使用其他方式处理此文件。`,
+          }
+        }
+
         const content = await readFile(filePath, encoding as BufferEncoding)
-        
-        if (limit || offset) {
-          const lines = content.split('\n')
-          const start = offset || 0
-          const end = limit ? start + limit : lines.length
+
+        // 检查内容大小
+        if (content.length > TOOL_RESULT_LIMITS.MAX_BYTES) {
+          const truncated = truncateString(content, TOOL_RESULT_LIMITS.MAX_BYTES)
           return {
             success: true,
             result: {
-              content: lines.slice(start, end).join('\n'),
+              content: truncated.truncated,
+              path: filePath,
+              totalLines: content.split('\n').length,
+              wasTruncated: true,
+              originalSize: content.length,
+              truncationNotice: `\n\n[输出已截断] 原始大小: ${formatBytes(content.length)}, 截断至: ${formatBytes(TOOL_RESULT_LIMITS.MAX_BYTES)}`,
+            },
+          }
+        }
+
+        if (limit || offset) {
+          const lines = content.split('\n')
+          const start = offset || 0
+          const end = limit ? Math.min(start + limit, lines.length) : lines.length
+
+          // 检查截断后的内容大小
+          const slicedContent = lines.slice(start, end).join('\n')
+          let finalContent = slicedContent
+          let truncationInfo: { wasTruncated: boolean; originalSize?: number } = { wasTruncated: false }
+
+          if (slicedContent.length > TOOL_RESULT_LIMITS.MAX_CHARS) {
+            const truncated = truncateString(slicedContent, TOOL_RESULT_LIMITS.MAX_CHARS)
+            finalContent = truncated.truncated
+            truncationInfo = {
+              wasTruncated: true,
+              originalSize: slicedContent.length,
+            }
+          }
+
+          return {
+            success: true,
+            result: {
+              content: finalContent,
               path: filePath,
               totalLines: lines.length,
               readLines: end - start,
               startLine: start,
+              ...truncationInfo,
+              ...(truncationInfo.wasTruncated ? {
+                truncationNotice: `\n\n[输出已截断] 原始大小: ${formatBytes(truncationInfo.originalSize!)}, 截断至: ${formatBytes(TOOL_RESULT_LIMITS.MAX_CHARS)}`,
+              } : {}),
             },
           }
         }
@@ -73,6 +150,7 @@ export function createFileTools(resolvePathFn: (path: string) => string, ensureD
             content,
             path: filePath,
             size: content.length,
+            sizeFormatted: formatBytes(content.length),
             lines: content.split('\n').length,
           },
         }
@@ -257,6 +335,9 @@ export function createFileTools(resolvePathFn: (path: string) => string, ensureD
         const searchPath = (input.path as string) || context.projectRoot
         const excludePatterns = (input.excludePatterns as string[]) || []
 
+        // 检查结果数量限制
+        const MAX_GLOB_RESULTS = 500
+
         try {
           const files = await globAsync(pattern, {
             cwd: searchPath,
@@ -264,19 +345,28 @@ export function createFileTools(resolvePathFn: (path: string) => string, ensureD
             absolute: true,
           })
 
+          // 如果结果过多，进行截断
+          const totalMatches = files.length
+          const limitedFiles = files.slice(0, MAX_GLOB_RESULTS)
+          const wasTruncated = totalMatches > MAX_GLOB_RESULTS
+
           return {
             success: true,
             result: {
               pattern,
               path: searchPath,
-              matches: files.length,
-              files: files.slice(0, 100), // Limit results
+              matches: totalMatches,
+              files: limitedFiles,
+              wasTruncated,
+              truncationNotice: wasTruncated
+                ? `\n\n[结果已截断] 共找到 ${totalMatches} 个匹配项，显示前 ${MAX_GLOB_RESULTS} 个。请使用更精确的模式进行搜索。`
+                : undefined,
             },
           }
         } catch (error) {
           return {
             success: false,
-            error: `Invalid glob pattern: ${pattern}`,
+            error: `无效的 glob 模式: ${pattern}`,
           }
         }
       },
@@ -299,10 +389,13 @@ export function createFileTools(resolvePathFn: (path: string) => string, ensureD
         const recursive = (input.recursive as boolean) || false
         const showHidden = (input.showHidden as boolean) || false
 
+        // 检查结果数量限制
+        const MAX_LIST_RESULTS = 500
+
         try {
-          const entries = await readdir(dirPath, { 
+          const entries = await readdir(dirPath, {
             withFileTypes: true,
-            recursive 
+            recursive
           })
 
           let files = entries
@@ -314,18 +407,26 @@ export function createFileTools(resolvePathFn: (path: string) => string, ensureD
               isFile: entry.isFile(),
             }))
 
+          const totalCount = files.length
+          const limitedFiles = files.slice(0, MAX_LIST_RESULTS)
+          const wasTruncated = totalCount > MAX_LIST_RESULTS
+
           return {
             success: true,
             result: {
               path: dirPath,
-              count: files.length,
-              files: files.slice(0, 200), // Limit results
+              count: totalCount,
+              files: limitedFiles,
+              wasTruncated,
+              truncationNotice: wasTruncated
+                ? `\n\n[结果已截断] 目录共有 ${totalCount} 个项目，显示前 ${MAX_LIST_RESULTS} 个。`
+                : undefined,
             },
           }
         } catch (error) {
           return {
             success: false,
-            error: `Cannot list directory: ${dirPath}`,
+            error: `无法列出目录: ${dirPath}`,
           }
         }
       },

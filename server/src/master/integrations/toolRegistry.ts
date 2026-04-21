@@ -33,6 +33,7 @@ import { ToolEventEmitter } from './core/toolLifecycle'
 import { ToolDependencyManager } from './core/toolDependency'
 import { ToolTimeoutManager } from './core/toolTimeout'
 import { BuiltinToolRegistrar } from './core/builtinTools'
+import { TOOL_RESULT_LIMITS, truncateToolResult, formatBytes } from '../utils/fileLimits'
 
 // ==================== ToolRegistry 类 ====================
 
@@ -47,7 +48,7 @@ export class ToolRegistry {
   private customTools: Map<string, RegisteredTool> = new Map()
   
   // 处理器映射
-  private toolHandlers: Map<string, (args: Record<string, unknown>) => Promise<{ success: boolean; result?: unknown; error?: string }>> = new Map()
+  private toolHandlers: Map<string, (args: Record<string, unknown>) => Promise<{ success: boolean; result?: unknown; error?: string; output?: string }>> = new Map()
   
   // 执行历史
   private executionHistory: ToolExecutionResult[] = []
@@ -57,6 +58,10 @@ export class ToolRegistry {
   private eventEmitter: ToolEventEmitter
   private dependencyManager: ToolDependencyManager
   private timeoutManager: ToolTimeoutManager
+
+  // 并发控制
+  private runningTools: Map<string, { request: ToolExecutionRequest; promise: Promise<ToolExecutionResult> }> = new Map()
+  private maxConcurrency: number = 10
 
   constructor(config: ToolRegistryConfig) {
     this.projectRoot = config.projectRoot
@@ -271,6 +276,75 @@ export class ToolRegistry {
     })
   }
 
+  // ==================== 并发控制 ====================
+
+  /**
+   * 检查工具是否可以并发执行
+   */
+  isConcurrencySafe(toolName: string, input?: Record<string, unknown>): boolean {
+    const tool = this.getTool(toolName)
+    if (!tool) return false
+
+    // 如果工具定义了 isConcurrencySafe 方法，调用它
+    if (tool.isConcurrencySafe === undefined) {
+      return true // 默认允许并发
+    }
+
+    return tool.isConcurrencySafe
+  }
+
+  /**
+   * 获取当前正在运行的工具数量
+   */
+  getRunningToolsCount(): number {
+    return this.runningTools.size
+  }
+
+  /**
+   * 获取当前并发运行数统计
+   */
+  getConcurrencyStats(): { running: number; max: number; available: number } {
+    return {
+      running: this.runningTools.size,
+      max: this.maxConcurrency,
+      available: Math.max(0, this.maxConcurrency - this.runningTools.size),
+    }
+  }
+
+  /**
+   * 批量执行工具（支持并发控制）
+   */
+  async executeToolsBatch(requests: ToolExecutionRequest[]): Promise<ToolExecutionResult[]> {
+    if (requests.length === 0) return []
+
+    // 将工具分为可并发和不可并发两类
+    const safeTools: ToolExecutionRequest[] = []
+    const unsafeTools: ToolExecutionRequest[] = []
+
+    for (const request of requests) {
+      if (this.isConcurrencySafe(request.toolName, request.toolInput)) {
+        safeTools.push(request)
+      } else {
+        unsafeTools.push(request)
+      }
+    }
+
+    // 并发执行安全工具
+    const safePromises = safeTools.map(r => this.executeTool(r))
+
+    // 串行执行非安全工具
+    const unsafeResults: ToolExecutionResult[] = []
+    for (const request of unsafeTools) {
+      const result = await this.executeTool(request)
+      unsafeResults.push(result)
+    }
+
+    // 等待所有安全工具完成
+    const safeResults = await Promise.all(safePromises)
+
+    return [...safeResults, ...unsafeResults]
+  }
+
   // ==================== 工具执行 ====================
 
   async executeTool(request: ToolExecutionRequest): Promise<ToolExecutionResult> {
@@ -357,6 +431,24 @@ export class ToolRegistry {
         error: response.error,
         duration: Date.now() - startTime,
         timestamp: startTime,
+      }
+
+      // 对输出结果进行截断（防止 Token 超限）
+      if (response.success && response.output !== undefined) {
+        const { result: truncatedOutput, wasTruncated, originalSize } = truncateToolResult(
+          response.output,
+          request.toolName,
+          TOOL_RESULT_LIMITS.MAX_CHARS
+        )
+
+        if (wasTruncated) {
+          result.output = truncatedOutput
+          result.truncated = true
+          result.originalOutputSize = originalSize
+          console.log(`[ToolRegistry] 工具 ${request.toolName} 输出被截断: ${formatBytes(originalSize)} -> ${formatBytes(TOOL_RESULT_LIMITS.MAX_CHARS)}`)
+        } else {
+          result.output = response.output
+        }
       }
       
       this.addToHistory(result)

@@ -338,6 +338,37 @@ function formatToolOutput(output: unknown): string {
   return String(output)
 }
 
+// 格式化参数值（用于展示）
+function formatParamValue(value: unknown): string {
+  if (value === null || value === undefined) return '-'
+  if (typeof value === 'boolean') return value ? 'true' : 'false'
+  if (typeof value === 'number') return String(value)
+  if (typeof value === 'string') {
+    // 路径格式化
+    if (value.includes('/') || value.includes('\\')) {
+      return value
+    }
+    // 长文本截断
+    if (value.length > 80) {
+      return value.substring(0, 80) + '...'
+    }
+    return value
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '[]'
+    if (value.length <= 3) {
+      return `[${value.map(v => formatParamValue(v)).join(', ')}]`
+    }
+    return `[${formatParamValue(value[0])}, ${formatParamValue(value[1])}, ... 共 ${value.length} 项]`
+  }
+  if (typeof value === 'object') {
+    const keys = Object.keys(value)
+    if (keys.length === 0) return '{}'
+    return `{ ${keys.slice(0, 3).join(', ')}${keys.length > 3 ? ', ...' : ''} }`
+  }
+  return String(value)
+}
+
 // 获取当前正在进行的工具调用（排除 FileWrite 类型，避免与专用组件重复显示）
 const activeToolCalls = computed(() => {
   return props.toolCalls.filter(tc => {
@@ -469,22 +500,79 @@ const statsSummary = computed(() => {
 /**
  * 根据工具名称返回对应的图标
  * @param toolName - 工具名称
- * @returns 工具图标 emoji
+ * @returns 工具图标
  */
 function getToolIcon(toolName: string): string {
   const iconMap: Record<string, string> = {
-    FileRead: '📄',
-    FileList: '📂',
-    Bash: '🐚',
-    Shell: '🐚',
-    Search: '🔍',
-    Grep: '🔍',
+    // 文件操作
+    FileRead: '📖',
+    Read: '📖',
+    read: '📖',
+    read_file: '📖',
+    ReadFile: '📖',
+    FileWrite: '✏️',
+    Write: '✏️',
+    write: '✏️',
+    write_file: '✏️',
+    WriteFile: '✏️',
     Edit: '📝',
-    Write: '✍️',
+    edit: '📝',
+    EditFile: '📝',
+    edit_file: '📝',
+    str_replace: '📝',
     Delete: '🗑️',
-    Git: '🔀'
+    delete: '🗑️',
+    DeleteFile: '🗑️',
+    FileList: '📂',
+    Glob: '🔍',
+    glob: '🔍',
+
+    // 搜索
+    Grep: '🔎',
+    grep: '🔎',
+    Search: '🔎',
+    search: '🔎',
+    WebSearch: '🌐',
+    web_search: '🌐',
+    WebRead: '📄',
+    webread: '📄',
+
+    // Shell
+    Bash: '💻',
+    bash: '💻',
+    Shell: '💻',
+    shell: '💻',
+    PowerShell: '⚡',
+    powershell: '⚡',
+    Cmd: '💻',
+    cmd: '💻',
+
+    // Git
+    Git: '🔀',
+    git: '🔀',
+
+    // 其他
+    Todo: '📋',
+    todo: '📋',
+    Agent: '🤖',
+    agent: '🤖',
+    MCP: '🔌',
+    mcp: '🔌',
+    WebFetch: '📡',
+    web_fetch: '📡',
   }
-  return iconMap[toolName] || '🔧'
+
+  // 优先精确匹配
+  if (iconMap[toolName]) return iconMap[toolName]
+
+  // 其次大小写不敏感匹配
+  const lower = toolName.toLowerCase()
+  for (const [key, icon] of Object.entries(iconMap)) {
+    if (key.toLowerCase() === lower) return icon
+  }
+
+  // 默认图标
+  return '🔧'
 }
 
 /**
@@ -518,25 +606,72 @@ function handleFocusTerminalClick(e: Event): void {
   emit('focus-terminal')
 }
 
+/**
+ * 生成工具调用的智能摘要
+ * @param toolCall - 工具调用对象
+ * @returns 摘要文本
+ */
 function getShortSummary(toolCall: ToolCall): string {
-  switch (toolCall.toolName) {
-    case 'FileRead': {
-      const readPath = (toolCall.toolInput as Record<string, unknown>)?.path || '未知文件'
-      return `读取文件：${readPath}`
-    }
-    case 'FileList': {
-      const listPath = (toolCall.toolInput as Record<string, unknown>)?.path || '未知目录'
-      return `浏览目录：${listPath}`
-    }
-    case 'Bash':
-    case 'Shell': {
-      const command = (toolCall.toolInput as Record<string, unknown>)?.command || ''
-      const shortCmd = String(command).length > 50 ? String(command).substring(0, 50) + '...' : command
-      return `执行命令：${shortCmd}`
-    }
-    default:
-      return '点击查看详情'
+  const input = toolCall.toolInput as Record<string, unknown>
+  const name = toolCall.toolName.toLowerCase()
+
+  // 文件读取
+  if (name.includes('read') || name === 'read') {
+    const path = input?.path || input?.file_path || input?.filePath || '未知文件'
+    return `读取: ${path}`
   }
+
+  // 文件写入
+  if (name.includes('write') || name === 'filewrite') {
+    const path = input?.path || input?.file_path || input?.filePath || '未知文件'
+    return `写入: ${path}`
+  }
+
+  // 文件编辑
+  if (name.includes('edit') || name === 'str_replace') {
+    const path = input?.path || input?.file_path || '未知文件'
+    return `编辑: ${path}`
+  }
+
+  // 文件/目录列表
+  if (name.includes('list') || name.includes('glob') || name === 'ls') {
+    const path = input?.path || input?.directory || input?.dir || '.'
+    return `浏览: ${path}`
+  }
+
+  // 删除
+  if (name.includes('delete') || name === 'rm') {
+    const path = input?.path || input?.file_path || '未知'
+    return `删除: ${path}`
+  }
+
+  // 搜索
+  if (name.includes('grep') || name.includes('search')) {
+    const query = input?.query || input?.search_term || input?.pattern || input?.text || ''
+    return `搜索: ${query}`
+  }
+
+  // Shell 命令
+  if (name.includes('bash') || name.includes('shell') || name.includes('powershell') || name.includes('cmd')) {
+    const command = input?.command || input?.cmd || ''
+    const shortCmd = String(command).length > 50 ? String(command).substring(0, 50) + '...' : command
+    return `${shortCmd}`
+  }
+
+  // Git
+  if (name.includes('git')) {
+    const cmd = input?.command || ''
+    return `Git: ${cmd}`
+  }
+
+  // Web 操作
+  if (name.includes('web')) {
+    const url = input?.url || input?.url || ''
+    return `访问: ${url}`
+  }
+
+  // 默认显示工具名称
+  return toolCall.toolName
 }
 
 /**
@@ -918,11 +1053,16 @@ async function handleInterruptExecution() {
                       <div class="tool-call-header" @click="handleStepClick(toolCall.id)">
                         <div class="tool-call-main">
                           <span class="tool-call-icon">{{ getToolIcon(toolCall.toolName) }}</span>
-                          <span class="tool-call-name">{{ toolCall.toolName }}</span>
-                          <span class="tool-call-status-badge" :class="toolCall.status">
-                            <span class="status-dot"></span>
-                            {{ toolCall.status === 'pending' ? '等待' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
-                          </span>
+                          <div class="tool-call-info">
+                            <div class="tool-call-name-row">
+                              <span class="tool-call-name">{{ toolCall.toolName }}</span>
+                              <span class="tool-call-status-badge" :class="toolCall.status">
+                                <span class="status-dot"></span>
+                                {{ toolCall.status === 'pending' ? '等待' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
+                              </span>
+                            </div>
+                            <div class="tool-call-summary">{{ getShortSummary(toolCall) }}</div>
+                          </div>
                         </div>
                         <div class="tool-call-actions">
                           <NTooltip v-if="isShellToolName(toolCall.toolName)" trigger="hover">
@@ -942,21 +1082,38 @@ async function handleInterruptExecution() {
                           <span class="tool-call-expand-icon">{{ activeStep === toolCall.id ? '▼' : '▶' }}</span>
                         </div>
                       </div>
-                      
+
                       <!-- 展开内容 - 优化版 -->
                       <Transition name="slide-toggle">
                         <div v-if="activeStep === toolCall.id" class="tool-call-result">
-                          <div class="result-header">
-                            <span class="result-label">执行结果</span>
-                            <span v-if="toolCall.toolOutput" class="result-meta">
-                              {{ formatToolOutput(toolCall.toolOutput).length }} 字符
-                            </span>
+                          <!-- 输入参数展示 -->
+                          <div class="result-section" v-if="toolCall.toolInput && Object.keys(toolCall.toolInput).length > 0">
+                            <div class="result-header">
+                              <span class="result-label">输入参数</span>
+                              <span class="result-meta">{{ Object.keys(toolCall.toolInput).length }} 个参数</span>
+                            </div>
+                            <div class="result-content params-content">
+                              <div v-for="(value, key) in toolCall.toolInput" :key="String(key)" class="param-item">
+                                <span class="param-key">{{ String(key) }}</span>
+                                <span class="param-value">{{ formatParamValue(value) }}</span>
+                              </div>
+                            </div>
                           </div>
-                          <div class="result-content" :class="{ 'has-output': toolCall.toolOutput }">
-                            <pre v-if="toolCall.toolOutput">{{ formatToolOutput(toolCall.toolOutput) }}</pre>
-                            <div v-else class="result-empty">暂无输出</div>
+
+                          <!-- 输出结果展示 -->
+                          <div class="result-section" v-if="toolCall.toolOutput">
+                            <div class="result-header">
+                              <span class="result-label">执行结果</span>
+                              <span class="result-meta">{{ formatToolOutput(toolCall.toolOutput).length }} 字符</span>
+                            </div>
+                            <div class="result-content" :class="{ 'has-output': toolCall.toolOutput }">
+                              <pre>{{ formatToolOutput(toolCall.toolOutput) }}</pre>
+                            </div>
                           </div>
-                          
+                          <div v-else class="result-empty-wrapper">
+                            <div class="result-empty">暂无输出</div>
+                          </div>
+
                           <!-- 错误提示 -->
                           <div v-if="toolCall.status === 'error' && getErrorInfo(toolCall)" class="tool-call-error-alert">
                             <div class="error-header">
@@ -3396,7 +3553,7 @@ async function handleInterruptExecution() {
 /* 工具调用头部 - 优化版 */
 .tool-call-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px;
@@ -3415,9 +3572,10 @@ async function handleInterruptExecution() {
 
 .tool-call-main {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   flex: 1;
+  min-width: 0;
 }
 
 .tool-call-actions {
@@ -3436,12 +3594,36 @@ async function handleInterruptExecution() {
   filter: grayscale(0);
 }
 
+.tool-call-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tool-call-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .tool-call-name {
   font-size: 13px;
   font-weight: 600;
   color: #e5e7eb;
   font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
   letter-spacing: -0.3px;
+}
+
+.tool-call-summary {
+  font-size: 11.5px;
+  color: #9ca3af;
+  font-family: 'Monaco', 'Menlo', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
 }
 
 /* 状态徽章 - 优化版 */
@@ -3583,6 +3765,49 @@ async function handleInterruptExecution() {
   color: #6b7280;
   font-size: 12px;
   font-style: italic;
+}
+
+.result-empty-wrapper {
+  padding: 8px 14px;
+}
+
+.result-section {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.result-section:last-child {
+  border-bottom: none;
+}
+
+.params-content {
+  padding: 8px 14px 12px;
+}
+
+.param-item {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+  font-size: 11.5px;
+}
+
+.param-item:last-child {
+  border-bottom: none;
+}
+
+.param-key {
+  color: #a78bfa;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-weight: 500;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.param-value {
+  color: #d4d4d4;
+  font-family: 'Monaco', 'Menlo', monospace;
+  word-break: break-all;
+  flex: 1;
 }
 
 /* 工具调用错误提示 - 优化版 */

@@ -94,32 +94,28 @@ const DEFAULT_ALLOWED_COMMANDS = [
 ]
 
 /**
- * 危险命令黑名单
+ * 危险命令黑名单（仅包含真正危险的操作）
+ *
+ * 设计原则：
+ * - Worker 容器以 --privileged 模式运行，AI Agent 需要完整的系统权限
+ * - 只阻止可能导致容器崩溃或数据丢失的操作
+ * - 允许系统管理命令（sudo, systemctl 等），因为这是沙箱环境
  */
 const DANGEROUS_COMMANDS = [
-  // 权限提升
-  'sudo', 'su', 'pkexec', 'doas',
-  
-  // 系统操作
-  'mount', 'umount', 'fdisk', 'mkfs', 'dd',
+  // 容器破坏性操作（会导致容器不可用）
   'shutdown', 'reboot', 'halt', 'poweroff',
-  'systemctl', 'service', 'init',
-  
-  // 网络攻击
-  'nc', 'netcat', 'ncat', 'telnet', 'ftp', 'sftp',
-  'ssh', 'scp', 'rsync',
-  'nmap', 'tcpdump', 'wireshark',
-  
-  // 用户管理
-  'useradd', 'userdel', 'usermod',
-  'groupadd', 'groupdel', 'groupmod',
-  'passwd', 'chpasswd',
-  
-  // 其他危险命令
-  'chmod', 'chown',  // 在某些场景下危险
-  'crontab', 'at',
-  'kill', 'killall', 'pkill',
-  'bash', 'sh', 'zsh',  // 防止启动新的 shell 绕过限制
+  'mkfs',  // 格式化文件系统
+
+  // 网络攻击工具（可能被滥用）
+  'nc', 'netcat', 'ncat',
+
+  // 注意：以下命令已从黑名单中移除
+  // - sudo, su: AI Agent 需要 root 权限执行管理任务
+  // - mount, umount: 文件系统操作是合法需求
+  // - systemctl, service: 服务管理是常见操作
+  // - chmod, chown: 文件权限管理是基本需求
+  // - bash, sh, zsh: Shell 是执行脚本的基础
+  // - useradd/userdel: 用户管理在沙箱中是安全的
 ]
 
 /**
@@ -229,7 +225,23 @@ export class PathSandbox {
       // 3. 规范化路径（这会处理 .. 引用）
       const normalizedPath = normalize(resolvedPath)
 
-      // 4. 允许访问所有路径（移除路径限制）
+      // 4. 严格模式：验证最终路径是否在 userRoot 内
+      if (this.strictMode) {
+        // 使用 relative 检查路径是否在 userRoot 内
+        // 如果路径超出 userRoot，relative 会返回以 .. 开头的路径
+        const relPath = relative(this.userRoot, normalizedPath)
+        
+        // 检查是否超出根目录（路径以 .. 开头表示在外）
+        if (relPath.startsWith('..')) {
+          console.warn(`[PathSandbox] 路径访问被拒绝: ${targetPath} -> ${normalizedPath} (超出 userRoot: ${this.userRoot})`)
+          return {
+            allowed: false,
+            reason: `安全限制：路径超出工作目录范围。Agent 只能访问 ${this.userRoot} 内的文件。`,
+            severity: 'block'
+          }
+        }
+      }
+
       return {
         allowed: true,
         resolvedPath: normalizedPath

@@ -17,18 +17,44 @@ import { getToolCategory, TOOL_CATEGORIES } from '@/types/flowKnowledge'
 
 const TOOL_DESCRIPTIONS: Record<string, string> = {
   'Read': '读取文件内容',
+  'ReadFile': '读取文件内容',
+  'read': '读取文件内容',
+  'read_file': '读取文件内容',
   'Write': '写入文件内容',
+  'WriteFile': '写入文件内容',
+  'write': '写入文件内容',
+  'write_file': '写入文件内容',
+  'FileWrite': '写入文件',
+  'filewrite': '写入文件',
   'Edit': '编辑文件',
+  'edit': '编辑文件',
+  'EditFile': '编辑文件',
+  'edit_file': '编辑文件',
   'Delete': '删除文件',
+  'delete': '删除文件',
+  'DeleteFile': '删除文件',
   'Glob': '查找匹配的文件',
+  'glob': '查找文件',
   'Grep': '在文件中搜索文本',
+  'grep': '搜索文本',
   'Bash': '执行 Shell 命令',
+  'bash': '执行命令',
+  'Shell': '执行 Shell 命令',
+  'shell': '执行命令',
   'PowerShell': '执行 PowerShell 命令',
+  'powershell': '执行 PowerShell',
   'WebSearch': '网络搜索',
+  'web_search': '网络搜索',
   'WebFetch': '获取网页内容',
+  'web_fetch': '获取网页',
   'Git': '执行 Git 操作',
+  'git': 'Git 操作',
   'MCP': '调用 MCP 服务',
-  'Agent': '调用 AI Agent'
+  'Agent': '调用 AI Agent',
+  'Todo': '管理待办事项',
+  'todo': '待办事项',
+  'WebRead': '读取网页内容',
+  'webread': '读取网页',
 }
 
 // ==================== 工具输入解析器 ====================
@@ -39,13 +65,254 @@ interface ParameterInfo {
   description: string
   required: boolean
   value?: unknown
+  isPath?: boolean
+}
+
+// 路径相关字段
+const PATH_FIELDS = ['path', 'file_path', 'targetPath', 'target_path', 'filePath', 'destPath', 'destination', 'sourcePath', 'source_path', 'dirPath', 'dir_path', 'directory', 'dir', 'file', 'filename', 'name']
+
+// 内容相关字段
+const CONTENT_FIELDS = ['content', 'text', 'data', 'body', 'code', 'html', 'css', 'script']
+
+// 命令相关字段
+const COMMAND_FIELDS = ['command', 'cmd', 'shell', 'bash', 'script', 'executable']
+
+// 搜索相关字段
+const SEARCH_FIELDS = ['query', 'search_term', 'search', 'keyword', 'pattern', 'regex', 'text', 'find']
+
+// 路径提取函数
+function extractPathValue(input: Record<string, unknown>, field: string): string | null {
+  const value = input[field]
+  if (typeof value === 'string' && value.length > 0) {
+    // 清理路径格式
+    return value.replace(/^["']|["']$/g, '').trim()
+  }
+  return null
 }
 
 // 解析工具输入参数
-function parseToolParameters(_toolName: string, input: Record<string, unknown>): ParameterInfo[] {
+function parseToolParameters(toolName: string, input: Record<string, unknown>): ParameterInfo[] {
   const params: ParameterInfo[] = []
-  
+  const lowerToolName = toolName.toLowerCase()
+
+  // 特殊处理文件读取工具 - 优先显示路径
+  if (lowerToolName.includes('read') || lowerToolName.includes('file')) {
+    // 查找路径参数
+    for (const field of PATH_FIELDS) {
+      const pathValue = extractPathValue(input, field)
+      if (pathValue) {
+        params.push({
+          name: 'path',
+          type: 'string',
+          description: '文件路径',
+          required: true,
+          value: pathValue,
+          isPath: true
+        })
+        break
+      }
+    }
+
+    // 查找行数限制参数
+    if (input.limit !== undefined || input.maxLines !== undefined || input.max_lines !== undefined) {
+      const limitValue = input.limit || input.maxLines || input.max_lines
+      params.push({
+        name: 'limit',
+        type: 'number',
+        description: '最大读取行数',
+        required: false,
+        value: limitValue
+      })
+    }
+
+    // 查找起始行参数
+    if (input.start !== undefined || input.startLine !== undefined || input.start_line !== undefined) {
+      const startValue = input.start || input.startLine || input.start_line
+      params.push({
+        name: 'start',
+        type: 'number',
+        description: '起始行号',
+        required: false,
+        value: startValue
+      })
+    }
+
+    return params
+  }
+
+  // 特殊处理文件写入工具
+  if (lowerToolName.includes('write') || lowerToolName === 'filewrite') {
+    // 路径
+    for (const field of PATH_FIELDS) {
+      const pathValue = extractPathValue(input, field)
+      if (pathValue) {
+        params.push({
+          name: 'path',
+          type: 'string',
+          description: '文件路径',
+          required: true,
+          value: pathValue,
+          isPath: true
+        })
+        break
+      }
+    }
+
+    // 内容
+    for (const field of CONTENT_FIELDS) {
+      if (input[field] !== undefined) {
+        const contentValue = input[field]
+        const displayValue = typeof contentValue === 'string'
+          ? (contentValue.length > 150 ? contentValue.substring(0, 150) + '...' : contentValue)
+          : String(contentValue)
+        params.push({
+          name: 'content',
+          type: 'string',
+          description: '文件内容',
+          required: true,
+          value: displayValue
+        })
+        break
+      }
+    }
+
+    // 追加模式
+    if (input.append !== undefined || input.append_mode !== undefined) {
+      params.push({
+        name: 'append',
+        type: 'boolean',
+        description: '追加模式',
+        required: false,
+        value: input.append ?? input.append_mode
+      })
+    }
+
+    return params
+  }
+
+  // 特殊处理文件编辑工具
+  if (lowerToolName.includes('edit') || lowerToolName === 'str_replace') {
+    // 路径
+    for (const field of PATH_FIELDS) {
+      const pathValue = extractPathValue(input, field)
+      if (pathValue) {
+        params.push({
+          name: 'path',
+          type: 'string',
+          description: '文件路径',
+          required: true,
+          value: pathValue,
+          isPath: true
+        })
+        break
+      }
+    }
+
+    // 新内容
+    if (input.new_content !== undefined) {
+      const contentValue = String(input.new_content)
+      params.push({
+        name: 'new_content',
+        type: 'string',
+        description: '新内容',
+        required: true,
+        value: contentValue.length > 150 ? contentValue.substring(0, 150) + '...' : contentValue
+      })
+    }
+
+    // 旧内容
+    if (input.old_string !== undefined) {
+      const oldValue = String(input.old_string)
+      params.push({
+        name: 'old_string',
+        type: 'string',
+        description: '要替换的内容',
+        required: true,
+        value: oldValue.length > 100 ? oldValue.substring(0, 100) + '...' : oldValue
+      })
+    }
+
+    return params
+  }
+
+  // 特殊处理搜索工具
+  if (lowerToolName.includes('grep') || lowerToolName.includes('search')) {
+    for (const field of SEARCH_FIELDS) {
+      if (input[field] !== undefined) {
+        params.push({
+          name: field,
+          type: 'string',
+          description: field === 'query' || field === 'search' ? '搜索关键词' : field,
+          required: true,
+          value: input[field]
+        })
+        break
+      }
+    }
+
+    // 路径
+    for (const field of PATH_FIELDS) {
+      const pathValue = extractPathValue(input, field)
+      if (pathValue) {
+        params.push({
+          name: 'path',
+          type: 'string',
+          description: '搜索目录',
+          required: false,
+          value: pathValue,
+          isPath: true
+        })
+        break
+      }
+    }
+
+    return params
+  }
+
+  // 特殊处理 Shell 命令
+  if (lowerToolName.includes('bash') || lowerToolName.includes('shell') || lowerToolName.includes('powershell')) {
+    for (const field of COMMAND_FIELDS) {
+      if (input[field] !== undefined) {
+        const cmdValue = String(input[field])
+        params.push({
+          name: 'command',
+          type: 'string',
+          description: '执行的命令',
+          required: true,
+          value: cmdValue.length > 200 ? cmdValue.substring(0, 200) + '...' : cmdValue
+        })
+        break
+      }
+    }
+
+    // 工作目录
+    if (input.working_directory || input.cwd) {
+      params.push({
+        name: 'cwd',
+        type: 'string',
+        description: '工作目录',
+        required: false,
+        value: input.working_directory || input.cwd,
+        isPath: true
+      })
+    }
+
+    // 超时
+    if (input.timeout !== undefined) {
+      params.push({
+        name: 'timeout',
+        type: 'number',
+        description: '超时时间(ms)',
+        required: false,
+        value: input.timeout
+      })
+    }
+
+    return params
+  }
+
   // 通用参数解析
+  // 命令
   if (input.command) {
     params.push({
       name: 'command',
@@ -55,37 +322,42 @@ function parseToolParameters(_toolName: string, input: Record<string, unknown>):
       value: input.command
     })
   }
-  
+
+  // 路径
   if (input.path) {
     params.push({
       name: 'path',
       type: 'string',
       description: '文件路径',
       required: true,
-      value: input.path
+      value: input.path,
+      isPath: true
     })
   }
-  
+
   if (input.file_path) {
     params.push({
       name: 'file_path',
       type: 'string',
       description: '文件路径',
       required: true,
-      value: input.file_path
+      value: input.file_path,
+      isPath: true
     })
   }
-  
+
   if (input.filename) {
     params.push({
       name: 'filename',
       type: 'string',
       description: '文件名',
       required: true,
-      value: input.filename
+      value: input.filename,
+      isPath: true
     })
   }
-  
+
+  // 内容
   if (input.content) {
     params.push({
       name: 'content',
@@ -95,7 +367,7 @@ function parseToolParameters(_toolName: string, input: Record<string, unknown>):
       value: truncateString(String(input.content), 200)
     })
   }
-  
+
   if (input.text) {
     params.push({
       name: 'text',
@@ -105,7 +377,8 @@ function parseToolParameters(_toolName: string, input: Record<string, unknown>):
       value: truncateString(String(input.text), 200)
     })
   }
-  
+
+  // 搜索
   if (input.query) {
     params.push({
       name: 'query',
@@ -115,7 +388,7 @@ function parseToolParameters(_toolName: string, input: Record<string, unknown>):
       value: input.query
     })
   }
-  
+
   if (input.search_term) {
     params.push({
       name: 'search_term',
@@ -125,7 +398,7 @@ function parseToolParameters(_toolName: string, input: Record<string, unknown>):
       value: input.search_term
     })
   }
-  
+
   if (input.pattern) {
     params.push({
       name: 'pattern',
@@ -135,7 +408,7 @@ function parseToolParameters(_toolName: string, input: Record<string, unknown>):
       value: input.pattern
     })
   }
-  
+
   if (input.glob) {
     params.push({
       name: 'glob',
@@ -145,7 +418,7 @@ function parseToolParameters(_toolName: string, input: Record<string, unknown>):
       value: input.glob
     })
   }
-  
+
   if (input.recursive !== undefined) {
     params.push({
       name: 'recursive',
@@ -155,7 +428,7 @@ function parseToolParameters(_toolName: string, input: Record<string, unknown>):
       value: input.recursive
     })
   }
-  
+
   if (input.files_to_read) {
     params.push({
       name: 'files_to_read',
@@ -165,17 +438,18 @@ function parseToolParameters(_toolName: string, input: Record<string, unknown>):
       value: input.files_to_read
     })
   }
-  
+
   if (input.directory) {
     params.push({
       name: 'directory',
       type: 'string',
       description: '目录路径',
       required: false,
-      value: input.directory
+      value: input.directory,
+      isPath: true
     })
   }
-  
+
   if (input.timeout) {
     params.push({
       name: 'timeout',
@@ -185,24 +459,27 @@ function parseToolParameters(_toolName: string, input: Record<string, unknown>):
       value: input.timeout
     })
   }
-  
+
   if (input.working_directory) {
     params.push({
       name: 'working_directory',
       type: 'string',
       description: '工作目录',
       required: false,
-      value: input.working_directory
+      value: input.working_directory,
+      isPath: true
     })
   }
-  
-  // 添加其他未知参数
-  const knownKeys = ['command', 'path', 'file_path', 'filename', 'content', 'text', 'query', 
-    'search_term', 'pattern', 'glob', 'recursive', 'files_to_read', 'directory', 
-    'timeout', 'working_directory']
-  
+
+  // 添加其他未知参数（排除已处理的）
+  const knownKeys = ['command', 'path', 'file_path', 'filename', 'content', 'text', 'query',
+    'search_term', 'pattern', 'glob', 'recursive', 'files_to_read', 'directory',
+    'timeout', 'working_directory', 'cwd', 'limit', 'maxLines', 'max_lines', 'start', 'startLine',
+    'start_line', 'append', 'append_mode', 'new_content', 'old_string', 'search', 'keyword',
+    'regex', 'find', 'maxResults', 'caseSensitive', 'filePattern']
+
   for (const [key, value] of Object.entries(input)) {
-    if (!knownKeys.includes(key) && value !== undefined) {
+    if (!knownKeys.includes(key) && value !== undefined && value !== null) {
       params.push({
         name: key,
         type: typeof value,
@@ -212,7 +489,7 @@ function parseToolParameters(_toolName: string, input: Record<string, unknown>):
       })
     }
   }
-  
+
   return params
 }
 
