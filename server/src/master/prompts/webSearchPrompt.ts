@@ -7,7 +7,16 @@
  * - 使用当前年份进行搜索
  */
 
-import { getLocalMonthYear } from '../../utils/common'
+/**
+ * 获取当前年月（用于 WebSearch 提示词）
+ * 返回格式："Month YYYY"（例如 "February 2026"）
+ */
+function getLocalMonthYear(): string {
+  const date = process.env.CLAUDE_CODE_OVERRIDE_DATE
+    ? new Date(process.env.CLAUDE_CODE_OVERRIDE_DATE)
+    : new Date()
+  return date.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+}
 
 export const WEB_SEARCH_TOOL_NAME = 'WebSearch'
 

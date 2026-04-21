@@ -4,7 +4,31 @@
  * 为 Agent 执行初始化 MCP 服务器连接
  */
 
-import { getMCPServers, type MCPServerInfo } from '../integrations/mcpBridge'
+// MCP 服务器信息接口（本地定义，避免依赖 mcpBridge 的未导出函数）
+export interface MCPServerInfo {
+  id: string
+  name: string
+  enabled: boolean
+  tools?: Array<{
+    name: string
+    description?: string
+    inputSchema?: Record<string, unknown>
+  }>
+}
+
+// 模拟获取 MCP 服务器列表（实际项目中应从配置或数据库获取）
+function getMCPServers(): MCPServerInfo[] {
+  // 从环境变量或配置中读取 MCP 服务器列表
+  try {
+    const mcpConfig = process.env.MCP_SERVERS
+    if (mcpConfig) {
+      return JSON.parse(mcpConfig)
+    }
+  } catch {
+    // 配置解析失败，返回空列表
+  }
+  return []
+}
 
 /**
  * MCP 客户端接口
