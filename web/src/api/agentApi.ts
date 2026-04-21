@@ -21,18 +21,29 @@ import type { AgentDefinition } from '@/types'
 
 /**
  * Execute a single agent task
+ * 对齐后端 AgentToolInput 的完整字段
  */
 export async function executeAgent(request: ExecuteAgentRequest): Promise<ExecuteAgentResponse> {
   const response = await client.post<ExecuteAgentResponse>('/agents/execute', {
     prompt: request.prompt,
+    description: request.description,
     agentType: request.agentType || 'general-purpose',
+    subagent_type: request.agentType || 'general-purpose',
     sessionId: request.sessionId,
     tools: request.tools,
     deniedTools: request.deniedTools,
     permissionMode: request.permissionMode || 'auto',
+    mode: request.permissionMode || 'auto',
     maxTurns: request.maxTurns,
+    max_turns: request.maxTurns,
     background: request.background || false,
-    teamId: request.teamId
+    run_in_background: request.background || false,
+    teamId: request.teamId,
+    team_name: request.teamName,
+    name: request.name,
+    model: request.model,
+    isolation: request.isolation,
+    cwd: request.cwd
   })
   return response.data.data as ExecuteAgentResponse
 }
@@ -100,14 +111,77 @@ export async function listTeams(): Promise<TeamTopology[]> {
 }
 
 /**
+ * 结构化消息类型
+ * 对齐后端 sendMessageTool.ts 的 StructuredMessage
+ */
+export type StructuredMessage =
+  | { type: 'shutdown_request'; reason?: string }
+  | { type: 'shutdown_response'; request_id: string; approve: boolean; reason?: string }
+  | { type: 'plan_approval_response'; request_id: string; approve: boolean; feedback?: string }
+
+/**
+ * SendMessage 请求参数
+ * 对齐后端 SendMessageInput：支持 to（名称路由）和 agentId（ID 路由）
+ */
+export interface SendMessageParams {
+  /** 目标接收者：队友名称或 "*" 广播 */
+  to?: string
+  /** 消息内容（纯文本或结构化消息） */
+  message: string | StructuredMessage
+  /** 消息摘要（5-10 词预览） */
+  summary?: string
+  /** 目标 Agent ID（向后兼容，优先使用 to） */
+  agentId?: string
+  /** Agent 类型名称（用于验证是否为 One-shot Agent） */
+  agentName?: string
+}
+
+/**
+ * SendMessage 响应
+ * 对齐后端 SendMessageOutput
+ */
+export interface SendMessageResponse {
+  messageId: string
+  agentId?: string
+  status: 'sent' | 'queued' | 'broadcast' | 'error'
+  routing?: {
+    method: 'name' | 'id' | 'broadcast'
+    target: string
+  }
+  recipients?: string[]
+  error?: string
+}
+
+/**
  * Send message to a running agent
+ * 支持 to（名称路由 + 广播）和 agentId（ID 路由）两种方式
  */
 export async function sendMessageToAgent(
-  agentId: string,
-  message: string
-): Promise<{ success: boolean; messageId?: string }> {
-  const response = await client.post(`/agents/${agentId}/message`, { message })
-  return response.data.data as { success: boolean; messageId?: string }
+  agentIdOrParams: string | SendMessageParams,
+  message?: string | StructuredMessage
+): Promise<SendMessageResponse> {
+  let params: SendMessageParams
+
+  if (typeof agentIdOrParams === 'string') {
+    params = {
+      agentId: agentIdOrParams,
+      message: message || ''
+    }
+  } else {
+    params = agentIdOrParams
+  }
+
+  const endpoint = params.agentId
+    ? `/agents/${params.agentId}/message`
+    : '/agents/message'
+
+  const response = await client.post<SendMessageResponse>(endpoint, {
+    to: params.to,
+    message: typeof params.message === 'string' ? params.message : JSON.stringify(params.message),
+    summary: params.summary,
+    agentName: params.agentName
+  })
+  return response.data.data as SendMessageResponse
 }
 
 // ============================================================================

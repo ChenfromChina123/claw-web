@@ -284,24 +284,36 @@ export interface TeamMember {
 // ============================================================================
 
 /** Execute agent request */
+/**
+ * Execute agent request
+ * 对齐后端 AgentToolInput 的完整字段
+ */
 export interface ExecuteAgentRequest {
   prompt: string
+  description?: string
   agentType?: string
   sessionId?: string
   tools?: string[]
   deniedTools?: string[]
-  permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'auto' | 'plan' | 'bubble'
+  permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'auto' | 'plan' | 'bubble' | 'dontAsk'
   maxTurns?: number
   background?: boolean
   teamId?: string
+  teamName?: string
+  name?: string
+  model?: string
+  isolation?: 'worktree' | 'remote'
+  cwd?: string
 }
 
 /** Execute agent response */
 export interface ExecuteAgentResponse {
   traceId: string
   agentId: string
-  status: 'queued' | 'started' | 'completed' | 'failed'
+  status: 'queued' | 'started' | 'completed' | 'failed' | 'async_launched' | 'teammate_spawned'
   message?: string
+  outputFile?: string
+  canReadOutputFile?: boolean
 }
 
 /** Team spawn request */

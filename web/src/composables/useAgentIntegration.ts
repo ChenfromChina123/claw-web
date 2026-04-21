@@ -49,13 +49,17 @@ export interface AgentMessage {
 
 /**
  * Agent 执行结果
+ * 对齐后端 AgentExecutionResult
  */
 export interface AgentExecutionResult {
   agentId: string
-  status: 'completed' | 'error' | 'async_launched'
+  status: 'completed' | 'error' | 'async_launched' | 'teammate_spawned'
   content: string
   durationMs: number
+  totalTokens?: number
   error?: string
+  outputFile?: string
+  canReadOutputFile?: boolean
 }
 
 /**
@@ -145,31 +149,37 @@ export function useAgentIntegration() {
     }
 
     try {
-      // 发送 WebSocket 消息
+      const executePayload = {
+        agentType: selectedAgent.value.agentType,
+        subagent_type: selectedAgent.value.agentType,
+        prompt,
+        description: options?.description,
+        model: options?.model,
+        run_in_background: options?.runInBackground ?? false,
+        runInBackground: options?.runInBackground ?? false,
+        permissionMode: options?.permissionMode,
+        mode: options?.permissionMode,
+        max_turns: options?.maxTurns,
+        maxTurns: options?.maxTurns,
+        isolation: options?.isolation,
+        cwd: options?.cwd,
+        name: options?.name,
+        team_name: options?.teamName,
+      }
+
       if (isConnected.value) {
         send({
           type: 'agent_execute',
-          payload: {
-            agentType: selectedAgent.value.agentType,
-            prompt,
-            model: options?.model,
-            runInBackground: options?.runInBackground ?? false,
-          },
+          payload: executePayload,
         })
       } else {
-        // 使用 HTTP API
         const response = await fetch('/api/agents/execute', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${authStore.token}`,
           },
-          body: JSON.stringify({
-            agentType: selectedAgent.value.agentType,
-            prompt,
-            model: options?.model,
-            runInBackground: options?.runInBackground ?? false,
-          }),
+          body: JSON.stringify(executePayload),
         })
 
         if (!response.ok) {
