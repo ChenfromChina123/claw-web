@@ -16,7 +16,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
-import { readFile, writeFile, stat } from 'fs/promises'
+import { readFile, writeFile, stat, access } from 'fs/promises'
 import { join, resolve, relative } from 'path'
 import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
@@ -667,12 +667,26 @@ export class WebToolExecutor {
   /**
    * 写入文件
    */
-  private async writeFileTool(input: Record<string, unknown>): Promise<{ success: boolean; path: string }> {
+  private async writeFileTool(input: Record<string, unknown>): Promise<{ success: boolean; path: string; type: 'create' | 'update'; content: string }> {
     const filePath = this.resolvePath(input.path as string)
     const content = input.content as string
     
+    // 检查文件是否已存在
+    let type: 'create' | 'update' = 'create'
+    try {
+      await access(filePath)
+      type = 'update'
+    } catch {
+      type = 'create'
+    }
+    
     await writeFile(filePath, content, 'utf-8')
-    return { success: true, path: filePath }
+    return { 
+      success: true, 
+      path: filePath,
+      type,
+      content,
+    }
   }
   
   /**

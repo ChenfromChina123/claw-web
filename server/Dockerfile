@@ -98,27 +98,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     make \
     g++ \
-    # ===== 网络工具 =====
     wget \
-    iputils-ping \        # ping 命令
-    dnsutils \            # nslookup, dig DNS查询
-    net-tools \           # ifconfig 网络配置
-    iproute2 \            # ip, ss 高级网络工具
-    # ===== 远程连接工具 =====
-    openssh-client \      # ssh, scp 远程连接
-    rsync \               # 远程同步
-    # ===== 文本编辑器 =====
-    vim-tiny \           # 轻量级 vim 编辑器
-    nano \                # 简单编辑器
-    # ===== 系统管理工具 =====
-    procps \              # ps, top, htop 进程管理
-    tree \                # 目录树显示
-    less \                # 分页查看器
-    file \                # 文件类型检测
-    # ===== 网络诊断工具（可选）=====
-    traceroute \          # 路由追踪
-    whois \               # 域名查询
-    ca-certificates \     # SSL证书（HTTPS必需）
+    iputils-ping \
+    dnsutils \
+    net-tools \
+    iproute2 \
+    openssh-client \
+    rsync \
+    vim-tiny \
+    nano \
+    procps \
+    tree \
+    less \
+    file \
+    traceroute \
+    whois \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # 设置环境变量

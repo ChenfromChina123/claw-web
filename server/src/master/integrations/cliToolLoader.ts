@@ -440,10 +440,19 @@ export class CLIToolLoader {
         required: ['path', 'content'],
       },
       async (args) => {
-        const { writeFile, appendFile } = await import('fs/promises')
+        const { writeFile, appendFile, access } = await import('fs/promises')
         const path = args.path as string
         const content = args.content as string
         const append = args.append as boolean
+        
+        // 检查文件是否已存在
+        let type: 'create' | 'update' = 'create'
+        try {
+          await access(path)
+          type = 'update'
+        } catch {
+          type = 'create'
+        }
         
         if (append) {
           await appendFile(path, content, 'utf-8')
@@ -451,7 +460,16 @@ export class CLIToolLoader {
           await writeFile(path, content, 'utf-8')
         }
         
-        return { success: true, result: { path, written: true, mode: append ? 'append' : 'overwrite' } }
+        return { 
+          success: true, 
+          result: { 
+            path, 
+            written: true, 
+            mode: append ? 'append' : 'overwrite',
+            type,
+            content,
+          } 
+        }
       },
       { aliases: ['write', 'create', 'save'] }
     ))

@@ -199,8 +199,10 @@ services:
       - worker_workspace:/workspace
       - worker_logs:/app/logs
     networks:
-      - worker-network  # 仅在 worker-network，无法访问 claude-network (MySQL)
+      - worker-network       # Worker 内部通信网络
+      - claude-network       # ✅ 新增：主网络（可访问互联网和 MySQL）
     # Worker 不依赖数据库！这是安全设计
+    # 但需要联网能力以便 AI Agent 下载文件、安装包等
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/internal/health"]
       interval: 15s
