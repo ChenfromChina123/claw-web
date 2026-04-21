@@ -91,6 +91,7 @@ services:
       - ./web/vite.config.ts:/app/vite.config.ts:ro
       - ./web/index.html:/app/index.html:ro
       - ./web/tsconfig.json:/app/tsconfig.json:ro
+      - ./web/tsconfig.node.json:/app/tsconfig.node.json:ro  # ✅ Vite Node.js 构建配置
       
       # ✅ 挂载 package 文件（用于依赖安装检测）
       - ./web/package.json:/app/package.json:ro
