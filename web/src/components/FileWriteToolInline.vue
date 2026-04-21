@@ -287,6 +287,18 @@ function handleDownloadFile() {
   emit('download-file', filePath.value, fileContent.value)
 }
 
+/** 复制文件路径到剪贴板 */
+async function handleCopyPath() {
+  if (filePath.value.includes('路径信息暂缺')) {
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(filePath.value)
+  } catch (err) {
+    console.error('复制失败:', err)
+  }
+}
+
 /** 模拟进度更新 */
 function startProgressAnimation() {
   if (progressTimer) {
@@ -371,7 +383,11 @@ onUnmounted(() => {
               {{ statusConfig.label }}
             </NTag>
           </div>
-          <div class="fw-file-path" :title="fullDisplayPath">
+          <div 
+            class="fw-file-path" 
+            :title="fullDisplayPath"
+            @click.stop="handleCopyPath"
+          >
             <span class="path-icon">
               <NIcon :size="14" :component="DocumentTextOutline" :color="getFileIconColor()" />
             </span>
@@ -640,15 +656,47 @@ export default { name: 'FileWriteToolInline' }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 360px;
+  max-width: 400px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
 }
 
-.path-separator {
-  font-size: 10px;
-  opacity: 0.6;
+.fw-file-path:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.path-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.path-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.path-text.path-placeholder {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.path-copy-hint {
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  color: #6366f1;
+}
+
+.fw-file-path:hover .path-copy-hint {
+  opacity: 1;
 }
 
 .fw-status-area {
