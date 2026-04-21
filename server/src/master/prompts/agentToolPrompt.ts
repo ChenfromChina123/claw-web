@@ -7,13 +7,21 @@
  * - 如何编写有效的 Agent prompt
  * - Fork 分叉模式指导（子代理并行执行）
  * - 使用示例和最佳实践
+ *
+ * 工具名使用常量引用，对齐前端 constants.ts
  */
 
 import type { BuiltInAgentDefinition } from '../agents/types'
 
 /**
+ * Agent 工具名常量
+ * 对齐前端 src/tools/AgentTool/constants.ts
+ */
+const AGENT_TOOL_NAME = 'Agent'
+const SEND_MESSAGE_TOOL_NAME = 'SendMessage'
+
+/**
  * 获取工具描述字符串
- * @param agent Agent 定义
  */
 function getToolsDescription(agent: BuiltInAgentDefinition): string {
   const { tools, disallowedTools } = agent
@@ -35,7 +43,6 @@ function getToolsDescription(agent: BuiltInAgentDefinition): string {
 
 /**
  * 格式化单个 Agent 行用于列表显示
- * @param agent Agent 定义
  */
 export function formatAgentLine(agent: BuiltInAgentDefinition): string {
   const toolsDescription = getToolsDescription(agent)
@@ -44,11 +51,6 @@ export function formatAgentLine(agent: BuiltInAgentDefinition): string {
 
 /**
  * 获取完整的 Agent 工具提示词
- *
- * @param agentDefinitions 可用的 Agent 定义列表
- * @param isCoordinator 是否为协调器模式
- * @param allowedAgentTypes 允许的 Agent 类型（可选，用于限制）
- * @param forkEnabled 是否启用分叉功能
  */
 export async function getAgentToolPrompt(
   agentDefinitions: BuiltInAgentDefinition[],
@@ -56,12 +58,10 @@ export async function getAgentToolPrompt(
   allowedAgentTypes?: string[],
   forkEnabled: boolean = false,
 ): Promise<string> {
-  // 过滤允许的 Agent 类型
   const effectiveAgents = allowedAgentTypes
     ? agentDefinitions.filter(a => allowedAgentTypes.includes(a.agentType))
     : agentDefinitions
 
-  // Fork 模式：插入"何时分叉"部分
   const whenToForkSection = forkEnabled ? `
 
 ## When to fork
@@ -79,7 +79,6 @@ Forks are cheap because they share your prompt cache. Don't set \`model\` on a f
 **Writing a fork prompt.** Since the fork inherits your context, the prompt is a *directive* — what to do, not what the situation is. Be specific about scope: what's in, what's out, what another agent is handling. Don't re-explain background.
 ` : ''
 
-  // 编写 Prompt 的指导
   const writingThePromptSection = `
 
 ## Writing the prompt
@@ -95,13 +94,12 @@ ${forkEnabled ? 'For fresh agents, terse' : 'Terse'} command-style prompts produ
 
 **Never delegate understanding.** Don't write "based on your findings, fix the bug" or "based on the research, implement it." Those phrases push synthesis onto the agent instead of doing it yourself. Write prompts that prove you understood: include file paths, line numbers, what specifically to change.`
 
-  // Fork 模式示例
   const forkExamples = `Example usage:
 
 <example>
 user: "What's left on this branch before we can ship?"
 assistant: <thinking>Forking this — it's a survey question. I want the punch list, not the git output in my context.</thinking>
-AgentTool({
+${AGENT_TOOL_NAME}({
   name: "ship-audit",
   description: "Branch ship-readiness audit",
   prompt: "Audit what's left before this branch can ship. Check: uncommitted changes, commits ahead of main, whether tests exist, whether CI-relevant files changed. Report a punch list — done vs. missing. Under 200 words."
@@ -128,7 +126,7 @@ assistant: <thinking>I'll ask the code-reviewer agent — it won't see my analys
 <commentary>
 A subagent_type is specified, so the agent starts fresh. It needs full context in the prompt. The briefing explains what to assess and why.
 </commentary>
-AgentTool({
+${AGENT_TOOL_NAME}({
   name: "migration-review",
   description: "Independent migration review",
   subagent_type: "code-reviewer",
@@ -137,7 +135,6 @@ AgentTool({
 </example>
 `
 
-  // 标准模式示例
   const currentExamples = `Example usage:
 
 <example_agent_descriptions>
@@ -160,7 +157,7 @@ function isPrime(n) {
 <commentary>
 Since a significant piece of code was written and the task was completed, now use the test-runner agent to run the tests
 </commentary>
-assistant: Uses the AgentTool tool to launch the test-runner agent
+assistant: Uses the ${AGENT_TOOL_NAME} tool to launch the test-runner agent
 </example>
 
 <example>
@@ -168,42 +165,37 @@ user: "Hello"
 <commentary>
 Since the user is greeting, use the greeting-responder agent to respond with a friendly joke
 </commentary>
-assistant: "I'm going to use the AgentTool tool to launch the greeting-responder agent"
+assistant: "I'm going to use the ${AGENT_TOOL_NAME} tool to launch the greeting-responder agent"
 </example>
 `
 
-  // Agent 列表
   const agentListSection = `Available agent types and the tools they have access to:
 ${effectiveAgents.map(agent => formatAgentLine(agent)).join('\n')}`
 
-  // 共享核心提示
   const shared = `Launch a new agent to handle complex, multi-step tasks autonomously.
 
-The AgentTool tool launches specialized agents (subprocesses) that autonomously handle complex tasks. Each agent type has specific capabilities and tools available to it.
+The ${AGENT_TOOL_NAME} tool launches specialized agents (subprocesses) that autonomously handle complex tasks. Each agent type has specific capabilities and tools available to it.
 
 ${agentListSection}
 
 ${
   forkEnabled
-    ? `When using the AgentTool tool, specify a subagent_type to use a specialized agent, or omit it to fork yourself — a fork inherits your full conversation context.`
-    : `When using the AgentTool tool, specify a subagent_type parameter to select which agent type to use. If omitted, the general-purpose agent is used.`
+    ? `When using the ${AGENT_TOOL_NAME} tool, specify a subagent_type to use a specialized agent, or omit it to fork yourself — a fork inherits your full conversation context.`
+    : `When using the ${AGENT_TOOL_NAME} tool, specify a subagent_type parameter to select which agent type to use. If omitted, the general-purpose agent is used.`
 }`
 
-  // 协调器模式返回精简版本
   if (isCoordinator) {
     return shared
   }
 
-  // 何时不使用 Agent 工具
   const whenNotToUseSection = forkEnabled ? '' : `
-When NOT to use the AgentTool tool:
-- If you want to read a specific file path, use the Read tool or Glob tool instead of the AgentTool tool, to find the match more quickly
+When NOT to use the ${AGENT_TOOL_NAME} tool:
+- If you want to read a specific file path, use the Read tool or Glob tool instead of the ${AGENT_TOOL_NAME} tool, to find the match more quickly
 - If you are searching for a specific class definition like "class Foo", use Grep tool instead, to find the match more quickly
-- If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead of the AgentTool tool, to find the match more quickly
+- If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead of the ${AGENT_TOOL_NAME} tool, to find the match more quickly
 - Other tasks that are not related to the agent descriptions above
 `
 
-  // 完整提示（非协调器模式）
   return `${shared}
 ${whenNotToUseSection}
 
@@ -213,11 +205,11 @@ Usage notes:
 - When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.
 - You can optionally run agents in the background using the run_in_background parameter. When an agent runs in the background, you will be automatically notified when it completes — do NOT sleep, poll, or proactively check on its progress. Continue with other work or respond to the user instead.
 - **Foreground vs background**: Use foreground (default) when you need the agent's results before you can proceed — e.g., research agents whose findings inform your next steps. Use background when you have genuinely independent work to do in parallel.
-- To continue a previously spawned agent, use SendMessage with the agent's ID or name as the \`to\` field. The agent resumes with its full context preserved. ${forkEnabled ? 'Each fresh Agent invocation with a subagent_type starts without context — provide a complete task description.' : 'Each Agent invocation starts fresh — provide a complete task description.'}
+- To continue a previously spawned agent, use ${SEND_MESSAGE_TOOL_NAME} with the agent's ID or name as the \`to\` field. The agent resumes with its full context preserved. ${forkEnabled ? 'Each fresh Agent invocation with a subagent_type starts without context — provide a complete task description.' : 'Each Agent invocation starts fresh — provide a complete task description.'}
 - The agent's outputs should generally be trusted
 - Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.)${forkEnabled ? '' : ", since it is not aware of the user's intent"}
 - If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
-- If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple AgentTool tool use content blocks. For example, if you need to launch both a build-validator agent and a test-runner agent in parallel, send a single message with both tool calls.
+- If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple ${AGENT_TOOL_NAME} tool use content blocks. For example, if you need to launch both a build-validator agent and a test-runner agent in parallel, send a single message with both tool calls.
 - You can optionally set \`isolation: "worktree"\` to run the agent in a temporary git worktree, giving it an isolated copy of the repository. The worktree is automatically cleaned up if the agent makes no changes; if changes are made, the worktree path and branch are returned in the result.${whenToForkSection}${writingThePromptSection}
 
 ${forkEnabled ? forkExamples : currentExamples}`
@@ -225,10 +217,9 @@ ${forkEnabled ? forkExamples : currentExamples}`
 
 /**
  * Agent 工具使用指导（简洁版）
- * 用于主系统提示的 Session-specific guidance 部分
  */
 export function getAgentToolGuidance(forkEnabled: boolean = false): string {
   return forkEnabled
-    ? `Calling AgentTool without a subagent_type creates a fork, which runs in the background and keeps its tool output out of your context — so you can keep chatting with the user while it works. Reach for it when research or multi-step implementation work would otherwise fill your context with raw output you won't need again. **If you ARE the fork** — execute directly; do not re-delegate.`
-    : `Use the AgentTool tool with specialized agents when the task at hand matches the agent's description. Subagents are valuable for parallelizing independent queries or for protecting the main context window from excessive results, but they should not be used excessively when not needed. Importantly, avoid duplicating work that subagents are already doing - if you delegate research to a subagent, do not also perform the same searches yourself.`
+    ? `Calling ${AGENT_TOOL_NAME} without a subagent_type creates a fork, which runs in the background and keeps its tool output out of your context — so you can keep chatting with the user while it works. Reach for it when research or multi-step implementation work would otherwise fill your context with raw output you won't need again. **If you ARE the fork** — execute directly; do not re-delegate.`
+    : `Use the ${AGENT_TOOL_NAME} tool with specialized agents when the task at hand matches the agent's description. Subagents are valuable for parallelizing independent queries or for protecting the main context window from excessive results, but they should not be used excessively when not needed. Importantly, avoid duplicating work that subagents are already doing - if you delegate research to a subagent, do not also perform the same searches yourself.`
 }

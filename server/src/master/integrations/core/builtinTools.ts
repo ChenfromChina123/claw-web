@@ -460,18 +460,28 @@ function registerTaskTools(registerFn: (config: ToolRegistrationConfig) => void)
 
 /**
  * 注册 Agent 工具
+ * 对齐 agentTool.ts 完整版 Schema 和 sendMessageTool.ts 完整版 Schema
  */
 function registerAgentTools(registerFn: (config: ToolRegistrationConfig) => void): void {
   registerFn({
     name: 'Agent',
     displayName: 'Agent 工具',
-    description: '启动子代理来完成任务',
+    description: '启动子代理来完成任务。会调用真实 LLM 并执行工具来完成用户指定的任务。',
     category: TOOL_CATEGORIES.AGENT.id,
     inputSchema: {
       type: 'object',
       properties: {
-        prompt: { type: 'string', description: '给子代理的任务描述' },
-        subagent_type: { type: 'string', description: '子代理类型' },
+        prompt: { type: 'string', description: '给子代理的任务描述（必需）' },
+        description: { type: 'string', description: '任务描述（用于日志和调试）' },
+        subagent_type: { type: 'string', description: '子代理类型（如 general-purpose、Explore、Plan）' },
+        model: { type: 'string', description: '可选：指定使用的模型（如 claude-sonnet-4-20250514、qwen-plus）' },
+        run_in_background: { type: 'boolean', description: '是否在后台运行', default: false },
+        name: { type: 'string', description: '团队成员名称（需配合 team_name 使用）' },
+        team_name: { type: 'string', description: '团队名称（需配合 name 使用）' },
+        mode: { type: 'string', description: '权限模式', enum: ['bypassPermissions', 'acceptEdits', 'auto', 'plan', 'bubble'], default: 'auto' },
+        isolation: { type: 'string', description: '隔离模式', enum: ['worktree', 'remote'] },
+        cwd: { type: 'string', description: '工作目录' },
+        max_turns: { type: 'number', description: '最大轮次限制（默认 20）', minimum: 1, maximum: 100 },
       },
       required: ['prompt'],
     },
@@ -482,15 +492,18 @@ function registerAgentTools(registerFn: (config: ToolRegistrationConfig) => void
   registerFn({
     name: 'SendMessage',
     displayName: '发送消息',
-    description: '向运行中的 Agent 发送消息以继续其执行',
+    description: '向运行中的 Agent 发送消息以继续其执行。使用 to 字段按名称路由（支持 "*" 广播），或使用 agentId 按 ID 路由。',
     category: TOOL_CATEGORIES.AGENT.id,
     inputSchema: {
       type: 'object',
       properties: {
-        agentId: { type: 'string', description: '目标 Agent 的 ID' },
-        message: { type: 'string', description: '要发送的消息内容' },
+        to: { type: 'string', description: '接收者：队友名称或 "*" 广播' },
+        message: { type: 'string', description: '消息内容（纯文本或结构化消息 JSON）' },
+        summary: { type: 'string', description: '5-10 词消息摘要，用于预览' },
+        agentId: { type: 'string', description: '目标 Agent 的 ID（向后兼容，优先使用 to）' },
+        agentName: { type: 'string', description: 'Agent 类型名称（用于验证是否为 One-shot Agent）' },
       },
-      required: ['agentId', 'message'],
+      required: ['message'],
     },
     isReadOnly: true,
     isConcurrencySafe: true,

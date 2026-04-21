@@ -1,7 +1,10 @@
 /**
  * Agent 核心类型定义
- * 
- * 基于 Claude Code Agent 系统的完整类型定义
+ *
+ * 对齐 claw-web/src/tools/AgentTool/loadAgentsDir.ts 的类型设计：
+ * - BaseAgentDefinition 字段与前端统一
+ * - 添加 PluginAgentDefinition 独立类型
+ * - mcpServers/hooks/effort/memory 类型对齐前端
  */
 
 /**
@@ -19,7 +22,12 @@ export enum AgentType {
 /**
  * Agent 来源类型
  */
-export type AgentSource = 'built-in' | 'user' | 'plugin'
+export type AgentSource = 'built-in' | 'user' | 'project' | 'policy' | 'plugin'
+
+/**
+ * 用户/项目/策略来源类型
+ */
+export type SettingSource = 'user' | 'project' | 'policy'
 
 /**
  * Agent 颜色名称
@@ -48,7 +56,8 @@ export enum PermissionMode {
   ACCEPT_EDITS = 'acceptEdits',
   AUTO = 'auto',
   PLAN = 'plan',
-  BUBBLE = 'bubble'
+  BUBBLE = 'bubble',
+  DONT_ASK = 'dontAsk'
 }
 
 /**
@@ -60,13 +69,34 @@ export enum IsolationMode {
 }
 
 /**
- * 内存类型枚举
+ * 内存作用域类型
+ * 对齐前端 AgentMemoryScope
  */
-export enum MemoryType {
-  USER = 'user',
-  PROJECT = 'project',
-  LOCAL = 'local'
+export type AgentMemoryScope = 'user' | 'project' | 'local'
+
+/**
+ * Effort 值类型
+ * 对齐前端 EffortValue
+ */
+export type EffortValue = 'low' | 'medium' | 'high' | 'max' | number
+
+/**
+ * MCP 服务器规格
+ * 对齐前端 AgentMcpServerSpec
+ */
+export interface AgentMcpServerSpec {
+  name: string
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  enabled?: boolean
 }
+
+/**
+ * Hook 设置类型
+ * 对齐前端 HooksSettings
+ */
+export type HooksSettings = Record<string, HookConfig[]>
 
 /**
  * 工具权限配置
@@ -77,7 +107,7 @@ export interface ToolPermission {
 }
 
 /**
- * MCP 服务器配置
+ * MCP 服务器配置（向后兼容）
  */
 export interface MCPServerConfig {
   name: string
@@ -95,82 +125,79 @@ export interface HookConfig {
 
 /**
  * 基础 Agent 定义
+ * 对齐前端 loadAgentsDir.ts 的 BaseAgentDefinition
  */
 export interface BaseAgentDefinition {
-  // 必需字段
   agentType: string
   whenToUse: string
-  
-  // 来源
-  source: AgentSource
-  filename?: string
-  baseDir?: string
-  
-  // 工具配置
+
   tools?: string[]
   disallowedTools?: string[]
-  
-  // MCP 配置
-  mcpServers?: Array<string | MCPServerConfig>
-  requiredMcpServers?: string[]
-  
-  // Hook 配置
-  hooks?: HookConfig | HookConfig[]
-  
-  // 技能配置
   skills?: string[]
-  
-  // 权限与执行
+
+  mcpServers?: AgentMcpServerSpec[]
+  requiredMcpServers?: string[]
+
+  hooks?: HooksSettings
+
+  color?: AgentColorName
+  model?: string
+  effort?: EffortValue
   permissionMode?: PermissionMode | string
   maxTurns?: number
-  effort?: number | string
-  
-  // 隔离与内存
-  isolation?: IsolationMode | string
-  memory?: MemoryType | string
-  
-  // 上下文优化
-  omitClaudeMd?: boolean
+
+  filename?: string
+  baseDir?: string
+
   criticalSystemReminder_EXPERIMENTAL?: string
-  
-  // 显示配置
-  color?: AgentColorName
-  description?: string
-  icon?: string
-  
-  // 执行特性
+
   background?: boolean
   initialPrompt?: string
-  isReadOnly?: boolean
-  
-  // 模型配置
-  model?: string
-  
-  // 回调函数
-  callback?: () => void
+  memory?: AgentMemoryScope
+  isolation?: IsolationMode | string
+
+  omitClaudeMd?: boolean
+  pendingSnapshotUpdate?: { snapshotTimestamp: string }
+
+  source: AgentSource
 }
 
 /**
  * 内置 Agent 定义
+ * getSystemPrompt 接收 toolUseContext 参数用于动态上下文注入
  */
 export interface BuiltInAgentDefinition extends BaseAgentDefinition {
   source: 'built-in'
   baseDir: 'built-in'
+  callback?: () => void
   getSystemPrompt: (params?: { toolUseContext?: unknown }) => string
 }
 
 /**
- * 自定义 Agent 定义
+ * 自定义 Agent 定义（来自用户/项目/策略设置）
  */
 export interface CustomAgentDefinition extends BaseAgentDefinition {
-  source: 'user' | 'plugin'
+  source: SettingSource
+  filename?: string
+  baseDir?: string
+  getSystemPrompt: () => string
+}
+
+/**
+ * 插件 Agent 定义
+ * 对齐前端 PluginAgentDefinition
+ */
+export interface PluginAgentDefinition extends BaseAgentDefinition {
+  source: 'plugin'
+  plugin: string
+  filename?: string
   getSystemPrompt: () => string
 }
 
 /**
  * 所有 Agent 定义类型的联合
  */
-export type AgentDefinition = BuiltInAgentDefinition | CustomAgentDefinition
+export type AgentDefinition = BuiltInAgentDefinition | CustomAgentDefinition | PluginAgentDefinition
 
 /**
  * Agent 状态枚举
@@ -248,7 +275,7 @@ export interface AgentExecutionContext {
  */
 export interface AgentExecutionResult {
   agentId: string
-  status: 'completed' | 'error' | 'async_launched'
+  status: 'completed' | 'error' | 'async_launched' | 'teammate_spawned'
   content: string
   durationMs: number
   totalTokens?: number
@@ -266,7 +293,14 @@ export function isBuiltInAgent(agent: AgentDefinition): agent is BuiltInAgentDef
  * 类型守卫：检查是否是自定义 Agent
  */
 export function isCustomAgent(agent: AgentDefinition): agent is CustomAgentDefinition {
-  return agent.source !== 'built-in'
+  return agent.source === 'user' || agent.source === 'project' || agent.source === 'policy'
+}
+
+/**
+ * 类型守卫：检查是否是插件 Agent
+ */
+export function isPluginAgent(agent: AgentDefinition): agent is PluginAgentDefinition {
+  return agent.source === 'plugin'
 }
 
 /**

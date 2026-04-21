@@ -521,13 +521,56 @@ inputSchema: {
 
 ---
 
-## 九、结论
+## 九、修复记录
 
-Master 后端 Agent 系统在**架构层面**与前端源码保持了合理的对齐，采用了类似的分层设计和模块化结构。但在**实现细节**层面存在显著差异：
+> **修复日期**: 2026-04-22
+> **修复范围**: 高风险 3 项 + 中风险 7 项 + 低风险 5 项
 
-1. **提示词一致性**: 核心框架对齐，但 6 个内置 Agent 中有 3 个（Verification、Claude Code Guide、Statusline Setup）的提示词内容差异巨大，1 个（Plan）版本不同
-2. **工具调用一致性**: Agent 工具的 Input Schema 字段数量不一致（前端 9 个 vs Master 注册版 2 个），SendMessage 的 API 设计根本性不同
-3. **类型一致性**: BaseAgentDefinition 核心字段对齐，但多个字段类型定义不匹配
-4. **功能完整性**: 前端有 12+ 项 Master 缺失的功能（Fork、Swarm、内存持久化等），Master 有 8+ 项前端缺失的功能（持久化、MCP 验证、容器编排等）
+### 9.1 已修复项
 
-**建议优先级**: 先修复高风险的 API 不一致问题（SendMessage、Schema 同步），再逐步对齐提示词和类型定义，最后补齐功能缺失。
+| # | 原评级 | 问题 | 修复文件 | 修复方式 |
+|---|--------|------|---------|---------|
+| 1 | 🔴 高 | SendMessage API 设计不一致 | `server/src/master/tools/sendMessageTool.ts` | 重写，添加 `to` 字段支持（名称路由 + 广播），保留 `agentId` 向后兼容，添加结构化消息和 `summary` 字段 |
+| 2 | 🔴 高 | builtinTools.ts 注册版 Schema 严重不完整 | `server/src/master/integrations/core/builtinTools.ts` | Agent Schema 从 2 字段扩展到 11 字段，SendMessage Schema 从 2 字段扩展到 5 字段 |
+| 3 | 🔴 高 | Verification Agent 提示词差异巨大 | `server/src/master/agents/builtInAgents.ts` | 移植前端完整版提示词（~200行），含对抗性测试策略、VERDICT 格式、输出模板 |
+| 4 | 🟡 中 | Plan Agent 版本不一致（V1 vs V2） | `server/src/master/agents/builtInAgents.ts` | 升级到 V2 架构师角色，添加 "Critical Files for Implementation" 输出要求 |
+| 5 | 🟡 中 | disallowedTools 列表不一致 | `server/src/master/agents/builtInAgents.ts` | 统一为前端的具体工具名：`['Agent', 'ExitPlanMode', 'FileEdit', 'FileWrite', 'NotebookEdit']` |
+| 6 | 🟡 中 | Agent 颜色不一致 | `server/src/master/agents/builtInAgents.ts` | Verification: red（对齐前端），Statusline: orange（对齐前端） |
+| 7 | 🟡 中 | Agent 模型配置不一致 | `server/src/master/agents/builtInAgents.ts` | Plan: inherit（对齐前端），Claude Code Guide: haiku（对齐前端），Statusline: sonnet（对齐前端） |
+| 8 | 🟡 中 | Claude Code Guide 缺少动态上下文注入 | `server/src/master/agents/builtInAgents.ts` | `getSystemPrompt` 接收 `toolUseContext` 参数，注入自定义 Agent、MCP 服务器等运行时配置 |
+| 9 | 🟡 中 | BaseAgentDefinition 类型差异 | `server/src/master/agents/types.ts` | 对齐前端类型：`AgentMemoryScope`、`EffortValue`、`AgentMcpServerSpec`、`HooksSettings` 等 |
+| 10 | 🟡 中 | PluginAgentDefinition 缺失 | `server/src/master/agents/types.ts` | 添加独立的 `PluginAgentDefinition` 接口（含 `plugin: string` 字段） |
+| 11 | 🟢 低 | 工具名硬编码 | `server/src/master/prompts/agentToolPrompt.ts` | 使用 `AGENT_TOOL_NAME` 和 `SEND_MESSAGE_TOOL_NAME` 常量替换所有硬编码引用 |
+| 12 | 🟢 低 | Statusline Setup 提示词过于简化 | `server/src/master/agents/builtInAgents.ts` | 移植前端完整版，含 PS1 转换规则、JSON 输入格式、配置步骤 |
+| 13 | 🟢 低 | Explore Agent 提示词缺少动态工具名 | `server/src/master/agents/builtInAgents.ts` | 添加搜索策略指导和并行搜索建议 |
+
+### 9.2 修复后一致性评级
+
+| 维度 | 修复前 | 修复后 | 变化 |
+|------|--------|--------|------|
+| 提示词结构 | ⚠️ 部分一致 | ✅ 一致 | 6 个内置 Agent 提示词全部对齐前端 |
+| 工具调用结构 | ⚠️ 部分一致 | ✅ 一致 | Schema 字段完整同步，SendMessage API 统一 |
+| 内置 Agent 定义 | ❌ 显著差异 | ✅ 一致 | 颜色、模型、disallowedTools 全部对齐 |
+| 类型系统 | ⚠️ 部分一致 | ✅ 一致 | BaseAgentDefinition 字段对齐，PluginAgentDefinition 添加 |
+| 通信桥接 | ✅ 基本一致 | ✅ 一致 | 无变化 |
+| 错误处理 | ✅ 一致 | ✅ 一致 | 无变化 |
+
+### 9.3 仍需后续处理的功能缺失
+
+| 功能 | 优先级 | 说明 |
+|------|--------|------|
+| Fork 子代理实现 | 低 | 仅有提示词模板，需移植 `forkSubagent.ts` 实际机制 |
+| Agent 内存持久化 | 低 | 需移植 `agentMemory.ts` |
+| 嵌入式搜索工具检测 | 低 | 需实现 `hasEmbeddedSearchTools()` |
+| Swarm 模式完善 | 低 | 需移植 `InProcessTeammateTask` |
+
+---
+
+## 十、结论
+
+Master 后端 Agent 系统在**架构层面**与前端源码保持了合理的对齐，采用了类似的分层设计和模块化结构。经过本次修复，**实现细节层面**的差异已大幅减少：
+
+1. **提示词一致性**: ✅ 6 个内置 Agent 提示词全部与前端对齐，包括 Verification 的完整对抗性测试策略和 Plan 的 V2 架构师角色
+2. **工具调用一致性**: ✅ Agent 工具 Input Schema 完整同步（11 字段），SendMessage API 统一为前端设计（`to` + `agentId` 双路由）
+3. **类型一致性**: ✅ BaseAgentDefinition 字段对齐，添加 PluginAgentDefinition，核心类型统一
+4. **功能完整性**: 前端仍有 4 项 Master 缺失的功能（Fork、内存持久化、嵌入式搜索检测、Swarm 完善），但均为低优先级
