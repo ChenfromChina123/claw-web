@@ -252,18 +252,16 @@ export class SessionManager {
 
     this.scheduleSave(sessionId)
 
-    // 如果是用户消息且当前标题还是默认的"新对话"，就并行生成会话标题
-    console.log(`[SessionManager] addMessage: role=${role}, session.title="${sessionData.session.title}", sessionId=${sessionId}`)
-    if (role === 'user') {
-      if (sessionData.session.title === '新对话') {
-        // 使用序列号机制，支持并行生成，只保留最新请求的结果
-        const currentSeq = (this.titleGenSeq.get(sessionId) || 0) + 1
-        this.titleGenSeq.set(sessionId, currentSeq)
-        console.log(`[SessionManager] Detected first user message, generating title for session ${sessionId} (seq=${currentSeq})`)
-        this.generateAndUpdateSessionTitle(sessionId, content, currentSeq)
-      } else {
-        console.log(`[SessionManager] Session title is already set to "${sessionData.session.title}", skipping title generation`)
-      }
+    // 如果是用户的第一条消息，就并行生成会话标题
+    console.log(`[SessionManager] addMessage: role=${role}, session.title="${sessionData.session.title}", messages.length=${sessionData.messages.length}, sessionId=${sessionId}`)
+    if (role === 'user' && sessionData.messages.length === 1) {
+      // 使用序列号机制，支持并行生成，只保留最新请求的结果
+      const currentSeq = (this.titleGenSeq.get(sessionId) || 0) + 1
+      this.titleGenSeq.set(sessionId, currentSeq)
+      console.log(`[SessionManager] Detected first user message, generating title for session ${sessionId} (seq=${currentSeq})`)
+      this.generateAndUpdateSessionTitle(sessionId, content, currentSeq)
+    } else if (role === 'user') {
+      console.log(`[SessionManager] Not the first user message (count=${sessionData.messages.length}), skipping title generation`)
     }
 
     return message
