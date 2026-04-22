@@ -95,13 +95,7 @@ export async function generateSessionTitleWithLLM(userMessage: string): Promise<
     return titleCache.get(cacheKey)!
   }
 
-  // 如果消息很短（少于10个字符），直接返回清理后的版本
-  if (userMessage.trim().length < 10) {
-    const simpleTitle = generateSimpleTitle(userMessage)
-    titleCache.set(cacheKey, simpleTitle)
-    return simpleTitle
-  }
-
+  // 所有消息都使用 LLM 生成标题
   try {
     const systemPrompt = '你是一个会话标题生成专家。请基于用户的第一条消息生成一个简洁、准确的会话标题。\n\n规则：\n1. 标题长度控制在 15-30 个字符之间\n2. 去除常见的礼貌用语（请、你好、帮我等）\n3. 保留核心意图和关键词\n4. 如果是代码相关问题，保留技术关键词\n5. 如果是问题，保留疑问词\n6. 如果是需求，保留动作词\n7. 不要包含引号\n8. 直接返回标题，不要解释'
 
