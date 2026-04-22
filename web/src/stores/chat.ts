@@ -157,14 +157,32 @@ export const useChatStore = defineStore('chat', () => {
       console.log('[ChatStore] 收到 session_title_updated 事件:', msg)
       if (!msg?.sessionId || msg.title === undefined) return
       
-      // 使用替换数组的方式确保触发响应式更新
-      sessions.value = sessions.value.map(s => {
-        if (s.id === msg.sessionId) {
-          console.log('[ChatStore] 更新会话标题:', s.id, msg.title)
-          return { ...s, title: msg.title }
+      // 检查会话是否在列表中
+      const existsInList = sessions.value.some(s => s.id === msg.sessionId)
+      
+      if (!existsInList) {
+        // 会话不在列表中，将其添加到列表开头
+        console.log('[ChatStore] 会话不在列表中，添加到列表:', msg.sessionId)
+        const newSession = {
+          id: msg.sessionId,
+          title: msg.title,
+          userId: '', // 未知用户ID
+          model: '', // 未知模型
+          isPinned: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         }
-        return s
-      })
+        sessions.value = [newSession, ...sessions.value]
+      } else {
+        // 使用替换数组的方式确保触发响应式更新
+        sessions.value = sessions.value.map(s => {
+          if (s.id === msg.sessionId) {
+            console.log('[ChatStore] 更新会话标题:', s.id, msg.title)
+            return { ...s, title: msg.title }
+          }
+          return s
+        })
+      }
     })
     
     wsClient.on('session_cleared', () => {
