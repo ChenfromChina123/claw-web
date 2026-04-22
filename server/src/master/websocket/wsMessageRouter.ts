@@ -111,10 +111,6 @@ export async function handleWebSocketMessage(ws: any, wsData: WebSocketData, dat
         await handleListSessions(ws, wsData, message, sendEvent)
         break
 
-      case 'get_master_session':
-        await handleGetMasterSession(ws, wsData, message, sendEvent)
-        break
-
       case 'user_message':
         await handleUserMessage(ws, wsData, message, sendEvent)
         break
@@ -318,22 +314,6 @@ async function handleListSessions(ws: any, wsData: WebSocketData, message: any, 
   }).catch(err => {
     console.error('[WS] Failed to list sessions:', err)
     sendEvent('error', { message: 'Failed to list sessions' })
-  })
-}
-
-async function handleGetMasterSession(ws: any, wsData: WebSocketData, message: any, sendEvent: EventSender) {
-  const userId = wsData.userId
-  if (!userId) {
-    sendEvent('error', { message: 'User not registered' })
-    return
-  }
-
-  sessionManager.getOrCreateMasterSession(userId).then(masterSession => {
-    console.log(`[WS] get_master_session: found/created master session: ${masterSession.id}`)
-    ws.send(JSON.stringify({ type: 'master_session', session: masterSession }))
-  }).catch(err => {
-    console.error('[WS] Failed to get master session:', err)
-    sendEvent('error', { message: 'Failed to get master session' })
   })
 }
 

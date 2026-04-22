@@ -37,8 +37,6 @@ const filteredSessions = computed(() => {
 
 const sortedSessions = computed(() => {
   return [...filteredSessions.value].sort((a, b) => {
-    if (a.isMaster && !b.isMaster) return -1
-    if (!a.isMaster && b.isMaster) return 1
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   })
 })
@@ -157,15 +155,11 @@ function modelLabel(model: string | undefined) {
         class="session-item"
         :class="{
           active: chatStore.currentSessionId === session.id,
-          master: session.isMaster,
         }"
         @click="handleSelectSession(session)"
       >
         <div class="session-row-main">
           <div class="session-line">
-            <span v-if="session.isMaster" class="master-star" aria-hidden="true">
-              <NIcon :size="14"><Star /></NIcon>
-            </span>
             <span class="session-title-text" :title="session.title || '未命名'">
               {{ session.title || '未命名' }}
             </span>

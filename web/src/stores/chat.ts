@@ -70,21 +70,6 @@ export const useChatStore = defineStore('chat', () => {
       sessions.value = msg?.sessions || []
     })
 
-    wsClient.on('master_session', (data: unknown) => {
-      if (!data) return
-      const session = data as Session
-      if (!session || !session.id) return
-      console.log('[ChatStore] 监听到 master_session 事件:', session)
-      sessions.value = sessions.value || []
-      // 如果主会话已存在，更新它；否则添加到最前面
-      const existingIndex = sessions.value.findIndex((s) => s.id === session.id)
-      if (existingIndex !== -1) {
-        sessions.value[existingIndex] = session
-      } else {
-        sessions.value.unshift(session)
-      }
-    })
-
     wsClient.on('session_created', (data: unknown) => {
       if (!data) return
       const msg = data as { session?: Session }
@@ -573,9 +558,6 @@ export const useChatStore = defineStore('chat', () => {
         const msg = data as { sessions?: Session[] } | Session[]
         sessions.value = Array.isArray(msg) ? msg : msg.sessions ?? []
         console.log('[ChatStore] 会话列表更新，数量:', sessions.value.length)
-
-        // 同时请求主会话
-        wsClient.send({ type: 'get_master_session' })
 
         resolve()
       })
