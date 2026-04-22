@@ -18,7 +18,6 @@ import {
   NDropdown,
   NTag,
 } from 'naive-ui'
-import { Star } from '@vicons/ionicons5'
 import { useChatStore } from '@/stores/chat'
 import type { Session } from '@/types'
 
@@ -297,10 +296,6 @@ function modelLabel(model: string | undefined) {
   box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.45);
 }
 
-.session-item.master:not(.active) {
-  border-color: rgba(251, 191, 36, 0.25);
-}
-
 .session-row-main {
   flex: 1;
   min-width: 0;
@@ -312,13 +307,6 @@ function modelLabel(model: string | undefined) {
   gap: 6px;
   min-width: 0;
   font-size: 13px;
-}
-
-.master-star {
-  flex-shrink: 0;
-  display: flex;
-  color: #fbbf24;
-  opacity: 0.95;
 }
 
 .session-title-text {
