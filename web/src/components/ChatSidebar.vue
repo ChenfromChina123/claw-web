@@ -151,14 +151,9 @@ watch(showDeleteModal, (open) => {
 })
 
 /**
- * 处理创建新会话
- * 验证当前会话是否有消息，如果没有消息则提示用户
+ * 创建新会话或导航到最新的空会话
  */
 function handleNewChat() {
-  if (chatStore.messages.length === 0) {
-    message.warning('请先在当前会话中发送消息')
-    return
-  }
   chatStore.createSession(undefined, undefined, true)
 }
 

@@ -26,6 +26,8 @@ export const useChatStore = defineStore('chat', () => {
   const isConnected = ref(false)
   /** 当前正在流式输出的助手消息 id，用于将 toolCall 归属到对应轮次 */
   const currentStreamingAssistantId = ref<string | null>(null)
+  /** 追踪未发送消息的空会话 ID，防止在有空会话时创建新会话 */
+  const pendingEmptySessionId = ref<string | null>(null)
 
   // 监听会话切换，自动持久化到 localStorage
   watch(currentSessionId, (newId) => {
@@ -482,13 +484,31 @@ export const useChatStore = defineStore('chat', () => {
    * @returns Promise，在会话创建成功后 resolve
    */
   function createSession(title?: string, model?: string, force?: boolean): Promise<void> {
+    const callStack = new Error().stack
+    console.log('[ChatStore] createSession called:', { force, pendingEmptySessionId: pendingEmptySessionId.value, messagesLength: messages.value.length, callStack: callStack?.split('\n').slice(1, 5) })
+
     // 如果已有正在进行的创建请求，直接返回该 Promise（实现并发控制）
     if (createSessionPromise) {
       console.log('[ChatStore] createSession: 已有进行中的创建请求，复用现有 Promise')
       return createSessionPromise
     }
 
-    // 如果不是强制创建，检查当前会话是否有消息
+    // 1. 首先检查是否存在未发送消息的空会话（最高优先级，force 参数对此无效）
+    if (pendingEmptySessionId.value) {
+      console.log('[ChatStore] createSession: 存在未发送消息的空会话，导航到该会话')
+      return loadSession(pendingEmptySessionId.value)
+    }
+
+    // 2. 检查最新的会话是否为空会话（messageCount === 0 或未定义）
+    if (sessions.value.length > 0) {
+      const latestSession = sessions.value[0]
+      if (latestSession && (latestSession.messageCount === 0 || latestSession.messageCount === undefined)) {
+        console.log('[ChatStore] createSession: 最新会话为空会话，导航到该会话:', latestSession.id)
+        return loadSession(latestSession.id)
+      }
+    }
+
+    // 3. 如果不是强制创建，检查当前会话是否有消息
     if (!force && messages.value.length === 0) {
       return Promise.reject(new Error('当前会话没有消息，无法创建新会话'))
     }
@@ -526,8 +546,15 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       // 监听会话创建成功事件
-      const unsubscribe = wsClient.on('session_created', () => {
-        console.log('[ChatStore] createSession: 收到 session_created 事件，创建成功')
+      const unsubscribe = wsClient.on('session_created', (data: unknown) => {
+        console.log('[ChatStore] createSession: 收到 session_created 事件:', JSON.stringify(data))
+        const msg = data as { session?: { id?: string } }
+        if (msg?.session?.id) {
+          pendingEmptySessionId.value = msg.session.id
+          console.log('[ChatStore] createSession: 标记空会话 pendingEmptySessionId =', msg.session.id)
+        } else {
+          console.warn('[ChatStore] createSession: session_created 事件没有 session.id!')
+        }
         cleanup(false)
       })
 
@@ -577,6 +604,18 @@ export const useChatStore = defineStore('chat', () => {
         sessions.value = Array.isArray(msg) ? msg : msg.sessions ?? []
         console.log('[ChatStore] 会话列表更新，数量:', sessions.value.length)
 
+        // 检查是否有空会话（没有任何用户消息的会话）
+        // 如果有未发送消息的空会话，设置 pendingEmptySessionId
+        if (!pendingEmptySessionId.value && sessions.value.length > 0) {
+          // 查找最新创建的会话（假设按创建时间排序）
+          const latestSession = sessions.value[0]
+          if (latestSession && (!latestSession as any).lastMessageTime) {
+            // 如果最新会话没有最后消息时间，它可能是空会话
+            // 但我们不能确定，所以需要后端支持来确认
+            console.log('[ChatStore] 会话列表加载完成，最新会话:', latestSession.id, latestSession.title)
+          }
+        }
+
         resolve()
       })
 
@@ -593,7 +632,15 @@ export const useChatStore = defineStore('chat', () => {
   }
   
   function sendMessage(content: string, model?: string) {
-    console.log('[ChatStore] sendMessage called:', { content, model, currentSessionId: currentSessionId.value })
+    console.log('[ChatStore] sendMessage called:', {
+      content,
+      contentLength: content.length,
+      contentChars: [...content].map(c => c.charCodeAt(0)),
+      hasNewlines: content.includes('\n'),
+      newlinesCount: (content.match(/\n/g) || []).length,
+      model,
+      currentSessionId: currentSessionId.value
+    })
 
     // 检查是否有当前会话
     if (!currentSessionId.value) {
@@ -601,9 +648,24 @@ export const useChatStore = defineStore('chat', () => {
       return
     }
 
+    // 发送消息后，清除空会话标记
+    const sendingSessionId = currentSessionId.value
+    if (pendingEmptySessionId.value === sendingSessionId) {
+      console.log('[ChatStore] sendMessage: 清除空会话标记 pendingEmptySessionId')
+      pendingEmptySessionId.value = null
+    }
+
     // 立即在前端添加用户消息，提供更好的用户体验
     const userMessageId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    console.log('[ChatStore] Adding user message:', userMessageId)
+    console.log('[ChatStore] Adding user message:', {
+      userMessageId,
+      content,
+      contentLength: content.length,
+      contentChars: [...content].map(c => c.charCodeAt(0)),
+      hasNewlines: content.includes('\n'),
+      newlinesCount: (content.match(/\n/g) || []).length,
+      sessionId: currentSessionId.value
+    })
     messages.value.push({
       id: userMessageId,
       sessionId: currentSessionId.value,
@@ -630,6 +692,11 @@ export const useChatStore = defineStore('chat', () => {
   
   function deleteSession(sessionId: string) {
     console.log('[ChatStore] deleteSession called, id:', sessionId, 'isConnected:', isConnected.value)
+    // 如果删除的是待处理的空会话，清除标记
+    if (pendingEmptySessionId.value === sessionId) {
+      console.log('[ChatStore] deleteSession: 删除空会话，清除 pendingEmptySessionId')
+      pendingEmptySessionId.value = null
+    }
     wsClient.deleteSession(sessionId)
   }
   
