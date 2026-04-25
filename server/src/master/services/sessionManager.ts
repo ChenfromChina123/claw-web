@@ -74,31 +74,41 @@ export class SessionManager {
    * @param title 会话标题
    * @param model 使用的模型
    * @param force 是否强制创建(忽略空会话检查)
-   * @returns 创建的会话对象
+   * @returns 创建的会话对象，包含 isNew 字段标识是否是新创建的
    */
-  async createSession(userId: string, title?: string, model?: string, force?: boolean): Promise<Session> {
+  async createSession(userId: string, title?: string, model?: string, force?: boolean): Promise<Session & { isNew: boolean }> {
+    let isNew = true
+    
+    let session: Session
     if (!force) {
+      // 使用原子操作查找或创建空会话
+      session = await this.sessionRepo.findOrCreateEmptySession(userId, title || '新对话', model || 'qwen-plus')
+      // 如果 findOrCreateEmptySession 返回的会话不是新创建的，isNew 为 false
+      // 但由于 findOrCreateEmptySession 内部保证了原子性，这里我们通过检查来判断
       const emptySession = await this.sessionRepo.findEmptySessionByUserId(userId)
-      if (emptySession) {
-        console.log(`[SessionManager] User ${userId} has empty session, returning it instead of creating new one`)
-        return emptySession
+      if (emptySession && emptySession.id === session.id) {
+        isNew = false
+        console.log(`[SessionManager] 返回已有空会话 ${session.id}，跳过创建`)
       }
+    } else {
+      session = await this.sessionRepo.create(userId, title || '新对话', model || 'qwen-plus')
     }
 
-    const session = await this.sessionRepo.create(userId, title || '新对话', model || 'qwen-plus')
+    // 只有新创建的会话才需要添加到内存缓存
+    if (isNew) {
+      this.sessions.set(session.id, {
+        session,
+        messages: [],
+        toolCalls: [],
+        dirty: true,
+      })
 
-    this.sessions.set(session.id, {
-      session,
-      messages: [],
-      toolCalls: [],
-      dirty: true,
-    })
+      const userSessionList = this.userSessions.get(userId) || []
+      userSessionList.unshift(session.id)
+      this.userSessions.set(userId, userSessionList)
+    }
 
-    const userSessionList = this.userSessions.get(userId) || []
-    userSessionList.unshift(session.id)
-    this.userSessions.set(userId, userSessionList)
-
-    return session
+    return { ...session, isNew }
   }
 
   async loadSession(sessionId: string): Promise<InMemorySession | null> {
@@ -252,7 +262,7 @@ export class SessionManager {
 
     this.scheduleSave(sessionId)
 
-    // 如果是用户的第一条消息，就并行生成会话标题
+    // 如果是用户的第一条消息，就并行生成会话标题，并标记会话为非空
     console.log(`[SessionManager] addMessage: role=${role}, session.title="${sessionData.session.title}", messages.length=${sessionData.messages.length}, sessionId=${sessionId}`)
     console.log(`[SessionManager] addMessage content detail:`, {
       contentType: typeof content,
@@ -262,6 +272,11 @@ export class SessionManager {
       newlinesCount: typeof content === 'string' ? (content.match(/\n/g) || []).length : 0,
     })
     if (role === 'user' && sessionData.messages.length === 1) {
+      // 标记会话为非空（这样下次就不会再复用这个会话了）
+      this.sessionRepo.markAsNonEmpty(sessionId).catch(err => {
+        console.warn(`[SessionManager] Failed to mark session ${sessionId} as non-empty:`, err)
+      })
+      
       // 使用序列号机制，支持并行生成，只保留最新请求的结果
       const currentSeq = (this.titleGenSeq.get(sessionId) || 0) + 1
       this.titleGenSeq.set(sessionId, currentSeq)

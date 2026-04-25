@@ -250,11 +250,18 @@ async function handleCreateSession(ws: any, wsData: WebSocketData, message: any,
   const model = message.model as string || 'qwen-plus'
   const force = message.force as boolean || false
 
-  sessionManager.createSession(userId, title, model, force).then(session => {
-    wsData.sessionId = session.id
-    wsManager.syncConnectionMeta(wsData.connectionId, { sessionId: session.id })
-    console.log(`[WS] Session created/returned: ${session.id} for user ${userId}`)
-    ws.send(JSON.stringify({ type: 'session_created', session }))
+  sessionManager.createSession(userId, title, model, force).then(result => {
+    wsData.sessionId = result.id
+    wsManager.syncConnectionMeta(wsData.connectionId, { sessionId: result.id })
+    console.log(`[WS] Session ${result.isNew ? 'created' : 'returned'}: ${result.id} for user ${userId}`)
+    
+    // 根据是否是新创建的会话，发送不同的事件类型
+    // 前端可以通过 eventType 区分：'session_created'(新建) vs 'session_returned'(返回已有空会话)
+    ws.send(JSON.stringify({ 
+      type: result.isNew ? 'session_created' : 'session_returned', 
+      session: result,
+      isNew: result.isNew
+    }))
   }).catch(err => {
     console.error('[WS] Failed to create session:', err)
     sendEvent('error', { message: 'Failed to create session' })

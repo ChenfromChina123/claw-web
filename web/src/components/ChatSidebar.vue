@@ -60,6 +60,11 @@ const renameTarget = ref<Session | null>(null)
 const showDeleteModal = ref(false)
 const deleteTarget = ref<Session | null>(null)
 
+// 多选模式状态
+const isMultiSelectMode = ref(false)
+const selectedSessionIds = ref<Set<string>>(new Set())
+const showBatchDeleteModal = ref(false)
+
 const filteredSessions = computed(() => {
   const sessions = chatStore.sessions || []
   if (!searchValue.value) return sessions
@@ -148,6 +153,96 @@ watch(showRenameModal, (open) => {
 
 watch(showDeleteModal, (open) => {
   if (!open) deleteTarget.value = null
+})
+
+watch(showBatchDeleteModal, (open) => {
+  if (!open) {
+    // 关闭批量删除弹窗时，不清除选择，方便用户继续操作
+  }
+})
+
+/**
+ * 切换多选模式
+ */
+function toggleMultiSelectMode() {
+  isMultiSelectMode.value = !isMultiSelectMode.value
+  if (!isMultiSelectMode.value) {
+    // 退出多选模式时清空选择
+    selectedSessionIds.value.clear()
+  }
+}
+
+/**
+ * 退出多选模式
+ */
+function exitMultiSelectMode() {
+  isMultiSelectMode.value = false
+  selectedSessionIds.value.clear()
+}
+
+/**
+ * 切换会话选中状态
+ */
+function toggleSessionSelection(sessionId: string) {
+  if (selectedSessionIds.value.has(sessionId)) {
+    selectedSessionIds.value.delete(sessionId)
+  } else {
+    selectedSessionIds.value.add(sessionId)
+  }
+}
+
+/**
+ * 全选当前过滤后的会话
+ */
+function selectAllSessions() {
+  filteredSessions.value.forEach(session => {
+    selectedSessionIds.value.add(session.id)
+  })
+}
+
+/**
+ * 取消全选
+ */
+function deselectAllSessions() {
+  selectedSessionIds.value.clear()
+}
+
+/**
+ * 打开批量删除确认弹窗
+ */
+function openBatchDeleteModal() {
+  if (selectedSessionIds.value.size === 0) {
+    message.warning('请先选择要删除的会话')
+    return
+  }
+  showBatchDeleteModal.value = true
+}
+
+/**
+ * 确认批量删除
+ */
+function confirmBatchDelete(): boolean {
+  const idsToDelete = Array.from(selectedSessionIds.value)
+  console.log('[Sidebar] confirmBatchDelete, count:', idsToDelete.length)
+  
+  let successCount = 0
+  idsToDelete.forEach(sessionId => {
+    chatStore.deleteSession(sessionId)
+    successCount++
+  })
+  
+  message.success(`已删除 ${successCount} 个会话`)
+  selectedSessionIds.value.clear()
+  isMultiSelectMode.value = false
+  return true
+}
+
+/**
+ * 计算属性：是否已全选
+ */
+const isAllSelected = computed(() => {
+  if (filteredSessions.value.length === 0) return false
+  return filteredSessions.value.every(session => selectedSessionIds.value.has(session.id))
 })
 
 /**
@@ -263,6 +358,25 @@ function formatTime(date: Date | string) {
         <!-- 头部 -->
         <div class="sidebar-header">
           <h2>Claude Code</h2>
+          <NButton
+            v-if="!isMultiSelectMode"
+            quaternary
+            size="small"
+            class="multi-select-btn"
+            @click="toggleMultiSelectMode"
+          >
+            多选
+          </NButton>
+          <NButton
+            v-else
+            quaternary
+            size="small"
+            type="error"
+            class="multi-select-btn"
+            @click="exitMultiSelectMode"
+          >
+            取消
+          </NButton>
         </div>
 
         <!-- 搜索 -->
@@ -288,9 +402,28 @@ function formatTime(date: Date | string) {
               v-for="session in visibleSessions"
               :key="session.id"
               class="session-item"
-              :class="{ active: chatStore.currentSessionId === session.id }"
-              @click="handleSelectSession(session)"
+              :class="{ 
+                active: chatStore.currentSessionId === session.id,
+                'multi-select': isMultiSelectMode,
+                selected: selectedSessionIds.has(session.id)
+              }"
+              @click="isMultiSelectMode ? toggleSessionSelection(session.id) : handleSelectSession(session)"
             >
+              <!-- 多选复选框 -->
+              <div
+                v-if="isMultiSelectMode"
+                class="session-checkbox"
+                @click.stop="toggleSessionSelection(session.id)"
+              >
+                <div
+                  class="checkbox-inner"
+                  :class="{ checked: selectedSessionIds.has(session.id) }"
+                >
+                  <svg v-if="selectedSessionIds.has(session.id)" viewBox="0 0 24 24" fill="none" class="check-icon">
+                    <path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+              </div>
               <div class="session-content">
                 <div class="session-title">
                   {{ session.title }}
@@ -308,6 +441,7 @@ function formatTime(date: Date | string) {
                 </div>
               </div>
               <NDropdown
+                v-if="!isMultiSelectMode"
                 :options="sessionOptions"
                 trigger="click"
                 @select="(key) => handleSessionContext(key as string, session)"
@@ -429,6 +563,47 @@ function formatTime(date: Date | string) {
       </p>
     </NModal>
 
+    <!-- 批量删除确认 -->
+    <NModal
+      v-model:show="showBatchDeleteModal"
+      preset="dialog"
+      title="批量删除会话"
+      type="warning"
+      positive-text="删除"
+      negative-text="取消"
+      @positive-click="confirmBatchDelete"
+    >
+      <p class="delete-hint">
+        确定删除选中的 <strong>{{ selectedSessionIds.size }}</strong> 个会话吗？聊天记录将一并删除，且不可恢复。
+      </p>
+    </NModal>
+
+    <!-- 多选模式批量操作栏 -->
+    <div v-if="isMultiSelectMode" class="batch-actions-bar">
+      <div class="batch-actions-content">
+        <div class="batch-actions-left">
+          <NButton
+            quaternary
+            size="small"
+            @click="isAllSelected ? deselectAllSessions() : selectAllSessions()"
+          >
+            {{ isAllSelected ? '取消全选' : '全选' }}
+          </NButton>
+          <span class="selected-count">已选 {{ selectedSessionIds.size }} 个</span>
+        </div>
+        <div class="batch-actions-right">
+          <NButton
+            type="error"
+            size="small"
+            :disabled="selectedSessionIds.size === 0"
+            @click="openBatchDeleteModal"
+          >
+            批量删除
+          </NButton>
+        </div>
+      </div>
+    </div>
+
     <!-- 工作目录抽屉 -->
     <NDrawer
       v-model:show="showWorkDir"
@@ -495,9 +670,13 @@ function formatTime(date: Date | string) {
 .sidebar-header {
   padding: 14px 16px 12px;
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid var(--border-color, rgba(99, 102, 241, 0.1));
+}
+
+.multi-select-btn {
+  font-size: 12px;
 }
 
 .sidebar-header h2 {
@@ -672,6 +851,91 @@ function formatTime(date: Date | string) {
 
 .session-item.active .session-menu-trigger {
   color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* 多选模式样式 */
+.session-item.multi-select {
+  padding-left: 8px;
+}
+
+.session-item.multi-select:hover {
+  background: var(--bg-tertiary);
+}
+
+.session-item.multi-select.selected {
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.15) 0%, rgba(99, 102, 241, 0.1) 100%);
+  border-color: rgba(64, 158, 255, 0.5);
+}
+
+.session-checkbox {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-right: 8px;
+}
+
+.checkbox-inner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color, rgba(99, 102, 241, 0.3));
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  background: var(--bg-secondary);
+}
+
+.checkbox-inner:hover {
+  border-color: var(--primary-color);
+}
+
+.checkbox-inner.checked {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.check-icon {
+  width: 14px;
+  height: 14px;
+  color: white;
+}
+
+/* 批量操作栏 */
+.batch-actions-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-top: 1px solid var(--glass-border);
+  padding: 12px 16px;
+  z-index: 100;
+}
+
+.batch-actions-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 280px;
+  margin: 0 auto;
+}
+
+.batch-actions-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.selected-count {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .empty-state {
