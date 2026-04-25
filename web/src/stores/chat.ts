@@ -512,10 +512,22 @@ export const useChatStore = defineStore('chat', () => {
       console.log('[ChatStore] createSession: 会话列表为空，无需检查空会话')
     }
 
-    // 3. 如果不是强制创建，检查当前会话是否有消息
+    // 3. 检查当前会话是否没有消息（避免创建多个空会话）
+    // 注意：这个检查只在非强制模式下生效
     if (!force && messages.value.length === 0) {
       console.log('[ChatStore] createSession: 当前会话没有消息，拒绝创建 (force=false)')
       return Promise.reject(new Error('当前会话没有消息，无法创建新会话'))
+    }
+
+    // 4. 检查最新创建的会话是否已经有消息了
+    // 如果没有消息，说明是空会话，应该导航到该会话而不是创建新的
+    if (!force && sessions.value.length > 0) {
+      const latestSession = sessions.value[0]
+      // 如果最新会话没有消息（通过messageCount判断），且不是当前正在查看的会话
+      if (latestSession && (latestSession.messageCount === 0 || latestSession.messageCount === undefined)) {
+        console.log('[ChatStore] createSession: 最新会话为空会话，导航到该会话:', latestSession.id)
+        return loadSession(latestSession.id)
+      }
     }
 
     console.log('[ChatStore] createSession: 开始创建新会话...')
