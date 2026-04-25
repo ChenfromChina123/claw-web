@@ -154,7 +154,7 @@ watch(showDeleteModal, (open) => {
  * 创建新会话或导航到最新的空会话
  */
 function handleNewChat() {
-  chatStore.createSession(undefined, undefined, true)
+  chatStore.createSession(undefined, undefined, false)
 }
 
 function handleSelectSession(session: Session) {
