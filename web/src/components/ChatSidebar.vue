@@ -154,6 +154,17 @@ watch(showDeleteModal, (open) => {
  * 创建新会话或导航到最新的空会话
  */
 function handleNewChat() {
+  console.log('[ChatSidebar] handleNewChat clicked:', {
+    sessionsCount: chatStore.sessions.length,
+    currentSessionId: chatStore.currentSessionId,
+    messagesCount: chatStore.messages.length,
+    pendingEmptySessionId: chatStore.pendingEmptySessionId,
+    latestSession: chatStore.sessions[0] ? {
+      id: chatStore.sessions[0].id,
+      messageCount: chatStore.sessions[0].messageCount,
+      title: chatStore.sessions[0].title
+    } : null
+  })
   chatStore.createSession(undefined, undefined, false)
 }
 

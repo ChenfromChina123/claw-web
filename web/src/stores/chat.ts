@@ -485,7 +485,7 @@ export const useChatStore = defineStore('chat', () => {
    */
   function createSession(title?: string, model?: string, force?: boolean): Promise<void> {
     const callStack = new Error().stack
-    console.log('[ChatStore] createSession called:', { force, pendingEmptySessionId: pendingEmptySessionId.value, messagesLength: messages.value.length, callStack: callStack?.split('\n').slice(1, 5) })
+    console.log('[ChatStore] createSession called:', { force, pendingEmptySessionId: pendingEmptySessionId.value, messagesLength: messages.value.length, sessionsCount: sessions.value.length, callStack: callStack?.split('\n').slice(1, 5) })
 
     // 如果已有正在进行的创建请求，直接返回该 Promise（实现并发控制）
     if (createSessionPromise) {
@@ -495,21 +495,26 @@ export const useChatStore = defineStore('chat', () => {
 
     // 1. 首先检查是否存在未发送消息的空会话（最高优先级，force 参数对此无效）
     if (pendingEmptySessionId.value) {
-      console.log('[ChatStore] createSession: 存在未发送消息的空会话，导航到该会话')
+      console.log('[ChatStore] createSession: 存在未发送消息的空会话，导航到该会话:', pendingEmptySessionId.value)
       return loadSession(pendingEmptySessionId.value)
     }
 
     // 2. 检查最新的会话是否为空会话（messageCount === 0 或未定义）
     if (sessions.value.length > 0) {
       const latestSession = sessions.value[0]
+      console.log('[ChatStore] createSession: 检查最新会话:', { id: latestSession.id, messageCount: latestSession.messageCount, title: latestSession.title })
       if (latestSession && (latestSession.messageCount === 0 || latestSession.messageCount === undefined)) {
         console.log('[ChatStore] createSession: 最新会话为空会话，导航到该会话:', latestSession.id)
         return loadSession(latestSession.id)
       }
+      console.log('[ChatStore] createSession: 最新会话不是空会话，messageCount:', latestSession.messageCount)
+    } else {
+      console.log('[ChatStore] createSession: 会话列表为空，无需检查空会话')
     }
 
     // 3. 如果不是强制创建，检查当前会话是否有消息
     if (!force && messages.value.length === 0) {
+      console.log('[ChatStore] createSession: 当前会话没有消息，拒绝创建 (force=false)')
       return Promise.reject(new Error('当前会话没有消息，无法创建新会话'))
     }
 
