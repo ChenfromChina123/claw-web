@@ -254,11 +254,22 @@ export class SessionManager {
 
     // 如果是用户的第一条消息，就并行生成会话标题
     console.log(`[SessionManager] addMessage: role=${role}, session.title="${sessionData.session.title}", messages.length=${sessionData.messages.length}, sessionId=${sessionId}`)
+    console.log(`[SessionManager] addMessage content detail:`, {
+      contentType: typeof content,
+      contentLength: typeof content === 'string' ? content.length : Array.isArray(content) ? content.length : 'N/A',
+      contentPreview: typeof content === 'string' ? content.substring(0, 100) : JSON.stringify(content).substring(0, 100),
+      hasNewlines: typeof content === 'string' ? content.includes('\n') : false,
+      newlinesCount: typeof content === 'string' ? (content.match(/\n/g) || []).length : 0,
+    })
     if (role === 'user' && sessionData.messages.length === 1) {
       // 使用序列号机制，支持并行生成，只保留最新请求的结果
       const currentSeq = (this.titleGenSeq.get(sessionId) || 0) + 1
       this.titleGenSeq.set(sessionId, currentSeq)
       console.log(`[SessionManager] Detected first user message, generating title for session ${sessionId} (seq=${currentSeq})`)
+      console.log(`[SessionManager] Title gen content:`, {
+        originalContent: typeof content === 'string' ? content : JSON.stringify(content),
+        originalLength: typeof content === 'string' ? content.length : 0,
+      })
       this.generateAndUpdateSessionTitle(sessionId, content, currentSeq)
     } else if (role === 'user') {
       console.log(`[SessionManager] Not the first user message (count=${sessionData.messages.length}), skipping title generation`)

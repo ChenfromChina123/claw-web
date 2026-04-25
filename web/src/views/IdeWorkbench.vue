@@ -344,11 +344,7 @@ function handleKeyDown(e: KeyboardEvent): void {
 
 /** 活动栏全局「新建会话」，与命令面板 new 行为一致 */
 function handleActivityBarNewSession(): void {
-  if (chatStore.messages.length === 0) {
-    message.warning('请先在当前会话中发送消息')
-    return
-  }
-  chatStore.createSession(undefined, undefined, true)
+  chatStore.createSession(undefined, undefined, false)
 }
 
 // ========== 发送消息 ==========
@@ -369,7 +365,7 @@ function handleCommandSelect(command: string): void {
 
   switch (command) {
     case 'new':
-      chatStore.createSession()
+      chatStore.createSession(undefined, undefined, false)
       break
     case 'clear':
       chatStore.clearSession()
@@ -436,7 +432,7 @@ async function handleRetry(): Promise<void> {
 
     const sessions = chatStore.sessions || []
     if (sessions.length === 0) {
-      await chatStore.createSession(undefined, undefined, true)
+      await chatStore.createSession(undefined, undefined, false)
     } else {
       const persistedId = chatStore.currentSessionId
       const targetId =

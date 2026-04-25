@@ -365,8 +365,13 @@ export class SessionConversationManager {
 
         // 4.5 无工具调用 - 更新消息并结束循环
         console.log(`[${sessionId}] No tool calls requested, ending conversation`)
+        console.log(`[${sessionId}] streamResult.text = "${streamResult.text}", length = ${streamResult.text?.length || 0}`)
         if (streamResult.text) {
+          console.log(`[${sessionId}] Calling updateMessage with text: "${streamResult.text.substring(0, 50)}..."`)
           sessionManager.updateMessage(sessionId, assistantMessageId, streamResult.text, [])
+          console.log(`[${sessionId}] updateMessage called successfully`)
+        } else {
+          console.log(`[${sessionId}] streamResult.text is empty, skipping updateMessage`)
         }
 
         sendEvent('message_stop', { stop_reason: 'end_turn', iteration: actualIterations })
@@ -682,6 +687,21 @@ export class SessionConversationManager {
       { role: 'system', content: systemPrompt },
       ...convertToOpenAIMessages(messages),
     ]
+
+    // 调试日志：打印实际传递给 LLM 的用户消息
+    console.log(`[${sessionId}] === 传递给 LLM 的消息 ===`)
+    for (let i = 0; i < openaiMessages.length; i++) {
+      const msg = openaiMessages[i]
+      if (msg.role === 'user') {
+        console.log(`[${sessionId}]   [${i}] USER: "${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}"`)
+      } else if (msg.role === 'assistant') {
+        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+        console.log(`[${sessionId}]   [${i}] ASSISTANT: "${content.substring(0, 100)}..."`)
+      } else {
+        console.log(`[${sessionId}]   [${i}] ${msg.role}`)
+      }
+    }
+    console.log(`[${sessionId}] === 共 ${openaiMessages.length} 条消息 ===`)
 
     try {
       // 创建 AbortController 用于取消请求

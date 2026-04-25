@@ -95,7 +95,11 @@ FROM node:20-slim AS production-worker
 # 安装工具链、运行时依赖和常用系统工具
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    python3 \
+    python3-full \
+    python3-pip \
+    python3-venv \
+    python3-dev \
+    python3-distutils \
     make \
     g++ \
     wget \
@@ -114,6 +118,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     traceroute \
     whois \
     ca-certificates \
+    git \
+    htop \
+    jq \
+    zip \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # 设置环境变量

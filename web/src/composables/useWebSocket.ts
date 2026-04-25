@@ -1100,7 +1100,16 @@ class EnhancedWebSocketClient {
     debugMode?: boolean
     timeout?: number
   }): void {
-    console.log('[WS] sendMessage called:', { content, sessionId, model, agentOptions })
+    console.log('[WS] sendMessage called:', {
+      content,
+      contentLength: content.length,
+      contentChars: [...content].map(c => c.charCodeAt(0)),
+      hasNewlines: content.includes('\n'),
+      newlinesCount: (content.match(/\n/g) || []).length,
+      sessionId,
+      model,
+      agentOptions
+    })
     // 使用传入的 sessionId 或当前会话的 id
     const targetSessionId = sessionId || this.currentSession.value?.id
     console.log('[WS] targetSessionId:', targetSessionId)

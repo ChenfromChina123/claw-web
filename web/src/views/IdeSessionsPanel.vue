@@ -89,11 +89,7 @@ function handleSelectSession(session: Session) {
 }
 
 function handleNewSession() {
-  if (chatStore.messages.length === 0) {
-    message.warning('请先在当前会话中发送消息')
-    return
-  }
-  chatStore.createSession(undefined, undefined, true)
+  chatStore.createSession(undefined, undefined, false)
 }
 
 const sessionOptions = [

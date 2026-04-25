@@ -370,7 +370,7 @@ async function createSessionWithDebounce(maxRetries = 2): Promise<void> {
       console.log(`[Chat] 创建会话，第 ${attempt} 次尝试...`)
 
       // 调用 store 的 createSession（已内置并发控制）
-      await chatStore.createSession(undefined, undefined, true)
+      await chatStore.createSession(undefined, undefined, false)
 
       // 创建成功：记录时间戳
       lastSessionCreateTime = Date.now()
@@ -497,7 +497,7 @@ function handleCommandSelect(command: string): void {
   
   switch (command) {
     case 'new':
-      chatStore.createSession()
+      chatStore.createSession(undefined, undefined, false)
       break
     case 'clear':
       chatStore.clearSession()

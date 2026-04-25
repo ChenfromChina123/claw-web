@@ -259,17 +259,19 @@ async function initializeMasterServices(containerRole: string): Promise<void> {
         title,
       })
 
+      const allConnections = wsManager.getAllConnections()
+      console.log(`[SessionTitle] Total connections in manager: ${allConnections.size}`)
+
       let sentCount = 0
-      for (const [, connection] of wsManager.getAllConnections()) {
+      for (const [connId, connection] of allConnections) {
+        console.log(`[SessionTitle] Connection ${connId}: isConnected=${connection.isConnected()}`)
         if (connection.isConnected()) {
           connection.send(JSON.parse(message))
           sentCount++
         }
       }
 
-      if (sentCount > 0) {
-        console.log(`[SessionTitle] 广播会话标题更新到 ${sentCount} 个客户端: sessionId=${sessionId}`)
-      }
+      console.log(`[SessionTitle] 广播会话标题更新: sentCount=${sentCount}, sessionId=${sessionId}, title=${title}`)
     })
   } catch (error) {
     console.warn('[SessionTitle] Failed to setup callback:', error)
