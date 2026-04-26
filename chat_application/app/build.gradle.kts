@@ -88,6 +88,10 @@ dependencies {
     // Accompanist (系统UI控制器)
     implementation(libs.accompanist.systemuicontroller)
 
+    // Markdown渲染
+    implementation(libs.markdown.renderer)
+    implementation(libs.markdown.material3)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

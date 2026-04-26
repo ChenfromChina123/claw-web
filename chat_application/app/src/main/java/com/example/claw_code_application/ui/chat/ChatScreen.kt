@@ -124,28 +124,15 @@ fun ChatScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                // 消息列表
+                // 消息列表 - 使用增强版消息气泡
                 items(
                     items = viewModel.messages.reversed(),
                     key = { it.id }
                 ) { message ->
-                    MessageBubble(message = message)
-
-                    // 如果是AI消息且包含工具调用，显示工具调用卡片
-                    if (message.role == "assistant" && message.toolCalls != null && message.toolCalls!!.isNotEmpty()) {
-                        Column {
-                            message.toolCalls!!.forEach { toolCall ->
-                                var expanded by remember { mutableStateOf(false) }
-                                
-                                ToolCallCard(
-                                    toolCall = toolCall,
-                                    expanded = expanded,
-                                    onExpandedChange = { expanded = it },
-                                    onRetry = { }
-                                )
-                            }
-                        }
-                    }
+                    EnhancedMessageBubble(
+                        message = message,
+                        toolCalls = message.toolCalls ?: emptyList()
+                    )
                 }
 
                 // 加载状态指示器

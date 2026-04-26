@@ -76,6 +76,10 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 # Accompanist
 accompanist-systemuicontroller = { group = "com.google.accompanist", name = "accompanist-systemuicontroller", version.ref = "accompanistSystemUiController" }
 
+# Markdown渲染
+markdown-renderer = { group = "com.halilibo.compose-richtext", name = "richtext-commonmark", version.ref = "markdownRenderer" }
+markdown-material3 = { group = "com.halilibo.compose-richtext", name = "richtext-ui-material3", version.ref = "markdownRenderer" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

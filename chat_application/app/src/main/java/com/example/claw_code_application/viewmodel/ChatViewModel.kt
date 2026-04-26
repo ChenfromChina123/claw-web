@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.claw_code_application.data.api.models.*
 import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.repository.ChatRepository
+import com.example.claw_code_application.data.websocket.WebSocketManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,10 +17,12 @@ import java.util.UUID
 /**
  * 聊天ViewModel
  * 处理会话管理、消息发送、Agent执行等核心业务逻辑
+ * 支持WebSocket流式输出
  */
 class ChatViewModel(
     private val chatRepository: ChatRepository,
-    private val tokenManager: TokenManager
+    private val tokenManager: TokenManager,
+    private val webSocketManager: WebSocketManager = WebSocketManager()
 ) : ViewModel() {
 
     /** UI状态密封类 */
@@ -50,8 +53,136 @@ class ChatViewModel(
     private val _toolCalls = mutableStateListOf<ToolCall>()
     val toolCalls: List<ToolCall> = _toolCalls
 
+    /** WebSocket连接状态 */
+    val connectionState = webSocketManager.connectionState
+
+    /** 当前正在流式输出的消息ID */
+    private var streamingMessageId: String? = null
+
+    init {
+        // 监听WebSocket消息
+        viewModelScope.launch {
+            webSocketManager.incomingMessages.collect { event ->
+                event?.let { handleWebSocketEvent(it) }
+            }
+        }
+
+        // 自动连接WebSocket
+        connectWebSocket()
+    }
+
     /**
-     * 发送消息并执行Agent
+     * 连接WebSocket
+     */
+    private fun connectWebSocket() {
+        viewModelScope.launch {
+            val token = tokenManager.getToken()
+            if (token != null) {
+                webSocketManager.connect(token)
+            }
+        }
+    }
+
+    /**
+     * 处理WebSocket事件
+     */
+    private fun handleWebSocketEvent(event: WebSocketManager.WebSocketEvent) {
+        when (event) {
+            is WebSocketManager.WebSocketEvent.MessageStart -> {
+                // 创建新的AI消息占位符
+                streamingMessageId = event.messageId
+                val assistantMessage = Message(
+                    id = event.messageId,
+                    role = "assistant",
+                    content = "",
+                    timestamp = System.currentTimeMillis().toString(),
+                    isStreaming = true
+                )
+                _messages.add(assistantMessage)
+                _uiState.value = UiState.Success(
+                    messages = _messages.toList(),
+                    toolCalls = _toolCalls.toList(),
+                    executionStatus = ExecutionStatus(
+                        status = "running",
+                        currentTurn = event.iteration,
+                        maxTurns = 20,
+                        progress = 0
+                    )
+                )
+            }
+
+            is WebSocketManager.WebSocketEvent.MessageDelta -> {
+                // 更新流式消息内容
+                streamingMessageId?.let { messageId ->
+                    val index = _messages.indexOfFirst { it.id == messageId }
+                    if (index != -1) {
+                        val oldMessage = _messages[index]
+                        _messages[index] = oldMessage.copy(
+                            content = oldMessage.content + event.delta
+                        )
+                    }
+                }
+            }
+
+            is WebSocketManager.WebSocketEvent.MessageStop -> {
+                // 停止流式输出
+                streamingMessageId?.let { messageId ->
+                    val index = _messages.indexOfFirst { it.id == messageId }
+                    if (index != -1) {
+                        val oldMessage = _messages[index]
+                        _messages[index] = oldMessage.copy(isStreaming = false)
+                    }
+                }
+                streamingMessageId = null
+
+                _uiState.value = UiState.Success(
+                    messages = _messages.toList(),
+                    toolCalls = _toolCalls.toList(),
+                    executionStatus = ExecutionStatus(
+                        status = if (event.stopReason == "end_turn") "completed" else "running",
+                        currentTurn = event.iteration,
+                        maxTurns = 20,
+                        progress = if (event.stopReason == "end_turn") 100 else 50
+                    )
+                )
+            }
+
+            is WebSocketManager.WebSocketEvent.MessageSaved -> {
+                // 消息已保存到服务器
+            }
+
+            is WebSocketManager.WebSocketEvent.ToolCallStart -> {
+                _toolCalls.add(event.toolCall)
+            }
+
+            is WebSocketManager.WebSocketEvent.ToolCallComplete -> {
+                val index = _toolCalls.indexOfFirst { it.id == event.toolCall.id }
+                if (index != -1) {
+                    _toolCalls[index] = event.toolCall
+                }
+            }
+
+            is WebSocketManager.WebSocketEvent.ConversationEnd -> {
+                _uiState.value = UiState.Success(
+                    messages = _messages.toList(),
+                    toolCalls = _toolCalls.toList(),
+                    executionStatus = ExecutionStatus(
+                        status = "completed",
+                        currentTurn = 0,
+                        maxTurns = 20,
+                        progress = 100
+                    )
+                )
+            }
+
+            is WebSocketManager.WebSocketEvent.Error -> {
+                _uiState.value = UiState.Error(event.message)
+            }
+        }
+    }
+
+    /**
+     * 发送消息并执行Agent（使用WebSocket流式输出）
      * @param content 用户输入的消息内容
      */
     fun sendMessage(content: String) {
@@ -76,34 +207,38 @@ class ChatViewModel(
                 // 2. 设置加载状态
                 _uiState.value = UiState.Loading
 
-                // 3. 调用Agent执行API
-                val result = chatRepository.executeAgent(
-                    sessionId = session.id,
-                    task = content,
-                    prompt = content
-                )
+                // 3. 使用WebSocket发送消息（支持流式输出）
+                if (webSocketManager.isConnected) {
+                    webSocketManager.sendUserMessage(
+                        sessionId = session.id,
+                        content = content
+                    )
+                } else {
+                    // 降级到HTTP API
+                    val result = chatRepository.executeAgent(
+                        sessionId = session.id,
+                        task = content,
+                        prompt = content
+                    )
 
-                result.fold(
-                    onSuccess = { response ->
-                        // 添加AI回复消息
-                        response.messages.forEach { msg ->
-                            _messages.add(msg)
+                    result.fold(
+                        onSuccess = { response ->
+                            response.messages.forEach { msg ->
+                                _messages.add(msg)
+                            }
+                            _toolCalls.clear()
+                            _toolCalls.addAll(response.toolCalls)
+                            _uiState.value = UiState.Success(
+                                messages = _messages.toList(),
+                                toolCalls = _toolCalls.toList(),
+                                executionStatus = response.executionStatus
+                            )
+                        },
+                        onFailure = { e ->
+                            _uiState.value = UiState.Error(e.message ?: "发送消息失败")
                         }
-
-                        // 更新工具调用列表
-                        _toolCalls.clear()
-                        _toolCalls.addAll(response.toolCalls)
-
-                        _uiState.value = UiState.Success(
-                            messages = _messages.toList(),
-                            toolCalls = _toolCalls.toList(),
-                            executionStatus = response.executionStatus
-                        )
-                    },
-                    onFailure = { e ->
-                        _uiState.value = UiState.Error(e.message ?: "发送消息失败")
-                    }
-                )
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "网络错误")
             }
@@ -152,6 +287,10 @@ class ChatViewModel(
     fun abortExecution() {
         viewModelScope.launch {
             try {
+                currentSessionId?.let { sessionId ->
+                    webSocketManager.interruptGeneration(sessionId)
+                }
+
                 chatRepository.interruptAgent()
                 _uiState.value = UiState.Success(
                     messages = _messages.toList(),
@@ -196,6 +335,11 @@ class ChatViewModel(
         _messages.clear()
         _toolCalls.clear()
         _uiState.value = UiState.Idle
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        webSocketManager.disconnect()
     }
 
     companion object {
