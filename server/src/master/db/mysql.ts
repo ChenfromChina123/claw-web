@@ -223,6 +223,21 @@ export async function initDatabase(): Promise<void> {
       ADD COLUMN is_pinned BOOLEAN DEFAULT FALSE AFTER model
     `).catch(() => {})
 
+    // 添加 is_empty 字段到 sessions 表（如果不存在）
+    await tempPool.query(`
+      ALTER TABLE sessions 
+      ADD COLUMN is_empty BOOLEAN DEFAULT TRUE AFTER is_pinned
+    `).catch(() => {})
+
+    // 创建 is_empty 相关索引
+    await tempPool.query(`
+      CREATE INDEX idx_sessions_is_empty ON sessions(is_empty)
+    `).catch(() => {})
+
+    await tempPool.query(`
+      CREATE INDEX idx_sessions_user_empty ON sessions(user_id, is_empty)
+    `).catch(() => {})
+
     // 添加 shared_sessions 表（如果不存在）
     await tempPool.query(`
       CREATE TABLE IF NOT EXISTS shared_sessions (
