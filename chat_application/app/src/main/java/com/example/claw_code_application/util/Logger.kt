@@ -18,52 +18,52 @@ object Logger {
     @JvmStatic
     fun d(tag: String, message: String) {
         if (DEBUG_ENABLED) {
-            Log.d("$DEFAULT_TAG-$tag", message)
+            Log.d(DEFAULT_TAG, "[$tag] $message")
         }
     }
     
     @JvmStatic
     fun d(tag: String, message: String, throwable: Throwable) {
         if (DEBUG_ENABLED) {
-            Log.d("$DEFAULT_TAG-$tag", message, throwable)
+            Log.d(DEFAULT_TAG, "[$tag] $message", throwable)
         }
     }
-    
+
     @JvmStatic
     fun i(tag: String, message: String) {
         if (INFO_ENABLED) {
-            Log.i("$DEFAULT_TAG-$tag", message)
+            Log.i(DEFAULT_TAG, "[$tag] $message")
         }
     }
-    
+
     @JvmStatic
     fun w(tag: String, message: String) {
         if (WARN_ENABLED) {
-            Log.w("$DEFAULT_TAG-$tag", message)
+            Log.w(DEFAULT_TAG, "[$tag] $message")
         }
     }
-    
+
     @JvmStatic
     fun w(tag: String, message: String, throwable: Throwable) {
         if (WARN_ENABLED) {
-            Log.w("$DEFAULT_TAG-$tag", message, throwable)
+            Log.w(DEFAULT_TAG, "[$tag] $message", throwable)
         }
     }
-    
+
     @JvmStatic
     fun e(tag: String, message: String) {
         if (ERROR_ENABLED) {
-            Log.e("$DEFAULT_TAG-$tag", message)
+            Log.e(DEFAULT_TAG, "[$tag] $message")
         }
     }
-    
+
     @JvmStatic
     fun e(tag: String, message: String, throwable: Throwable) {
         if (ERROR_ENABLED) {
-            Log.e("$DEFAULT_TAG-$tag", message, throwable)
+            Log.e(DEFAULT_TAG, "[$tag] $message", throwable)
         }
     }
-    
+
     /**
      * 打印对象信息
      */
@@ -79,7 +79,7 @@ object Logger {
                     obj.toString()
                 }
             }
-            Log.d("$DEFAULT_TAG-$tag", "$label: $json")
+            Log.d(DEFAULT_TAG, "[$tag] $label: $json")
         }
     }
 }
