@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.ExecutionStatus
 import com.example.claw_code_application.data.api.models.ToolCall
-import com.example.claw_code_application.ui.theme.Color
+import com.example.claw_code_application.ui.theme.AppColor
 
 /**
  * Agent执行状态面板
@@ -36,7 +36,7 @@ fun AgentStatusPanel(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.SurfaceDark)
+        colors = CardDefaults.cardColors(containerColor = AppColor.SurfaceDark)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // 标题行
@@ -49,7 +49,7 @@ fun AgentStatusPanel(
                     text = "🤖 Agent 执行状态",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
-                    color = Color.TextPrimary
+                    color = AppColor.TextPrimary
                 )
 
                 // 状态徽章
@@ -57,10 +57,10 @@ fun AgentStatusPanel(
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = when (executionStatus.status) {
-                            "running" -> Color.Info.copy(alpha = 0.2f)
-                            "completed" -> Color.Success.copy(alpha = 0.2f)
-                            "error" -> Color.Error.copy(alpha = 0.2f)
-                            else -> Color.SurfaceLight
+                            "running" -> AppColor.Info.copy(alpha = 0.2f)
+                            "completed" -> AppColor.Success.copy(alpha = 0.2f)
+                            "error" -> AppColor.Error.copy(alpha = 0.2f)
+                            else -> AppColor.SurfaceLight
                         }
                     ) {
                         Text(
@@ -72,10 +72,10 @@ fun AgentStatusPanel(
                                 else -> "未知"
                             },
                             color = when (executionStatus.status) {
-                                "running" -> Color.Info
-                                "completed" -> Color.Success
-                                "error" -> Color.Error
-                                else -> Color.TextSecondary
+                                "running" -> AppColor.Info
+                                "completed" -> AppColor.Success
+                                "error" -> AppColor.Error
+                                else -> AppColor.TextSecondary
                             },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
@@ -96,8 +96,8 @@ fun AgentStatusPanel(
                             .fillMaxWidth()
                             .height(8.dp)
                             .clip(RoundedCornerShape(4.dp)),
-                        color = Color.SurfaceLight,
-                        trackColor = Color.BackgroundDark
+                        color = AppColor.SurfaceLight,
+                        trackColor = AppColor.BackgroundDark
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     
@@ -106,7 +106,7 @@ fun AgentStatusPanel(
                         textAlign = TextAlign.End,
                         modifier = Modifier.fillMaxWidth(),
                         fontSize = 12.sp,
-                        color = Color.TextSecondary
+                        color = AppColor.TextSecondary
                     )
                 }
                 Spacer(modifier = Modifier.height(12.dp))
@@ -117,7 +117,7 @@ fun AgentStatusPanel(
                 Text(
                     text = "轮次: ${executionStatus.currentTurn} / ${executionStatus.maxTurns}",
                     fontSize = 13.sp,
-                    color = Color.TextSecondary
+                    color = AppColor.TextSecondary
                 )
                 
                 // 状态消息
@@ -126,7 +126,7 @@ fun AgentStatusPanel(
                     Text(
                         text = executionStatus.message!!,
                         fontSize = 13.sp,
-                        color = Color.TextPrimary,
+                        color = AppColor.TextPrimary,
                         fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
@@ -141,7 +141,7 @@ fun AgentStatusPanel(
                     text = "📋 工具调用历史",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,
-                    color = Color.TextPrimary
+                    color = AppColor.TextPrimary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -157,7 +157,7 @@ fun AgentStatusPanel(
                 Button(
                     onClick = onAbort,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Error),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColor.Error),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(
@@ -204,7 +204,7 @@ private fun ToolCallListItem(toolCall: ToolCall) {
         Text(
             text = toolCall.toolName,
             fontSize = 13.sp,
-            color = Color.TextPrimary,
+            color = AppColor.TextPrimary,
             modifier = Modifier.weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -215,13 +215,13 @@ private fun ToolCallListItem(toolCall: ToolCall) {
             CircularProgressIndicator(
                 modifier = Modifier.size(12.dp),
                 strokeWidth = 2.dp,
-                color = Color.Info
+                color = AppColor.Info
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = "运行中...",
                 fontSize = 11.sp,
-                color = Color.Info
+                color = AppColor.Info
             )
         }
     }

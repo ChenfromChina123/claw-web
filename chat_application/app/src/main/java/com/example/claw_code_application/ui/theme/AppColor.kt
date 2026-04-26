@@ -6,7 +6,7 @@ import androidx.compose.ui.graphics.Color
  * 应用颜色定义
  * 基于Vue前端的暗色主题配色方案（Indigo紫色系）
  */
-object Color {
+object AppColor {
     // 主色调 - Indigo紫色系
     val Primary = Color(0xFF6366F1)           // #6366f1
     val PrimaryLight = Color(0xFF818CF8)      // 浅紫色

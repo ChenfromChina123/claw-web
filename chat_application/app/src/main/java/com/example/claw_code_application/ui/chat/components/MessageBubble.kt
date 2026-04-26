@@ -13,7 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.Message
-import com.example.claw_code_application.ui.theme.Color
+import com.example.claw_code_application.ui.theme.AppColor
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -46,11 +46,11 @@ fun MessageBubble(
             if (!isUser) {
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = Color.Primary.copy(alpha = 0.2f)
+                    color = AppColor.Primary.copy(alpha = 0.2f)
                 ) {
                     Text(
                         text = "Claude",
-                        color = Color.Primary,
+                        color = AppColor.Primary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
@@ -63,14 +63,14 @@ fun MessageBubble(
             Box(
                 modifier = Modifier
                     .background(
-                        color = if (isUser) Color.UserBubbleBackground else Color.AssistantBubbleBackground,
+                        color = if (isUser) AppColor.UserBubbleBackground else AppColor.AssistantBubbleBackground,
                         shape = RoundedCornerShape(12.dp)
                     )
                     .padding(12.dp)
             ) {
                 Text(
                     text = message.content,
-                    color = Color.TextPrimary,
+                    color = AppColor.TextPrimary,
                     fontSize = 15.sp,
                     lineHeight = 20.sp
                 )
@@ -79,7 +79,7 @@ fun MessageBubble(
                 if (message.isStreaming) {
                     Text(
                         text = "▋",
-                        color = Color.Primary,
+                        color = AppColor.Primary,
                         modifier = Modifier.padding(start = 4.dp)
                     )
                 }
@@ -88,7 +88,7 @@ fun MessageBubble(
             // 时间戳
             Text(
                 text = formatTimestamp(message.timestamp),
-                color = Color.TextSecondary,
+                color = AppColor.TextSecondary,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(top = 4.dp)
             )
@@ -110,7 +110,7 @@ private fun Avatar(isUser: Boolean) {
         modifier = Modifier
             .size(36.dp)
             .clip(CircleShape)
-            .background(if (isUser) Color.Primary.copy(alpha = 0.3f) else Color.SurfaceLight),
+            .background(if (isUser) AppColor.Primary.copy(alpha = 0.3f) else AppColor.SurfaceLight),
         contentAlignment = Alignment.Center
     ) {
         Text(

@@ -23,7 +23,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.claw_code_application.ui.theme.Color
+import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.viewmodel.AuthViewModel
 
 /**
@@ -60,7 +60,7 @@ fun RegisterScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.BackgroundDark),
+            .background(AppColor.BackgroundDark),
         contentAlignment = Alignment.Center
     ) {
         Card(
@@ -68,7 +68,7 @@ fun RegisterScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.SurfaceDark),
+            colors = CardDefaults.cardColors(containerColor = AppColor.SurfaceDark),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             Column(
@@ -82,14 +82,14 @@ fun RegisterScreen(
                     text = "创建账户",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.TextPrimary,
+                    color = AppColor.TextPrimary,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 
                 Text(
                     text = "填写以下信息完成注册",
                     fontSize = 14.sp,
-                    color = Color.TextSecondary,
+                    color = AppColor.TextSecondary,
                     modifier = Modifier.padding(bottom = 24.dp)
                 )
 
@@ -98,9 +98,9 @@ fun RegisterScreen(
                     value = email,
                     onValueChange = { email = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("邮箱地址", color = Color.TextSecondary) },
+                    placeholder = { Text("邮箱地址", color = AppColor.TextSecondary) },
                     leadingIcon = {
-                        Icon(Icons.Default.Email, contentDescription = "邮箱", tint = Color.TextSecondary)
+                        Icon(Icons.Default.Email, contentDescription = "邮箱", tint = AppColor.TextSecondary)
                     },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
@@ -116,9 +116,9 @@ fun RegisterScreen(
                     value = username,
                     onValueChange = { username = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("用户名", color = Color.TextSecondary) },
+                    placeholder = { Text("用户名", color = AppColor.TextSecondary) },
                     leadingIcon = {
-                        Icon(Icons.Default.Person, contentDescription = "用户名", tint = Color.TextSecondary)
+                        Icon(Icons.Default.Person, contentDescription = "用户名", tint = AppColor.TextSecondary)
                     },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
@@ -136,16 +136,16 @@ fun RegisterScreen(
                         if (it.length <= 32) password = it 
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("密码（6-32位）", color = Color.TextSecondary) },
+                    placeholder = { Text("密码（6-32位）", color = AppColor.TextSecondary) },
                     leadingIcon = {
-                        Icon(Icons.Default.Lock, contentDescription = "密码", tint = Color.TextSecondary)
+                        Icon(Icons.Default.Lock, contentDescription = "密码", tint = AppColor.TextSecondary)
                     },
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
                                 imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                 contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
-                                tint = Color.TextSecondary
+                                tint = AppColor.TextSecondary
                             )
                         }
                     },
@@ -166,16 +166,16 @@ fun RegisterScreen(
                         if (it.length <= 32) confirmPassword = it 
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("确认密码", color = Color.TextSecondary) },
+                    placeholder = { Text("确认密码", color = AppColor.TextSecondary) },
                     leadingIcon = {
-                        Icon(Icons.Default.Lock, contentDescription = "确认密码", tint = Color.TextSecondary)
+                        Icon(Icons.Default.Lock, contentDescription = "确认密码", tint = AppColor.TextSecondary)
                     },
                     trailingIcon = {
                         IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
                             Icon(
                                 imageVector = if (confirmPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                 contentDescription = if (confirmPasswordVisible) "隐藏密码" else "显示密码",
-                                tint = Color.TextSecondary
+                                tint = AppColor.TextSecondary
                             )
                         }
                     },
@@ -200,7 +200,7 @@ fun RegisterScreen(
                             if (it.length <= 6) code = it 
                         },
                         modifier = Modifier.weight(1f),
-                        placeholder = { Text("验证码", color = Color.TextSecondary) },
+                        placeholder = { Text("验证码", color = AppColor.TextSecondary) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         colors = textFieldColors(),
@@ -215,7 +215,7 @@ fun RegisterScreen(
                         enabled = email.isNotBlank() && uiState !is AuthViewModel.UiState.Loading,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (email.isNotBlank()) Color.Primary else Color.SurfaceLight
+                            containerColor = if (email.isNotBlank()) AppColor.Primary else AppColor.SurfaceLight
                         ),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
                         modifier = Modifier.heightIn(min = 48.dp)
@@ -233,7 +233,7 @@ fun RegisterScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = (uiState as AuthViewModel.UiState.Error).message,
-                        color = Color.Error,
+                        color = AppColor.Error,
                         fontSize = 12.sp,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -263,13 +263,13 @@ fun RegisterScreen(
                              password == confirmPassword &&
                              code.isNotBlank(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Primary)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColor.Primary)
                 ) {
                     if (uiState is AuthViewModel.UiState.Loading) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
                             strokeWidth = 2.dp,
-                            color = Color.TextPrimary
+                            color = AppColor.TextPrimary
                         )
                     } else {
                         Text(
@@ -286,14 +286,14 @@ fun RegisterScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "已有账户？",
-                        color = Color.TextSecondary,
+                        color = AppColor.TextSecondary,
                         fontSize = 14.sp
                     )
                     
                     TextButton(onClick = onNavigateToLogin) {
                         Text(
                             text = "立即登录",
-                            color = Color.Primary,
+                            color = AppColor.Primary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -309,9 +309,9 @@ fun RegisterScreen(
  */
 @Composable
 private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = Color.Primary,
-    unfocusedBorderColor = Color.Border,
-    cursorColor = Color.Primary,
-    focusedTextColor = Color.TextPrimary,
-    unfocusedTextColor = Color.TextPrimary
+    focusedBorderColor = AppColor.Primary,
+    unfocusedBorderColor = AppColor.Border,
+    cursorColor = AppColor.Primary,
+    focusedTextColor = AppColor.TextPrimary,
+    unfocusedTextColor = AppColor.TextPrimary
 )

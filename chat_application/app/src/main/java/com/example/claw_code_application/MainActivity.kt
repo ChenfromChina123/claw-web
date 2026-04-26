@@ -24,7 +24,7 @@ import com.example.claw_code_application.ui.auth.RegisterScreen
 import com.example.claw_code_application.ui.chat.ChatScreen
 import com.example.claw_code_application.ui.chat.SessionListScreen
 import com.example.claw_code_application.ui.theme.ClawCodeApplicationTheme
-import com.example.claw_code_application.ui.theme.Color
+import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.viewmodel.AuthViewModel
 import com.example.claw_code_application.viewmodel.ChatViewModel
 import com.example.claw_code_application.viewmodel.SessionViewModel
@@ -139,13 +139,13 @@ private fun AuthCheckScreen(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(color = Color.Primary)
+            CircularProgressIndicator(color = AppColor.Primary)
             
             Spacer(modifier = Modifier.height(16.dp))
             
             Text(
                 text = "正在检查登录状态...",
-                color = Color.TextSecondary,
+                color = AppColor.TextSecondary,
                 fontSize = 14.sp
             )
         }
@@ -183,7 +183,7 @@ private fun ChatMainScreen(
         AnimatedVisibility(visible = showSessionList) {
             Surface(
                 modifier = Modifier.width(320.dp),
-                color = Color.BackgroundDark
+                color = AppColor.BackgroundDark
             ) {
                 when (val state = sessionUiState) {
                     is SessionViewModel.UiState.Loading -> {
@@ -191,7 +191,7 @@ private fun ChatMainScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(color = Color.Primary)
+                            CircularProgressIndicator(color = AppColor.Primary)
                         }
                     }
                     
@@ -231,7 +231,7 @@ private fun ChatMainScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
                                     text = "加载失败",
-                                    color = Color.Error,
+                                    color = AppColor.Error,
                                     fontSize = 16.sp
                                 )
                                 
@@ -239,7 +239,7 @@ private fun ChatMainScreen(
                                 
                                 Text(
                                     text = state.message,
-                                    color = Color.TextSecondary,
+                                    color = AppColor.TextSecondary,
                                     fontSize = 14.sp
                                 )
                                 
@@ -280,22 +280,22 @@ private fun ChatMainScreen(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .background(Color.SurfaceDark),
+                    .background(AppColor.SurfaceDark),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         imageVector = Icons.Default.ChatBubbleOutline,
                         contentDescription = null,
-                        tint = Color.TextSecondary.copy(alpha = 0.5f),
+                        tint = AppColor.TextSecondary.copy(alpha = 0.5f),
                         modifier = Modifier.size(80.dp)
                     )
-                    
+
                     Spacer(modifier = Modifier.height(24.dp))
-                    
+
                     Text(
                         text = "选择或创建一个会话开始聊天",
-                        color = Color.TextSecondary,
+                        color = AppColor.TextSecondary,
                         fontSize = 16.sp
                     )
                 }

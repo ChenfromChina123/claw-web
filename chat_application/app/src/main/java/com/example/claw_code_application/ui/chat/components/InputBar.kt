@@ -14,7 +14,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.example.claw_code_application.ui.theme.Color
+import com.example.claw_code_application.ui.theme.AppColor
 
 /**
  * 输入框组件
@@ -50,15 +50,15 @@ fun InputBar(
             placeholder = { 
                 Text(
                     "输入消息...",
-                    color = Color.TextSecondary
+                    color = AppColor.TextSecondary
                 ) 
             },
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color.Primary,
-                unfocusedBorderColor = Color.Border,
-                cursorColor = Color.Primary,
-                focusedTextColor = Color.TextPrimary,
-                unfocusedTextColor = Color.TextPrimary
+                focusedBorderColor = AppColor.Primary,
+                unfocusedBorderColor = AppColor.Border,
+                cursorColor = AppColor.Primary,
+                focusedTextColor = AppColor.TextPrimary,
+                unfocusedTextColor = AppColor.TextPrimary
             ),
             shape = RoundedCornerShape(24.dp),
             maxLines = 5,
@@ -89,15 +89,15 @@ fun InputBar(
                 }
             },
             modifier = Modifier.size(48.dp),
-            containerColor = if (text.isNotBlank() && enabled) Color.Primary else Color.SurfaceLight,
-            contentColor = Color.TextPrimary,
+            containerColor = if (text.isNotBlank() && enabled) AppColor.Primary else AppColor.SurfaceLight,
+            contentColor = AppColor.TextPrimary,
             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp),
             shape = RoundedCornerShape(24.dp)
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.Send,
                 contentDescription = "发送",
-                tint = if (text.isNotBlank() && enabled) Color.TextPrimary else Color.TextSecondary
+                tint = if (text.isNotBlank() && enabled) AppColor.TextPrimary else AppColor.TextSecondary
             )
         }
     }

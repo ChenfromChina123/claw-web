@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.ui.chat.components.*
-import com.example.claw_code_application.ui.theme.Color
+import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.viewmodel.ChatViewModel
 
 /**
@@ -44,7 +44,7 @@ fun ChatScreen(
                 title = { 
                     Text(
                         text = "AI 助手",
-                        color = Color.TextPrimary
+                        color = AppColor.TextPrimary
                     ) 
                 },
                 navigationIcon = {
@@ -52,12 +52,12 @@ fun ChatScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回",
-                            tint = Color.TextPrimary
+                            tint = AppColor.TextPrimary
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.SurfaceDark
+                    containerColor = AppColor.SurfaceDark
                 )
             )
         },
@@ -115,13 +115,13 @@ fun ChatScreen(
                                 .padding(32.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            CircularProgressIndicator(color = Color.Primary)
+                            CircularProgressIndicator(color = AppColor.Primary)
                             
                             Spacer(modifier = Modifier.height(16.dp))
                             
                             Text(
                                 text = "🤖 Agent 思考中...",
-                                color = Color.TextSecondary
+                                color = AppColor.TextSecondary
                             )
                         }
                     }
@@ -135,13 +135,13 @@ fun ChatScreen(
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = Color.Error.copy(alpha = 0.1f)
+                                containerColor = AppColor.Error.copy(alpha = 0.1f)
                             ),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
                         ) {
                             Text(
                                 text = (uiState as ChatViewModel.UiState.Error).message,
-                                color = Color.Error,
+                                color = AppColor.Error,
                                 modifier = Modifier.padding(16.dp)
                             )
                         }

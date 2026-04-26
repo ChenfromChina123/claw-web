@@ -15,28 +15,28 @@ import androidx.core.view.WindowCompat
  * 基于Vue前端的设计风格
  */
 private val DarkColorScheme = darkColorScheme(
-    primary = Color.Primary,
-    onPrimary = Color.TextPrimary,
-    primaryContainer = Color.PrimaryDark,
-    onPrimaryContainer = Color.TextPrimary,
+    primary = AppColor.Primary,
+    onPrimary = AppColor.TextPrimary,
+    primaryContainer = AppColor.PrimaryDark,
+    onPrimaryContainer = AppColor.TextPrimary,
 
-    secondary = Color.PrimaryLight,
-    onSecondary = Color.TextPrimary,
-    secondaryContainer = Color.SurfaceLight,
-    onSecondaryContainer = Color.TextPrimary,
+    secondary = AppColor.PrimaryLight,
+    onSecondary = AppColor.TextPrimary,
+    secondaryContainer = AppColor.SurfaceLight,
+    onSecondaryContainer = AppColor.TextPrimary,
 
-    background = Color.BackgroundDark,
-    onBackground = Color.TextPrimary,
+    background = AppColor.BackgroundDark,
+    onBackground = AppColor.TextPrimary,
 
-    surface = Color.SurfaceDark,
-    onSurface = Color.TextPrimary,
-    surfaceVariant = Color.SurfaceLight,
-    onSurfaceVariant = Color.TextSecondary,
+    surface = AppColor.SurfaceDark,
+    onSurface = AppColor.TextPrimary,
+    surfaceVariant = AppColor.SurfaceLight,
+    onSurfaceVariant = AppColor.TextSecondary,
 
-    error = Color.Error,
-    onError = Color.TextPrimary,
+    error = AppColor.Error,
+    onError = AppColor.TextPrimary,
 
-    outline = Color.Border
+    outline = AppColor.Border
 )
 
 /**
@@ -54,7 +54,7 @@ fun ClawCodeApplicationTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = Color.BackgroundDark.toArgb()
+            window.statusBarColor = AppColor.BackgroundDark.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
         }
     }

@@ -18,7 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.Session
-import com.example.claw_code_application.ui.theme.Color as AppColor
+import com.example.claw_code_application.ui.theme.AppColor
 import java.text.SimpleDateFormat
 import java.util.*
 
