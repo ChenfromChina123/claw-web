@@ -22,8 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.ui.theme.AppColor
-import com.halilibo.richtext.commonmark.Markdown
-import com.halilibo.richtext.ui.material3.RichText
+import dev.jeziellago.compose.markdowntext.MarkdownText
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -121,13 +120,13 @@ private fun MarkdownContent(
         processToolResults(content)
     }
 
-    RichText(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Markdown(
-            content = processedContent
-        )
-    }
+    MarkdownText(
+        markdown = processedContent,
+        modifier = Modifier.fillMaxWidth(),
+        color = AppColor.TextPrimary,
+        fontSize = 14.sp,
+        lineHeight = 20.sp
+    )
 }
 
 /**

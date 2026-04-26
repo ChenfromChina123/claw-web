@@ -90,7 +90,6 @@ dependencies {
 
     // Markdown渲染
     implementation(libs.markdown.renderer)
-    implementation(libs.markdown.material3)
 
     // Testing
     testImplementation(libs.junit)

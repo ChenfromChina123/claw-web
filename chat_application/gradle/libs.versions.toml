@@ -29,8 +29,8 @@ coroutinesAndroid = "1.7.3"
 coilCompose = "2.5.0"
 # Accompanist
 accompanistSystemUiController = "0.34.0"
-# Markdown渲染
-markdownRenderer = "0.23.0"
+# Markdown渲染 - 使用更常见的库
+markdownRenderer = "0.5.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -76,9 +76,8 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 # Accompanist
 accompanist-systemuicontroller = { group = "com.google.accompanist", name = "accompanist-systemuicontroller", version.ref = "accompanistSystemUiController" }
 
-# Markdown渲染
-markdown-renderer = { group = "com.halilibo.compose-richtext", name = "richtext-commonmark", version.ref = "markdownRenderer" }
-markdown-material3 = { group = "com.halilibo.compose-richtext", name = "richtext-ui-material3", version.ref = "markdownRenderer" }
+# Markdown渲染 - 使用 compose-markdown
+markdown-renderer = { group = "com.github.jeziellago", name = "compose-markdown", version.ref = "markdownRenderer" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
