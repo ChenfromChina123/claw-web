@@ -29,6 +29,8 @@ coroutinesAndroid = "1.7.3"
 coilCompose = "2.5.0"
 # Accompanist
 accompanistSystemUiController = "0.34.0"
+# Markdown渲染
+markdownRenderer = "0.23.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
