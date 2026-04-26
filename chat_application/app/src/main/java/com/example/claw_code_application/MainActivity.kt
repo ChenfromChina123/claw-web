@@ -12,11 +12,13 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -211,29 +213,57 @@ private fun ChatMainScreen(
                     }
                     
                     is SessionViewModel.UiState.Success -> {
-                        SessionListScreen(
-                            sessions = state.sessions,
-                            currentSessionId = selectedSessionId,
-                            onSelect = { sessionId ->
-                                sessionViewModel.selectSession(sessionId)
-                                selectedSessionId = sessionId
-                                showSessionList = false
-                            },
-                            onCreateNew = {
-                                // 创建新会话
-                                kotlinx.coroutines.MainScope().launch {
-                                    val newSessionId = sessionViewModel.createNewSession()
-                                    if (newSessionId != null) {
-                                        selectedSessionId = newSessionId
-                                        showSessionList = false
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            SessionListScreen(
+                                sessions = state.sessions,
+                                currentSessionId = selectedSessionId,
+                                onSelect = { sessionId ->
+                                    sessionViewModel.selectSession(sessionId)
+                                    selectedSessionId = sessionId
+                                    showSessionList = false
+                                },
+                                onCreateNew = {
+                                    // 创建新会话
+                                    kotlinx.coroutines.MainScope().launch {
+                                        val newSessionId = sessionViewModel.createNewSession()
+                                        if (newSessionId != null) {
+                                            selectedSessionId = newSessionId
+                                            showSessionList = false
+                                        }
                                     }
-                                }
-                            },
-                            onDelete = { sessionId ->
-                                sessionViewModel.deleteSession(sessionId)
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
+                                },
+                                onDelete = { sessionId ->
+                                    sessionViewModel.deleteSession(sessionId)
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+
+                            // 悬浮新建按钮 - Manus 风格
+                            FloatingActionButton(
+                                onClick = {
+                                    kotlinx.coroutines.MainScope().launch {
+                                        val newSessionId = sessionViewModel.createNewSession()
+                                        if (newSessionId != null) {
+                                            selectedSessionId = newSessionId
+                                            showSessionList = false
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(20.dp)
+                                    .size(56.dp),
+                                shape = androidx.compose.foundation.shape.CircleShape,
+                                containerColor = Color(0xFF1A1A1A),
+                                contentColor = Color.White
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "新建会话",
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
                     }
                     
                     is SessionViewModel.UiState.Error -> {

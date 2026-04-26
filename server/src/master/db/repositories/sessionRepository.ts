@@ -274,7 +274,8 @@ export class SessionRepository {
       title: row.title,
       model: row.model,
       // 数据库中 is_pinned 是 INTEGER (0/1)，需要转换为布尔值
-      isPinned: row.is_pinned === 1 || row.is_pinned === true,
+      // 使用 Boolean() 构造函数确保严格转换为布尔类型，避免返回数字
+      isPinned: Boolean(row.is_pinned),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
