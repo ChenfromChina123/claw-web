@@ -301,7 +301,7 @@ private fun ToolCallItem(toolCall: ToolCall) {
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(AppColor.Background.copy(alpha = 0.5f))
+                        .background(AppColor.SurfaceLight.copy(alpha = 0.5f))
                         .padding(8.dp)
                 )
 
@@ -321,7 +321,7 @@ private fun ToolCallItem(toolCall: ToolCall) {
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(AppColor.Background.copy(alpha = 0.5f))
+                            .background(AppColor.SurfaceLight.copy(alpha = 0.5f))
                             .padding(8.dp)
                     )
                 }
