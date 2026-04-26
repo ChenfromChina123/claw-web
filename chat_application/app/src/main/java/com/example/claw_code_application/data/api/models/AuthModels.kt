@@ -38,11 +38,24 @@ data class ApiError(
 )
 
 /**
- * 认证成功返回的数据（包含token和用户信息）
+ * 认证响应数据
+ * 与后端 /api/auth/login 返回结构匹配
  */
 data class AuthData(
-    val token: String,
-    val user: UserInfo
+    @SerializedName("accessToken")
+    val token: String,  // 后端返回 accessToken，映射为 token
+    @SerializedName("tokenType")
+    val tokenType: String = "Bearer",
+    @SerializedName("userId")
+    val userId: String,
+    @SerializedName("username")
+    val username: String,
+    @SerializedName("email")
+    val email: String,
+    @SerializedName("isAdmin")
+    val isAdmin: Boolean = false,
+    @SerializedName("avatar")
+    val avatar: String? = null
 )
 
 /**
