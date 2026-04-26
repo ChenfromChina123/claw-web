@@ -91,7 +91,7 @@ fun AgentStatusPanel(
             if (executionStatus != null && executionStatus.status == "running") {
                 Column {
                     LinearProgressIndicator(
-                        progress = executionStatus.progress / 100f,
+                        progress = { executionStatus.progress / 100f },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(8.dp)

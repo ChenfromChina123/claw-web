@@ -4,8 +4,10 @@ package com.example.claw_code_application.util
  * 应用常量定义
  */
 object Constants {
-    /** 后端服务基础URL（开发环境使用10.0.2.2访问主机） */
-    const val BASE_URL = "http://10.0.2.2:3000"
+    /** 后端服务基础URL（真机调试使用宿主机局域网IP） */
+    // 模拟器使用: http://10.0.2.2:3000
+    // 真机使用: http://192.168.209.123:3000 (根据实际网络环境修改)
+    const val BASE_URL = "http://192.168.209.123:3000"
 
     /** API超时时间（秒） */
     const val CONNECT_TIMEOUT = 30L

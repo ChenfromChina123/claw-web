@@ -82,7 +82,7 @@ fun SessionListScreen(
             }
         }
 
-        Divider(color = AppColor.Divider, thickness = 1.dp)
+        HorizontalDivider(color = AppColor.Divider, thickness = 1.dp)
 
         // 会话列表或空状态
         if (sessions.isEmpty()) {

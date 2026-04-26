@@ -29,6 +29,7 @@ import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.viewmodel.AuthViewModel
 import com.example.claw_code_application.viewmodel.ChatViewModel
 import com.example.claw_code_application.viewmodel.SessionViewModel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -128,15 +129,12 @@ private fun AuthCheckScreen(
     onNotAuthenticated: () -> Unit
 ) {
     LaunchedEffect(Unit) {
-        launch {
-            // 检查是否有存储的Token
-            ClawCodeApplication.tokenManager.getToken().collect { token ->
-                if (!token.isNullOrEmpty()) {
-                    onAuthenticated()
-                } else {
-                    onNotAuthenticated()
-                }
-            }
+        // 检查是否有存储的Token - 使用 first() 只获取一次值
+        val token = ClawCodeApplication.tokenManager.getToken().first()
+        if (!token.isNullOrEmpty()) {
+            onAuthenticated()
+        } else {
+            onNotAuthenticated()
         }
     }
 

@@ -126,7 +126,7 @@ fun ToolCallCard(
                 exit = shrinkVertically()
             ) {
                 Column(modifier = Modifier.padding(top = 12.dp)) {
-                    Divider(color = AppColor.Divider, thickness = 1.dp)
+                    HorizontalDivider(color = AppColor.Divider, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // 输入参数
@@ -242,20 +242,13 @@ private data class StatusConfig(
 /**
  * 获取状态配置
  */
-@Composable
 private fun getStatusConfig(status: String): StatusConfig {
-    val warning = AppColor.Warning
-    val info = AppColor.Info
-    val success = AppColor.Success
-    val error = AppColor.Error
-    val gray = AppColor.TextSecondary
-    
     return when (status) {
-        "pending" -> StatusConfig(icon = "⏳", label = "等待中", color = warning)
-        "executing" -> StatusConfig(icon = "⚙️", label = "执行中", color = info)
-        "completed" -> StatusConfig(icon = "✅", label = "已完成", color = success)
-        "error" -> StatusConfig(icon = "❌", label = "错误", color = error)
-        else -> StatusConfig(icon = "❓", label = "未知", color = gray)
+        "pending" -> StatusConfig(icon = "⏳", label = "等待中", color = AppColor.Warning)
+        "executing" -> StatusConfig(icon = "⚙️", label = "执行中", color = AppColor.Info)
+        "completed" -> StatusConfig(icon = "✅", label = "已完成", color = AppColor.Success)
+        "error" -> StatusConfig(icon = "❌", label = "错误", color = AppColor.Error)
+        else -> StatusConfig(icon = "❓", label = "未知", color = AppColor.TextSecondary)
     }
 }
 

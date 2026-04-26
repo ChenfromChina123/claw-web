@@ -7,8 +7,8 @@ junitVersion = "1.1.5"
 espressoCore = "3.5.1"
 appcompat = "1.6.1"
 material = "1.10.0"
-# Compose BOM 版本
-composeBom = "2024.01.00"
+# Compose BOM 版本 - 使用与 Kotlin 2.0.21 兼容的版本
+composeBom = "2024.02.00"
 # 导航组件
 navigationCompose = "2.7.6"
 # Lifecycle
@@ -27,7 +27,7 @@ coroutinesAndroid = "1.7.3"
 # 图片加载
 coilCompose = "2.5.0"
 # Accompanist
-accompanistSystemUiController = "0.32.0"
+accompanistSystemUiController = "0.34.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
