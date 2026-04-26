@@ -1,5 +1,6 @@
+# ==================== Gradle ====================
 *.iml
-.gradle
+.gradle/
 /local.properties
 /.idea/caches
 /.idea/libraries
@@ -7,9 +8,67 @@
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+/.idea/gradle.xml
+/.idea/misc.xml
+/.idea/vcs.xml
+/.idea/dictionaries
+/.idea/inspectionProfiles
 .DS_Store
-/build
-/captures
+/build/
+/captures/
 .externalNativeBuild
-.cxx
+.cxx/
 local.properties
+
+# ==================== Android ====================
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+bin/
+gen/
+out/
+proguard/
+*.jks
+*.keystore
+
+# ==================== IDE ====================
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+*~
+
+# ==================== OS ====================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==================== 日志和临时文件 ====================
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+
+# ==================== 依赖缓存 ====================
+# 注意：gradle-wrapper.jar 应该提交，但其他缓存不需要
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# ==================== 测试 ====================
+/test-results/
+/androidTest/
+/test/
+
+# ==================== 本地配置 ====================
+local.properties
+secrets.properties
+signing.properties

@@ -1,1 +1,35 @@
-/build
+# ==================== Android 构建产物 ====================
+/build/
+/debug/
+/release/
+
+# ==================== 生成的文件 ====================
+/generated/
+/intermediates/
+/outputs/
+/tmp/
+
+# ==================== 本地配置 ====================
+/local.properties
+/secrets.properties
+/signing.properties
+
+# ==================== IDE ====================
+/.idea/
+*.iml
+
+# ==================== 测试 ====================
+/test-results/
+/androidTest/
+/test/
+
+# ==================== NDK ====================
+/.externalNativeBuild/
+/.cxx/
+/obj/
+
+# ==================== 其他 ====================
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
