@@ -76,7 +76,7 @@ class ChatViewModel(
      */
     private fun connectWebSocket() {
         viewModelScope.launch {
-            val token = tokenManager.getToken()
+            val token = tokenManager.getTokenSync()
             if (token != null) {
                 webSocketManager.connect(token)
             }

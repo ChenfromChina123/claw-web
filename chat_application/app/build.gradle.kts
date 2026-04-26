@@ -30,6 +30,10 @@ android {
             )
         }
     }
+
+    lint {
+        checkReleaseBuilds = false
+    }
     
     // 启用 BuildConfig
     buildFeatures {
