@@ -24,7 +24,7 @@ import java.util.*
 
 /**
  * 会话列表界面
- * 复刻Vue前端SessionSidebar.vue的设计风格（暗色主题）
+ * 基于原型Manus风格设计 - 浅色主题
  */
 @Composable
 fun SessionListScreen(
@@ -40,11 +40,12 @@ fun SessionListScreen(
             .fillMaxSize()
             .background(AppColor.BackgroundDark)
     ) {
-        // 头部标题栏
+        // 头部标题栏 - 原型样式
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .background(AppColor.SurfaceDark)
+                .padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -53,32 +54,44 @@ fun SessionListScreen(
                 Icon(
                     imageVector = Icons.Default.ChatBubbleOutline,
                     contentDescription = null,
-                    tint = AppColor.Primary,
-                    modifier = Modifier.size(24.dp)
+                    tint = AppColor.TextPrimary,
+                    modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "会话列表",
-                    fontSize = 20.sp,
+                    text = "Manus",
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = AppColor.TextPrimary
                 )
+                Spacer(modifier = Modifier.width(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = AppColor.SurfaceLight
+                ) {
+                    Text(
+                        text = "1.6 Lite",
+                        fontSize = 11.sp,
+                        color = AppColor.TextSecondary,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
 
-            // 新建会话按钮
-            FloatingActionButton(
-                onClick = onCreateNew,
-                modifier = Modifier.size(40.dp),
-                containerColor = AppColor.Primary,
-                contentColor = AppColor.TextPrimary,
-                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 2.dp),
-                shape = RoundedCornerShape(12.dp)
+            // 新建会话按钮 - 原型样式圆形按钮
+            Surface(
+                modifier = Modifier.size(32.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = AppColor.SurfaceLight,
+                shadowElevation = 1.dp
             ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "新对话",
-                    modifier = Modifier.size(20.dp)
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "+",
+                        fontSize = 20.sp,
+                        color = AppColor.TextPrimary
+                    )
+                }
             }
         }
 
@@ -90,7 +103,7 @@ fun SessionListScreen(
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 items(sessions, key = { it.id }) { session ->
                     SessionItem(
@@ -106,7 +119,7 @@ fun SessionListScreen(
 }
 
 /**
- * 单个会话项
+ * 单个会话项 - 原型样式
  */
 @Composable
 private fun SessionItem(
@@ -119,52 +132,46 @@ private fun SessionItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        shape = RoundedCornerShape(0.dp),
         color = if (isSelected) AppColor.SurfaceLight else androidx.compose.ui.graphics.Color.Transparent
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            // 左侧信息
-            Column(modifier = Modifier.weight(1f)) {
-                // 会话标题
+            // 会话标题
+            Text(
+                text = if (session.title.isNotEmpty()) session.title else "新对话",
+                fontSize = 14.sp,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                color = AppColor.TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // 元数据（时间 + 模型）
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text(
-                    text = if (session.title.isNotEmpty()) session.title else "新对话",
-                    fontSize = 15.sp,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = AppColor.TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = formatRelativeTime(session.updatedAt),
+                    fontSize = 12.sp,
+                    color = AppColor.TextSecondary
                 )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // 元数据（时间 + 模型）
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = formatRelativeTime(session.updatedAt),
-                        fontSize = 12.sp,
-                        color = AppColor.TextSecondary
-                    )
-                    
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = AppColor.SurfaceDark
-                    ) {
-                        Text(
-                            text = session.model,
-                            fontSize = 11.sp,
-                            color = AppColor.TextSecondary.copy(alpha = 0.7f),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
+                
+                Text(
+                    text = "·",
+                    fontSize = 12.sp,
+                    color = AppColor.TextSecondary
+                )
+                
+                Text(
+                    text = session.model,
+                    fontSize = 12.sp,
+                    color = AppColor.TextSecondary
+                )
             }
         }
     }

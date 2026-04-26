@@ -20,7 +20,9 @@ class ChatRepository(
     suspend fun getSessions(): Result<List<Session>> {
         return try {
             val token = getTokenOrThrow()
-            val response = apiService.getSessions(token)
+            // 添加 Bearer 前缀，因为服务器期望 Authorization: Bearer <token>
+            val authHeader = "Bearer $token"
+            val response = apiService.getSessions(authHeader)
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
                 if (body.success) {
@@ -48,8 +50,9 @@ class ChatRepository(
     ): Result<Session> {
         return try {
             val token = getTokenOrThrow()
+            val authHeader = "Bearer $token"
             val response = apiService.createSession(
-                token,
+                authHeader,
                 CreateSessionRequest(title = title, model = model)
             )
             if (response.isSuccessful && response.body() != null) {
@@ -75,7 +78,8 @@ class ChatRepository(
     suspend fun getSessionDetail(sessionId: String): Result<SessionDetail> {
         return try {
             val token = getTokenOrThrow()
-            val response = apiService.getSessionDetail(token, sessionId)
+            val authHeader = "Bearer $token"
+            val response = apiService.getSessionDetail(authHeader, sessionId)
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
                 if (body.success && body.data != null) {
@@ -98,7 +102,8 @@ class ChatRepository(
     suspend fun deleteSession(sessionId: String): Result<Unit> {
         return try {
             val token = getTokenOrThrow()
-            val response = apiService.deleteSession(token, sessionId)
+            val authHeader = "Bearer $token"
+            val response = apiService.deleteSession(authHeader, sessionId)
             if (response.isSuccessful) {
                 Result.success(Unit)
             } else {
@@ -128,6 +133,7 @@ class ChatRepository(
     ): Result<ExecuteAgentResponse> {
         return try {
             val token = getTokenOrThrow()
+            val authHeader = "Bearer $token"
             val request = ExecuteAgentRequest(
                 agentId = Constants.DEFAULT_AGENT_ID,
                 sessionId = sessionId,
@@ -137,7 +143,7 @@ class ChatRepository(
                 maxTurns = maxTurns
             )
             
-            val response = apiService.executeAgent(token, request)
+            val response = apiService.executeAgent(authHeader, request)
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
                 if (body.success && body.data != null) {
@@ -160,7 +166,8 @@ class ChatRepository(
     suspend fun interruptAgent(agentId: String = Constants.DEFAULT_AGENT_ID): Result<Unit> {
         return try {
             val token = getTokenOrThrow()
-            val response = apiService.interruptAgent(token, agentId)
+            val authHeader = "Bearer $token"
+            val response = apiService.interruptAgent(authHeader, agentId)
             if (response.isSuccessful) {
                 Result.success(Unit)
             } else {

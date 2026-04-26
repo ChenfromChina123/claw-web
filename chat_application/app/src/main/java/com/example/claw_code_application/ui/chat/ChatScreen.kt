@@ -1,16 +1,21 @@
 package com.example.claw_code_application.ui.chat
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.ui.chat.components.*
@@ -19,7 +24,7 @@ import com.example.claw_code_application.viewmodel.ChatViewModel
 
 /**
  * 聊天详情界面
- * 整合消息列表、工具调用卡片、输入框等组件
+ * 基于原型Manus风格设计 - 浅色主题
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,10 +47,26 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = { 
-                    Text(
-                        text = "AI 助手",
-                        color = AppColor.TextPrimary
-                    ) 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Manus",
+                            color = AppColor.TextPrimary,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+                            color = AppColor.SurfaceLight
+                        ) {
+                            Text(
+                                text = "1.6 Lite",
+                                color = AppColor.TextSecondary,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -55,6 +76,26 @@ fun ChatScreen(
                             tint = AppColor.TextPrimary
                         )
                     }
+                },
+                actions = {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "用户",
+                        tint = AppColor.TextPrimary,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Link,
+                        contentDescription = "链接",
+                        tint = AppColor.TextPrimary,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "更多",
+                        tint = AppColor.TextPrimary,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = AppColor.SurfaceDark
@@ -68,7 +109,8 @@ fun ChatScreen(
                 },
                 enabled = uiState !is ChatViewModel.UiState.Loading
             )
-        }
+        },
+        containerColor = AppColor.BackgroundDark
     ) { paddingValues ->
         Box(
             modifier = modifier
@@ -78,8 +120,8 @@ fun ChatScreen(
             LazyColumn(
                 state = listState,
                 reverseLayout = true,
-                contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 // 消息列表

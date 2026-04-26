@@ -1,14 +1,11 @@
 package com.example.claw_code_application.ui.chat.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -19,7 +16,7 @@ import java.util.*
 
 /**
  * 消息气泡组件
- * 复刻Vue前端ChatMessage.vue的设计风格
+ * 基于原型Manus风格设计 - 浅色主题
  */
 @Composable
 fun MessageBubble(
@@ -31,57 +28,46 @@ fun MessageBubble(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
-        if (!isUser) {
-            Avatar(isUser = false)
-            Spacer(modifier = Modifier.width(8.dp))
-        }
-
         Column(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
         ) {
-            // AI消息显示角色标签
-            if (!isUser) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = AppColor.Primary.copy(alpha = 0.2f)
+            // 消息内容卡片 - 原型样式
+            Surface(
+                shape = RoundedCornerShape(
+                    topStart = if (isUser) 16.dp else 12.dp,
+                    topEnd = if (isUser) 4.dp else 16.dp,
+                    bottomStart = 16.dp,
+                    bottomEnd = 16.dp
+                ),
+                color = if (isUser) AppColor.UserBubbleBackground else AppColor.AssistantBubbleBackground,
+                shadowElevation = if (isUser) 0.dp else 1.dp,
+                border = if (isUser) null else androidx.compose.foundation.BorderStroke(1.dp, AppColor.Border)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.Bottom
                 ) {
                     Text(
-                        text = "Claude",
-                        color = AppColor.Primary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        text = message.content,
+                        color = if (isUser) AppColor.SurfaceDark else AppColor.TextPrimary,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        modifier = Modifier.padding(
+                            horizontal = 14.dp,
+                            vertical = 10.dp
+                        )
                     )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-            }
 
-            // 消息内容卡片
-            Box(
-                modifier = Modifier
-                    .background(
-                        color = if (isUser) AppColor.UserBubbleBackground else AppColor.AssistantBubbleBackground,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    .padding(12.dp)
-            ) {
-                Text(
-                    text = message.content,
-                    color = AppColor.TextPrimary,
-                    fontSize = 15.sp,
-                    lineHeight = 20.sp
-                )
-
-                // 流式输出光标
-                if (message.isStreaming) {
-                    Text(
-                        text = "▋",
-                        color = AppColor.Primary,
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
+                    // 流式输出光标
+                    if (message.isStreaming) {
+                        Text(
+                            text = "▋",
+                            color = if (isUser) AppColor.SurfaceDark else AppColor.Primary,
+                            modifier = Modifier.padding(end = 14.dp, bottom = 10.dp)
+                        )
+                    }
                 }
             }
 
@@ -90,33 +76,9 @@ fun MessageBubble(
                 text = formatTimestamp(message.timestamp),
                 color = AppColor.TextSecondary,
                 fontSize = 11.sp,
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp)
             )
         }
-
-        if (isUser) {
-            Spacer(modifier = Modifier.width(8.dp))
-            Avatar(isUser = true)
-        }
-    }
-}
-
-/**
- * 用户/AI头像组件
- */
-@Composable
-private fun Avatar(isUser: Boolean) {
-    Box(
-        modifier = Modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .background(if (isUser) AppColor.Primary.copy(alpha = 0.3f) else AppColor.SurfaceLight),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = if (isUser) "👤" else "🤖",
-            fontSize = 18.sp
-        )
     }
 }
 

@@ -26,7 +26,7 @@ import com.google.gson.GsonBuilder
 
 /**
  * 工具调用卡片组件
- * 完全复刻Vue前端ToolUseMessage.vue的设计风格和交互逻辑
+ * 基于原型Manus风格设计 - 浅色主题
  */
 @Composable
 fun ToolCallCard(
@@ -41,12 +41,16 @@ fun ToolCallCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = AppColor.SurfaceLight),
-        border = BorderStroke(3.dp, statusConfig.color)
+        colors = CardDefaults.cardColors(
+            containerColor = AppColor.SurfaceDark,
+            contentColor = AppColor.TextPrimary
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, AppColor.Border)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             // 头部（可点击）
             Row(
                 modifier = Modifier
@@ -57,66 +61,22 @@ fun ToolCallCard(
             ) {
                 // 左侧：图标 + 名称 + 状态标签
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 状态图标
+                    // 工具名称 - 原型样式带星号
                     Text(
-                        text = statusConfig.icon,
-                        fontSize = 18.sp
-                    )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // 工具名称
-                    Text(
-                        text = toolCall.toolName,
+                        text = "✦ ${toolCall.toolName}",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
                         color = AppColor.TextPrimary
                     )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // 状态标签（Chip样式）
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = statusConfig.color.copy(alpha = 0.2f)
-                    ) {
-                        Text(
-                            text = statusConfig.label,
-                            color = statusConfig.color,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
-                    }
                 }
 
-                // 右侧：耗时 + 展开箭头
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 执行中的加载动画
-                    if (toolCall.status == "executing") {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 2.dp,
-                            color = AppColor.Info
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = formatDuration(toolCall.createdAt),
-                            fontSize = 12.sp,
-                            color = AppColor.TextSecondary
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // 展开/收起图标
-                    Icon(
-                        imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (expanded) "收起" else "展开",
-                        tint = AppColor.TextSecondary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                // 右侧：展开箭头
+                Icon(
+                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (expanded) "收起" else "展开",
+                    tint = AppColor.TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
 
             // 详情区域（可折叠）
@@ -200,32 +160,14 @@ fun ToolCallCard(
                         Button(
                             onClick = onRetry,
                             colors = ButtonDefaults.buttonColors(containerColor = AppColor.Error),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(6.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("重试", fontWeight = FontWeight.Medium)
                         }
                     }
-
-                    // 执行耗时
-                    if (toolCall.completedAt != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "⏱ 执行时间: ${calculateDuration(toolCall.createdAt, toolCall.completedAt!!)}",
-                            fontSize = 11.sp,
-                            color = AppColor.TextSecondary.copy(alpha = 0.7f)
-                        )
-                    }
                 }
             }
-
-            // 底部时间戳
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = formatDateTime(toolCall.createdAt),
-                fontSize = 10.sp,
-                color = AppColor.TextSecondary.copy(alpha = 0.6f)
-            )
         }
     }
 }

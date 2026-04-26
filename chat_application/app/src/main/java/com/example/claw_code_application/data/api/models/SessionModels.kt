@@ -4,17 +4,20 @@ import com.google.gson.annotations.SerializedName
 
 /**
  * 会话信息
+ * 与后端数据库结构保持一致
  */
 data class Session(
     val id: String,
     val title: String,
     val model: String = "qwen-plus",
+    @SerializedName("userId")
+    val userId: String? = null,
+    @SerializedName("isPinned")
+    val isPinned: Boolean = false,
     @SerializedName("createdAt")
     val createdAt: String,
     @SerializedName("updatedAt")
-    val updatedAt: String,
-    @SerializedName("isPinned")
-    val isPinned: Boolean = false
+    val updatedAt: String
 )
 
 /**

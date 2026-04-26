@@ -5,6 +5,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -160,6 +164,7 @@ private fun AuthCheckScreen(
 /**
  * 聊天主界面（包含会话列表和聊天详情）
  * 集成SessionViewModel实现完整的会话管理功能
+ * 手机端采用全屏模式，Web端采用分屏模式
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -183,11 +188,16 @@ private fun ChatMainScreen(
         sessionViewModel.loadSessions()
     }
 
-    Row(modifier = Modifier.fillMaxSize()) {
-        // 左侧会话列表
-        AnimatedVisibility(visible = showSessionList) {
+    // 手机端：全屏切换模式
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 会话列表（全屏）
+        AnimatedVisibility(
+            visible = showSessionList || selectedSessionId == null,
+            enter = fadeIn() + slideInHorizontally { -it },
+            exit = fadeOut() + slideOutHorizontally { -it }
+        ) {
             Surface(
-                modifier = Modifier.width(320.dp),
+                modifier = Modifier.fillMaxSize(),
                 color = AppColor.BackgroundDark
             ) {
                 when (val state = sessionUiState) {
@@ -262,8 +272,12 @@ private fun ChatMainScreen(
             }
         }
 
-        // 右侧聊天详情
-        if (selectedSessionId != null || !showSessionList) {
+        // 聊天详情（全屏）
+        AnimatedVisibility(
+            visible = selectedSessionId != null && !showSessionList,
+            enter = fadeIn() + slideInHorizontally { it },
+            exit = fadeOut() + slideOutHorizontally { it }
+        ) {
             ChatScreen(
                 viewModel = ChatViewModel(
                     chatRepository = ClawCodeApplication.chatRepository,
@@ -278,33 +292,8 @@ private fun ChatMainScreen(
                     showSessionList = true
                     // 不清空selectedSessionId，保持选中状态
                 },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxSize()
             )
-        } else {
-            // 未选择会话时显示空状态
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .background(AppColor.SurfaceDark),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.ChatBubbleOutline,
-                        contentDescription = null,
-                        tint = AppColor.TextSecondary.copy(alpha = 0.5f),
-                        modifier = Modifier.size(80.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Text(
-                        text = "选择或创建一个会话开始聊天",
-                        color = AppColor.TextSecondary,
-                        fontSize = 16.sp
-                    )
-                }
-            }
         }
     }
 }
