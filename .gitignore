@@ -36,10 +36,20 @@ server/dist/
 *.tar.gz
 *.zip
 
+# 特定的大文件（已清理）
+claw-web-images.tar
+claw-web-images.zip
+
 # Docker 镜像相关（二进制文件，极大）
 *.image
 *.img
 docker-image-*
+
+# Android 构建产物
+*.apk
+*.aab
+*.ap_
+*.dex
 
 # IDE 和编辑器
 .vscode/
