@@ -209,25 +209,16 @@ export class MessageRepository {
 
   private mapToMessage(row: any): Message {
     let content = row.content
-    
+
     console.log(`[MessageRepository] Mapping message: id=${row.id}, role=${row.role}, content type=${typeof content}`)
-    
-    // 如果 content 是字符串，尝试解析为 JSON
-    if (typeof content === 'string' && content.length > 0) {
-      try {
-        // 先检查是否看起来像 JSON
-        const firstChar = content.trim().charAt(0)
-        if (firstChar === '[' || firstChar === '{') {
-          const parsed = JSON.parse(content)
-          console.log(`[MessageRepository] Successfully parsed content as JSON:`, typeof parsed)
-          content = parsed
-        }
-      } catch (e) {
-        // 解析失败，保持原字符串
-        console.debug('[MessageRepository] Failed to parse content as JSON, keeping as string:', (e as Error).message)
-      }
+
+    // 确保 content 始终是字符串返回给客户端
+    // 如果 content 是数组或对象，转换为 JSON 字符串
+    if (typeof content === 'object' && content !== null) {
+      content = JSON.stringify(content)
+      console.log(`[MessageRepository] Converted object content to string`)
     }
-    
+
     const message: Message = {
       id: row.id,
       sessionId: row.session_id,
@@ -236,9 +227,9 @@ export class MessageRepository {
       createdAt: row.created_at,
       sequence: row.sequence,
     }
-    
+
     console.log(`[MessageRepository] Mapped message:`, message)
-    
+
     return message
   }
 }
