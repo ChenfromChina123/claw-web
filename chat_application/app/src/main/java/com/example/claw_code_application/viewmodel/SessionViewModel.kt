@@ -2,8 +2,10 @@ package com.example.claw_code_application.viewmodel
 
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.claw_code_application.data.api.models.Session
+import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.repository.ChatRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,19 +48,18 @@ class SessionViewModel(
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             
-            when (val result = chatRepository.getSessions()) {
-                is Result.Success -> {
-                    val sessionList = result.data ?: emptyList()
+            val result = chatRepository.getSessions()
+            result.fold(
+                onSuccess = { sessionList ->
+                    val list = sessionList ?: emptyList()
                     _sessions.clear()
-                    _sessions.addAll(sessionList)
+                    _sessions.addAll(list)
                     _uiState.value = UiState.Success(_sessions.toList())
+                },
+                onFailure = { e ->
+                    _uiState.value = UiState.Error(e.message ?: "加载会话失败")
                 }
-                is Result.Failure -> {
-                    _uiState.value = UiState.Error(
-                        result.exception.message ?: "加载会话失败"
-                    )
-                }
-            }
+            )
         }
     }
 
@@ -68,19 +69,17 @@ class SessionViewModel(
      */
     suspend fun createNewSession(): String? {
         return try {
-            when (val result = chatRepository.createSession()) {
-                is Result.Success -> {
-                    val newSession = result.data!!
+            val result = chatRepository.createSession()
+            result.fold(
+                onSuccess = { newSession ->
                     // 添加到列表头部
                     _sessions.add(0, newSession)
                     selectedSessionId = newSession.id
                     _uiState.value = UiState.Success(_sessions.toList())
                     newSession.id
-                }
-                is Result.Failure -> {
-                    null
-                }
-            }
+                },
+                onFailure = { null }
+            )
         } catch (e: Exception) {
             null
         }
@@ -100,8 +99,9 @@ class SessionViewModel(
      */
     fun deleteSession(sessionId: String) {
         viewModelScope.launch {
-            when (val result = chatRepository.deleteSession(sessionId)) {
-                is Result.Success -> {
+            val result = chatRepository.deleteSession(sessionId)
+            result.fold(
+                onSuccess = {
                     // 从列表中移除
                     _sessions.removeAll { it.id == sessionId }
                     
@@ -111,13 +111,11 @@ class SessionViewModel(
                     }
                     
                     _uiState.value = UiState.Success(_sessions.toList())
+                },
+                onFailure = { e ->
+                    _uiState.value = UiState.Error(e.message ?: "删除会话失败")
                 }
-                is Result.Failure -> {
-                    _uiState.value = UiState.Error(
-                        result.exception.message ?: "删除会话失败"
-                    )
-                }
-            }
+            )
         }
     }
 
@@ -141,9 +139,14 @@ class SessionViewModel(
          */
         fun provideFactory(
             chatRepository: ChatRepository,
-            tokenManager: TokenManager
-        ): javax.inject.Provider<SessionViewModel> {
-            return javax.inject.Provider { SessionViewModel(chatRepository, tokenManager) }
+            tokenManager: com.example.claw_code_application.data.local.TokenManager
+        ): ViewModelProvider.Factory {
+            return object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                    return SessionViewModel(chatRepository, tokenManager) as T
+                }
+            }
         }
     }
 }

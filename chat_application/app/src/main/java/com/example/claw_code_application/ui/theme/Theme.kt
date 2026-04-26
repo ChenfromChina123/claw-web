@@ -13,6 +13,7 @@ import androidx.core.view.WindowCompat
 /**
  * 暗色主题配色方案
  * 基于Vue前端的设计风格
+ */
 private val DarkColorScheme = darkColorScheme(
     primary = Color.Primary,
     onPrimary = Color.TextPrimary,

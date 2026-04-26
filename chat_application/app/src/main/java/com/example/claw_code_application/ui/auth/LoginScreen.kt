@@ -1,5 +1,6 @@
 package com.example.claw_code_application.ui.auth
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -139,7 +140,7 @@ fun LoginScreen(
                     ),
                     keyboardActions = KeyboardActions(
                         onDone = {
-                            focusManager.clearForce()
+                            focusManager.clearFocus()
                             if (email.isNotBlank() && password.isNotBlank()) {
                                 viewModel.login(email, password)
                             }

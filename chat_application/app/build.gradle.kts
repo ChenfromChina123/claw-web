@@ -49,7 +49,7 @@ android {
 dependencies {
     // Core
     implementation(libs.androidx.core.ktx)
-    implementation(libs.appcompat)
+    implementation(libs.androidx.appcompat)
     implementation(libs.material)
     
     // Compose BOM (统一版本管理)
@@ -66,6 +66,7 @@ dependencies {
     // Lifecycle & ViewModel
     implementation(libs.lifecycle.runtime.ktx)
     implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.lifecycle.runtime.compose)
     implementation(libs.activity.compose)
 
     // Network - OkHttp + Retrofit

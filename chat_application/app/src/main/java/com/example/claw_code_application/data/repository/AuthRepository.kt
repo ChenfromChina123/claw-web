@@ -105,7 +105,7 @@ class AuthRepository(
      * 获取存储的Token，如果不存在则抛出异常
      */
     private suspend fun getTokenOrThrow(): String {
-        return tokenManager.getToken()
+        return tokenManager.getTokenSync()
             ?.takeIf { it.isNotEmpty() }
             ?: throw Exception("未登录，请先登录")
     }

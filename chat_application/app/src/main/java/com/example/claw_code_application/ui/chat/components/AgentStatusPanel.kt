@@ -1,6 +1,5 @@
 package com.example.claw_code_application.ui.chat.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -11,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -91,7 +91,7 @@ fun AgentStatusPanel(
             if (executionStatus != null && executionStatus.status == "running") {
                 Column {
                     LinearProgressIndicator(
-                        progress = { executionStatus.progress / 100f },
+                        progress = executionStatus.progress / 100f,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(8.dp)
@@ -103,7 +103,7 @@ fun AgentStatusPanel(
                     
                     Text(
                         text = "${executionStatus.progress}%",
-                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                        textAlign = TextAlign.End,
                         modifier = Modifier.fillMaxWidth(),
                         fontSize = 12.sp,
                         color = Color.TextSecondary

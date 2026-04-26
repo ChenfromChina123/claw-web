@@ -1,5 +1,7 @@
 package com.example.claw_code_application.data.api.models
 
+import com.google.gson.annotations.SerializedName
+
 /**
  * 会话信息
  */

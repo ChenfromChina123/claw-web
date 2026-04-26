@@ -4,16 +4,27 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.navigation.NavHostController
-import androidx.navigation.compose.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.claw_code_application.ui.auth.LoginScreen
 import com.example.claw_code_application.ui.auth.RegisterScreen
 import com.example.claw_code_application.ui.chat.ChatScreen
 import com.example.claw_code_application.ui.chat.SessionListScreen
 import com.example.claw_code_application.ui.theme.ClawCodeApplicationTheme
+import com.example.claw_code_application.ui.theme.Color
 import com.example.claw_code_application.viewmodel.AuthViewModel
 import com.example.claw_code_application.viewmodel.ChatViewModel
 import com.example.claw_code_application.viewmodel.SessionViewModel
@@ -125,16 +136,16 @@ private fun AuthCheckScreen(
     // 显示加载指示器
     Box(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = androidx.compose.ui.Alignment.Center
+        contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-            CircularProgressIndicator(color = com.example.claw_code_application.ui.theme.Color.Primary)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = Color.Primary)
             
             Spacer(modifier = Modifier.height(16.dp))
             
             Text(
                 text = "正在检查登录状态...",
-                color = com.example.claw_code_application.ui.theme.Color.TextSecondary,
+                color = Color.TextSecondary,
                 fontSize = 14.sp
             )
         }
@@ -172,17 +183,15 @@ private fun ChatMainScreen(
         AnimatedVisibility(visible = showSessionList) {
             Surface(
                 modifier = Modifier.width(320.dp),
-                color = com.example.claw_code_application.ui.theme.Color.BackgroundDark
+                color = Color.BackgroundDark
             ) {
                 when (val state = sessionUiState) {
                     is SessionViewModel.UiState.Loading -> {
                         Box(
                             modifier = Modifier.fillMaxSize(),
-                            contentAlignment = androidx.compose.ui.Alignment.Center
+                            contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(
-                                color = com.example.claw_code_application.ui.theme.Color.Primary
-                            )
+                            CircularProgressIndicator(color = Color.Primary)
                         }
                     }
                     
@@ -217,12 +226,12 @@ private fun ChatMainScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(32.dp),
-                            contentAlignment = androidx.compose.ui.Alignment.Center
+                            contentAlignment = Alignment.Center
                         ) {
-                            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
                                     text = "加载失败",
-                                    color = com.example.claw_code_application.ui.theme.Color.Error,
+                                    color = Color.Error,
                                     fontSize = 16.sp
                                 )
                                 
@@ -230,7 +239,7 @@ private fun ChatMainScreen(
                                 
                                 Text(
                                     text = state.message,
-                                    color = com.example.claw_code_application.ui.theme.Color.TextSecondary,
+                                    color = Color.TextSecondary,
                                     fontSize = 14.sp
                                 )
                                 
@@ -271,14 +280,14 @@ private fun ChatMainScreen(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .background(com.example.claw_code_application.ui.theme.Color.SurfaceDark),
-                contentAlignment = androidx.compose.ui.Alignment.Center
+                    .background(Color.SurfaceDark),
+                contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        imageVector = androidx.compose.material.icons.Default.ChatBubbleOutline,
+                        imageVector = Icons.Default.ChatBubbleOutline,
                         contentDescription = null,
-                        tint = com.example.claw_code_application.ui.theme.Color.TextSecondary.copy(alpha = 0.5f),
+                        tint = Color.TextSecondary.copy(alpha = 0.5f),
                         modifier = Modifier.size(80.dp)
                     )
                     
@@ -286,7 +295,7 @@ private fun ChatMainScreen(
                     
                     Text(
                         text = "选择或创建一个会话开始聊天",
-                        color = com.example.claw_code_application.ui.theme.Color.TextSecondary,
+                        color = Color.TextSecondary,
                         fontSize = 16.sp
                     )
                 }

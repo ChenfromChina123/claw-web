@@ -308,12 +308,10 @@ fun RegisterScreen(
  * 统一的文本框颜色配置
  */
 @Composable
-private fun textFieldColors(): OutlinedTextFieldColors {
-    return OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = Color.Primary,
-        unfocusedBorderColor = Color.Border,
-        cursorColor = Color.Primary,
-        focusedTextColor = Color.TextPrimary,
-        unfocusedTextColor = Color.TextPrimary
-    )
-}
+private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = Color.Primary,
+    unfocusedBorderColor = Color.Border,
+    cursorColor = Color.Primary,
+    focusedTextColor = Color.TextPrimary,
+    unfocusedTextColor = Color.TextPrimary
+)

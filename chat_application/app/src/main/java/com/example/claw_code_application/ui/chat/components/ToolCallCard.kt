@@ -3,7 +3,7 @@ package com.example.claw_code_application.ui.chat.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,26 +14,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.ToolCall
-import com.example.claw_code_application.ui.theme.Color
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 
 /**
  * 工具调用卡片组件
  * 完全复刻Vue前端ToolUseMessage.vue的设计风格和交互逻辑
- * 
- * 特性：
- * - 4种状态可视化（pending/executing/completed/error）
- * - 可折叠/展开详情
- * - JSON格式化展示输入输出参数
- * - 实时动画和计时器
- * - 左侧彩色边框指示状态
  */
 @Composable
 fun ToolCallCard(
@@ -50,14 +42,11 @@ fun ToolCallCard(
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.SurfaceLight),
-        border = BorderStroke(
-            width = 3.dp,
-            color = statusConfig.color
-        )
+        colors = CardDefaults.cardColors(containerColor = com.example.claw_code_application.ui.theme.Color.SurfaceLight),
+        border = BorderStroke(3.dp, statusConfig.color)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // === 头部（可点击）===
+            // 头部（可点击）
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -80,7 +69,7 @@ fun ToolCallCard(
                         text = toolCall.toolName,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
-                        color = Color.TextPrimary
+                        color = com.example.claw_code_application.ui.theme.Color.TextPrimary
                     )
 
                     Spacer(modifier = Modifier.width(8.dp))
@@ -107,13 +96,13 @@ fun ToolCallCard(
                         CircularProgressIndicator(
                             modifier = Modifier.size(14.dp),
                             strokeWidth = 2.dp,
-                            color = Color.Info
+                            color = com.example.claw_code_application.ui.theme.Color.Info
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = formatDuration(toolCall.createdAt),
                             fontSize = 12.sp,
-                            color = Color.TextSecondary
+                            color = com.example.claw_code_application.ui.theme.Color.TextSecondary
                         )
                     }
 
@@ -123,20 +112,20 @@ fun ToolCallCard(
                     Icon(
                         imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = if (expanded) "收起" else "展开",
-                        tint = Color.TextSecondary,
+                        tint = com.example.claw_code_application.ui.theme.Color.TextSecondary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            // === 详情区域（可折叠）===
+            // 详情区域（可折叠）
             AnimatedVisibility(
                 visible = expanded,
                 enter = expandVertically(),
                 exit = shrinkVertically()
             ) {
                 Column(modifier = Modifier.padding(top = 12.dp)) {
-                    Divider(color = Color.Divider, thickness = 1.dp)
+                    Divider(color = com.example.claw_code_application.ui.theme.Color.Divider, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // 输入参数
@@ -144,7 +133,7 @@ fun ToolCallCard(
                         text = "📥 输入参数",
                         fontWeight = FontWeight.Medium,
                         fontSize = 13.sp,
-                        color = Color.TextPrimary
+                        color = com.example.claw_code_application.ui.theme.Color.TextPrimary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -152,13 +141,13 @@ fun ToolCallCard(
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
-                        color = Color.BackgroundDark
+                        color = com.example.claw_code_application.ui.theme.Color.BackgroundDark
                     ) {
                         Text(
                             text = formatJson(toolCall.toolInput),
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
-                            color = Color.TextSecondary,
+                            color = com.example.claw_code_application.ui.theme.Color.TextSecondary,
                             modifier = Modifier.padding(12.dp)
                         )
                     }
@@ -170,20 +159,20 @@ fun ToolCallCard(
                             text = "📤 输出结果",
                             fontWeight = FontWeight.Medium,
                             fontSize = 13.sp,
-                            color = Color.TextPrimary
+                            color = com.example.claw_code_application.ui.theme.Color.TextPrimary
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(8.dp),
-                            color = Color.BackgroundDark
+                            color = com.example.claw_code_application.ui.theme.Color.BackgroundDark
                         ) {
                             Text(
                                 text = formatJson(toolCall.toolOutput!!),
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
-                                color = Color.Success,
+                                color = com.example.claw_code_application.ui.theme.Color.Success,
                                 modifier = Modifier.padding(12.dp)
                             )
                         }
@@ -195,11 +184,11 @@ fun ToolCallCard(
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(8.dp),
-                            color = Color.Error.copy(alpha = 0.1f)
+                            color = com.example.claw_code_application.ui.theme.Color.Error.copy(alpha = 0.1f)
                         ) {
                             Text(
                                 text = "❌ ${toolCall.error}",
-                                color = Color.Error,
+                                color = com.example.claw_code_application.ui.theme.Color.Error,
                                 fontSize = 12.sp,
                                 modifier = Modifier.padding(12.dp)
                             )
@@ -209,7 +198,7 @@ fun ToolCallCard(
                         Spacer(modifier = Modifier.height(8.dp))
                         Button(
                             onClick = onRetry,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Error),
+                            colors = ButtonDefaults.buttonColors(containerColor = com.example.claw_code_application.ui.theme.Color.Error),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -223,7 +212,7 @@ fun ToolCallCard(
                         Text(
                             text = "⏱ 执行时间: ${calculateDuration(toolCall.createdAt, toolCall.completedAt!!)}",
                             fontSize = 11.sp,
-                            color = Color.TextSecondary.copy(alpha = 0.7f)
+                            color = com.example.claw_code_application.ui.theme.Color.TextSecondary.copy(alpha = 0.7f)
                         )
                     }
                 }
@@ -234,7 +223,7 @@ fun ToolCallCard(
             Text(
                 text = formatDateTime(toolCall.createdAt),
                 fontSize = 10.sp,
-                color = Color.TextSecondary.copy(alpha = 0.6f)
+                color = com.example.claw_code_application.ui.theme.Color.TextSecondary.copy(alpha = 0.6f)
             )
         }
     }
@@ -254,12 +243,18 @@ private data class StatusConfig(
  */
 @Composable
 private fun getStatusConfig(status: String): StatusConfig {
+    val warning = com.example.claw_code_application.ui.theme.Color.Warning
+    val info = com.example.claw_code_application.ui.theme.Color.Info
+    val success = com.example.claw_code_application.ui.theme.Color.Success
+    val error = com.example.claw_code_application.ui.theme.Color.Error
+    val gray = com.example.claw_code_application.ui.theme.Color.TextSecondary
+    
     return when (status) {
-        "pending" -> StatusConfig(icon = "⏳", label = "等待中", color = Color.Warning)
-        "executing" -> StatusConfig(icon = "⚙️", label = "执行中", color = Color.Info)
-        "completed" -> StatusConfig(icon = "✅", label = "已完成", color = Color.Success)
-        "error" -> StatusConfig(icon = "❌", label = "错误", color = Color.Error)
-        else -> StatusConfig(icon = "❓", label = "未知", color = Color.TextSecondary)
+        "pending" -> StatusConfig(icon = "⏳", label = "等待中", color = warning)
+        "executing" -> StatusConfig(icon = "⚙️", label = "执行中", color = info)
+        "completed" -> StatusConfig(icon = "✅", label = "已完成", color = success)
+        "error" -> StatusConfig(icon = "❌", label = "错误", color = error)
+        else -> StatusConfig(icon = "❓", label = "未知", color = gray)
     }
 }
 

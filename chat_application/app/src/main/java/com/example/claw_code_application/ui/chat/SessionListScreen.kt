@@ -5,20 +5,20 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.Session
-import com.example.claw_code_application.ui.theme.Color
+import com.example.claw_code_application.ui.theme.Color as AppColor
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -38,7 +38,7 @@ fun SessionListScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.BackgroundDark)
+            .background(AppColor.BackgroundDark)
     ) {
         // 头部标题栏
         Row(
@@ -53,7 +53,7 @@ fun SessionListScreen(
                 Icon(
                     imageVector = Icons.Default.ChatBubbleOutline,
                     contentDescription = null,
-                    tint = Color.Primary,
+                    tint = AppColor.Primary,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -61,19 +61,28 @@ fun SessionListScreen(
                     text = "会话列表",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.TextPrimary
+                    color = AppColor.TextPrimary
                 )
             }
 
             // 新建会话按钮
-            FABMini(
+            FloatingActionButton(
                 onClick = onCreateNew,
-                icon = Icons.Default.Add,
-                contentDescription = "新对话"
-            )
+                modifier = Modifier.size(40.dp),
+                containerColor = AppColor.Primary,
+                contentColor = AppColor.TextPrimary,
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 2.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "新对话",
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
 
-        Divider(color = Color.Divider, thickness = 1.dp)
+        Divider(color = AppColor.Divider, thickness = 1.dp)
 
         // 会话列表或空状态
         if (sessions.isEmpty()) {
@@ -106,14 +115,12 @@ private fun SessionItem(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
-    var showMenu by remember { mutableStateOf(false) }
-
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(0.dp),
-        color = if (isSelected) Color.SurfaceLight else Color.Transparent
+        color = if (isSelected) AppColor.SurfaceLight else androidx.compose.ui.graphics.Color.Transparent
     ) {
         Row(
             modifier = Modifier
@@ -129,7 +136,7 @@ private fun SessionItem(
                     text = if (session.title.isNotEmpty()) session.title else "新对话",
                     fontSize = 15.sp,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = Color.TextPrimary,
+                    color = AppColor.TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -143,32 +150,22 @@ private fun SessionItem(
                     Text(
                         text = formatRelativeTime(session.updatedAt),
                         fontSize = 12.sp,
-                        color = Color.TextSecondary
+                        color = AppColor.TextSecondary
                     )
                     
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color.SurfaceDark
+                        color = AppColor.SurfaceDark
                     ) {
                         Text(
                             text = session.model,
                             fontSize = 11.sp,
-                            color = Color.TextSecondary.copy(alpha = 0.7f),
+                            color = AppColor.TextSecondary.copy(alpha = 0.7f),
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                 }
             }
-
-            // 右侧操作按钮（可选）
-//            IconButton(onClick = { showMenu = true }, modifier = Modifier.size(32.dp)) {
-//                Icon(
-//                    imageVector = Icons.Default.MoreVert,
-//                    contentDescription = "更多操作",
-//                    tint = Color.TextSecondary,
-//                    modifier = Modifier.size(18.dp)
-//                )
-//            }
         }
     }
 }
@@ -188,7 +185,7 @@ private fun EmptyState() {
             Icon(
                 imageVector = Icons.Default.ChatBubbleOutline,
                 contentDescription = null,
-                tint = Color.TextSecondary.copy(alpha = 0.5f),
+                tint = AppColor.TextSecondary.copy(alpha = 0.5f),
                 modifier = Modifier.size(64.dp)
             )
             
@@ -198,42 +195,17 @@ private fun EmptyState() {
                 text = "暂无会话",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color.TextSecondary
+                color = AppColor.TextSecondary
             )
             
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = "点击右上角"+"开始新对话",
+                text = "点击右上角开始新对话",
                 fontSize = 14.sp,
-                color = Color.TextSecondary.copy(alpha = 0.7f)
+                color = AppColor.TextSecondary.copy(alpha = 0.7f)
             )
         }
-    }
-}
-
-/**
- * 迷你FAB按钮
- */
-@Composable
-private fun FABMini(
-    onClick: () -> Unit,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String?
-) {
-    FloatingActionButton(
-        onClick = onClick,
-        modifier = Modifier.size(40.dp),
-        containerColor = Color.Primary,
-        contentColor = Color.TextPrimary,
-        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            modifier = Modifier.size(20.dp)
-        )
     }
 }
 

@@ -4,9 +4,11 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.claw_code_application.util.Constants
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 /**
@@ -18,13 +20,16 @@ class TokenManager(private val context: Context) {
     /** DataStore实例 */
     private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = Constants.PREFS_NAME)
 
+    /** Token键 */
+    private val tokenKey = stringPreferencesKey(Constants.KEY_AUTH_TOKEN)
+
     /**
      * 保存Token到本地存储
      * @param token 认证Token
      */
     suspend fun saveToken(token: String) {
         context.dataStore.edit { preferences ->
-            preferences[Constants.KEY_AUTH_TOKEN] = token
+            preferences[tokenKey] = token
         }
     }
 
@@ -34,8 +39,16 @@ class TokenManager(private val context: Context) {
      */
     fun getToken(): Flow<String?> {
         return context.dataStore.data.map { preferences ->
-            preferences[Constants.KEY_AUTH_TOKEN]
+            preferences[tokenKey]
         }
+    }
+
+    /**
+     * 同步获取Token（协变版本）
+     * @return Token字符串，如果不存在则返回null
+     */
+    suspend fun getTokenSync(): String? {
+        return context.dataStore.data.first()[tokenKey]
     }
 
     /**
@@ -43,7 +56,7 @@ class TokenManager(private val context: Context) {
      */
     suspend fun clearToken() {
         context.dataStore.edit { preferences ->
-            preferences.remove(Constants.KEY_AUTH_TOKEN)
+            preferences.remove(tokenKey)
         }
     }
 

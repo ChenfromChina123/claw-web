@@ -907,7 +907,7 @@ defineExpose({
       </div>
     </div>
 
-    <!-- 默认变体：简单的输入框（不改变原有功能布局） -->
+    <!-- 默认变体：模拟 IDE 风格的输入框 -->
     <div v-if="variant !== 'ide'" class="chat-input-body">
       <!-- 左侧：文件上传区域 -->
       <div class="upload-section">
@@ -945,50 +945,46 @@ defineExpose({
         </div>
       </div>
 
-      <!-- 中间：输入框 -->
-      <div class="input-wrapper">
-        <NInput
-          ref="inputRef"
-          v-model:value="inputValue"
-          type="textarea"
-          :placeholder="props.placeholder || '输入消息... (Shift+Enter 换行)'"
-          :autosize="{ minRows: 3, maxRows: 8 }"
-          :disabled="disabled"
-          @keydown="handleKeyDown"
-          @focus="handleFocus"
-        />
-      </div>
+      <!-- 中间：输入框容器（模拟 IDE 风格） -->
+      <div class="input-container-default">
+        <div class="input-main-wrapper">
+          <NInput
+            ref="inputRef"
+            v-model:value="inputValue"
+            type="textarea"
+            :placeholder="props.placeholder || '输入消息... (Shift+Enter 换行)'"
+            :autosize="{ minRows: 3, maxRows: 8 }"
+            :disabled="disabled"
+            @keydown="handleKeyDown"
+            @focus="handleFocus"
+          />
+        </div>
 
-      <!-- 右侧：操作按钮 -->
-      <div class="input-actions">
-        <NButton
-          class="prompt-library-button"
-          :disabled="!sessionId || disabled"
-          @click="openPromptLibraryInEditor"
-        >
-          <template #icon>
-            <NIcon><ReorderFourOutline /></NIcon>
+        <!-- 底部：发送按钮 -->
+        <div class="input-footer-default">
+          <template v-if="isGenerating">
+            <button
+              class="send-btn-minimal is-generating"
+              @click="emit('stop')"
+            >
+              <NIcon :size="16"><StopCircleOutline /></NIcon>
+            </button>
           </template>
-          模板
-        </NButton>
-        <template v-if="isGenerating">
-          <NButton type="warning" class="stop-button" @click="emit('stop')">
-            <template #icon>
-              <NIcon><StopCircleOutline /></NIcon>
-            </template>
-            停止
-          </NButton>
-        </template>
-        <template v-else>
-          <NButton
-            type="primary"
-            :disabled="!inputValue.trim() || disabled"
-            class="send-button"
-            @click="handleSend"
-          >
-            发送
-          </NButton>
-        </template>
+          <template v-else>
+            <button
+              class="send-btn-minimal"
+              :class="{ 'can-send': inputValue.trim() }"
+              :disabled="!inputValue.trim() || disabled"
+              @click="handleSend"
+            >
+              <NIcon :size="16">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                </svg>
+              </NIcon>
+            </button>
+          </template>
+        </div>
       </div>
     </div>
 
@@ -1003,7 +999,7 @@ defineExpose({
   flex-direction: row;
   align-items: flex-end;
   gap: 10px;
-  padding: 10px;
+  padding: 8px;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -1329,22 +1325,112 @@ defineExpose({
   font-weight: 600;
 }
 
-/* ========== 默认变体：输入框容器样式 ========== */
-.input-container {
+/* ========== 默认变体：模拟 IDE 风格的输入框容器 ========== */
+.input-container-default {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: #111111;
-  border: 1px solid #2a2a2a;
-  border-radius: 16px;
-  padding: 16px 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  background-color: #1e1e1e;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px 16px;
+  transition: border-color 0.2s, background-color 0.2s;
+  box-sizing: border-box;
 }
 
-.input-container:focus-within {
-  border-color: #3a3a3a;
-  box-shadow: 0 0 0 1px rgba(25, 195, 125, 0.15);
+.input-container-default:focus-within {
+  background-color: #1e1e1e;
+  border-color: #007acc;
+  box-shadow: none;
+}
+
+/* 默认变体：抹平 NInput 样式 */
+.input-container-default :deep(.n-input),
+.input-container-default :deep(.n-input-wrapper),
+.input-container-default :deep(.n-input__border),
+.input-container-default :deep(.n-input__state-border) {
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  --n-border: none !important;
+  --n-border-hover: none !important;
+  --n-border-focus: none !important;
+  --n-box-shadow-focus: none !important;
+}
+
+.input-container-default :deep(.n-input.n-input--focus) {
+  background-color: transparent !important;
+}
+
+.input-container-default :deep(.n-input .n-input__state-border) {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.input-container-default :deep(.n-input__textarea-el) {
+  color: #d1d1d1 !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  caret-color: #007acc !important;
+}
+
+.input-container-default :deep(.n-input__placeholder) {
+  color: #555 !important;
+}
+
+.input-container-default :deep(.n-input) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  --n-padding-left: 0 !important;
+  --n-padding-right: 0 !important;
+}
+
+/* 默认变体：底部发送按钮栏 */
+.input-footer-default {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 0;
+  border-top: none;
+  background: transparent;
+  height: 28px;
+}
+
+/* 默认变体发送按钮 */
+.input-footer-default .send-btn-minimal {
+  height: 28px;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+
+.input-footer-default .send-btn-minimal:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
+}
+
+.input-footer-default .send-btn-minimal.can-send {
+  color: #007acc;
+}
+
+.input-footer-default .send-btn-minimal.is-generating {
+  color: #ef4444;
+}
+
+.input-footer-default .send-btn-minimal:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .input-header {

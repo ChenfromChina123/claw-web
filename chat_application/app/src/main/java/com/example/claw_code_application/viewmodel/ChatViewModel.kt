@@ -2,8 +2,10 @@ package com.example.claw_code_application.viewmodel
 
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.claw_code_application.data.api.models.*
+import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.repository.ChatRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -75,13 +77,14 @@ class ChatViewModel(
                 _uiState.value = UiState.Loading
 
                 // 3. 调用Agent执行API
-                when (val result = chatRepository.executeAgent(
+                val result = chatRepository.executeAgent(
                     sessionId = session.id,
                     task = content,
                     prompt = content
-                )) {
-                    is Result.Success -> {
-                        val response = result.data!!
+                )
+
+                result.fold(
+                    onSuccess = { response ->
                         // 添加AI回复消息
                         response.messages.forEach { msg ->
                             _messages.add(msg)
@@ -96,13 +99,11 @@ class ChatViewModel(
                             toolCalls = _toolCalls.toList(),
                             executionStatus = response.executionStatus
                         )
+                    },
+                    onFailure = { e ->
+                        _uiState.value = UiState.Error(e.message ?: "发送消息失败")
                     }
-                    is Result.Failure -> {
-                        _uiState.value = UiState.Error(
-                            result.exception.message ?: "发送消息失败"
-                        )
-                    }
-                }
+                )
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "网络错误")
             }
@@ -119,9 +120,10 @@ class ChatViewModel(
                 currentSessionId = sessionId
                 _uiState.value = UiState.Loading
 
-                when (val result = chatRepository.getSessionDetail(sessionId)) {
-                    is Result.Success -> {
-                        val detail = result.data!!
+                val result = chatRepository.getSessionDetail(sessionId)
+
+                result.fold(
+                    onSuccess = { detail ->
                         _messages.clear()
                         _messages.addAll(detail.messages)
 
@@ -133,13 +135,11 @@ class ChatViewModel(
                             toolCalls = _toolCalls.toList(),
                             executionStatus = null
                         )
+                    },
+                    onFailure = { e ->
+                        _uiState.value = UiState.Error(e.message ?: "加载会话失败")
                     }
-                    is Result.Failure -> {
-                        _uiState.value = UiState.Error(
-                            result.exception.message ?: "加载会话失败"
-                        )
-                    }
-                }
+                )
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "加载失败")
             }
@@ -177,13 +177,14 @@ class ChatViewModel(
         return currentSessionId?.let { id ->
             Session(id = id, title = "", createdAt = "", updatedAt = "")
         } ?: run {
-            when (val result = chatRepository.createSession()) {
-                is Result.Success -> {
-                    currentSessionId = result.data!!.id
-                    result.data
-                }
-                is Result.Failure -> null
-            }
+            val result = chatRepository.createSession()
+            result.fold(
+                onSuccess = { session ->
+                    currentSessionId = session.id
+                    session
+                },
+                onFailure = { null }
+            )
         }
     }
 
@@ -203,9 +204,14 @@ class ChatViewModel(
          */
         fun provideFactory(
             chatRepository: ChatRepository,
-            tokenManager: TokenManager
-        ): javax.inject.Provider<ChatViewModel> {
-            return javax.inject.Provider { ChatViewModel(chatRepository, tokenManager) }
+            tokenManager: com.example.claw_code_application.data.local.TokenManager
+        ): ViewModelProvider.Factory {
+            return object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                    return ChatViewModel(chatRepository, tokenManager) as T
+                }
+            }
         }
     }
 }

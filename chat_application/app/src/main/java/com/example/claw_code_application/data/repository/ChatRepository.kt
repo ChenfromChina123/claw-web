@@ -3,6 +3,7 @@ package com.example.claw_code_application.data.repository
 import com.example.claw_code_application.data.api.ApiService
 import com.example.claw_code_application.data.api.models.*
 import com.example.claw_code_application.data.local.TokenManager
+import com.example.claw_code_application.util.Constants
 
 /**
  * 聊天数据仓库
@@ -174,7 +175,7 @@ class ChatRepository(
      * 获取存储的Token，如果不存在则抛出异常
      */
     private suspend fun getTokenOrThrow(): String {
-        return tokenManager.getToken()
+        return tokenManager.getTokenSync()
             ?.takeIf { it.isNotEmpty() }
             ?: throw Exception("未登录，请先登录")
     }

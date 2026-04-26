@@ -1,6 +1,5 @@
 package com.example.claw_code_application.ui.chat.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -41,7 +40,7 @@ fun InputBar(
         OutlinedTextField(
             value = text,
             onValueChange = { 
-                if (it.length <= 2000) {  // 限制最大字符数
+                if (it.length <= 2000) {
                     text = it 
                 }
             },
@@ -71,7 +70,7 @@ fun InputBar(
                     if (text.isNotBlank() && enabled) {
                         onSend(text.trim())
                         text = ""
-                        focusManager.clearForce()
+                        focusManager.clearFocus()
                     }
                 }
             ),
@@ -86,7 +85,7 @@ fun InputBar(
                 if (text.isNotBlank() && enabled) {
                     onSend(text.trim())
                     text = ""
-                    focusManager.clearForce()
+                    focusManager.clearFocus()
                 }
             },
             modifier = Modifier.size(48.dp),

@@ -1,6 +1,7 @@
 package com.example.claw_code_application.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.claw_code_application.data.api.models.AuthData
 import com.example.claw_code_application.data.repository.AuthRepository
@@ -38,16 +39,15 @@ class AuthViewModel(
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             
-            when (val result = authRepository.login(email, password)) {
-                is Result.Success -> {
-                    _uiState.value = UiState.Success(result.data!!)
+            val result = authRepository.login(email, password)
+            result.fold(
+                onSuccess = { data ->
+                    _uiState.value = UiState.Success(data)
+                },
+                onFailure = { e ->
+                    _uiState.value = UiState.Error(e.message ?: "登录失败，请检查邮箱和密码")
                 }
-                is Result.Failure -> {
-                    _uiState.value = UiState.Error(
-                        result.exception.message ?: "登录失败，请检查邮箱和密码"
-                    )
-                }
-            }
+            )
         }
     }
 
@@ -62,16 +62,15 @@ class AuthViewModel(
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             
-            when (val result = authRepository.register(email, username, password, code)) {
-                is Result.Success -> {
-                    _uiState.value = UiState.Success(result.data!!)
+            val result = authRepository.register(email, username, password, code)
+            result.fold(
+                onSuccess = { data ->
+                    _uiState.value = UiState.Success(data)
+                },
+                onFailure = { e ->
+                    _uiState.value = UiState.Error(e.message ?: "注册失败，请稍后重试")
                 }
-                is Result.Failure -> {
-                    _uiState.value = UiState.Error(
-                        result.exception.message ?: "注册失败，请稍后重试"
-                    )
-                }
-            }
+            )
         }
     }
 
@@ -86,8 +85,13 @@ class AuthViewModel(
         /**
          * 提供ViewModel工厂方法
          */
-        fun provideFactory(authRepository: AuthRepository): javax.inject.Provider<AuthViewModel> {
-            return javax.inject.Provider { AuthViewModel(authRepository) }
+        fun provideFactory(authRepository: AuthRepository): ViewModelProvider.Factory {
+            return object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                    return AuthViewModel(authRepository) as T
+                }
+            }
         }
     }
 }

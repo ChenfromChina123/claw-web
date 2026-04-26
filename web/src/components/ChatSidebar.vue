@@ -358,30 +358,54 @@ function formatTime(date: Date | string) {
         <!-- 头部 -->
         <div class="sidebar-header">
           <h2>Claude Code</h2>
-          <NButton
-            v-if="!isMultiSelectMode"
-            quaternary
-            size="small"
-            class="multi-select-btn"
-            @click="toggleMultiSelectMode"
-          >
-            多选
-          </NButton>
-          <NButton
-            v-else
-            quaternary
-            size="small"
-            type="error"
-            class="multi-select-btn"
-            @click="exitMultiSelectMode"
-          >
-            取消
-          </NButton>
         </div>
 
         <!-- 搜索 -->
         <div class="sidebar-search">
-          <p class="sidebar-search-hint">在当前会话列表中筛选</p>
+          <div class="search-row">
+            <p class="sidebar-search-hint">在当前会话列表中筛选</p>
+            <span
+              v-if="!isMultiSelectMode"
+              class="multi-select-text"
+              @click="toggleMultiSelectMode"
+            >
+              多选
+            </span>
+            <span
+              v-else
+              class="multi-select-text cancel"
+              @click="exitMultiSelectMode"
+            >
+              取消
+            </span>
+          </div>
+
+          <!-- 多选模式批量操作栏 -->
+          <div v-if="isMultiSelectMode" class="batch-actions-bar">
+            <div class="batch-actions-content">
+              <div class="batch-actions-left">
+                <NButton
+                  quaternary
+                  size="small"
+                  @click="isAllSelected ? deselectAllSessions() : selectAllSessions()"
+                >
+                  {{ isAllSelected ? '取消全选' : '全选' }}
+                </NButton>
+                <span class="selected-count">已选 {{ selectedSessionIds.size }} 个</span>
+              </div>
+              <div class="batch-actions-right">
+                <NButton
+                  type="error"
+                  size="small"
+                  :disabled="selectedSessionIds.size === 0"
+                  @click="openBatchDeleteModal"
+                >
+                  批量删除
+                </NButton>
+              </div>
+            </div>
+          </div>
+
           <NInput
             v-model:value="searchValue"
             placeholder="搜索标题…"
@@ -476,6 +500,7 @@ function formatTime(date: Date | string) {
                 创建新对话
               </NButton>
             </div>
+
           </div>
         </NScrollbar>
 
@@ -578,32 +603,6 @@ function formatTime(date: Date | string) {
       </p>
     </NModal>
 
-    <!-- 多选模式批量操作栏 -->
-    <div v-if="isMultiSelectMode" class="batch-actions-bar">
-      <div class="batch-actions-content">
-        <div class="batch-actions-left">
-          <NButton
-            quaternary
-            size="small"
-            @click="isAllSelected ? deselectAllSessions() : selectAllSessions()"
-          >
-            {{ isAllSelected ? '取消全选' : '全选' }}
-          </NButton>
-          <span class="selected-count">已选 {{ selectedSessionIds.size }} 个</span>
-        </div>
-        <div class="batch-actions-right">
-          <NButton
-            type="error"
-            size="small"
-            :disabled="selectedSessionIds.size === 0"
-            @click="openBatchDeleteModal"
-          >
-            批量删除
-          </NButton>
-        </div>
-      </div>
-    </div>
-
     <!-- 工作目录抽屉 -->
     <NDrawer
       v-model:show="showWorkDir"
@@ -670,13 +669,9 @@ function formatTime(date: Date | string) {
 .sidebar-header {
   padding: 14px 16px 12px;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   border-bottom: 1px solid var(--border-color, rgba(99, 102, 241, 0.1));
-}
-
-.multi-select-btn {
-  font-size: 12px;
 }
 
 .sidebar-header h2 {
@@ -693,11 +688,39 @@ function formatTime(date: Date | string) {
   padding: 10px 16px 12px;
 }
 
+.search-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
 .sidebar-search-hint {
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 11px;
   font-weight: 500;
   color: var(--text-tertiary);
+}
+
+.multi-select-text {
+  font-size: 11px;
+  color: var(--primary-color);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.multi-select-text:hover {
+  background: rgba(64, 158, 255, 0.1);
+}
+
+.multi-select-text.cancel {
+  color: var(--error-color);
+}
+
+.multi-select-text.cancel:hover {
+  background: rgba(255, 77, 79, 0.1);
 }
 
 .empty-hint {
@@ -907,24 +930,19 @@ function formatTime(date: Date | string) {
 
 /* 批量操作栏 */
 .batch-actions-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border-top: 1px solid var(--glass-border);
-  padding: 12px 16px;
-  z-index: 100;
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 8px 0;
 }
 
 .batch-actions-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-width: 280px;
-  margin: 0 auto;
 }
 
 .batch-actions-left {
