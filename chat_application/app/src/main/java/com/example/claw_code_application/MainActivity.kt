@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -67,8 +68,11 @@ class MainActivity : ComponentActivity() {
 
                     // ==================== 登录页面路由 ====================
                     composable("login") {
+                        val authViewModel: AuthViewModel = viewModel(
+                            factory = AuthViewModel.provideFactory(ClawCodeApplication.authRepository)
+                        )
                         LoginScreen(
-                            viewModel = AuthViewModel(ClawCodeApplication.authRepository),
+                            viewModel = authViewModel,
                             onLoginSuccess = {
                                 navController.navigate("chat") {
                                     popUpTo("login") { inclusive = true }
@@ -82,8 +86,11 @@ class MainActivity : ComponentActivity() {
 
                     // ==================== 注册页面路由 ====================
                     composable("register") {
+                        val authViewModel: AuthViewModel = viewModel(
+                            factory = AuthViewModel.provideFactory(ClawCodeApplication.authRepository)
+                        )
                         RegisterScreen(
-                            viewModel = AuthViewModel(ClawCodeApplication.authRepository),
+                            viewModel = authViewModel,
                             onRegisterSuccess = {
                                 navController.navigate("chat") {
                                     popUpTo("register") { inclusive = true }
