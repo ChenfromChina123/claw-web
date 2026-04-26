@@ -106,6 +106,12 @@ export async function handleAgentRoutes(req: Request): Promise<Response | null> 
   // POST /api/agents/execute - 执行 Agent 任务
   if (path === '/api/agents/execute' && method === 'POST') {
     try {
+      // 认证检查
+      const auth = await authMiddleware(req)
+      if (!auth.userId) {
+        return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
+      }
+
       const body = await req.json() as {
         agentId: string
         sessionId: string
@@ -119,7 +125,26 @@ export async function handleAgentRoutes(req: Request): Promise<Response | null> 
         // WebSocket 状态更新回调
       })
 
-      return createSuccessResponse(result)
+      // 转换为 Android 端期望的响应格式
+      const androidResponse = {
+        messages: [{
+          id: `msg_${Date.now()}`,
+          role: 'assistant',
+          content: result.content || result.error || 'Agent 执行完成',
+          timestamp: new Date().toISOString(),
+          toolCalls: null
+        }],
+        toolCalls: [] as unknown[],
+        executionStatus: {
+          status: result.status === 'completed' ? 'completed' : 'error',
+          currentTurn: 1,
+          maxTurns: body.maxTurns || 20,
+          progress: result.status === 'completed' ? 100 : 0,
+          message: result.error || undefined
+        }
+      }
+
+      return createSuccessResponse(androidResponse)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Agent 执行失败'
       return createErrorResponse('AGENT_EXECUTE_FAILED', message, 500)

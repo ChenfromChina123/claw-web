@@ -33,7 +33,8 @@ export async function handleSessionRoutes(req: Request): Promise<Response | null
         return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
       }
       const sessions = await sessionManager.getUserSessions(auth.userId)
-      return createSuccessResponse({ sessions })
+      // 直接返回会话列表数组，与 Android 端 ApiResponse<List<Session>> 兼容
+      return createSuccessResponse(sessions)
     } catch (error) {
       const message = error instanceof Error ? error.message : '获取会话列表失败'
       return createErrorResponse('GET_SESSIONS_FAILED', message, 500)
