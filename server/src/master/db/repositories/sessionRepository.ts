@@ -273,7 +273,8 @@ export class SessionRepository {
       userId: row.user_id,
       title: row.title,
       model: row.model,
-      isPinned: row.is_pinned ?? false,
+      // 数据库中 is_pinned 是 INTEGER (0/1)，需要转换为布尔值
+      isPinned: row.is_pinned === 1 || row.is_pinned === true,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
