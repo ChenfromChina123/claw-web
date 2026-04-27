@@ -90,10 +90,22 @@ fun EnhancedMessageBubble(
                 }
             }
 
-            // 工具调用显示
+            // 工具调用显示 - 使用增强版可折叠卡片
             if (toolCalls.isNotEmpty() && !isUser) {
                 Spacer(modifier = Modifier.height(8.dp))
-                ToolCallsList(toolCalls = toolCalls)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    toolCalls.forEach { toolCall ->
+                        var expanded by remember { mutableStateOf(false) }
+                        ToolCallCard(
+                            toolCall = toolCall,
+                            expanded = expanded,
+                            onExpandedChange = { expanded = it }
+                        )
+                    }
+                }
             }
 
             // 时间戳
@@ -179,175 +191,6 @@ private fun StreamingCursor() {
         modifier = Modifier.alpha(alpha),
         fontSize = 14.sp
     )
-}
-
-/**
- * 工具调用列表
- */
-@Composable
-private fun ToolCallsList(toolCalls: List<ToolCall>) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        toolCalls.forEach { toolCall ->
-            ToolCallItem(toolCall = toolCall)
-        }
-    }
-}
-
-/**
- * 单个工具调用项
- */
-@Composable
-private fun ToolCallItem(toolCall: ToolCall) {
-    val statusColor = when (toolCall.status) {
-        "completed" -> AppColor.Success
-        "error" -> AppColor.Error
-        "executing" -> AppColor.Primary
-        else -> AppColor.TextSecondary
-    }
-
-    val statusIcon = when (toolCall.status) {
-        "completed" -> Icons.Default.CheckCircle
-        "error" -> Icons.Default.Error
-        "executing" -> Icons.Default.PlayArrow
-        else -> Icons.Default.Schedule
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AppColor.SurfaceLight
-        ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, AppColor.Border)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = statusIcon,
-                    contentDescription = toolCall.status,
-                    tint = statusColor,
-                    modifier = Modifier.size(16.dp)
-                )
-
-                Text(
-                    text = toolCall.toolName,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = AppColor.TextPrimary
-                )
-            }
-
-            // 状态标签
-            Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = statusColor.copy(alpha = 0.1f)
-            ) {
-                Text(
-                    text = when (toolCall.status) {
-                        "completed" -> "完成"
-                        "error" -> "错误"
-                        "executing" -> "执行中"
-                        else -> "待执行"
-                    },
-                    fontSize = 10.sp,
-                    color = statusColor,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-        }
-
-        // 展开显示工具输入/输出详情
-        var expanded by remember { mutableStateOf(false) }
-
-        TextButton(
-            onClick = { expanded = !expanded },
-            modifier = Modifier.padding(horizontal = 8.dp)
-        ) {
-            Text(
-                text = if (expanded) "收起详情" else "查看详情",
-                fontSize = 11.sp
-            )
-        }
-
-        AnimatedVisibility(visible = expanded) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            ) {
-                // 工具输入
-                Text(
-                    text = "输入参数:",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AppColor.TextSecondary
-                )
-                Text(
-                    text = toolCall.toolInput.toString(),
-                    fontSize = 10.sp,
-                    color = AppColor.TextPrimary,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(AppColor.SurfaceLight.copy(alpha = 0.5f))
-                        .padding(8.dp)
-                )
-
-                // 工具输出（如果有）
-                toolCall.toolOutput?.let { output ->
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "输出结果:",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppColor.TextSecondary
-                    )
-                    Text(
-                        text = output.toString(),
-                        fontSize = 10.sp,
-                        color = AppColor.TextPrimary,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(AppColor.SurfaceLight.copy(alpha = 0.5f))
-                            .padding(8.dp)
-                    )
-                }
-
-                // 错误信息（如果有）
-                toolCall.error?.let { error ->
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "错误信息:",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppColor.Error
-                    )
-                    Text(
-                        text = error,
-                        fontSize = 10.sp,
-                        color = AppColor.Error,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(AppColor.Error.copy(alpha = 0.1f))
-                            .padding(8.dp)
-                    )
-                }
-            }
-        }
-    }
 }
 
 /**

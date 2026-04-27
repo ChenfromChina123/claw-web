@@ -320,7 +320,7 @@ private fun ChatMainScreen(
                 },
                 onBack = {
                     showSessionList = true
-                    // 不清空selectedSessionId，保持选中状态
+                    selectedSessionId = null
                 },
                 modifier = Modifier.fillMaxSize()
             )
