@@ -19,6 +19,8 @@ import { WebSessionBridge } from '../../integrations/sessionBridge'
 import { getWorkspaceManager } from '../workspaceManager'
 import { stripIdeUserDisplayLayer } from '../../utils/ideUserMessageMarkers'
 import { buildCompleteSystemPrompt } from '../../prompts/contextBuilder'
+import { getToolRegistry } from '../../integrations/toolRegistry'
+import { shouldExecuteOnWorker } from '../../integrations/workerToolExecutor'
 import type { ToolCall } from '../../models/types'
 import type { EventSender } from '../../types'
 
@@ -870,10 +872,28 @@ export class SessionConversationManager {
           })
         }
 
-        const result = await Promise.race([
-          this.toolExecutor.execute(tool.name, tool.input, sendEvent, tool.id),
-          timeoutPromise
-        ]) as { success: boolean; result?: unknown; error?: string }
+        let result: { success: boolean; result?: unknown; error?: string }
+
+        if (shouldExecuteOnWorker(tool.name) && currentUserId) {
+          console.log(`[${sessionId}] 危险工具 ${tool.name} 通过 Worker 容器执行 (userId=${currentUserId})`)
+          const toolRegistry = getToolRegistry()
+          const registryResult = await toolRegistry.executeTool({
+            toolName: tool.name,
+            toolInput: tool.input,
+            sessionId,
+            userId: currentUserId,
+          })
+          result = {
+            success: registryResult.success,
+            result: registryResult.result ?? registryResult.output,
+            error: registryResult.error,
+          }
+        } else {
+          result = await Promise.race([
+            this.toolExecutor.execute(tool.name, tool.input, sendEvent, tool.id),
+            timeoutPromise
+          ]) as { success: boolean; result?: unknown; error?: string }
+        }
 
         const duration = Date.now() - startTime
 

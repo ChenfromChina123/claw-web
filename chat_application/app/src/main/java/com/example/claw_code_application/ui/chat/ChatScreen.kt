@@ -124,9 +124,9 @@ fun ChatScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                // 消息列表 - 使用增强版消息气泡
+                // 消息列表 - 使用增强版消息气泡（过滤掉 tool_result 用户消息）
                 items(
-                    items = viewModel.messages.reversed(),
+                    items = viewModel.messages.reversed().filter { shouldShowMessage(it) },
                     key = { it.id }
                 ) { message ->
                     EnhancedMessageBubble(

@@ -72,7 +72,7 @@ export interface WorkerConfig {
 }
 
 export interface InternalAPIRequest {
-  type: 'exec' | 'pty_create' | 'pty_write' | 'pty_resize' | 'pty_destroy' | 'file_read' | 'file_write' | 'file_list'
+  type: 'exec' | 'pty_create' | 'pty_write' | 'pty_resize' | 'pty_destroy' | 'file_read' | 'file_write' | 'file_list' | 'tool_exec'
   requestId: string
   userId: string
   payload: unknown

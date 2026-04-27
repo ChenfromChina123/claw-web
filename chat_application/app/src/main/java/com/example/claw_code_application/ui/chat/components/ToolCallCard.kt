@@ -427,53 +427,18 @@ private fun parseToolInput(input: Any): Map<String, Any> {
 }
 
 /**
- * 获取工具摘要（简短描述）
+ * 获取工具摘要（简短描述，使用 ToolParser 增强解析）
  */
 private fun getToolSummary(toolCall: ToolCall): String {
-    val input = parseToolInput(toolCall.toolInput)
+    val parsedInfo = ToolParser.parseToolCall(toolCall)
+    val primaryParam = parsedInfo.parameters.firstOrNull()
 
     return when {
-        // Shell 命令
-        toolCall.toolName.contains("shell", ignoreCase = true) -> {
-            val cmd = input["command"] ?: input["cmd"] ?: input["script"] ?: ""
-            cmd.toString().take(60).replace("\n", " ")
+        primaryParam != null -> {
+            val valueStr = primaryParam.value?.toString()?.take(60)?.replace("\n", " ") ?: ""
+            if (valueStr.isNotEmpty()) "${primaryParam.name}: $valueStr" else parsedInfo.description
         }
-        // 文件操作
-        toolCall.toolName.contains("file", ignoreCase = true) ||
-        toolCall.toolName.contains("write", ignoreCase = true) -> {
-            val path = input["file_path"] ?: input["path"] ?: input["filepath"] ?: ""
-            if (path.toString().isNotEmpty()) "操作文件: $path" else ""
-        }
-        toolCall.toolName.contains("read", ignoreCase = true) -> {
-            val path = input["file_path"] ?: input["path"] ?: input["filepath"] ?: ""
-            if (path.toString().isNotEmpty()) "读取文件: $path" else ""
-        }
-        // 搜索
-        toolCall.toolName.contains("search", ignoreCase = true) -> {
-            val query = input["query"] ?: input["keyword"] ?: input["term"] ?: ""
-            if (query.toString().isNotEmpty()) "搜索: $query" else ""
-        }
-        // Git 操作
-        toolCall.toolName.contains("git", ignoreCase = true) -> {
-            val action = input["action"] ?: input["command"] ?: ""
-            "Git $action"
-        }
-        // API 调用
-        toolCall.toolName.contains("api", ignoreCase = true) -> {
-            val url = input["url"] ?: input["endpoint"] ?: ""
-            url.toString().take(40)
-        }
-        // 默认
-        else -> {
-            val keys = input.keys
-            if (keys.isNotEmpty()) {
-                val key = keys.first()
-                val value = input[key]?.toString()?.take(40) ?: ""
-                "$key: $value"
-            } else {
-                ""
-            }
-        }
+        else -> parsedInfo.description
     }
 }
 
