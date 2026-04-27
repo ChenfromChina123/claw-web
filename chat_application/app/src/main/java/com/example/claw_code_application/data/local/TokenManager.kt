@@ -17,11 +17,6 @@ import kotlinx.coroutines.flow.map
  */
 class TokenManager(private val context: Context) {
 
-    /** 日志标签 */
-    companion object {
-        private const val TAG = "TokenManager"
-    }
-
     /** DataStore实例 */
     private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = Constants.PREFS_NAME)
 
@@ -82,6 +77,7 @@ class TokenManager(private val context: Context) {
     }
 
     companion object {
+        private const val TAG = "TokenManager"
         @Volatile
         private var INSTANCE: TokenManager? = null
 
