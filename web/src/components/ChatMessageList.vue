@@ -865,14 +865,38 @@ function formatUserMessageForBubble(content: unknown): string {
 function shouldShowMessage(message: any): boolean {
   const content = (message as any).content
 
-  // 用户消息：检查是否是 tool_result 格式（内部消息）
+  /**
+   * 用户消息过滤逻辑
+   * Anthropic API 会将 tool_result 包装成用户角色消息发送给 Agent
+   * 可能的格式：
+   * - 数组格式: [{type:"tool_result", ...}] （标准 API 格式）
+   * - 字符串格式: "[{type:\"tool_result\", ...}]" （序列化后的 JSON）
+   */
   if (message.role === 'user') {
+    // 情况1：content 是数组（标准 Anthropic 格式）
     if (Array.isArray(content)) {
       const hasToolResult = content.some((block: any) => block && block.type === 'tool_result')
       if (hasToolResult) {
+        console.log('[ChatMessageList] shouldShowMessage: 隐藏 tool_result 数组格式用户消息, messageId:', message.id)
         return false  // 隐藏工具结果消息
       }
     }
+    
+    // 情况2：content 是字符串（可能是序列化的 JSON）← 这是截图中出现的问题！
+    if (typeof content === 'string') {
+      const trimmed = content.trim()
+      // 检测是否是 tool_result / tool_use JSON 字符串
+      const isToolResultJson = (trimmed.startsWith('[') || trimmed.startsWith('{')) && 
+        (trimmed.includes('"tool_result"') || 
+         trimmed.includes('"tool_use"') || 
+         trimmed.includes('tool_use_id'))
+      
+      if (isToolResultJson) {
+        console.log('[ChatMessageList] shouldShowMessage: 隐藏 tool_result JSON字符串用户消息, messageId:', message.id, 'preview:', trimmed.substring(0, 80))
+        return false  // 隐藏工具结果消息
+      }
+    }
+    
     return formatUserMessageForBubble(content).length > 0
   }
 
