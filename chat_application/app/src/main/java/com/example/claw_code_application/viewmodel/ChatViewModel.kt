@@ -67,8 +67,15 @@ class ChatViewModel(
     
     /** 获取与指定消息关联的工具调用列表 */
     fun getToolCallsForMessage(messageId: String): List<ToolCall> {
-        val toolCallIds = messageToToolCalls[messageId] ?: return emptyList()
-        return _toolCalls.filter { it.id in toolCallIds }
+        val toolCallIds = messageToToolCalls[messageId]
+        android.util.Log.d("ChatVM", "getToolCallsForMessage: messageId=$messageId, toolCallIds=$toolCallIds, mappingSize=${messageToToolCalls.size}")
+        if (toolCallIds == null) {
+            android.util.Log.d("ChatVM", "  → 未找到关联的工具调用")
+            return emptyList()
+        }
+        val result = _toolCalls.filter { it.id in toolCallIds }
+        android.util.Log.d("ChatVM", "  → 找到 ${result.size} 个工具调用: ${result.map { "${it.id.take(20)}:${it.toolName}" }}")
+        return result
     }
 
     init {
