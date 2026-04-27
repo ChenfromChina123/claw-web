@@ -52,12 +52,21 @@ class ChatRepository(
                     Logger.e(TAG, "服务器返回错误: $errorMsg")
                     Result.failure(Exception(errorMsg))
                 }
+            } else if (response.code() == 401) {
+                // 401 错误已在 AuthInterceptor 中处理，这里返回空列表
+                Logger.w(TAG, "收到 401 响应，认证已过期")
+                Result.success(emptyList())
             } else {
                 val errorBody = response.errorBody()?.string()
                 Logger.e(TAG, "HTTP错误: ${response.code()}, 错误内容: $errorBody")
                 Result.failure(Exception("网络错误: ${response.code()}"))
             }
         } catch (e: Exception) {
+            // 检查是否是认证相关的异常
+            if (e.message?.contains("未登录") == true || e.message?.contains("401") == true) {
+                Logger.w(TAG, "获取会话列表失败: 用户未登录或认证过期")
+                return Result.success(emptyList())
+            }
             Logger.e(TAG, "获取会话列表异常", e)
             Result.failure(Exception("获取会话列表失败: ${e.message}", e))
         }
