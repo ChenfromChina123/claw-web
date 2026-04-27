@@ -319,8 +319,9 @@ private fun ChatMainScreen(
                     }
                 },
                 onBack = {
-                    showSessionList = true
+                    // 先清空选中会话，再显示列表，避免竞态条件
                     selectedSessionId = null
+                    showSessionList = true
                 },
                 modifier = Modifier.fillMaxSize()
             )
