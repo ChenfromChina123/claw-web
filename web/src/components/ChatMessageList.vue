@@ -722,6 +722,7 @@ function toolsForMessage(messageId: string): ToolCall[] {
 
 /**
  * 从消息内容中提取纯文本（处理多种格式）
+ * 过滤掉 tool_result 等内部消息类型
  */
 function getMessageText(content: unknown): string {
   // 情况1：null 或 undefined
@@ -729,8 +730,19 @@ function getMessageText(content: unknown): string {
     return ''
   }
   
-  // 情况2：已经是字符串
+  // 情况2：字符串格式 - 需要检测是否是 tool_result JSON
   if (typeof content === 'string') {
+    const trimmed = content.trim()
+    // 检测是否是 tool_result JSON 字符串（Anthropic API 返回格式）
+    if (trimmed.startsWith('{') && trimmed.includes('"type"') && trimmed.includes('tool_result')) {
+      console.log('[ChatMessageList] 检测到 tool_result JSON 字符串，已过滤')
+      return ''
+    }
+    // 检测是否是 tool_use JSON 字符串
+    if (trimmed.startsWith('{') && trimmed.includes('"type"') && trimmed.includes('tool_use')) {
+      console.log('[ChatMessageList] 检测到 tool_use JSON 字符串，已过滤')
+      return ''
+    }
     return content
   }
   
@@ -749,7 +761,7 @@ function getMessageText(content: unknown): string {
     // 如果没有 text 块，检查是否有 tool_result 块
     const hasToolResult = content.some((block: any) => block && block.type === 'tool_result')
     if (hasToolResult) {
-      // 工具结果消息，返回空（不显示给用户）
+      // 工具结果消息，返回空（不显示给用户，工具结果通过 ToolCall 组件展示）
       return ''
     }
     
@@ -758,6 +770,12 @@ function getMessageText(content: unknown): string {
   
   // 情况4：对象格式（可能有 text 属性）
   if (typeof content === 'object') {
+    // 检查是否是 tool_result 对象
+    if ((content as any).type === 'tool_result' || (content as any).type === 'tool_use') {
+      console.log('[ChatMessageList] 检测到 tool_result/tool_use 对象，已过滤')
+      return ''
+    }
+    
     // 如果有 text 属性
     if ('text' in content && typeof (content as any).text === 'string') {
       return (content as any).text
