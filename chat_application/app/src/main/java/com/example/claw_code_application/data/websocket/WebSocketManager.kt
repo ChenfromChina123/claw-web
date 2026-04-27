@@ -2,7 +2,6 @@ package com.example.claw_code_application.data.websocket
 
 import android.util.Log
 import com.example.claw_code_application.data.api.models.Message
-import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.util.Constants
 import com.google.gson.Gson
 import com.google.gson.JsonObject

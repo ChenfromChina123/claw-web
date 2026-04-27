@@ -186,6 +186,11 @@ class ChatViewModel(
                 )
                 _toolCalls.add(toolCall)
                 pendingToolInput[event.id] = StringBuilder()
+                
+                // 将工具调用关联到当前流式消息
+                streamingMessageId?.let { messageId ->
+                    messageToToolCalls.getOrPut(messageId) { mutableListOf() }.add(event.id)
+                }
             }
 
             // 工具输入参数增量更新
@@ -350,6 +355,9 @@ class ChatViewModel(
 
                         _toolCalls.clear()
                         _toolCalls.addAll(detail.toolCalls)
+                        
+                        // 重建消息-工具调用映射
+                        rebuildMessageToolCallMapping()
 
                         _uiState.value = UiState.Success(
                             messages = _messages.toList(),
@@ -363,6 +371,45 @@ class ChatViewModel(
                 )
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "加载失败")
+            }
+        }
+    }
+    
+    /**
+     * 重建消息-工具调用映射（用于从历史数据加载时）
+     */
+    private fun rebuildMessageToolCallMapping() {
+        messageToToolCalls.clear()
+        
+        // 遍历工具调用，根据时间顺序关联到最近的助手消息
+        var lastAssistantMessageId: String? = null
+        for (message in _messages) {
+            if (message.role == "assistant") {
+                lastAssistantMessageId = message.id
+                messageToToolCalls[message.id] = mutableListOf()
+            }
+        }
+        
+        // 将工具调用关联到它们出现后的第一个助手消息
+        for (toolCall in _toolCalls) {
+            val toolCallTime = toolCall.createdAt.toLongOrNull() ?: 0
+            
+            // 找到工具调用创建时间之前的最近一个助手消息
+            var associatedMessageId: String? = null
+            for (message in _messages) {
+                if (message.role == "assistant") {
+                    val messageTime = message.timestamp.toLongOrNull() ?: 0
+                    if (messageTime <= toolCallTime) {
+                        associatedMessageId = message.id
+                    } else {
+                        break
+                    }
+                }
+            }
+            
+            // 如果找到关联的消息，添加工具调用
+            if (associatedMessageId != null) {
+                messageToToolCalls.getOrPut(associatedMessageId) { mutableListOf() }.add(toolCall.id)
             }
         }
     }

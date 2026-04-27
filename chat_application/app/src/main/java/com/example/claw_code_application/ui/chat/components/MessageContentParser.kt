@@ -8,6 +8,11 @@ import com.google.gson.JsonParser
 /**
  * 消息内容解析器
  * 将混合文本+工具调用的内容解析为结构化组件列表
+ * 
+ * 支持后端发送的多种格式：
+ * 1. JSON数组格式：[{type: 'text', text: '...'}, {type: 'tool_use', ...}]
+ * 2. 单个JSON对象
+ * 3. 纯文本
  */
 object MessageContentParser {
 
@@ -18,100 +23,78 @@ object MessageContentParser {
      */
     fun parse(content: String): List<MessageComponent> {
         val components = mutableListOf<MessageComponent>()
+        val trimmedContent = content.trim()
 
-        // 尝试解析为 JSON 数组（工具调用格式）
-        if (content.trim().startsWith("[") && content.trim().endsWith("]")) {
+        // 尝试解析为 JSON 数组（后端发送的标准格式）
+        if (trimmedContent.startsWith("[") && trimmedContent.endsWith("]")) {
             try {
                 val jsonArray = JsonParser.parseString(content).asJsonArray
                 for (element in jsonArray) {
-                    val obj = element.asJsonObject
-                    val type = obj.get("type")?.asString
-
-                    when (type) {
-                        "tool_use" -> {
-                            components.add(parseToolUse(obj))
-                        }
-                        "tool_result" -> {
-                            components.add(parseToolResult(obj))
-                        }
-                        else -> {
-                            // 普通文本或其他类型
-                            components.add(MessageComponent.Text(obj.toString()))
+                    if (element.isJsonObject) {
+                        val obj = element.asJsonObject
+                        val type = obj.get("type")?.asString
+                        
+                        when (type) {
+                            "text" -> {
+                                val text = obj.get("text")?.asString ?: ""
+                                if (text.isNotBlank()) {
+                                    components.add(MessageComponent.Text(text))
+                                }
+                            }
+                            "tool_use" -> {
+                                components.add(parseToolUse(obj))
+                            }
+                            "tool_result" -> {
+                                components.add(parseToolResult(obj))
+                            }
+                            else -> {
+                                // 未知类型，尝试作为文本处理
+                                if (obj.toString().isNotBlank()) {
+                                    components.add(MessageComponent.Text(obj.toString()))
+                                }
+                            }
                         }
                     }
                 }
-                return components
+                if (components.isNotEmpty()) {
+                    return components
+                }
             } catch (e: Exception) {
-                // 解析失败，作为普通文本处理
+                // JSON数组解析失败，继续尝试其他解析方式
             }
         }
 
         // 尝试解析单个 JSON 对象
-        if (content.trim().startsWith("{") && content.trim().endsWith("}")) {
+        if (trimmedContent.startsWith("{") && trimmedContent.endsWith("}")) {
             try {
                 val jsonObj = JsonParser.parseString(content).asJsonObject
                 val type = jsonObj.get("type")?.asString
 
                 when (type) {
+                    "text" -> {
+                        val text = jsonObj.get("text")?.asString ?: ""
+                        if (text.isNotBlank()) {
+                            components.add(MessageComponent.Text(text))
+                        }
+                    }
                     "tool_use" -> {
                         components.add(parseToolUse(jsonObj))
-                        return components
                     }
                     "tool_result" -> {
                         components.add(parseToolResult(jsonObj))
-                        return components
                     }
+                }
+                
+                if (components.isNotEmpty()) {
+                    return components
                 }
             } catch (e: Exception) {
                 // 解析失败，作为普通文本处理
             }
         }
 
-        // 检查内容中是否包含工具调用的 JSON 片段
-        val toolUsePattern = """\{\"type\":\"tool_use\"[^}]*\}""".toRegex()
-        val toolResultPattern = """\{\"type\":\"tool_result\"[^}]*\}""".toRegex()
-
-        var remainingText = content
-
-        // 提取 tool_use
-        toolUsePattern.findAll(content).forEach { match ->
-            val beforeText = remainingText.substringBefore(match.value)
-            if (beforeText.isNotBlank()) {
-                components.add(MessageComponent.Text(beforeText.trim()))
-            }
-            try {
-                val jsonObj = JsonParser.parseString(match.value).asJsonObject
-                components.add(parseToolUse(jsonObj))
-            } catch (e: Exception) {
-                components.add(MessageComponent.Text(match.value))
-            }
-            remainingText = remainingText.substringAfter(match.value)
-        }
-
-        // 提取 tool_result
-        toolResultPattern.findAll(remainingText).forEach { match ->
-            val beforeText = remainingText.substringBefore(match.value)
-            if (beforeText.isNotBlank()) {
-                components.add(MessageComponent.Text(beforeText.trim()))
-            }
-            try {
-                val jsonObj = JsonParser.parseString(match.value).asJsonObject
-                components.add(parseToolResult(jsonObj))
-            } catch (e: Exception) {
-                components.add(MessageComponent.Text(match.value))
-            }
-            remainingText = remainingText.substringAfter(match.value)
-        }
-
-        // 添加剩余文本
-        if (remainingText.isNotBlank()) {
-            components.add(MessageComponent.Text(remainingText.trim()))
-        }
-
-        // 如果没有解析出任何组件，将整个内容作为文本
-        if (components.isEmpty()) {
-            components.add(MessageComponent.Text(content))
-        }
+        // 如果JSON解析失败，将整个内容作为文本
+        components.add(MessageComponent.Text(content))
 
         return components
     }
