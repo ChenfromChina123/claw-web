@@ -730,19 +730,35 @@ function getMessageText(content: unknown): string {
     return ''
   }
   
-  // 情况2：字符串格式 - 需要检测是否是 tool_result JSON
+  // 情况2：字符串格式 - 需要检测是否是 tool_result/tool_use JSON
   if (typeof content === 'string') {
     const trimmed = content.trim()
-    // 检测是否是 tool_result JSON 字符串（Anthropic API 返回格式）
-    if (trimmed.startsWith('{') && trimmed.includes('"type"') && trimmed.includes('tool_result')) {
-      console.log('[ChatMessageList] 检测到 tool_result JSON 字符串，已过滤')
+    
+    /**
+     * 检测并过滤 tool_result / tool_use JSON 字符串
+     * Anthropic API 可能返回两种格式：
+     * - 对象格式: {"type":"tool_result", ...}
+     * - 数组格式: [{"type":"tool_result", ...}, ...]  ← 截图中的情况！
+     */
+    const isToolJsonString = (() => {
+      // 对象格式：以 { 开头
+      if (trimmed.startsWith('{')) {
+        return (trimmed.includes('"type"') && trimmed.includes('tool_result')) ||
+               (trimmed.includes('"type"') && trimmed.includes('tool_use'))
+      }
+      // 数组格式：以 [ 开头（这是截图中显示的问题！）
+      if (trimmed.startsWith('[')) {
+        return (trimmed.includes('"type"') && trimmed.includes('tool_result')) ||
+               (trimmed.includes('"type"') && trimmed.includes('tool_use'))
+      }
+      return false
+    })()
+
+    if (isToolJsonString) {
+      console.log('[ChatMessageList] 检测到 tool_result/tool_use JSON 字符串，已过滤:', trimmed.substring(0, 100))
       return ''
     }
-    // 检测是否是 tool_use JSON 字符串
-    if (trimmed.startsWith('{') && trimmed.includes('"type"') && trimmed.includes('tool_use')) {
-      console.log('[ChatMessageList] 检测到 tool_use JSON 字符串，已过滤')
-      return ''
-    }
+    
     return content
   }
   
