@@ -222,54 +222,41 @@ function switchToForgotPassword() {
         <div class="brand-icon">
           <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
-              <radialGradient id="starGradient" cx="50%" cy="45%" r="50%">
+              <radialGradient id="starGlow" cx="50%" cy="50%" r="50%">
                 <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
-                <stop offset="20%" style="stop-color:#FFF8DC;stop-opacity:1" />
-                <stop offset="40%" style="stop-color:#FFD700;stop-opacity:0.9" />
-                <stop offset="60%" style="stop-color:#FF8C42;stop-opacity:0.7" />
-                <stop offset="80%" style="stop-color:#A855F7;stop-opacity:0.5" />
+                <stop offset="15%" style="stop-color:#FFF8DC;stop-opacity:0.9" />
+                <stop offset="35%" style="stop-color:#FFD700;stop-opacity:0.6" />
+                <stop offset="55%" style="stop-color:#FF8C42;stop-opacity:0.3" />
+                <stop offset="75%" style="stop-color:#A855F7;stop-opacity:0.15" />
                 <stop offset="100%" style="stop-color:#6366F1;stop-opacity:0" />
               </radialGradient>
-              <linearGradient id="rayGradient1" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#2D2D3A;stop-opacity:1" />
-                <stop offset="50%" style="stop-color:#4A4A5A;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#2D2D3A;stop-opacity:1" />
-              </linearGradient>
-              <linearGradient id="rayGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#3D3D4A;stop-opacity:1" />
-                <stop offset="50%" style="stop-color:#6B5B4F;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#3D3D4A;stop-opacity:1" />
-              </linearGradient>
-              <linearGradient id="baseGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" style="stop-color:#4A4A5A;stop-opacity:1" />
-                <stop offset="50%" style="stop-color:#3D3D4A;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#2D2D3A;stop-opacity:1" />
-              </linearGradient>
             </defs>
-            <rect x="5" y="5" width="90" height="90" rx="22" fill="#FAFAFA"/>
-            <g transform="translate(50, 45)">
-              <rect x="-3" y="-38" width="6" height="16" rx="3" fill="url(#rayGradient2)"/>
-              <rect x="-3" y="-38" width="6" height="14" rx="3" fill="url(#rayGradient1)" transform="rotate(45) translate(0, 4)"/>
-              <rect x="-3" y="-38" width="6" height="16" rx="3" fill="url(#rayGradient1)" transform="rotate(90) translate(0, 8)"/>
-              <rect x="-3" y="-38" width="6" height="14" rx="3" fill="url(#rayGradient1)" transform="rotate(135) translate(0, 4)"/>
-              <rect x="-3" y="-38" width="6" height="14" rx="3" fill="url(#rayGradient1)" transform="rotate(-135) translate(0, 4)"/>
-              <rect x="-3" y="-38" width="6" height="16" rx="3" fill="url(#rayGradient1)" transform="rotate(-90) translate(0, 8)"/>
-              <rect x="-3" y="-38" width="6" height="14" rx="3" fill="url(#rayGradient2)" transform="rotate(-45) translate(0, 4)"/>
-            </g>
-            <ellipse cx="50" cy="42" rx="20" ry="22" fill="url(#starGradient)"/>
-            <g transform="translate(50, 42)">
-              <path d="M0,-18 Q8,-8 0,0 Q-8,-8 0,-18" fill="#FFD700" opacity="0.9"/>
-              <path d="M18,0 Q8,8 0,0 Q8,-8 18,0" fill="#FF8C42" opacity="0.8"/>
-              <path d="M0,18 Q-8,8 0,0 Q8,8 0,18" fill="#A855F7" opacity="0.7"/>
-              <path d="M-18,0 Q-8,-8 0,0 Q-8,8 -18,0" fill="#6366F1" opacity="0.6"/>
-              <circle cx="0" cy="0" r="6" fill="white" opacity="0.9"/>
-            </g>
-            <g transform="translate(50, 68)">
-              <path d="M-12,0 Q-12,8 0,10 Q12,8 12,0 L10,8 Q0,12 -10,8 Z" fill="url(#baseGradient)"/>
-              <path d="M-10,8 Q0,12 10,8 L9,14 Q0,18 -9,14 Z" fill="url(#baseGradient)"/>
-              <path d="M-9,14 Q0,18 9,14 L7,20 Q0,24 -7,20 Z" fill="url(#baseGradient)"/>
-              <circle cx="0" cy="24" r="3" fill="#2D2D3A"/>
-            </g>
+            <rect width="100" height="100" rx="22" fill="#0F0F1A"/>
+            <circle cx="50" cy="50" r="48" fill="url(#starGlow)" opacity="0.3"/>
+            <circle cx="50" cy="50" r="38" fill="url(#starGlow)" opacity="0.4"/>
+            <rect x="48" y="6" width="4" height="22" rx="2" fill="#FFD700" opacity="0.95"/>
+            <rect x="48" y="72" width="4" height="22" rx="2" fill="#A855F7" opacity="0.7"/>
+            <rect x="6" y="48" width="22" height="4" rx="2" fill="#6366F1" opacity="0.8"/>
+            <rect x="72" y="48" width="22" height="4" rx="2" fill="#FF8C42" opacity="0.85"/>
+            <rect x="16" y="18" width="4" height="16" rx="2" fill="#818CF8" opacity="0.85" transform="rotate(45 18 26)"/>
+            <rect x="80" y="18" width="4" height="16" rx="2" fill="#FFB347" opacity="0.9" transform="rotate(-45 82 26)"/>
+            <rect x="16" y="66" width="4" height="16" rx="2" fill="#818CF8" opacity="0.75" transform="rotate(-45 18 74)"/>
+            <rect x="80" y="66" width="4" height="16" rx="2" fill="#C084FC" opacity="0.75" transform="rotate(45 82 74)"/>
+            <rect x="58" y="12" width="3" height="12" rx="1.5" fill="#FFE4B5" opacity="0.7" transform="rotate(22 59.5 18)"/>
+            <rect x="76" y="58" width="12" height="3" rx="1.5" fill="#FFB347" opacity="0.65" transform="rotate(22 82 59.5)"/>
+            <rect x="39" y="76" width="3" height="12" rx="1.5" fill="#C084FC" opacity="0.6" transform="rotate(22 40.5 82)"/>
+            <rect x="12" y="39" width="12" height="3" rx="1.5" fill="#6366F1" opacity="0.65" transform="rotate(22 18 40.5)"/>
+            <path d="M50,24c6,6 6,16 0,22c-6,-6 -6,-16 0,-22z" fill="#FFD700" opacity="0.95"/>
+            <path d="M72,46c-6,6 -16,6 -22,0c6,-6 16,-6 22,0z" fill="#FF8C42" opacity="0.9"/>
+            <path d="M50,68c-6,-6 -6,-16 0,-22c6,6 6,16 0,22z" fill="#A855F7" opacity="0.85"/>
+            <path d="M28,46c6,-6 16,-6 22,0c-6,6 -16,6 -22,0z" fill="#6366F1" opacity="0.9"/>
+            <circle cx="50" cy="46" r="10" fill="white" opacity="0.5"/>
+            <circle cx="50" cy="46" r="6" fill="white" opacity="0.95"/>
+            <circle cx="50" cy="46" r="3" fill="white"/>
+            <circle cx="32" cy="22" r="1.5" fill="#FFD700" opacity="0.6"/>
+            <circle cx="70" cy="28" r="1.2" fill="#FF8C42" opacity="0.5"/>
+            <circle cx="66" cy="68" r="1.5" fill="#A855F7" opacity="0.5"/>
+            <circle cx="30" cy="64" r="1.2" fill="#6366F1" opacity="0.5"/>
           </svg>
         </div>
         <h1 class="brand-name">收藏家</h1>
