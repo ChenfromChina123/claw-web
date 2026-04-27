@@ -38,7 +38,7 @@ class TokenManager(private val context: Context) {
         }
         
         // 立即验证保存是否成功
-        val saved: String? = context.dataStore.first()[tokenKey]
+        val saved: String? = context.dataStore.data.first()[tokenKey]
         android.util.Log.d(TAG, "验证保存: ${saved == token}")
         android.util.Log.d(TAG, "读取长度: ${saved?.length ?: 0}")
     }
