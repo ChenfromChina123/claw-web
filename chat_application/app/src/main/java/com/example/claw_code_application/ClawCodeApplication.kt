@@ -2,6 +2,7 @@ package com.example.claw_code_application
 
 import android.app.Application
 import com.example.claw_code_application.data.api.ApiService
+import com.example.claw_code_application.data.api.AuthInterceptor
 import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.repository.AuthRepository
 import com.example.claw_code_application.data.repository.ChatRepository
