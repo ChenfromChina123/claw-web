@@ -32,25 +32,28 @@ class AuthInterceptor(
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        
+
         // 跳过不需要认证的请求
         if (isPublicEndpoint(request.url.toString())) {
             Logger.d(TAG, "公开端点，跳过认证: ${request.url}")
             return chain.proceed(request)
         }
 
-        // 获取当前 Token
+        // 获取当前 Token（每次都重新获取，确保是最新的）
         val token = runBlocking { tokenManager.getToken().first() }
-        
+
         // 如果没有 Token，直接请求（让服务器返回 401）
         if (token.isNullOrBlank()) {
             Logger.w(TAG, "请求需要认证但没有 Token: ${request.url}")
-            val response = chain.proceed(request)
-            
-            if (response.code == 401) {
-                handleAuthFailure("Token 不存在")
-            }
-            return response
+            // 不发送请求，直接返回 401，避免不必要的网络请求
+            Logger.w(TAG, "Token 为空，直接返回 401")
+            return Response.Builder()
+                .request(request)
+                .protocol(okhttp3.Protocol.HTTP_1_1)
+                .code(401)
+                .message("Unauthorized - No Token")
+                .body(okhttp3.ResponseBody.create(null, ""))
+                .build()
         }
 
         // 添加 Authorization Header
@@ -66,13 +69,25 @@ class AuthInterceptor(
         // 检测 401 未授权响应
         if (response.code == 401) {
             Logger.w(TAG, "收到 401 响应，Token 可能已过期: ${request.url}")
+
+            // 再次检查 Token，确认是否已经被更新
+            val currentToken = runBlocking { tokenManager.getToken().first() }
+            if (currentToken != null && currentToken != token) {
+                // Token 已被更新，使用新 Token 重试请求
+                Logger.i(TAG, "Token 已更新，使用新 Token 重试请求")
+                val newRequest = request.newBuilder()
+                    .addHeader("Authorization", "Bearer $currentToken")
+                    .build()
+                return chain.proceed(newRequest)
+            }
+
+            // Token 确实过期，处理认证失败
             handleAuthFailure("Token 过期或无效 (401)")
-            
+
             // 关闭响应体，避免资源泄漏
             response.close()
-            
-            // 返回原始的 401 响应，让上层处理
-            // 不抛出异常，避免崩溃
+
+            // 返回 401 响应给上层处理
             Logger.w(TAG, "返回 401 响应给上层处理")
             return Response.Builder()
                 .request(request)
