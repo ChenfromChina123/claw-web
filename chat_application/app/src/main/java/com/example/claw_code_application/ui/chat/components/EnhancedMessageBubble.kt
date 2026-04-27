@@ -65,18 +65,13 @@ fun EnhancedMessageBubble(
                     // 动态组件渲染
                     if (isUser) {
                         /**
-                         * 用户消息内容过滤
+                         * 用户消息内容过滤（与Web端三重过滤对齐）
                          * Anthropic API 会将 tool_result 包装成 user 角色消息发送给 Agent
                          * 需要过滤掉这些内部消息，避免显示原始 JSON
                          */
                         val filteredContent = remember(message.content) {
-                            filterToolResultContent(message.content)
+                            getSafeAssistantContent(message.content)
                         }
-                        
-                        android.util.Log.d("EnhancedBubble", "=== User Message ===")
-                        android.util.Log.d("EnhancedBubble", "messageId: ${message.id}")
-                        android.util.Log.d("EnhancedBubble", "原始内容长度: ${message.content.length}, 前100字: ${message.content.take(100)}")
-                        android.util.Log.d("EnhancedBubble", "过滤后长度: ${filteredContent.length}, 是否为空: ${filteredContent.isBlank()}")
                         
                         if (filteredContent.isNotBlank()) {
                             Text(
@@ -88,8 +83,6 @@ fun EnhancedMessageBubble(
                         }
                     } else {
                         // AI消息使用动态组件渲染
-                        android.util.Log.d("EnhancedBubble", "=== Assistant Message ===")
-                        android.util.Log.d("EnhancedBubble", "messageId: ${message.id}, 内容长度: ${message.content.length}")
                         DynamicMessageContent(
                             content = message.content,
                             isStreaming = message.isStreaming
@@ -104,7 +97,6 @@ fun EnhancedMessageBubble(
             }
 
             // 工具调用显示 - 使用增强版可折叠卡片
-            android.util.Log.d("EnhancedBubble", "=== ToolCalls === toolCalls.size=${toolCalls.size}, isUser=$isUser, messageId=${message.id}")
             if (toolCalls.isNotEmpty() && !isUser) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Column(
@@ -112,7 +104,6 @@ fun EnhancedMessageBubble(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     toolCalls.forEach { toolCall ->
-                        android.util.Log.d("EnhancedBubble", "ToolCall: id=${toolCall.id.take(20)}, name=${toolCall.toolName}, status=${toolCall.status}, hasOutput=${toolCall.toolOutput != null}")
                         var expanded by remember { mutableStateOf(false) }
                         ToolCallCard(
                             toolCall = toolCall,
@@ -152,7 +143,6 @@ private fun DynamicMessageContent(
     components.forEach { component ->
         when (component) {
             is MessageComponent.Text -> {
-                // 普通文本使用 Markdown 渲染
                 MarkdownText(
                     markdown = component.content,
                     modifier = Modifier.fillMaxWidth(),
@@ -163,7 +153,6 @@ private fun DynamicMessageContent(
             }
 
             is MessageComponent.ToolUse -> {
-                // 工具调用 - 显示为步骤进度或终端卡片
                 ToolUseComponent(
                     toolUse = component,
                     isExecuting = isStreaming
@@ -171,7 +160,6 @@ private fun DynamicMessageContent(
             }
 
             is MessageComponent.ToolResult -> {
-                // 工具结果 - 显示为终端卡片
                 TerminalViewer(
                     command = component.stdout.lines().firstOrNull() ?: "",
                     stdout = component.stdout,
@@ -182,7 +170,6 @@ private fun DynamicMessageContent(
             }
 
             is MessageComponent.FileListResult -> {
-                // 文件列表结果 - 显示为文件浏览器卡片
                 FileListViewer(
                     path = component.path,
                     count = component.count,
@@ -190,8 +177,30 @@ private fun DynamicMessageContent(
                 )
             }
 
+            is MessageComponent.SearchResult -> {
+                SearchResultViewer(
+                    summary = component.summary,
+                    matchCount = component.matchCount,
+                    matchedFiles = component.matchedFiles
+                )
+            }
+
+            is MessageComponent.FileContentResult -> {
+                FileContentViewer(
+                    path = component.path,
+                    content = component.content,
+                    lineCount = component.lineCount
+                )
+            }
+
+            is MessageComponent.ErrorResult -> {
+                ErrorResultViewer(
+                    error = component.error,
+                    errorType = component.errorType
+                )
+            }
+
             is MessageComponent.StepProgress -> {
-                // 步骤进度
                 var expanded by remember { mutableStateOf(true) }
                 StepProgress(
                     title = component.title,
@@ -204,7 +213,6 @@ private fun DynamicMessageContent(
             }
 
             is MessageComponent.CodeDiff -> {
-                // 代码差异
                 CodeDiffEditor(
                     fileName = component.fileName,
                     originalCode = component.originalCode,
@@ -383,32 +391,295 @@ private fun FileListViewer(
 }
 
 /**
- * 过滤用户消息中的 tool_result JSON 内容
+ * 搜索结果查看器组件
+ */
+@Composable
+private fun SearchResultViewer(
+    summary: String,
+    matchCount: Int,
+    matchedFiles: List<String>,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = AppColor.SurfaceLight
+        ),
+        border = BorderStroke(1.dp, AppColor.Border)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(text = "🔍", fontSize = 16.sp)
+                Text(
+                    text = summary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = AppColor.TextPrimary
+                )
+            }
+
+            if (matchedFiles.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(color = AppColor.Divider, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                matchedFiles.take(10).forEach { filePath ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(text = "📄", fontSize = 12.sp)
+                        Text(
+                            text = filePath,
+                            fontSize = 11.sp,
+                            color = AppColor.TextSecondary,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+
+                if (matchedFiles.size > 10) {
+                    Text(
+                        text = "...还有 ${matchedFiles.size - 10} 个文件",
+                        fontSize = 11.sp,
+                        color = AppColor.TextSecondary,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 文件内容读取结果查看器组件
+ */
+@Composable
+private fun FileContentViewer(
+    path: String,
+    content: String,
+    lineCount: Int,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = AppColor.SurfaceLight
+        ),
+        border = BorderStroke(1.dp, AppColor.Border)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(text = "📄", fontSize = 16.sp)
+                if (path.isNotEmpty()) {
+                    Text(
+                        text = path,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = AppColor.Primary
+                    )
+                }
+                Text(
+                    text = "($lineCount 行)",
+                    fontSize = 11.sp,
+                    color = AppColor.TextSecondary
+                )
+            }
+
+            if (content.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(color = AppColor.Divider, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val displayContent = if (content.length > 500) {
+                    content.take(500) + "\n... (已截断)"
+                } else {
+                    content
+                }
+
+                Text(
+                    text = displayContent,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = AppColor.TextPrimary,
+                    lineHeight = 16.sp
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 错误结果查看器组件
+ */
+@Composable
+private fun ErrorResultViewer(
+    error: String,
+    errorType: String,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = AppColor.Error.copy(alpha = 0.05f)
+        ),
+        border = BorderStroke(1.dp, AppColor.Error.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(text = "❌", fontSize = 16.sp)
+                Text(
+                    text = "错误: $errorType",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = AppColor.Error
+                )
+            }
+
+            if (error.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = error,
+                    fontSize = 12.sp,
+                    color = AppColor.Error.copy(alpha = 0.8f),
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 过滤用户消息中的 tool_result/tool_use JSON 内容（与Web端三重过滤对齐）
  * Anthropic API 会将工具结果包装成 user 角色消息，需要过滤掉这些内部数据
  *
+ * 支持检测的格式（与Web端 getMessageText + getSafeAssistantContent 对齐）：
+ * - 对象格式: {"type":"tool_result", ...}
+ * - 数组格式: [{"type":"tool_result", ...}, ...]
+ * - 包含 tool_use_id 的对象/数组
+ *
  * @param content 原始消息内容
- * @return 过滤后的内容，如果是 tool_result 则返回空字符串
+ * @return 过滤后的内容，如果是 tool_result/tool_use 则返回空字符串
  */
 fun filterToolResultContent(content: String): String {
+    if (content.isBlank()) return ""
+
     val trimmed = content.trim()
-    
-    // 检测是否是 tool_result / tool_use JSON 字符串
-    // 可能的格式：
-    // - [{"type":"tool_result",...}]
-    // - {"type":"tool_result",...}
+
     val isToolJson = when {
-        trimmed.startsWith("[") || trimmed.startsWith("{") -> {
-            trimmed.contains("\"type\"") && 
-            (trimmed.contains("tool_result") || trimmed.contains("tool_use"))
+        trimmed.startsWith("[") -> {
+            trimmed.contains("\"type\"") &&
+            (trimmed.contains("tool_result") || trimmed.contains("tool_use")) ||
+            trimmed.contains("tool_use_id")
+        }
+        trimmed.startsWith("{") -> {
+            trimmed.contains("\"type\"") &&
+            (trimmed.contains("tool_result") || trimmed.contains("tool_use")) ||
+            trimmed.contains("tool_use_id")
         }
         else -> false
     }
-    
+
     return if (isToolJson) {
-        android.util.Log.d("MessageFilter", "过滤掉 tool_result JSON: ${trimmed.take(100)}...")
+        android.util.Log.d("MessageFilter", "过滤掉 tool_result/tool_use JSON: ${trimmed.take(100)}...")
         ""
     } else {
         content
+    }
+}
+
+/**
+ * 判断消息是否应该显示（与Web端 shouldShowMessage 对齐）
+ * 过滤掉 tool_result 类型的用户消息（内部消息，不显示给用户）
+ *
+ * @param message 消息对象
+ * @return true 表示应该显示，false 表示应该隐藏
+ */
+fun shouldShowMessage(message: Message): Boolean {
+    if (message.role == "user") {
+        val content = message.content.trim()
+
+        // 情况1：content 是 JSON 数组格式（标准 Anthropic 格式）
+        if (content.startsWith("[") && content.endsWith("]")) {
+            val hasToolResult = content.contains("\"type\"") &&
+                (content.contains("tool_result") || content.contains("tool_use"))
+            if (hasToolResult) {
+                android.util.Log.d("MessageFilter", "shouldShowMessage: 隐藏 tool_result 数组格式用户消息")
+                return false
+            }
+        }
+
+        // 情况2：content 是 JSON 对象格式
+        if (content.startsWith("{") && content.endsWith("}")) {
+            val hasToolResult = content.contains("\"type\"") &&
+                (content.contains("tool_result") || content.contains("tool_use"))
+            if (hasToolResult) {
+                android.util.Log.d("MessageFilter", "shouldShowMessage: 隐藏 tool_result 对象格式用户消息")
+                return false
+            }
+        }
+
+        // 情况3：包含 tool_use_id 的内容
+        if ((content.startsWith("[") || content.startsWith("{")) &&
+            content.contains("tool_use_id")) {
+            android.util.Log.d("MessageFilter", "shouldShowMessage: 隐藏 tool_use_id 用户消息")
+            return false
+        }
+
+        // 过滤后内容为空则不显示
+        return filterToolResultContent(content).isNotBlank()
+    }
+
+    // 助手消息：有内容或有关联的工具调用就显示
+    return true
+}
+
+/**
+ * 获取安全的助手消息内容（与Web端 getSafeAssistantContent 对齐）
+ * 双重过滤保障，确保不会把 tool_result/tool_use JSON 显示在聊天界面中
+ *
+ * @param content 原始消息内容
+ * @return 安全的内容文本
+ */
+fun getSafeAssistantContent(content: String): String {
+    val filtered = filterToolResultContent(content)
+    if (filtered.isBlank()) return ""
+
+    val trimmed = filtered.trim()
+
+    // 防御性检查：再次确认不是工具结果JSON
+    val isToolJson = when {
+        !trimmed.startsWith("[") && !trimmed.startsWith("{") -> false
+        else -> trimmed.contains("tool_result") ||
+                trimmed.contains("tool_use") ||
+                trimmed.contains("tool_use_id")
+    }
+
+    return if (isToolJson) {
+        android.util.Log.d("MessageFilter", "getSafeAssistantContent: 二次过滤掉工具JSON")
+        ""
+    } else {
+        filtered
     }
 }
 

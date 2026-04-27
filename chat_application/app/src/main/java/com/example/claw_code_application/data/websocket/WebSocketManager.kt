@@ -72,6 +72,12 @@ class WebSocketManager {
         
         /** 工具执行失败事件 */
         data class ToolError(val id: String, val name: String, val error: String, val errorType: String, val duration: Long?) : WebSocketEvent()
+
+        /** 工具执行进度事件（与Web端 tool_progress 对齐） */
+        data class ToolProgress(val id: String, val name: String, val output: String?) : WebSocketEvent()
+
+        /** 工具调用结束事件（与Web端 tool_use_end 对齐） */
+        data class ToolUseEnd(val id: String, val output: Any?, val error: String?) : WebSocketEvent()
         
         data class ConversationEnd(val totalMessages: Int) : WebSocketEvent()
         data class Error(val message: String) : WebSocketEvent()
@@ -276,6 +282,20 @@ class WebSocketManager {
                 val errorType = data.get("errorType")?.asString ?: "UNKNOWN"
                 val duration = data.get("duration")?.asLong
                 WebSocketEvent.ToolError(id, name, error, errorType, duration)
+            }
+
+            "tool_progress" -> {
+                val id = data.get("id")?.asString ?: data.get("executionId")?.asString ?: ""
+                val name = data.get("name")?.asString ?: ""
+                val output = data.get("output")?.asString
+                WebSocketEvent.ToolProgress(id, name, output)
+            }
+
+            "tool_use_end" -> {
+                val id = data.get("id")?.asString ?: ""
+                val output = data.get("output") ?: data.get("result")
+                val error = data.get("error")?.asString
+                WebSocketEvent.ToolUseEnd(id, output, error)
             }
 
             "conversation_end" -> {

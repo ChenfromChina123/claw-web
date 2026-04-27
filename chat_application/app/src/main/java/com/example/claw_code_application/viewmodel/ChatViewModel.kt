@@ -64,18 +64,17 @@ class ChatViewModel(
     
     /** 消息ID与工具调用ID的映射 - 用于正确关联工具调用到消息 */
     private val messageToToolCalls = mutableMapOf<String, MutableList<String>>()
+
+    /** 未关联到任何消息的工具调用ID列表 - 等待关联 */
+    private val unassociatedToolCallIds = mutableListOf<String>()
     
     /** 获取与指定消息关联的工具调用列表 */
     fun getToolCallsForMessage(messageId: String): List<ToolCall> {
         val toolCallIds = messageToToolCalls[messageId]
-        android.util.Log.d("ChatVM", "getToolCallsForMessage: messageId=$messageId, toolCallIds=$toolCallIds, mappingSize=${messageToToolCalls.size}")
         if (toolCallIds == null) {
-            android.util.Log.d("ChatVM", "  → 未找到关联的工具调用")
             return emptyList()
         }
-        val result = _toolCalls.filter { it.id in toolCallIds }
-        android.util.Log.d("ChatVM", "  → 找到 ${result.size} 个工具调用: ${result.map { "${it.id.take(20)}:${it.toolName}" }}")
-        return result
+        return _toolCalls.filter { it.id in toolCallIds }
     }
 
     init {
@@ -110,6 +109,14 @@ class ChatViewModel(
             is WebSocketManager.WebSocketEvent.MessageStart -> {
                 // 创建新的AI消息占位符
                 streamingMessageId = event.messageId
+
+                // 关联之前暂存的未关联工具调用
+                if (unassociatedToolCallIds.isNotEmpty()) {
+                    val toolCallList = messageToToolCalls.getOrPut(event.messageId) { mutableListOf() }
+                    toolCallList.addAll(unassociatedToolCallIds)
+                    unassociatedToolCallIds.clear()
+                }
+
                 val assistantMessage = Message(
                     id = event.messageId,
                     role = "assistant",
@@ -182,8 +189,6 @@ class ChatViewModel(
 
             // LLM流式输出时触发的工具使用事件
             is WebSocketManager.WebSocketEvent.ToolUse -> {
-                android.util.Log.d("ChatVM", "=== ToolUse 事件 === id=${event.id}, name=${event.name}, streamingMsgId=$streamingMessageId")
-                // 创建新的工具调用记录，关联到当前流式消息
                 val toolCall = ToolCall(
                     id = event.id,
                     toolName = event.name,
@@ -198,7 +203,10 @@ class ChatViewModel(
                 // 将工具调用关联到当前流式消息
                 streamingMessageId?.let { messageId ->
                     messageToToolCalls.getOrPut(messageId) { mutableListOf() }.add(event.id)
-                    android.util.Log.d("ChatVM", "工具 ${event.id} 关联到消息 $messageId")
+                } ?: run {
+                    // streamingMessageId 为 null 时，暂存到未关联列表
+                    // 等 MessageStart 事件到达后再关联
+                    unassociatedToolCallIds.add(event.id)
                 }
             }
 
@@ -209,7 +217,6 @@ class ChatViewModel(
 
             // 工具执行开始
             is WebSocketManager.WebSocketEvent.ToolStart -> {
-                android.util.Log.d("ChatVM", "=== ToolStart 事件 === id=${event.id}")
                 val index = _toolCalls.indexOfFirst { it.id == event.id }
                 if (index != -1) {
                     val oldTool = _toolCalls[index]
@@ -235,19 +242,15 @@ class ChatViewModel(
 
             // 工具执行完成
             is WebSocketManager.WebSocketEvent.ToolEnd -> {
-                android.util.Log.d("ChatVM", "=== ToolEnd 事件 === id=${event.id}")
-                android.util.Log.d("ChatVM", "result 类型: ${event.result?.javaClass?.simpleName}, 内容: ${event.result?.toString()?.take(150)}")
                 val index = _toolCalls.indexOfFirst { it.id == event.id }
                 if (index != -1) {
                     val oldTool = _toolCalls[index]
                     _toolCalls[index] = oldTool.copy(
                         status = "completed",
-                        toolOutput = event.result,
+                        toolOutput = normalizeToolOutput(event.result),
                         completedAt = System.currentTimeMillis().toString()
                     )
-                    android.util.Log.d("ChatVM", "工具 ${event.id} 状态更新为 completed")
-                } else {
-                    android.util.Log.w("ChatVM", "未找到工具 ${event.id}，当前工具数: ${_toolCalls.size}")
+                }
                 }
                 // 清理pending输入
                 pendingToolInput.remove(event.id)
@@ -264,8 +267,27 @@ class ChatViewModel(
                         completedAt = System.currentTimeMillis().toString()
                     )
                 }
-                // 清理pending输入
                 pendingToolInput.remove(event.id)
+            }
+
+            // 工具执行进度
+            is WebSocketManager.WebSocketEvent.ToolProgress -> {
+                // 进度事件暂不改变工具状态，仅用于日志
+            }
+
+            // 工具调用结束
+            is WebSocketManager.WebSocketEvent.ToolUseEnd -> {
+                val index = _toolCalls.indexOfFirst { it.id == event.id }
+                if (index != -1) {
+                    val oldTool = _toolCalls[index]
+                    val newStatus = if (event.error != null) "error" else "completed"
+                    _toolCalls[index] = oldTool.copy(
+                        status = newStatus,
+                        toolOutput = event.output ?: oldTool.toolOutput,
+                        error = event.error ?: oldTool.error,
+                        completedAt = System.currentTimeMillis().toString()
+                    )
+                }
             }
 
             is WebSocketManager.WebSocketEvent.ConversationEnd -> {
@@ -392,41 +414,93 @@ class ChatViewModel(
     
     /**
      * 重建消息-工具调用映射（用于从历史数据加载时）
+     * 改进算法：基于消息内容中的 tool_use 块关联工具调用
      */
     private fun rebuildMessageToolCallMapping() {
         messageToToolCalls.clear()
-        
-        // 遍历工具调用，根据时间顺序关联到最近的助手消息
-        var lastAssistantMessageId: String? = null
+
+        // 策略1：从消息内容中提取 tool_use 块的 id 进行精确关联
         for (message in _messages) {
-            if (message.role == "assistant") {
-                lastAssistantMessageId = message.id
-                messageToToolCalls[message.id] = mutableListOf()
+            if (message.role != "assistant") continue
+
+            val content = message.content.trim()
+            if (!content.startsWith("[") && !content.startsWith("{")) continue
+
+            try {
+                val toolUseIds = extractToolUseIdsFromContent(content)
+                if (toolUseIds.isNotEmpty()) {
+                    messageToToolCalls[message.id] = toolUseIds.toMutableList()
+                }
+            } catch (e: Exception) {
+                // 解析失败，跳过
             }
         }
-        
-        // 将工具调用关联到它们出现后的第一个助手消息
-        for (toolCall in _toolCalls) {
-            val toolCallTime = toolCall.createdAt.toLongOrNull() ?: 0
-            
-            // 找到工具调用创建时间之前的最近一个助手消息
-            var associatedMessageId: String? = null
+
+        // 策略2：对于未关联的工具调用，按时间顺序关联到最近的助手消息
+        val associatedIds = messageToToolCalls.values.flatten().toSet()
+        val unassociated = _toolCalls.filter { it.id !in associatedIds }
+
+        if (unassociated.isNotEmpty()) {
+            var lastAssistantMessageId: String? = null
             for (message in _messages) {
                 if (message.role == "assistant") {
-                    val messageTime = message.timestamp.toLongOrNull() ?: 0
-                    if (messageTime <= toolCallTime) {
-                        associatedMessageId = message.id
-                    } else {
-                        break
-                    }
+                    lastAssistantMessageId = message.id
                 }
             }
-            
-            // 如果找到关联的消息，添加工具调用
-            if (associatedMessageId != null) {
-                messageToToolCalls.getOrPut(associatedMessageId) { mutableListOf() }.add(toolCall.id)
+
+            for (toolCall in unassociated) {
+                // 按时间找到工具调用之前的最近助手消息
+                val toolCallTime = toolCall.createdAt.toLongOrNull() ?: 0
+                var bestMessageId: String? = null
+
+                for (message in _messages) {
+                    if (message.role == "assistant") {
+                        val messageTime = message.timestamp.toLongOrNull() ?: 0
+                        if (messageTime <= toolCallTime) {
+                            bestMessageId = message.id
+                        } else {
+                            break
+                        }
+                    }
+                }
+
+                if (bestMessageId == null) {
+                    bestMessageId = lastAssistantMessageId
+                }
+
+                if (bestMessageId != null) {
+                    messageToToolCalls.getOrPut(bestMessageId) { mutableListOf() }.add(toolCall.id)
+                }
             }
         }
+    }
+
+    /**
+     * 从消息内容中提取 tool_use 块的 id 列表
+     */
+    private fun extractToolUseIdsFromContent(content: String): List<String> {
+        val ids = mutableListOf<String>()
+        try {
+            if (content.startsWith("[")) {
+                val jsonArray = com.google.gson.JsonParser.parseString(content).asJsonArray
+                for (element in jsonArray) {
+                    if (element.isJsonObject) {
+                        val obj = element.asJsonObject
+                        if (obj.get("type")?.asString == "tool_use") {
+                            obj.get("id")?.asString?.let { ids.add(it) }
+                        }
+                    }
+                }
+            } else if (content.startsWith("{")) {
+                val jsonObj = com.google.gson.JsonParser.parseString(content).asJsonObject
+                if (jsonObj.get("type")?.asString == "tool_use") {
+                    jsonObj.get("id")?.asString?.let { ids.add(it) }
+                }
+            }
+        } catch (e: Exception) {
+            // 解析失败
+        }
+        return ids
     }
 
     /**
@@ -454,6 +528,20 @@ class ChatViewModel(
             } catch (e: Exception) {
                 // 忽略中断错误
             }
+        }
+    }
+
+    /**
+     * 规范化工具输出格式（与Web端 useWebSocket.ts handleToolEnd 对齐）
+     * 对象类型 → 直接保留
+     * 其他类型 → 包装为 { value: raw }
+     */
+    private fun normalizeToolOutput(result: Any?): Any? {
+        if (result == null) return null
+        return when (result) {
+            is Map<*, *> -> result
+            is com.google.gson.JsonObject -> result
+            else -> mapOf("value" to result)
         }
     }
 

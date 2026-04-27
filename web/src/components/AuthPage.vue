@@ -222,41 +222,28 @@ function switchToForgotPassword() {
         <div class="brand-icon">
           <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
-              <radialGradient id="starGlow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
-                <stop offset="15%" style="stop-color:#FFF8DC;stop-opacity:0.9" />
-                <stop offset="35%" style="stop-color:#FFD700;stop-opacity:0.6" />
-                <stop offset="55%" style="stop-color:#FF8C42;stop-opacity:0.3" />
-                <stop offset="75%" style="stop-color:#A855F7;stop-opacity:0.15" />
+              <radialGradient id="g" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" style="stop-color:#FFF8DC;stop-opacity:0.4" />
+                <stop offset="50%" style="stop-color:#FFD700;stop-opacity:0.1" />
                 <stop offset="100%" style="stop-color:#6366F1;stop-opacity:0" />
               </radialGradient>
             </defs>
             <rect width="100" height="100" rx="22" fill="#0F0F1A"/>
-            <circle cx="50" cy="50" r="48" fill="url(#starGlow)" opacity="0.3"/>
-            <circle cx="50" cy="50" r="38" fill="url(#starGlow)" opacity="0.4"/>
-            <rect x="48" y="6" width="4" height="22" rx="2" fill="#FFD700" opacity="0.95"/>
-            <rect x="48" y="72" width="4" height="22" rx="2" fill="#A855F7" opacity="0.7"/>
-            <rect x="6" y="48" width="22" height="4" rx="2" fill="#6366F1" opacity="0.8"/>
-            <rect x="72" y="48" width="22" height="4" rx="2" fill="#FF8C42" opacity="0.85"/>
-            <rect x="16" y="18" width="4" height="16" rx="2" fill="#818CF8" opacity="0.85" transform="rotate(45 18 26)"/>
-            <rect x="80" y="18" width="4" height="16" rx="2" fill="#FFB347" opacity="0.9" transform="rotate(-45 82 26)"/>
-            <rect x="16" y="66" width="4" height="16" rx="2" fill="#818CF8" opacity="0.75" transform="rotate(-45 18 74)"/>
-            <rect x="80" y="66" width="4" height="16" rx="2" fill="#C084FC" opacity="0.75" transform="rotate(45 82 74)"/>
-            <rect x="58" y="12" width="3" height="12" rx="1.5" fill="#FFE4B5" opacity="0.7" transform="rotate(22 59.5 18)"/>
-            <rect x="76" y="58" width="12" height="3" rx="1.5" fill="#FFB347" opacity="0.65" transform="rotate(22 82 59.5)"/>
-            <rect x="39" y="76" width="3" height="12" rx="1.5" fill="#C084FC" opacity="0.6" transform="rotate(22 40.5 82)"/>
-            <rect x="12" y="39" width="12" height="3" rx="1.5" fill="#6366F1" opacity="0.65" transform="rotate(22 18 40.5)"/>
-            <path d="M50,24c6,6 6,16 0,22c-6,-6 -6,-16 0,-22z" fill="#FFD700" opacity="0.95"/>
-            <path d="M72,46c-6,6 -16,6 -22,0c6,-6 16,-6 22,0z" fill="#FF8C42" opacity="0.9"/>
-            <path d="M50,68c-6,-6 -6,-16 0,-22c6,6 6,16 0,22z" fill="#A855F7" opacity="0.85"/>
-            <path d="M28,46c6,-6 16,-6 22,0c-6,6 -16,6 -22,0z" fill="#6366F1" opacity="0.9"/>
-            <circle cx="50" cy="46" r="10" fill="white" opacity="0.5"/>
-            <circle cx="50" cy="46" r="6" fill="white" opacity="0.95"/>
-            <circle cx="50" cy="46" r="3" fill="white"/>
-            <circle cx="32" cy="22" r="1.5" fill="#FFD700" opacity="0.6"/>
-            <circle cx="70" cy="28" r="1.2" fill="#FF8C42" opacity="0.5"/>
-            <circle cx="66" cy="68" r="1.5" fill="#A855F7" opacity="0.5"/>
-            <circle cx="30" cy="64" r="1.2" fill="#6366F1" opacity="0.5"/>
+            <circle cx="50" cy="46" r="36" fill="url(#g)"/>
+            <rect x="48" y="8" width="4" height="20" rx="2" fill="#FFD700" opacity="0.9"/>
+            <rect x="48" y="64" width="4" height="20" rx="2" fill="#A855F7" opacity="0.75"/>
+            <rect x="8" y="44" width="20" height="4" rx="2" fill="#6366F1" opacity="0.8"/>
+            <rect x="72" y="44" width="20" height="4" rx="2" fill="#FF8C42" opacity="0.85"/>
+            <rect x="18" y="22" width="3" height="14" rx="1.5" fill="#818CF8" opacity="0.7" transform="rotate(45 19.5 29)"/>
+            <rect x="79" y="22" width="3" height="14" rx="1.5" fill="#FFB347" opacity="0.7" transform="rotate(-45 80.5 29)"/>
+            <rect x="18" y="64" width="3" height="14" rx="1.5" fill="#818CF8" opacity="0.6" transform="rotate(-45 19.5 71)"/>
+            <rect x="79" y="64" width="3" height="14" rx="1.5" fill="#C084FC" opacity="0.6" transform="rotate(45 80.5 71)"/>
+            <path d="M50,26c5,5 5,14 0,20c-5,-6 -5,-15 0,-20z" fill="#FFD700" opacity="0.95"/>
+            <path d="M68,44c-5,5 -14,5 -20,0c6,-5 15,-5 20,0z" fill="#FF8C42" opacity="0.9"/>
+            <path d="M50,62c-5,-5 -5,-14 0,-20c5,6 5,15 0,20z" fill="#A855F7" opacity="0.85"/>
+            <path d="M32,44c5,-5 14,-5 20,0c-6,5 -15,5 -20,0z" fill="#6366F1" opacity="0.9"/>
+            <circle cx="50" cy="44" r="6" fill="white" opacity="0.9"/>
+            <circle cx="50" cy="44" r="3" fill="white"/>
           </svg>
         </div>
         <h1 class="brand-name">收藏家</h1>
