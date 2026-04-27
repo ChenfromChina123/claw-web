@@ -1,5 +1,8 @@
 package com.example.claw_code_application.ui.chat
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,6 +11,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,14 +30,10 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * 会话列表界面 - Manus 风格设计（极致性能优化版）
- * 关键优化：
- * 1. 预计算所有显示数据
- * 2. 使用纯文本替代 emoji（emoji 渲染开销大）
- * 3. 减少布局嵌套层级
- * 4. 固定列表项高度
- * 5. 使用 contentType 优化 LazyColumn 复用
+ * 会话列表界面 - Manus 风格设计
+ * 集成搜索功能和滑动删除
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SessionListScreen(
     sessions: List<Session>,
@@ -43,8 +45,9 @@ fun SessionListScreen(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("全部", "Agent", "手动", "已定时", "收藏")
+    var isSearchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf(TextFieldValue("")) }
 
-    // 预计算所有显示数据，只在 sessions 变化时计算一次
     val sessionDisplayData = remember(sessions) {
         sessions.map { session ->
             SessionDisplayData(
@@ -58,37 +61,55 @@ fun SessionListScreen(
         }
     }
 
+    val filteredData = remember(sessionDisplayData, searchQuery) {
+        if (searchQuery.text.isBlank()) {
+            sessionDisplayData
+        } else {
+            sessionDisplayData.filter {
+                it.title.contains(searchQuery.text, ignoreCase = true) ||
+                it.previewText.contains(searchQuery.text, ignoreCase = true)
+            }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFFF5F5F5))
     ) {
-        // 顶部标题栏
-        TopAppBar()
+        TopAppBarWithSearch(
+            isSearchExpanded = isSearchExpanded,
+            onSearchExpandedChange = { isSearchExpanded = it },
+            searchQuery = searchQuery,
+            onSearchQueryChange = { searchQuery = it }
+        )
 
-        // 分类标签栏
         TabRow(
             tabs = tabs,
             selectedTab = selectedTab,
             onTabSelected = { selectedTab = it }
         )
 
-        // 会话列表
-        if (sessionDisplayData.isEmpty()) {
-            EmptyState()
+        if (filteredData.isEmpty()) {
+            if (searchQuery.text.isNotBlank()) {
+                SearchEmptyState()
+            } else {
+                EmptyState()
+            }
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
                 items(
-                    items = sessionDisplayData,
+                    items = filteredData,
                     key = { it.id },
                     contentType = { "session_item" }
                 ) { item ->
-                    SessionItem(
+                    SwipeToDismissSessionItem(
                         item = item,
                         isSelected = item.id == currentSessionId,
-                        onClick = { onSelect(item.id) }
+                        onClick = { onSelect(item.id) },
+                        onDelete = { onDelete(item.id) }
                     )
                 }
             }
@@ -97,7 +118,7 @@ fun SessionListScreen(
 }
 
 /**
- * 预计算的会话显示数据 - 纯数据类，无 Compose 依赖
+ * 预计算的会话显示数据
  */
 private data class SessionDisplayData(
     val id: String,
@@ -108,54 +129,152 @@ private data class SessionDisplayData(
     val iconBgColor: Color
 )
 
-// ==================== 顶部栏 ====================
-
+/**
+ * 顶部栏（含搜索功能）
+ */
 @Composable
-private fun TopAppBar() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 用户头像
-        Box(
+private fun TopAppBarWithSearch(
+    isSearchExpanded: Boolean,
+    onSearchExpandedChange: (Boolean) -> Unit,
+    searchQuery: TextFieldValue,
+    onSearchQueryChange: (TextFieldValue) -> Unit
+) {
+    Column(modifier = Modifier.background(Color.White)) {
+        Row(
             modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFE0E0E0)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFE0E0E0)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "U",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF757575)
+                )
+            }
+
             Text(
-                text = "U",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF757575)
+                text = "收藏家",
+                fontSize = 22.sp,
+                color = Color.Black,
+                letterSpacing = 0.5.sp
             )
+
+            IconButton(
+                onClick = {
+                    onSearchExpandedChange(!isSearchExpanded)
+                    if (isSearchExpanded) {
+                        onSearchQueryChange(TextFieldValue(""))
+                    }
+                },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
+                    contentDescription = if (isSearchExpanded) "关闭搜索" else "搜索",
+                    tint = Color(0xFF333333),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
 
-        Text(
-            text = "收藏家",
-            fontSize = 22.sp,
-            color = Color.Black,
-            letterSpacing = 0.5.sp
-        )
-
-        IconButton(onClick = { }, modifier = Modifier.size(40.dp)) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = null,
-                tint = Color(0xFF333333),
-                modifier = Modifier.size(24.dp)
+        AnimatedVisibility(
+            visible = isSearchExpanded,
+            enter = fadeIn() + androidx.compose.animation.expandVertically(),
+            exit = fadeOut() + androidx.compose.animation.shrinkVertically()
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                placeholder = {
+                    Text("搜索会话...", color = Color(0xFF999999), fontSize = 14.sp)
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(20.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFF0F0F0),
+                    unfocusedContainerColor = Color(0xFFF0F0F0),
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    cursorColor = Color.Black,
+                    focusedTextColor = Color(0xFF1A1A1A),
+                    unfocusedTextColor = Color(0xFF1A1A1A)
+                )
             )
         }
     }
 }
 
-// ==================== 标签栏 ====================
+/**
+ * 滑动删除的会话列表项
+ */
+@Composable
+private fun SwipeToDismissSessionItem(
+    item: SessionDisplayData,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { dismissValue ->
+            if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
+                onDelete()
+                true
+            } else {
+                false
+            }
+        },
+        positionalThreshold = { totalDistance -> totalDistance * 0.4f }
+    )
 
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val color = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) {
+                Color(0xFFFF3B30)
+            } else {
+                Color.Transparent
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(color)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "删除",
+                    tint = Color.White
+                )
+            }
+        },
+        enableDismissFromStartToEnd = false
+    ) {
+        SessionItem(
+            item = item,
+            isSelected = isSelected,
+            onClick = onClick
+        )
+    }
+}
+
+/**
+ * 标签栏
+ */
 @Composable
 private fun TabRow(
     tabs: List<String>,
@@ -201,11 +320,8 @@ private fun TabItem(text: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-// ==================== 列表项 ====================
-
 /**
- * 会话列表项 - 极致简化布局
- * 使用固定高度，减少嵌套，避免使用 Column/Row 嵌套
+ * 会话列表项
  */
 @Composable
 private fun SessionItem(
@@ -221,8 +337,6 @@ private fun SessionItem(
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp)
     ) {
-        // 使用绝对定位减少嵌套
-        // 左侧图标
         Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
@@ -239,7 +353,6 @@ private fun SessionItem(
             )
         }
 
-        // 右侧时间
         Text(
             text = item.timeText,
             fontSize = 12.sp,
@@ -247,7 +360,6 @@ private fun SessionItem(
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 14.dp)
         )
 
-        // 标题 - 位于图标右侧
         Text(
             text = item.title,
             fontSize = 15.sp,
@@ -260,7 +372,6 @@ private fun SessionItem(
                 .fillMaxWidth()
         )
 
-        // 预览文本 - 位于标题下方
         Text(
             text = item.previewText,
             fontSize = 13.sp,
@@ -274,10 +385,8 @@ private fun SessionItem(
     }
 }
 
-// ==================== 预计算函数 ====================
-
 /**
- * 获取图标文本 - 使用纯文本替代 emoji
+ * 获取图标文本
  */
 private fun getIconText(title: String): String {
     return when {
@@ -332,7 +441,6 @@ private fun generatePreview(title: String): String {
     }
 }
 
-// 静态日期格式化实例
 private val UTC_FORMAT = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).apply {
     timeZone = TimeZone.getTimeZone("UTC")
 }
@@ -361,8 +469,9 @@ private fun formatTime(dateStr: String): String {
     }
 }
 
-// ==================== 空状态 ====================
-
+/**
+ * 空状态
+ */
 @Composable
 private fun EmptyState() {
     Box(
@@ -379,6 +488,32 @@ private fun EmptyState() {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "点击右下角开始新对话",
+                fontSize = 14.sp,
+                color = Color(0xFFBBBBBB)
+            )
+        }
+    }
+}
+
+/**
+ * 搜索无结果状态
+ */
+@Composable
+private fun SearchEmptyState() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "未找到匹配的会话",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF999999)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "尝试其他关键词",
                 fontSize = 14.sp,
                 color = Color(0xFFBBBBBB)
             )
