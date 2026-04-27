@@ -26,7 +26,13 @@ class ChatRepository(
     suspend fun getSessions(): Result<List<Session>> {
         Logger.d(TAG, "开始获取会话列表...")
         return try {
-            val token = getTokenOrThrow()
+            // 获取 Token，如果为空则直接返回空列表（未登录状态）
+            val token = tokenManager.getTokenSync()
+            if (token.isNullOrBlank()) {
+                Logger.w(TAG, "Token 为空，用户未登录")
+                return Result.success(emptyList())
+            }
+            
             Logger.d(TAG, "Token获取成功: ${token.take(10)}...")
             
             // 添加 Bearer 前缀，因为服务器期望 Authorization: Bearer <token>
@@ -84,7 +90,13 @@ class ChatRepository(
     ): Result<Session> {
         Logger.d(TAG, "开始创建会话: title=$title, model=$model")
         return try {
-            val token = getTokenOrThrow()
+            // 获取 Token，如果为空则直接返回失败
+            val token = tokenManager.getTokenSync()
+            if (token.isNullOrBlank()) {
+                Logger.w(TAG, "Token 为空，无法创建会话")
+                return Result.failure(Exception("未登录，请先登录"))
+            }
+            
             val authHeader = "Bearer $token"
             
             val request = CreateSessionRequest(title = title, model = model)
@@ -124,7 +136,10 @@ class ChatRepository(
     suspend fun getSessionDetail(sessionId: String): Result<SessionDetail> {
         Logger.d(TAG, "开始获取会话详情: sessionId=$sessionId")
         return try {
-            val token = getTokenOrThrow()
+            val token = tokenManager.getTokenSync()
+            if (token.isNullOrBlank()) {
+                return Result.failure(Exception("未登录，请先登录"))
+            }
             val authHeader = "Bearer $token"
             
             val response = apiService.getSessionDetail(authHeader, sessionId)
@@ -160,7 +175,10 @@ class ChatRepository(
     suspend fun deleteSession(sessionId: String): Result<Unit> {
         Logger.d(TAG, "开始删除会话: sessionId=$sessionId")
         return try {
-            val token = getTokenOrThrow()
+            val token = tokenManager.getTokenSync()
+            if (token.isNullOrBlank()) {
+                return Result.failure(Exception("未登录，请先登录"))
+            }
             val authHeader = "Bearer $token"
             
             val response = apiService.deleteSession(authHeader, sessionId)
@@ -199,7 +217,10 @@ class ChatRepository(
     ): Result<ExecuteAgentResponse> {
         Logger.d(TAG, "开始执行Agent: sessionId=$sessionId, task=$task")
         return try {
-            val token = getTokenOrThrow()
+            val token = tokenManager.getTokenSync()
+            if (token.isNullOrBlank()) {
+                return Result.failure(Exception("未登录，请先登录"))
+            }
             val authHeader = "Bearer $token"
             
             val request = ExecuteAgentRequest(
@@ -245,7 +266,10 @@ class ChatRepository(
     suspend fun interruptAgent(agentId: String = Constants.DEFAULT_AGENT_ID): Result<Unit> {
         Logger.d(TAG, "开始中断Agent: agentId=$agentId")
         return try {
-            val token = getTokenOrThrow()
+            val token = tokenManager.getTokenSync()
+            if (token.isNullOrBlank()) {
+                return Result.failure(Exception("未登录，请先登录"))
+            }
             val authHeader = "Bearer $token"
             
             val response = apiService.interruptAgent(authHeader, agentId)
@@ -266,15 +290,12 @@ class ChatRepository(
     }
 
     /**
-     * 获取存储的Token，如果不存在则抛出异常
+     * 获取存储的Token（已废弃，保留兼容性）
      */
+    @Deprecated("使用 tokenManager.getTokenSync() 代替")
     private suspend fun getTokenOrThrow(): String {
-        val token = tokenManager.getTokenSync()
+        return tokenManager.getTokenSync()
             ?.takeIf { it.isNotEmpty() }
-        if (token == null) {
-            Logger.e(TAG, "Token为空，用户未登录")
-            throw Exception("未登录，请先登录")
-        }
-        return token
+            ?: throw Exception("未登录，请先登录")
     }
 }
