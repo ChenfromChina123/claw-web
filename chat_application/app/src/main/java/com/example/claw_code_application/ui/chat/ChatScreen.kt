@@ -135,6 +135,38 @@ fun ChatScreen(
                     )
                 }
 
+                /**
+                 * 显示未关联到任何消息的活跃工具调用
+                 * 这些工具调用可能正在执行中但尚未关联到助手消息
+                 */
+                val activeToolCalls = viewModel.toolCalls.filter { 
+                    it.status == "executing" || it.status == "pending" 
+                }
+                if (activeToolCalls.isNotEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "🔄 正在执行工具",
+                                fontSize = 12.sp,
+                                color = AppColor.TextSecondary,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            activeToolCalls.forEach { toolCall ->
+                                var expanded by remember { mutableStateOf(false) }
+                                ToolCallCard(
+                                    toolCall = toolCall,
+                                    expanded = expanded,
+                                    onExpandedChange = { expanded = it }
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // 加载状态指示器
                 if (uiState is ChatViewModel.UiState.Loading) {
                     item {
