@@ -71,8 +71,16 @@ class AuthInterceptor(
             // 关闭响应体，避免资源泄漏
             response.close()
             
-            // 重新抛出异常，让上层知道认证失败
-            throw AuthenticationException("认证已过期，请重新登录")
+            // 返回原始的 401 响应，让上层处理
+            // 不抛出异常，避免崩溃
+            Logger.w(TAG, "返回 401 响应给上层处理")
+            return Response.Builder()
+                .request(request)
+                .protocol(okhttp3.Protocol.HTTP_1_1)
+                .code(401)
+                .message("Unauthorized")
+                .body(okhttp3.ResponseBody.create(null, ""))
+                .build()
         }
 
         return response
