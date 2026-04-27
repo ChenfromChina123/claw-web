@@ -5,6 +5,9 @@
 import { getBuiltInAgents, agentManager, initializeDemoOrchestration, engineExecuteAgent, runAgent } from '../agents'
 import { createSuccessResponse, createErrorResponse, createCorsPreflightResponse } from '../utils/response'
 import { authMiddleware } from '../utils/auth'
+import { SessionManager } from '../services/sessionManager'
+
+const sessionManager = SessionManager.getInstance()
 
 /**
  * 处理 Agent 相关的 HTTP 请求
@@ -123,6 +126,23 @@ export async function handleAgentRoutes(req: Request): Promise<Response | null> 
 
       console.log(`[AgentRoutes] 执行Agent任务: ${body.task}`)
 
+      // 确保会话存在并加载到内存
+      const sessionId = body.sessionId || `session_${Date.now()}`
+      let sessionData = sessionManager.getInMemorySession(sessionId)
+      if (!sessionData) {
+        sessionData = await sessionManager.loadSession(sessionId)
+        if (!sessionData) {
+          return createErrorResponse('SESSION_NOT_FOUND', '会话不存在', 404)
+        }
+      }
+
+      // 保存用户消息到数据库
+      const savedUserMessage = sessionManager.addMessage(sessionId, 'user', body.task || body.prompt || 'Hello')
+      if (savedUserMessage) {
+        await sessionManager.forceSaveSession(sessionId)
+        console.log(`[AgentRoutes] 用户消息已保存: ${savedUserMessage.id}`)
+      }
+
       // 使用真正的 runAgent 执行 AI 调用
       const builtInAgents = getBuiltInAgents()
       const agentDef = builtInAgents.find(a => a.agentType === (body.agentId?.split('_')[1] || 'general-purpose'))
@@ -148,7 +168,7 @@ export async function handleAgentRoutes(req: Request): Promise<Response | null> 
       const runner = runAgent({
         agentDefinition: agentDef,
         promptMessages: messages,
-        sessionId: body.sessionId || `session_${Date.now()}`,
+        sessionId: sessionId,
         maxTurns: body.maxTurns || 20,
       })
 
@@ -274,6 +294,18 @@ export async function handleAgentRoutes(req: Request): Promise<Response | null> 
           errorMessage = '执行被中断'
         }
       }
+
+      // 保存助手消息到数据库
+      for (const msg of assistantMessages) {
+        sessionManager.addMessage(sessionId, 'assistant', msg.content)
+      }
+      // 保存工具调用到数据库
+      for (const tc of toolCallsList as any[]) {
+        sessionManager.addToolCall(sessionId, tc)
+      }
+      // 强制保存会话
+      await sessionManager.forceSaveSession(sessionId)
+      console.log(`[AgentRoutes] 助手消息和工具调用已保存到数据库`)
 
       // 转换为 Android 端期望的响应格式
       const androidResponse = {

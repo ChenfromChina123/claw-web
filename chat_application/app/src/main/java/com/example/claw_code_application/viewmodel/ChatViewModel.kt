@@ -148,7 +148,17 @@ class ChatViewModel(
             }
 
             is WebSocketManager.WebSocketEvent.MessageSaved -> {
-                // 消息已保存到服务器
+                // 消息已保存到服务器，更新本地消息ID以保持一致性
+                if (event.role == "user") {
+                    // 查找最后一条用户消息并更新其ID（如果ID不匹配）
+                    val lastUserMsgIndex = _messages.indexOfLast { it.role == "user" }
+                    if (lastUserMsgIndex != -1) {
+                        val oldMsg = _messages[lastUserMsgIndex]
+                        if (oldMsg.id != event.messageId) {
+                            _messages[lastUserMsgIndex] = oldMsg.copy(id = event.messageId)
+                        }
+                    }
+                }
             }
 
             is WebSocketManager.WebSocketEvent.ToolCallStart -> {
