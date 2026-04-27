@@ -60,6 +60,8 @@ export interface RunAgentParams {
   promptMessages: AgentMessage[]
   /** 会话 ID */
   sessionId: string
+  /** 用户 ID（用于 Worker 容器路由） */
+  userId: string
   /** 工作目录 */
   cwd?: string
   /** 最大轮次限制 */
@@ -343,7 +345,7 @@ export async function* runAgent(
 
           // 执行工具
           try {
-            const toolResult = await executeTool(toolCall, context)
+            const toolResult = await executeTool(toolCall, context, params.userId)
 
             const result: AgentToolResult = {
               toolCallId: toolCall.id,
@@ -610,7 +612,8 @@ async function callAI(params: {
  */
 async function executeTool(
   toolCall: AgentToolCall,
-  context: AgentRuntimeContext
+  context: AgentRuntimeContext,
+  userId: string
 ): Promise<{ success: boolean; result?: unknown; error?: string }> {
   try {
     const toolRegistry = getToolRegistry()
@@ -627,6 +630,7 @@ async function executeTool(
       toolName: toolCall.name,
       toolInput: toolCall.input,
       sessionId: context.sessionId,
+      userId,
       timeout: tool.timeout,
     })
 

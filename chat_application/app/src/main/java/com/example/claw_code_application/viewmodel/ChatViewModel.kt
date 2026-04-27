@@ -56,8 +56,20 @@ class ChatViewModel(
     /** WebSocket连接状态 */
     val connectionState = webSocketManager.connectionState
 
-    /** 当前正在流式输出的消息ID */
+    /** 当前正在流式输出的消息ID - 用于将工具调用关联到对应的助手消息 */
     private var streamingMessageId: String? = null
+    
+    /** 当前正在累积工具输入参数的工具ID和参数 */
+    private var pendingToolInput = mutableMapOf<String, StringBuilder>()
+    
+    /** 消息ID与工具调用ID的映射 - 用于正确关联工具调用到消息 */
+    private val messageToToolCalls = mutableMapOf<String, MutableList<String>>()
+    
+    /** 获取与指定消息关联的工具调用列表 */
+    fun getToolCallsForMessage(messageId: String): List<ToolCall> {
+        val toolCallIds = messageToToolCalls[messageId] ?: return emptyList()
+        return _toolCalls.filter { it.id in toolCallIds }
+    }
 
     init {
         // 监听WebSocket消息
@@ -84,7 +96,7 @@ class ChatViewModel(
     }
 
     /**
-     * 处理WebSocket事件
+     * 处理WebSocket事件 - 与Web端保持一致的事件处理逻辑
      */
     private fun handleWebSocketEvent(event: WebSocketManager.WebSocketEvent) {
         when (event) {
@@ -161,15 +173,79 @@ class ChatViewModel(
                 }
             }
 
-            is WebSocketManager.WebSocketEvent.ToolCallStart -> {
-                _toolCalls.add(event.toolCall)
+            // LLM流式输出时触发的工具使用事件
+            is WebSocketManager.WebSocketEvent.ToolUse -> {
+                // 创建新的工具调用记录，关联到当前流式消息
+                val toolCall = ToolCall(
+                    id = event.id,
+                    toolName = event.name,
+                    toolInput = emptyMap(),
+                    toolOutput = null,
+                    status = "pending",
+                    createdAt = System.currentTimeMillis().toString()
+                )
+                _toolCalls.add(toolCall)
+                pendingToolInput[event.id] = StringBuilder()
             }
 
-            is WebSocketManager.WebSocketEvent.ToolCallComplete -> {
-                val index = _toolCalls.indexOfFirst { it.id == event.toolCall.id }
+            // 工具输入参数增量更新
+            is WebSocketManager.WebSocketEvent.ToolInputDelta -> {
+                pendingToolInput[event.id]?.append(event.partialJson)
+            }
+
+            // 工具执行开始
+            is WebSocketManager.WebSocketEvent.ToolStart -> {
+                val index = _toolCalls.indexOfFirst { it.id == event.id }
                 if (index != -1) {
-                    _toolCalls[index] = event.toolCall
+                    val oldTool = _toolCalls[index]
+                    // 使用累积的输入参数或事件中的输入参数
+                    val inputJson = pendingToolInput[event.id]?.toString()
+                    val toolInput = if (!inputJson.isNullOrEmpty()) {
+                        try {
+                            val gson = com.google.gson.Gson()
+                            @Suppress("UNCHECKED_CAST")
+                            gson.fromJson(inputJson, Map::class.java) as? Map<String, Any> ?: emptyMap()
+                        } catch (e: Exception) {
+                            emptyMap()
+                        }
+                    } else {
+                        emptyMap()
+                    }
+                    _toolCalls[index] = oldTool.copy(
+                        status = "executing",
+                        toolInput = toolInput
+                    )
                 }
+            }
+
+            // 工具执行完成
+            is WebSocketManager.WebSocketEvent.ToolEnd -> {
+                val index = _toolCalls.indexOfFirst { it.id == event.id }
+                if (index != -1) {
+                    val oldTool = _toolCalls[index]
+                    _toolCalls[index] = oldTool.copy(
+                        status = "completed",
+                        toolOutput = event.result,
+                        completedAt = System.currentTimeMillis().toString()
+                    )
+                }
+                // 清理pending输入
+                pendingToolInput.remove(event.id)
+            }
+
+            // 工具执行失败
+            is WebSocketManager.WebSocketEvent.ToolError -> {
+                val index = _toolCalls.indexOfFirst { it.id == event.id }
+                if (index != -1) {
+                    val oldTool = _toolCalls[index]
+                    _toolCalls[index] = oldTool.copy(
+                        status = "error",
+                        error = event.error,
+                        completedAt = System.currentTimeMillis().toString()
+                    )
+                }
+                // 清理pending输入
+                pendingToolInput.remove(event.id)
             }
 
             is WebSocketManager.WebSocketEvent.ConversationEnd -> {

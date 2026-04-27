@@ -211,6 +211,7 @@ export async function executeAgentTool(
       agentDefinition,
       promptMessages: initialMessages,
       sessionId: context.sessionId || uuidv4(),
+      userId: context.userId,
       cwd: input.cwd || context.projectRoot,
       maxTurns: max_turns || 20,
       permissionMode: mode || 'auto',

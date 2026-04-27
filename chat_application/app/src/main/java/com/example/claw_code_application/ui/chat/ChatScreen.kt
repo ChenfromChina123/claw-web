@@ -131,7 +131,7 @@ fun ChatScreen(
                 ) { message ->
                     EnhancedMessageBubble(
                         message = message,
-                        toolCalls = message.toolCalls ?: emptyList()
+                        toolCalls = viewModel.getToolCallsForMessage(message.id)
                     )
                 }
 

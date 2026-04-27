@@ -169,6 +169,7 @@ export async function handleAgentRoutes(req: Request): Promise<Response | null> 
         agentDefinition: agentDef,
         promptMessages: messages,
         sessionId: sessionId,
+        userId: auth.userId,
         maxTurns: body.maxTurns || 20,
       })
 

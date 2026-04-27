@@ -174,6 +174,7 @@ export function createAgentApiRouter(): Router {
         agentDefinition: agentDef,
         promptMessages: initialMessages,
         sessionId,
+        userId: req.body.userId || 'unknown',
         cwd: options?.cwd || process.cwd(),
         maxTurns: options?.maxTurns || 20,
         permissionMode: options?.permissionMode || 'auto',

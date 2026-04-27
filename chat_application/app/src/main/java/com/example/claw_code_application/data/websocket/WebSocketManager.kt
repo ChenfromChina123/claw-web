@@ -52,16 +52,28 @@ class WebSocketManager {
         data class Error(val message: String) : ConnectionState()
     }
 
-    /**
-     * WebSocket 事件密封类
-     */
+    /** WebSocket 事件密封类 - 与后端事件名称保持一致 */
     sealed class WebSocketEvent {
         data class MessageStart(val messageId: String, val iteration: Int) : WebSocketEvent()
         data class MessageDelta(val messageId: String, val delta: String) : WebSocketEvent()
         data class MessageStop(val messageId: String, val stopReason: String, val iteration: Int) : WebSocketEvent()
         data class MessageSaved(val sessionId: String, val messageId: String, val role: String) : WebSocketEvent()
-        data class ToolCallStart(val toolCall: ToolCall) : WebSocketEvent()
-        data class ToolCallComplete(val toolCall: ToolCall) : WebSocketEvent()
+        
+        /** 工具使用事件（LLM 流式输出时触发） */
+        data class ToolUse(val id: String, val name: String) : WebSocketEvent()
+        
+        /** 工具输入增量事件（流式参数接收） */
+        data class ToolInputDelta(val id: String, val partialJson: String) : WebSocketEvent()
+        
+        /** 工具执行开始事件 */
+        data class ToolStart(val id: String, val name: String, val input: Any?) : WebSocketEvent()
+        
+        /** 工具执行完成事件 */
+        data class ToolEnd(val id: String, val name: String, val result: Any?, val success: Boolean, val duration: Long?) : WebSocketEvent()
+        
+        /** 工具执行失败事件 */
+        data class ToolError(val id: String, val name: String, val error: String, val errorType: String, val duration: Long?) : WebSocketEvent()
+        
         data class ConversationEnd(val totalMessages: Int) : WebSocketEvent()
         data class Error(val message: String) : WebSocketEvent()
     }
@@ -229,16 +241,41 @@ class WebSocketManager {
                 WebSocketEvent.MessageSaved(sessionId, messageId, role)
             }
 
-            "tool_call_start" -> {
-                val toolCallJson = data.get("toolCall")?.asJsonObject
-                val toolCall = gson.fromJson(toolCallJson, ToolCall::class.java)
-                WebSocketEvent.ToolCallStart(toolCall)
+            "tool_use" -> {
+                val id = data.get("id")?.asString ?: ""
+                val name = data.get("name")?.asString ?: ""
+                WebSocketEvent.ToolUse(id, name)
             }
 
-            "tool_call_complete" -> {
-                val toolCallJson = data.get("toolCall")?.asJsonObject
-                val toolCall = gson.fromJson(toolCallJson, ToolCall::class.java)
-                WebSocketEvent.ToolCallComplete(toolCall)
+            "tool_input_delta" -> {
+                val id = data.get("id")?.asString ?: ""
+                val partialJson = data.get("partial_json")?.asString ?: ""
+                WebSocketEvent.ToolInputDelta(id, partialJson)
+            }
+
+            "tool_start" -> {
+                val id = data.get("id")?.asString ?: ""
+                val name = data.get("name")?.asString ?: ""
+                val input = data.get("input")
+                WebSocketEvent.ToolStart(id, name, input)
+            }
+
+            "tool_end" -> {
+                val id = data.get("id")?.asString ?: ""
+                val name = data.get("name")?.asString ?: ""
+                val result = data.get("result")
+                val success = data.get("success")?.asBoolean ?: true
+                val duration = data.get("duration")?.asLong
+                WebSocketEvent.ToolEnd(id, name, result, success, duration)
+            }
+
+            "tool_error" -> {
+                val id = data.get("id")?.asString ?: ""
+                val name = data.get("name")?.asString ?: ""
+                val error = data.get("error")?.asString ?: "Unknown error"
+                val errorType = data.get("errorType")?.asString ?: "UNKNOWN"
+                val duration = data.get("duration")?.asLong
+                WebSocketEvent.ToolError(id, name, error, errorType, duration)
             }
 
             "conversation_end" -> {
