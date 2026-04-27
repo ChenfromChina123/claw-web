@@ -73,6 +73,11 @@ fun EnhancedMessageBubble(
                             filterToolResultContent(message.content)
                         }
                         
+                        android.util.Log.d("EnhancedBubble", "=== User Message ===")
+                        android.util.Log.d("EnhancedBubble", "messageId: ${message.id}")
+                        android.util.Log.d("EnhancedBubble", "原始内容长度: ${message.content.length}, 前100字: ${message.content.take(100)}")
+                        android.util.Log.d("EnhancedBubble", "过滤后长度: ${filteredContent.length}, 是否为空: ${filteredContent.isBlank()}")
+                        
                         if (filteredContent.isNotBlank()) {
                             Text(
                                 text = filteredContent,
@@ -83,6 +88,8 @@ fun EnhancedMessageBubble(
                         }
                     } else {
                         // AI消息使用动态组件渲染
+                        android.util.Log.d("EnhancedBubble", "=== Assistant Message ===")
+                        android.util.Log.d("EnhancedBubble", "messageId: ${message.id}, 内容长度: ${message.content.length}")
                         DynamicMessageContent(
                             content = message.content,
                             isStreaming = message.isStreaming
@@ -97,6 +104,7 @@ fun EnhancedMessageBubble(
             }
 
             // 工具调用显示 - 使用增强版可折叠卡片
+            android.util.Log.d("EnhancedBubble", "=== ToolCalls === toolCalls.size=${toolCalls.size}, isUser=$isUser, messageId=${message.id}")
             if (toolCalls.isNotEmpty() && !isUser) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Column(
@@ -104,6 +112,7 @@ fun EnhancedMessageBubble(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     toolCalls.forEach { toolCall ->
+                        android.util.Log.d("EnhancedBubble", "ToolCall: id=${toolCall.id.take(20)}, name=${toolCall.toolName}, status=${toolCall.status}, hasOutput=${toolCall.toolOutput != null}")
                         var expanded by remember { mutableStateOf(false) }
                         ToolCallCard(
                             toolCall = toolCall,

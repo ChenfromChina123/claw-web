@@ -24,43 +24,55 @@ object MessageContentParser {
     fun parse(content: String): List<MessageComponent> {
         val components = mutableListOf<MessageComponent>()
         val trimmedContent = content.trim()
+        
+        android.util.Log.d("MessageParser", "=== parse() 开始 ===")
+        android.util.Log.d("MessageParser", "内容长度: ${content.length}")
+        android.util.Log.d("MessageParser", "内容前100字符: ${content.take(100)}")
 
         // 尝试解析为 JSON 数组（后端发送的标准格式）
         if (trimmedContent.startsWith("[") && trimmedContent.endsWith("]")) {
+            android.util.Log.d("MessageParser", "检测到JSON数组格式")
             try {
                 val jsonArray = JsonParser.parseString(content).asJsonArray
-                for (element in jsonArray) {
+                android.util.Log.d("MessageParser", "数组元素数量: ${jsonArray.size()}")
+                for ((index, element) in jsonArray.withIndex()) {
                     if (element.isJsonObject) {
                         val obj = element.asJsonObject
                         val type = obj.get("type")?.asString
+                        android.util.Log.d("MessageParser", "[$index] type=$type, keys=${obj.keySet()}")
                         
                         when (type) {
                             "text" -> {
                                 val text = obj.get("text")?.asString ?: ""
                                 if (text.isNotBlank()) {
                                     components.add(MessageComponent.Text(text))
+                                    android.util.Log.d("MessageParser", "  → 添加 Text 组件 (${text.take(30)})")
                                 }
                             }
                             "tool_use" -> {
                                 components.add(parseToolUse(obj))
+                                android.util.Log.d("MessageParser", "  → 添加 ToolUse 组件")
                             }
                             "tool_result" -> {
                                 components.add(parseToolResult(obj))
+                                android.util.Log.d("MessageParser", "  → 添加 ToolResult/FileListResult 组件")
                             }
                             else -> {
                                 // 未知类型，尝试作为文本处理
                                 if (obj.toString().isNotBlank()) {
                                     components.add(MessageComponent.Text(obj.toString()))
+                                    android.util.Log.d("MessageParser", "  → 添加未知类型文本: $type")
                                 }
                             }
                         }
                     }
                 }
                 if (components.isNotEmpty()) {
+                    android.util.Log.d("MessageParser", "解析完成: ${components.size()} 个组件")
                     return components
                 }
             } catch (e: Exception) {
-                // JSON数组解析失败，继续尝试其他解析方式
+                android.util.Log.e("MessageParser", "JSON数组解析失败: ${e.message}", e)
             }
         }
 

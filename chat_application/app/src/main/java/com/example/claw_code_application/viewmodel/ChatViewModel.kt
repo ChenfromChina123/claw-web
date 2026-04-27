@@ -175,6 +175,7 @@ class ChatViewModel(
 
             // LLM流式输出时触发的工具使用事件
             is WebSocketManager.WebSocketEvent.ToolUse -> {
+                android.util.Log.d("ChatVM", "=== ToolUse 事件 === id=${event.id}, name=${event.name}, streamingMsgId=$streamingMessageId")
                 // 创建新的工具调用记录，关联到当前流式消息
                 val toolCall = ToolCall(
                     id = event.id,
@@ -190,6 +191,7 @@ class ChatViewModel(
                 // 将工具调用关联到当前流式消息
                 streamingMessageId?.let { messageId ->
                     messageToToolCalls.getOrPut(messageId) { mutableListOf() }.add(event.id)
+                    android.util.Log.d("ChatVM", "工具 ${event.id} 关联到消息 $messageId")
                 }
             }
 
@@ -200,6 +202,7 @@ class ChatViewModel(
 
             // 工具执行开始
             is WebSocketManager.WebSocketEvent.ToolStart -> {
+                android.util.Log.d("ChatVM", "=== ToolStart 事件 === id=${event.id}")
                 val index = _toolCalls.indexOfFirst { it.id == event.id }
                 if (index != -1) {
                     val oldTool = _toolCalls[index]
@@ -225,6 +228,8 @@ class ChatViewModel(
 
             // 工具执行完成
             is WebSocketManager.WebSocketEvent.ToolEnd -> {
+                android.util.Log.d("ChatVM", "=== ToolEnd 事件 === id=${event.id}")
+                android.util.Log.d("ChatVM", "result 类型: ${event.result?.javaClass?.simpleName}, 内容: ${event.result?.toString()?.take(150)}")
                 val index = _toolCalls.indexOfFirst { it.id == event.id }
                 if (index != -1) {
                     val oldTool = _toolCalls[index]
@@ -233,6 +238,9 @@ class ChatViewModel(
                         toolOutput = event.result,
                         completedAt = System.currentTimeMillis().toString()
                     )
+                    android.util.Log.d("ChatVM", "工具 ${event.id} 状态更新为 completed")
+                } else {
+                    android.util.Log.w("ChatVM", "未找到工具 ${event.id}，当前工具数: ${_toolCalls.size}")
                 }
                 // 清理pending输入
                 pendingToolInput.remove(event.id)
