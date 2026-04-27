@@ -4,6 +4,7 @@ import com.example.claw_code_application.data.api.ApiService
 import com.example.claw_code_application.data.api.models.*
 import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.util.Constants
+import com.example.claw_code_application.util.NetworkConfig
 import com.example.claw_code_application.util.Logger
 
 /**
@@ -30,7 +31,7 @@ class ChatRepository(
             
             // 添加 Bearer 前缀，因为服务器期望 Authorization: Bearer <token>
             val authHeader = "Bearer $token"
-            Logger.d(TAG, "发送请求到: ${Constants.BASE_URL}/api/sessions")
+            Logger.d(TAG, "发送请求到: ${NetworkConfig.getBaseUrl()}/api/sessions")
             
             val response = apiService.getSessions(authHeader)
             Logger.d(TAG, "收到响应: HTTP ${response.code()}")
