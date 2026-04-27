@@ -2,7 +2,7 @@
  * Agent 路由 - 处理 Agent 管理相关 API
  */
 
-import { getBuiltInAgents, agentManager, initializeDemoOrchestration, engineExecuteAgent } from '../agents'
+import { getBuiltInAgents, agentManager, initializeDemoOrchestration, engineExecuteAgent, runAgent } from '../agents'
 import { createSuccessResponse, createErrorResponse, createCorsPreflightResponse } from '../utils/response'
 import { authMiddleware } from '../utils/auth'
 
@@ -121,31 +121,93 @@ export async function handleAgentRoutes(req: Request): Promise<Response | null> 
         maxTurns?: number
       }
 
-      const result = await engineExecuteAgent(body, (state) => {
-        // WebSocket 状态更新回调
+      console.log(`[AgentRoutes] 执行Agent任务: ${body.task}`)
+
+      // 使用真正的 runAgent 执行 AI 调用
+      const builtInAgents = getBuiltInAgents()
+      const agentDef = builtInAgents.find(a => a.agentType === (body.agentId?.split('_')[1] || 'general-purpose'))
+        || builtInAgents[0]
+
+      const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
+        { role: 'user', content: body.task || body.prompt || 'Hello' }
+      ]
+
+      // 收集所有事件
+      const assistantMessages: Array<{
+        id: string
+        role: string
+        content: string
+        timestamp: string
+        toolCalls: null
+      }> = []
+      const toolCallsList: unknown[] = []
+      let finalStatus = 'completed'
+      let errorMessage = ''
+
+      // 执行 Agent
+      const runner = runAgent({
+        agentDefinition: agentDef,
+        promptMessages: messages,
+        sessionId: body.sessionId || `session_${Date.now()}`,
+        maxTurns: body.maxTurns || 20,
       })
+
+      // 收集所有事件
+      for await (const event of runner) {
+        console.log(`[AgentRoutes] 事件: ${event.type}`)
+
+        if (event.type === 'message' && event.message.role === 'assistant') {
+          assistantMessages.push({
+            id: `msg_${Date.now()}_${assistantMessages.length}`,
+            role: 'assistant',
+            content: event.message.content,
+            timestamp: new Date().toISOString(),
+            toolCalls: null
+          })
+        }
+
+        if (event.type === 'tool_call') {
+          toolCallsList.push({
+            id: event.toolCall.id,
+            toolName: event.toolCall.name,
+            status: 'executing',
+            toolInput: event.toolCall.input,
+          })
+        }
+
+        if (event.type === 'error') {
+          finalStatus = 'error'
+          errorMessage = event.error
+        }
+
+        if (event.type === 'cancelled') {
+          finalStatus = 'error'
+          errorMessage = '执行被中断'
+        }
+      }
 
       // 转换为 Android 端期望的响应格式
       const androidResponse = {
-        messages: [{
+        messages: assistantMessages.length > 0 ? assistantMessages : [{
           id: `msg_${Date.now()}`,
           role: 'assistant',
-          content: result.content || result.error || 'Agent 执行完成',
+          content: errorMessage || 'Agent 执行完成',
           timestamp: new Date().toISOString(),
           toolCalls: null
         }],
-        toolCalls: [] as unknown[],
+        toolCalls: toolCallsList,
         executionStatus: {
-          status: result.status === 'completed' ? 'completed' : 'error',
-          currentTurn: 1,
+          status: finalStatus,
+          currentTurn: assistantMessages.length,
           maxTurns: body.maxTurns || 20,
-          progress: result.status === 'completed' ? 100 : 0,
-          message: result.error || undefined
+          progress: finalStatus === 'completed' ? 100 : 0,
+          message: errorMessage || undefined
         }
       }
 
       return createSuccessResponse(androidResponse)
     } catch (error) {
+      console.error('[AgentRoutes] Agent 执行失败:', error)
       const message = error instanceof Error ? error.message : 'Agent 执行失败'
       return createErrorResponse('AGENT_EXECUTE_FAILED', message, 500)
     }
