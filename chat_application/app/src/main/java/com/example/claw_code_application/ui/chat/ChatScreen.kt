@@ -1,19 +1,21 @@
 package com.example.claw_code_application.ui.chat
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -25,6 +27,7 @@ import com.example.claw_code_application.viewmodel.ChatViewModel
 /**
  * 聊天详情界面
  * 基于原型Manus风格设计 - 浅色主题
+ * 集成底部抽屉、语音输入、更多选项菜单
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,8 +38,9 @@ fun ChatScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    var showBottomSheet by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
 
-    // 滚动到最新消息
     LaunchedEffect(viewModel.messages.size) {
         if (viewModel.messages.isNotEmpty()) {
             listState.animateScrollToItem(0)
@@ -45,61 +49,10 @@ fun ChatScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "收藏家",
-                            color = AppColor.TextPrimary,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                            fontSize = 16.sp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
-                            color = AppColor.SurfaceLight
-                        ) {
-                            Text(
-                                text = "1.6 Lite",
-                                color = AppColor.TextSecondary,
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = AppColor.TextPrimary
-                        )
-                    }
-                },
-                actions = {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "用户",
-                        tint = AppColor.TextPrimary,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Icon(
-                        imageVector = Icons.Default.Link,
-                        contentDescription = "链接",
-                        tint = AppColor.TextPrimary,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "更多",
-                        tint = AppColor.TextPrimary,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = AppColor.SurfaceDark
-                )
+            ChatTopBar(
+                onBack = onBack,
+                showMoreMenu = showMoreMenu,
+                onMoreMenuChange = { showMoreMenu = it }
             )
         },
         bottomBar = {
@@ -107,7 +60,8 @@ fun ChatScreen(
                 onSend = { content ->
                     viewModel.sendMessage(content)
                 },
-                enabled = uiState !is ChatViewModel.UiState.Loading
+                enabled = uiState !is ChatViewModel.UiState.Loading,
+                onAddClick = { showBottomSheet = true }
             )
         },
         containerColor = AppColor.BackgroundDark
@@ -117,98 +71,223 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            LazyColumn(
-                state = listState,
-                reverseLayout = true,
-                contentPadding = PaddingValues(vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                // 消息列表 - 使用增强版消息气泡（过滤掉 tool_result 用户消息）
-                items(
-                    items = viewModel.messages.reversed().filter { shouldShowMessage(it) },
-                    key = { it.id }
-                ) { message ->
-                    EnhancedMessageBubble(
-                        message = message,
-                        toolCalls = viewModel.getToolCallsForMessage(message.id)
+            ChatMessageList(
+                viewModel = viewModel,
+                uiState = uiState,
+                listState = listState
+            )
+        }
+    }
+
+    if (showBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showBottomSheet = false },
+            containerColor = AppColor.SurfaceDark,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+        ) {
+            ToolBottomSheet(
+                onDismiss = { showBottomSheet = false }
+            )
+        }
+    }
+}
+
+/**
+ * 聊天顶部导航栏
+ * Manus风格：返回箭头 + 标题 + 模型版本标签 + 操作图标
+ */
+@Composable
+private fun ChatTopBar(
+    onBack: () -> Unit,
+    showMoreMenu: Boolean,
+    onMoreMenuChange: (Boolean) -> Unit
+) {
+    TopAppBar(
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "收藏家",
+                    color = AppColor.TextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+                    color = AppColor.SurfaceLight
+                ) {
+                    Text(
+                        text = "1.6 Lite",
+                        color = AppColor.TextSecondary,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
-
-                /**
-                 * 显示未关联到任何消息的活跃工具调用
-                 * 这些工具调用可能正在执行中但尚未关联到助手消息
-                 */
-                val activeToolCalls = viewModel.toolCalls.filter { 
-                    it.status == "executing" || it.status == "pending" 
+            }
+        },
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回",
+                    tint = AppColor.TextPrimary
+                )
+            }
+        },
+        actions = {
+            Icon(
+                imageVector = Icons.Default.Person,
+                contentDescription = "用户",
+                tint = AppColor.TextPrimary,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+            Icon(
+                imageVector = Icons.Default.Link,
+                contentDescription = "链接",
+                tint = AppColor.TextPrimary,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+            Box {
+                IconButton(onClick = { onMoreMenuChange(true) }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "更多",
+                        tint = AppColor.TextPrimary
+                    )
                 }
-                if (activeToolCalls.isNotEmpty()) {
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                text = "🔄 正在执行工具",
-                                fontSize = 12.sp,
-                                color = AppColor.TextSecondary,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            activeToolCalls.forEach { toolCall ->
-                                var expanded by remember { mutableStateOf(false) }
-                                ToolCallCard(
-                                    toolCall = toolCall,
-                                    expanded = expanded,
-                                    onExpandedChange = { expanded = it }
-                                )
+                DropdownMenu(
+                    expanded = showMoreMenu,
+                    onDismissRequest = { onMoreMenuChange(false) }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("重命名会话") },
+                        onClick = { onMoreMenuChange(false) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("分享对话") },
+                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                        onClick = { onMoreMenuChange(false) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("清空对话") },
+                        onClick = { onMoreMenuChange(false) }
+                    )
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text("删除会话", color = AppColor.Error) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AppColor.Error) },
+                        onClick = { onMoreMenuChange(false) }
+                    )
+                }
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = AppColor.SurfaceDark
+        )
+    )
+}
+
+/**
+ * 聊天消息列表
+ */
+@Composable
+private fun ChatMessageList(
+    viewModel: ChatViewModel,
+    uiState: ChatViewModel.UiState,
+    listState: androidx.compose.foundation.lazy.LazyListState
+) {
+    LazyColumn(
+        state = listState,
+        reverseLayout = true,
+        contentPadding = PaddingValues(vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        items(
+            items = viewModel.messages.reversed().filter { shouldShowMessage(it) },
+            key = { it.id }
+        ) { message ->
+            EnhancedMessageBubble(
+                message = message,
+                toolCalls = viewModel.getToolCallsForMessage(message.id)
+            )
+        }
+
+        val activeToolCalls = viewModel.toolCalls.filter {
+            it.status == "executing" || it.status == "pending"
+        }
+        if (activeToolCalls.isNotEmpty()) {
+            item {
+                AgentTaskCard(
+                    taskTitle = "正在执行任务",
+                    steps = activeToolCalls.mapIndexed { index, toolCall ->
+                        AgentStep(
+                            title = getToolStepTitle(toolCall),
+                            status = when (toolCall.status) {
+                                "executing" -> AgentStepStatus.IN_PROGRESS
+                                "completed" -> AgentStepStatus.COMPLETED
+                                else -> AgentStepStatus.PENDING
                             }
-                        }
-                    }
-                }
+                        )
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+        }
 
-                // 加载状态指示器
-                if (uiState is ChatViewModel.UiState.Loading) {
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            CircularProgressIndicator(color = AppColor.Primary)
-                            
-                            Spacer(modifier = Modifier.height(16.dp))
-                            
-                            Text(
-                                text = "🤖 Agent 思考中...",
-                                color = AppColor.TextSecondary
-                            )
-                        }
-                    }
-                }
+        if (uiState is ChatViewModel.UiState.Loading) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator(color = AppColor.Primary)
 
-                // 错误状态提示
-                if (uiState is ChatViewModel.UiState.Error) {
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = AppColor.Error.copy(alpha = 0.1f)
-                            ),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-                        ) {
-                            Text(
-                                text = (uiState as ChatViewModel.UiState.Error).message,
-                                color = AppColor.Error,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Agent 思考中...",
+                        color = AppColor.TextSecondary,
+                        fontSize = 14.sp
+                    )
                 }
             }
         }
+
+        if (uiState is ChatViewModel.UiState.Error) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = AppColor.Error.copy(alpha = 0.1f)
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = (uiState as ChatViewModel.UiState.Error).message,
+                        color = AppColor.Error,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 根据工具调用生成步骤标题
+ */
+private fun getToolStepTitle(toolCall: ToolCall): String {
+    return when {
+        toolCall.toolName.contains("shell", ignoreCase = true) -> "执行命令: ${toolCall.toolName}"
+        toolCall.toolName.contains("file", ignoreCase = true) -> "操作文件: ${toolCall.toolName}"
+        toolCall.toolName.contains("search", ignoreCase = true) -> "搜索信息: ${toolCall.toolName}"
+        toolCall.toolName.contains("browser", ignoreCase = true) -> "浏览网页: ${toolCall.toolName}"
+        toolCall.toolName.contains("write", ignoreCase = true) -> "写入文件: ${toolCall.toolName}"
+        else -> "执行: ${toolCall.toolName}"
     }
 }

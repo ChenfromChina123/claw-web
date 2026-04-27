@@ -91,6 +91,8 @@ export class WorkerToolExecutor {
     const { container } = mapping
     const workerUrl = `http://localhost:${container.hostPort}/internal/exec`
 
+    console.log(`[WorkerToolExecutor] 转发工具 ${toolName} 到 Worker 容器 (userId=${userId}, port=${container.hostPort})`)
+
     const requestBody: WorkerToolExecRequest = {
       requestId: generateRequestId(),
       userId,

@@ -390,6 +390,7 @@ export class ToolRegistry {
     
     // 检查是否需要在 Worker 中执行（危险工具）
     if (shouldExecuteOnWorker(request.toolName)) {
+      console.log(`[ToolRegistry] 工具 ${request.toolName} 需要在 Worker 中执行 (userId=${request.userId || 'missing'})`)
       if (!request.userId) {
         const result = this.createFailedResult(
           id,
