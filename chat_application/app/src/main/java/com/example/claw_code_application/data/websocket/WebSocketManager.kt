@@ -211,6 +211,9 @@ class WebSocketManager {
     private fun handleEvent(event: String?, data: JsonObject?) {
         if (event == null || data == null) return
 
+        Log.d(TAG, "=== WebSocket Event: $event ===")
+        Log.d(TAG, "Event data: ${data.toString().take(200)}")
+
         val webSocketEvent = when (event) {
             "message_start" -> {
                 val messageId = data.get("messageId")?.asString ?: ""
