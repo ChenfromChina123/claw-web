@@ -192,19 +192,42 @@ export async function handleAgentRoutes(req: Request): Promise<Response | null> 
             }
           }
 
-          // 添加消息内容（过滤掉工具调用的JSON）
+          // 构建结构化消息内容
           let content = event.message.content
-          // 如果内容包含工具结果JSON，尝试提取可读的文本
-          if (content.includes('tool_result') || content.includes('"type":"tool"')) {
-            try {
-              // 提取stdout内容
-              const stdoutMatch = content.match(/"stdout":"([^"]*)"/)
-              if (stdoutMatch) {
-                content = stdoutMatch[1].replace(/\\n/g, '\n').replace(/\\t/g, '\t')
-              }
-            } catch (e) {
-              // 保持原内容
+
+          // 如果消息包含工具调用，生成结构化组件
+          if (toolCalls.length > 0 || toolResults.length > 0) {
+            const components: any[] = []
+
+            // 添加文本内容（如果有且不是纯JSON）
+            if (content && !content.trim().startsWith('[') && !content.trim().startsWith('{')) {
+              components.push({
+                type: 'text',
+                content: content
+              })
             }
+
+            // 添加工具调用组件
+            for (const tc of toolCalls) {
+              components.push({
+                type: 'tool_use',
+                id: tc.id,
+                name: tc.name,
+                input: tc.input
+              })
+            }
+
+            // 添加工具结果组件
+            for (const tr of toolResults) {
+              components.push({
+                type: 'tool_result',
+                tool_use_id: tr.toolCallId,
+                content: tr.result || tr.error || ''
+              })
+            }
+
+            // 将组件序列化为JSON字符串
+            content = JSON.stringify(components)
           }
 
           assistantMessages.push({

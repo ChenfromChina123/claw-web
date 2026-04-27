@@ -5,18 +5,12 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.Message
@@ -28,7 +22,7 @@ import java.util.*
 
 /**
  * 增强版消息气泡组件
- * 支持：Markdown渲染、工具调用显示、流式输出动画
+ * 支持：Markdown渲染、动态组件渲染（终端/代码差异/步骤进度）、流式输出动画
  */
 @Composable
 fun EnhancedMessageBubble(
@@ -66,7 +60,7 @@ fun EnhancedMessageBubble(
                         vertical = 10.dp
                     )
                 ) {
-                    // 消息内容 - 使用Markdown渲染
+                    // 动态组件渲染
                     if (isUser) {
                         // 用户消息直接显示文本
                         Text(
@@ -76,8 +70,8 @@ fun EnhancedMessageBubble(
                             lineHeight = 20.sp
                         )
                     } else {
-                        // AI消息使用Markdown渲染
-                        MarkdownContent(
+                        // AI消息使用动态组件渲染
+                        DynamicMessageContent(
                             content = message.content,
                             isStreaming = message.isStreaming
                         )
@@ -120,52 +114,125 @@ fun EnhancedMessageBubble(
 }
 
 /**
- * Markdown内容渲染
+ * 动态消息内容渲染
+ * 根据内容类型渲染不同组件
  */
 @Composable
-private fun MarkdownContent(
+private fun DynamicMessageContent(
     content: String,
     isStreaming: Boolean
 ) {
-    // 处理工具结果JSON，提取可读的文本
-    val processedContent = remember(content) {
-        processToolResults(content)
+    // 解析消息内容为组件列表
+    val components = remember(content) {
+        MessageContentParser.parse(content)
     }
 
-    MarkdownText(
-        markdown = processedContent,
-        modifier = Modifier.fillMaxWidth(),
-        color = AppColor.TextPrimary,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
-    )
+    // 渲染每个组件
+    components.forEach { component ->
+        when (component) {
+            is MessageComponent.Text -> {
+                // 普通文本使用 Markdown 渲染
+                MarkdownText(
+                    markdown = component.content,
+                    modifier = Modifier.fillMaxWidth(),
+                    color = AppColor.TextPrimary,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            }
+
+            is MessageComponent.ToolUse -> {
+                // 工具调用 - 显示为步骤进度或终端卡片
+                ToolUseComponent(
+                    toolUse = component,
+                    isExecuting = isStreaming
+                )
+            }
+
+            is MessageComponent.ToolResult -> {
+                // 工具结果 - 显示为终端卡片
+                TerminalViewer(
+                    command = component.stdout.lines().firstOrNull() ?: "",
+                    stdout = component.stdout,
+                    stderr = component.stderr,
+                    exitCode = component.exitCode,
+                    isExecuting = false
+                )
+            }
+
+            is MessageComponent.StepProgress -> {
+                // 步骤进度
+                var expanded by remember { mutableStateOf(true) }
+                StepProgress(
+                    title = component.title,
+                    currentStep = component.currentStep,
+                    totalSteps = component.totalSteps,
+                    steps = component.steps,
+                    isExpanded = expanded,
+                    onExpandedChange = { expanded = it }
+                )
+            }
+
+            is MessageComponent.CodeDiff -> {
+                // 代码差异
+                CodeDiffEditor(
+                    fileName = component.fileName,
+                    originalCode = component.originalCode,
+                    modifiedCode = component.modifiedCode,
+                    language = component.language
+                )
+            }
+        }
+
+        // 组件之间添加间距
+        if (component !== components.lastOrNull()) {
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
 }
 
 /**
- * 处理工具结果，将JSON转换为可读文本
+ * 工具调用组件
  */
-private fun processToolResults(content: String): String {
-    // 尝试解析工具结果JSON
-    return try {
-        if (content.contains("tool_result") || content.contains("\"type\":\"tool")) {
-            // 提取工具结果中的stdout内容
-            val stdoutPattern = """"stdout":"([^"]*)"""".toRegex()
-            val matches = stdoutPattern.findAll(content)
-            val outputs = matches.map { it.groupValues[1] }
-                .map { it.replace("\\n", "\n").replace("\\t", "\t") }
-                .filter { it.isNotBlank() }
-                .toList()
+@Composable
+private fun ToolUseComponent(
+    toolUse: MessageComponent.ToolUse,
+    isExecuting: Boolean
+) {
+    val command = toolUse.input["command"] ?: toolUse.input["cmd"] ?: ""
 
-            if (outputs.isNotEmpty()) {
-                outputs.joinToString("\n\n---\n\n")
-            } else {
-                content
+    if (command.isNotBlank()) {
+        // 显示为终端卡片（执行中状态）
+        TerminalViewer(
+            command = command,
+            stdout = "",
+            stderr = "",
+            exitCode = 0,
+            isExecuting = isExecuting
+        )
+    } else {
+        // 显示为通用工具卡片
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = AppColor.SurfaceLight
+            ),
+            border = androidx.compose.foundation.BorderStroke(1.dp, AppColor.Border)
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(text = "⚙️", fontSize = 16.sp)
+                Text(
+                    text = "正在执行: ${toolUse.toolName}",
+                    fontSize = 13.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                )
             }
-        } else {
-            content
         }
-    } catch (e: Exception) {
-        content
     }
 }
 
