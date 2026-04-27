@@ -289,6 +289,17 @@ export class WorkerInternalAPI {
           return { requestId: req.requestId, success: !result.error, data: result, error: result.error }
         }
 
+        case 'tool_exec': {
+          const { toolName, toolInput, cwd, timeout } = payload as any
+          const result = await workerSandbox.execTool(toolName, toolInput, { cwd, timeout })
+          return {
+            requestId: req.requestId,
+            success: result.success,
+            data: { result: result.result, output: result.output },
+            error: result.error,
+          }
+        }
+
         default:
           return { requestId: req.requestId, success: false, error: `Unknown request type: ${type}` }
       }

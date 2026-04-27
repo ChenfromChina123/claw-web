@@ -99,6 +99,8 @@ export interface ToolExecutionRequest {
   sessionId?: string
   context?: Record<string, unknown>
   timeout?: number
+  /** 用户ID（用于Worker容器路由） */
+  userId?: string
 }
 
 /**

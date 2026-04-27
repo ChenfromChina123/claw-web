@@ -223,6 +223,189 @@ export class WorkerSandbox {
       return { success: false, error: error.message }
     }
   }
+
+  /**
+   * 执行 Agent 工具（在 Worker 沙箱中安全执行）
+   * @param toolName 工具名称
+   * @param toolInput 工具输入参数
+   * @param options 执行选项
+   * @returns 执行结果
+   */
+  async execTool(
+    toolName: string,
+    toolInput: Record<string, unknown>,
+    options: { cwd?: string; timeout?: number } = {}
+  ): Promise<{ success: boolean; result?: unknown; output?: string; error?: string }> {
+    const startTime = Date.now()
+    const cwd = options.cwd || this.workspaceDir
+    const timeout = options.timeout || this.defaultTimeout
+
+    // 验证工作目录安全
+    if (!isPathSafe(cwd, this.workspaceDir)) {
+      return {
+        success: false,
+        error: `Error: Working directory must be within ${this.workspaceDir}`,
+      }
+    }
+
+    try {
+      let result: unknown
+      let output: string | undefined
+
+      switch (toolName) {
+        case 'Bash':
+        case 'Exec': {
+          const command = toolInput.command as string
+          const cmdCwd = (toolInput.cwd as string) || cwd
+          if (!isPathSafe(cmdCwd, this.workspaceDir)) {
+            return { success: false, error: `Invalid cwd: ${cmdCwd}` }
+          }
+          const execResult = await this.exec(command, { cwd: cmdCwd, timeout })
+          result = {
+            stdout: execResult.stdout,
+            stderr: execResult.stderr,
+            exitCode: execResult.exitCode,
+          }
+          output = execResult.stdout
+          break
+        }
+
+        case 'FileRead': {
+          const path = toolInput.path as string
+          const resolvedPath = this.resolveWorkspacePath(path)
+          if (!isPathSafe(resolvedPath, this.workspaceDir)) {
+            return { success: false, error: `Invalid path: ${path}` }
+          }
+          const readResult = await this.readFile(resolvedPath, 'utf8')
+          if (readResult.error) {
+            return { success: false, error: readResult.error }
+          }
+          let content = readResult.content as string
+          const limit = toolInput.limit as number | undefined
+          const offset = toolInput.offset as number | undefined
+          if (offset && offset > 0) {
+            const lines = content.split('\n')
+            content = lines.slice(offset).join('\n')
+          }
+          if (limit && limit > 0) {
+            const lines = content.split('\n')
+            content = lines.slice(0, limit).join('\n')
+          }
+          result = { content, path: resolvedPath }
+          output = content
+          break
+        }
+
+        case 'FileWrite': {
+          const path = toolInput.path as string
+          const content = toolInput.content as string
+          const resolvedPath = this.resolveWorkspacePath(path)
+          if (!isPathSafe(resolvedPath, this.workspaceDir)) {
+            return { success: false, error: `Invalid path: ${path}` }
+          }
+          const writeResult = await this.writeFile(resolvedPath, content)
+          if (!writeResult.success) {
+            return { success: false, error: writeResult.error }
+          }
+          result = { success: true, path: resolvedPath }
+          break
+        }
+
+        case 'FileEdit': {
+          const path = toolInput.path as string
+          const oldString = toolInput.old_string as string
+          const newString = toolInput.new_string as string
+          const resolvedPath = this.resolveWorkspacePath(path)
+          if (!isPathSafe(resolvedPath, this.workspaceDir)) {
+            return { success: false, error: `Invalid path: ${path}` }
+          }
+          const fs = await import('fs/promises')
+          let content = await fs.readFile(resolvedPath, 'utf8')
+          if (!content.includes(oldString)) {
+            return { success: false, error: `Text not found: ${oldString.substring(0, 50)}...` }
+          }
+          content = content.replace(oldString, newString)
+          await fs.writeFile(resolvedPath, content)
+          result = { success: true }
+          break
+        }
+
+        case 'Glob': {
+          const { glob } = await import('glob')
+          const pattern = toolInput.pattern as string
+          const searchPath = (toolInput.path as string) || this.workspaceDir
+          if (!isPathSafe(searchPath, this.workspaceDir)) {
+            return { success: false, error: `Invalid path: ${searchPath}` }
+          }
+          const files = await glob(pattern, {
+            cwd: searchPath,
+            ignore: ['**/node_modules/**', '**/.git/**'],
+          })
+          result = { files }
+          break
+        }
+
+        case 'Grep': {
+          const { glob } = await import('glob')
+          const pattern = toolInput.pattern as string
+          const searchPath = (toolInput.path as string) || this.workspaceDir
+          const outputMode = (toolInput.output_mode as string) || 'content'
+          if (!isPathSafe(searchPath, this.workspaceDir)) {
+            return { success: false, error: `Invalid path: ${searchPath}` }
+          }
+          const matches: string[] = []
+          const regex = new RegExp(pattern, 'g')
+          const files = await glob('**/*.{ts,js,json,md,txt,html,css,py}', {
+            cwd: searchPath,
+            ignore: ['**/node_modules/**', '**/.git/**'],
+          })
+          for (const file of files.slice(0, 100)) {
+            try {
+              const fs = await import('fs/promises')
+              const filePath = (await import('path')).join(searchPath, file)
+              const fileContent = await fs.readFile(filePath, 'utf8')
+              if (outputMode === 'files_with_matches') {
+                if (regex.test(fileContent)) matches.push(file)
+              } else {
+                const lines = fileContent.split('\n')
+                lines.forEach((line, index) => {
+                  regex.lastIndex = 0
+                  if (regex.test(line)) {
+                    matches.push(`${file}:${index + 1}: ${line.trim()}`)
+                  }
+                })
+              }
+            } catch {
+              // 跳过无法读取的文件
+            }
+          }
+          result = { matches }
+          break
+        }
+
+        default:
+          return { success: false, error: `Unknown tool: ${toolName}` }
+      }
+
+      return { success: true, result, output }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }
+
+  /**
+   * 解析工作空间路径（将相对路径转换为绝对路径）
+   */
+  private resolveWorkspacePath(inputPath: string): string {
+    const pathModule = require('path')
+    if (pathModule.isAbsolute(inputPath)) {
+      return inputPath
+    }
+    return pathModule.join(this.workspaceDir, inputPath)
+  }
 }
 
 // 在 Windows 上映射 /workspace 到实际路径

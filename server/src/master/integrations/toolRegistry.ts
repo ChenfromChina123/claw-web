@@ -34,6 +34,7 @@ import { ToolDependencyManager } from './core/toolDependency'
 import { ToolTimeoutManager } from './core/toolTimeout'
 import { BuiltinToolRegistrar } from './core/builtinTools'
 import { TOOL_RESULT_LIMITS, truncateToolResult, formatBytes } from '../utils/fileLimits'
+import { getWorkerToolExecutor, shouldExecuteOnWorker } from './workerToolExecutor'
 
 // ==================== ToolRegistry 类 ====================
 
@@ -387,6 +388,27 @@ export class ToolRegistry {
       return result
     }
     
+    // 检查是否需要在 Worker 中执行（危险工具）
+    if (shouldExecuteOnWorker(request.toolName)) {
+      if (!request.userId) {
+        const result = this.createFailedResult(
+          id,
+          request.toolName,
+          `工具 ${request.toolName} 需要在 Worker 中执行，但缺少 userId`,
+          startTime
+        )
+        this.addToHistory(result)
+        this.eventEmitter.emit('tool.execution_failed', {
+          ...eventBase,
+          error: result.error,
+          duration: result.duration,
+        })
+        return result
+      }
+
+      return this.executeToolOnWorker(request, id, startTime, timeout, eventBase)
+    }
+
     // 查找处理器
     const handler = this.toolHandlers.get(tool.name)
     if (!handler) {
@@ -395,7 +417,7 @@ export class ToolRegistry {
       this.eventEmitter.emit('tool.execution_failed', { ...eventBase, error: result.error, duration: result.duration })
       return result
     }
-    
+
     // 执行工具（带超时控制）
     try {
       const { result: response, timedOut, error: execError } = await this.timeoutManager.executeWithTimeout(
@@ -472,6 +494,121 @@ export class ToolRegistry {
       
       this.addToHistory(result)
       this.eventEmitter.emit('tool.execution_failed', { ...eventBase, error: result.error, duration: result.duration, timestamp: Date.now() })
+      return result
+    }
+  }
+
+  /**
+   * 在 Worker 容器中执行工具（危险工具）
+   */
+  private async executeToolOnWorker(
+    request: ToolExecutionRequest,
+    id: string,
+    startTime: number,
+    timeout: number,
+    eventBase: Record<string, unknown>
+  ): Promise<ToolExecutionResult> {
+    try {
+      const workerExecutor = getWorkerToolExecutor()
+      const workerResult = await this.timeoutManager.executeWithTimeout(
+        () =>
+          workerExecutor.executeTool(
+            request.userId!,
+            request.toolName,
+            request.toolInput,
+            { timeout }
+          ),
+        request.toolName,
+        timeout
+      )
+
+      if (workerResult.timedOut) {
+        const result: ToolExecutionResult = {
+          id,
+          toolName: request.toolName,
+          success: false,
+          error: `工具在 Worker 中执行超时 (${timeout}ms)`,
+          duration: Date.now() - startTime,
+          timestamp: startTime,
+          timedOut: true,
+        }
+        this.addToHistory(result)
+        this.eventEmitter.emit('tool.execution_failed', {
+          ...eventBase,
+          error: result.error,
+          duration: result.duration,
+          timedOut: true,
+        })
+        return result
+      }
+
+      if (workerResult.error) {
+        throw new Error(workerResult.error)
+      }
+
+      const result: ToolExecutionResult = {
+        id,
+        toolName: request.toolName,
+        success: workerResult.success,
+        result: workerResult.result,
+        output: workerResult.output,
+        duration: Date.now() - startTime,
+        timestamp: startTime,
+      }
+
+      // 对输出结果进行截断
+      if (workerResult.success && workerResult.output !== undefined) {
+        const { result: truncatedOutput, wasTruncated, originalSize } = truncateToolResult(
+          workerResult.output,
+          request.toolName,
+          TOOL_RESULT_LIMITS.MAX_CHARS
+        )
+
+        if (wasTruncated) {
+          result.output = truncatedOutput
+          result.truncated = true
+          result.originalOutputSize = originalSize
+        } else {
+          result.output = workerResult.output
+        }
+      }
+
+      this.addToHistory(result)
+
+      if (workerResult.success) {
+        this.eventEmitter.emit('tool.execution_completed', {
+          ...eventBase,
+          result,
+          duration: result.duration,
+          timestamp: Date.now(),
+        })
+      } else {
+        this.eventEmitter.emit('tool.execution_failed', {
+          ...eventBase,
+          error: workerResult.error,
+          duration: result.duration,
+          timestamp: Date.now(),
+        })
+      }
+
+      return result
+    } catch (error) {
+      const result: ToolExecutionResult = {
+        id,
+        toolName: request.toolName,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        duration: Date.now() - startTime,
+        timestamp: startTime,
+      }
+
+      this.addToHistory(result)
+      this.eventEmitter.emit('tool.execution_failed', {
+        ...eventBase,
+        error: result.error,
+        duration: result.duration,
+        timestamp: Date.now(),
+      })
       return result
     }
   }

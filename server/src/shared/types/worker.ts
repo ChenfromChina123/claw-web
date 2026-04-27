@@ -20,6 +20,7 @@ export type WorkerRequestType =
   | 'file_read'      // 读取文件
   | 'file_write'     // 写入文件
   | 'file_list'      // 列出目录
+  | 'tool_exec'      // 执行工具（Agent工具调用）
 
 /**
  * Worker 内部 API 请求基础接口
@@ -146,6 +147,23 @@ export interface WorkerFileListRequest extends WorkerBaseRequest {
 }
 
 /**
+ * 执行工具请求（Agent 工具调用转发到 Worker）
+ */
+export interface WorkerToolExecRequest extends WorkerBaseRequest {
+  type: 'tool_exec'
+  payload: {
+    /** 工具名称 */
+    toolName: string
+    /** 工具输入参数 */
+    toolInput: Record<string, unknown>
+    /** 工作目录（可选） */
+    cwd?: string
+    /** 超时时间（毫秒，可选） */
+    timeout?: number
+  }
+}
+
+/**
  * Worker 内部 API 请求联合类型
  */
 export type WorkerRequest =
@@ -157,6 +175,7 @@ export type WorkerRequest =
   | WorkerFileReadRequest
   | WorkerFileWriteRequest
   | WorkerFileListRequest
+  | WorkerToolExecRequest
 
 /**
  * Worker 内部 API 响应基础接口
@@ -284,6 +303,20 @@ export interface WorkerFileListResponse extends WorkerBaseResponse {
 }
 
 /**
+ * 工具执行响应
+ */
+export interface WorkerToolExecResponse extends WorkerBaseResponse {
+  success: boolean
+  data?: {
+    /** 执行结果 */
+    result?: unknown
+    /** 输出内容 */
+    output?: string
+  }
+  error?: string
+}
+
+/**
  * Worker 内部 API 响应联合类型
  */
 export type WorkerResponse =
@@ -295,6 +328,7 @@ export type WorkerResponse =
   | WorkerFileReadResponse
   | WorkerFileWriteResponse
   | WorkerFileListResponse
+  | WorkerToolExecResponse
 
 /**
  * Worker 健康检查响应
