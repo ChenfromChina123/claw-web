@@ -116,6 +116,9 @@ object MessageContentParser {
 
     /**
      * 解析 tool_result JSON
+     * 支持多种工具结果格式：
+     * - Shell/Bash 工具: {stdout, stderr, exitCode}
+     * - FileList 工具: {path, count, files: [{name, path, isDirectory, isFile}]}
      */
     private fun parseToolResult(jsonObj: JsonObject): MessageComponent {
         val toolUseId = jsonObj.get("tool_use_id")?.asString ?: ""
@@ -128,6 +131,12 @@ object MessageContentParser {
             JsonObject().apply { addProperty("raw", content) }
         }
 
+        // 检测是否是文件列表结果（FileList 工具）
+        if (result.has("files") && result.has("count")) {
+            return parseFileListResult(toolUseId, result)
+        }
+
+        // 标准 Shell 工具结果
         val stdout = result.get("stdout")?.asString ?: ""
         val stderr = result.get("stderr")?.asString ?: ""
         val exitCode = result.get("exitCode")?.asInt ?: 0
@@ -138,6 +147,37 @@ object MessageContentParser {
             stderr = stderr,
             exitCode = exitCode,
             isSuccess = exitCode == 0
+        )
+    }
+
+    /**
+     * 解析 FileList 工具结果
+     */
+    private fun parseFileListResult(toolUseId: String, result: JsonObject): MessageComponent {
+        val path = result.get("path")?.asString ?: ""
+        val count = result.get("count")?.asInt ?: 0
+        val files = mutableListOf<FileInfo>()
+
+        val filesArray = result.getAsJsonArray("files")
+        filesArray?.forEach { element ->
+            if (element.isJsonObject) {
+                val fileObj = element.asJsonObject
+                files.add(
+                    FileInfo(
+                        name = fileObj.get("name")?.asString ?: "",
+                        path = fileObj.get("path")?.asString ?: "",
+                        isDirectory = fileObj.get("isDirectory")?.asBoolean ?: false,
+                        isFile = fileObj.get("isFile")?.asBoolean ?: false
+                    )
+                )
+            }
+        }
+
+        return MessageComponent.FileListResult(
+            toolUseId = toolUseId,
+            path = path,
+            count = count,
+            files = files
         )
     }
 
@@ -193,7 +233,7 @@ sealed class MessageComponent {
     ) : MessageComponent()
 
     /**
-     * 工具结果（已完成）
+     * 工具结果（已完成）- Shell/Bash 类型
      */
     data class ToolResult(
         val toolUseId: String,
@@ -201,6 +241,16 @@ sealed class MessageComponent {
         val stderr: String,
         val exitCode: Int,
         val isSuccess: Boolean
+    ) : MessageComponent()
+
+    /**
+     * 文件列表结果（FileList 工具）
+     */
+    data class FileListResult(
+        val toolUseId: String,
+        val path: String,
+        val count: Int,
+        val files: List<FileInfo>
     ) : MessageComponent()
 
     /**
@@ -223,6 +273,16 @@ sealed class MessageComponent {
         val language: String = ""
     ) : MessageComponent()
 }
+
+/**
+ * 文件信息
+ */
+data class FileInfo(
+    val name: String,
+    val path: String,
+    val isDirectory: Boolean,
+    val isFile: Boolean
+)
 
 /**
  * 步骤信息

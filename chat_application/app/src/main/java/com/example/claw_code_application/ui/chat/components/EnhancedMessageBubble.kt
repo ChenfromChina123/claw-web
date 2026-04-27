@@ -170,6 +170,15 @@ private fun DynamicMessageContent(
                 )
             }
 
+            is MessageComponent.FileListResult -> {
+                // 文件列表结果 - 显示为文件浏览器卡片
+                FileListViewer(
+                    path = component.path,
+                    count = component.count,
+                    files = component.files
+                )
+            }
+
             is MessageComponent.StepProgress -> {
                 // 步骤进度
                 var expanded by remember { mutableStateOf(true) }
@@ -268,6 +277,98 @@ private fun StreamingCursor() {
         modifier = Modifier.alpha(alpha),
         fontSize = 14.sp
     )
+}
+
+/**
+ * 文件列表查看器组件
+ * 显示 FileList 工具返回的文件和目录列表
+ */
+@Composable
+private fun FileListViewer(
+    path: String,
+    count: Int,
+    files: List<FileInfo>,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = AppColor.SurfaceLight
+        ),
+        border = BorderStroke(1.dp, AppColor.Border)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            // 路径标题
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(text = "📁", fontSize = 16.sp)
+                Text(
+                    text = path,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = AppColor.TextPrimary
+                )
+                Text(
+                    text = "($count 项)",
+                    fontSize = 11.sp,
+                    color = AppColor.TextSecondary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            HorizontalDivider(color = AppColor.Divider, thickness = 1.dp)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 文件列表
+            files.forEach { file ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // 文件/目录图标
+                    Text(
+                        text = if (file.isDirectory) "📂" else "📄",
+                        fontSize = 14.sp
+                    )
+
+                    // 文件名
+                    Text(
+                        text = file.name,
+                        fontSize = 12.sp,
+                        color = if (file.isDirectory) AppColor.Primary else AppColor.TextPrimary,
+                        fontWeight = if (file.isDirectory) FontWeight.Medium else FontWeight.Normal,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    // 类型标签
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = if (file.isDirectory) 
+                            AppColor.Primary.copy(alpha = 0.1f) 
+                        else 
+                            AppColor.TextSecondary.copy(alpha = 0.1f)
+                    ) {
+                        Text(
+                            text = if (file.isDirectory) "目录" else "文件",
+                            fontSize = 10.sp,
+                            color = if (file.isDirectory) AppColor.Primary else AppColor.TextSecondary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**
