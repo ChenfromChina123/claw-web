@@ -68,7 +68,7 @@ object MessageContentParser {
                     }
                 }
                 if (components.isNotEmpty()) {
-                    android.util.Log.d("MessageParser", "解析完成: ${components.size()} 个组件")
+                    android.util.Log.d("MessageParser", "解析完成: ${components.size} 个组件")
                     return components
                 }
             } catch (e: Exception) {
