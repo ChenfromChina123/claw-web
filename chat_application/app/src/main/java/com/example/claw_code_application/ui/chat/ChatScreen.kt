@@ -49,7 +49,7 @@ fun ChatScreen(
                 title = { 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Manus",
+                            text = "收藏家",
                             color = AppColor.TextPrimary,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                             fontSize = 16.sp

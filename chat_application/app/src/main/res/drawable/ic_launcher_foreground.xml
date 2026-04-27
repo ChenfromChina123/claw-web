@@ -4,96 +4,145 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 背景圆角矩形 -->
-    <path
-        android:fillColor="#FAFAFA"
-        android:pathData="M24,24h60v60h-60z"
-        android:strokeWidth="0" />
+    <!-- ===== 光芒射线 ===== -->
 
-    <!-- 顶部光芒 -->
-    <path
-        android:fillColor="#3D3D4A"
-        android:pathData="M52,18h4v12h-4z" />
-
-    <!-- 右上光芒 -->
-    <path
-        android:fillColor="#4A4A5A"
-        android:pathData="M68.5,26.5l2.8,2.8l-8.5,8.5l-2.8,-2.8z" />
-
-    <!-- 右中光芒 -->
-    <path
-        android:fillColor="#4A4A5A"
-        android:pathData="M78,52h12v4h-12z" />
-
-    <!-- 右下光芒 -->
-    <path
-        android:fillColor="#4A4A5A"
-        android:pathData="M68.5,73.5l8.5,-8.5l2.8,2.8l-8.5,8.5z" />
-
-    <!-- 左下光芒 -->
-    <path
-        android:fillColor="#4A4A5A"
-        android:pathData="M30.2,67.8l8.5,-8.5l2.8,2.8l-8.5,8.5z" />
-
-    <!-- 左中光芒 -->
-    <path
-        android:fillColor="#4A4A5A"
-        android:pathData="M18,52h12v4h-12z" />
-
-    <!-- 左上光芒 -->
-    <path
-        android:fillColor="#6B5B4F"
-        android:pathData="M28.7,29.3l2.8,-2.8l8.5,8.5l-2.8,2.8z" />
-
-    <!-- 中心发光区域 - 渐变效果用多个椭圆模拟 -->
+    <!-- 顶部射线 -->
     <path
         android:fillColor="#FFD700"
-        android:pathData="M54,38c-8.8,0 -16,7.2 -16,16s7.2,16 16,16s16,-7.2 16,-16s-7.2,-16 -16,-16z"
-        android:fillAlpha="0.3" />
+        android:fillAlpha="0.9"
+        android:pathData="M52,20L54,14L56,20L56,30L52,30Z" />
 
-    <!-- 上叶 - 黄色 -->
+    <!-- 右上射线 -->
+    <path
+        android:fillColor="#FFB347"
+        android:fillAlpha="0.85"
+        android:pathData="M72,26l2.5,-1.5l1.5,2.5l-5.5,5.5l-2.8,-2.8z" />
+
+    <!-- 右中射线 -->
+    <path
+        android:fillColor="#FF8C42"
+        android:fillAlpha="0.8"
+        android:pathData="M82,52l6,-2l0,4l-6,2l-10,0l0,-4z" />
+
+    <!-- 右下射线 -->
+    <path
+        android:fillColor="#A855F7"
+        android:fillAlpha="0.7"
+        android:pathData="M72,76l1.5,2.5l-2.5,1.5l-4.3,-4.3l2.8,-2.8z" />
+
+    <!-- 左下射线 -->
+    <path
+        android:fillColor="#6366F1"
+        android:fillAlpha="0.65"
+        android:pathData="M36,76l-1.5,2.5l-2.5,-1.5l4.3,-4.3l2.8,2.8z" />
+
+    <!-- 左中射线 -->
+    <path
+        android:fillColor="#818CF8"
+        android:fillAlpha="0.7"
+        android:pathData="M20,52l-6,-2l0,4l6,2l10,0l0,-4z" />
+
+    <!-- 左上射线 -->
+    <path
+        android:fillColor="#FFB347"
+        android:fillAlpha="0.85"
+        android:pathData="M34,27l-1.5,2.5l-2.5,-1.5l4.3,-4.3l2.8,2.8z" />
+
+    <!-- ===== 中心发光区域 ===== -->
+
+    <!-- 外层光晕 -->
     <path
         android:fillColor="#FFD700"
-        android:pathData="M54,26c4,4 4,12 0,16c-4,-4 -4,-12 0,-16z" />
+        android:fillAlpha="0.15"
+        android:pathData="M54,36c-12,0 -22,10 -22,22s10,22 22,22s22,-10 22,-22s-10,-22 -22,-22z" />
+
+    <!-- 中层光晕 -->
+    <path
+        android:fillColor="#FFE4B5"
+        android:fillAlpha="0.2"
+        android:pathData="M54,40c-9.9,0 -18,8.1 -18,18s8.1,18 18,18s18,-8.1 18,-18s-8.1,-18 -18,-18z" />
+
+    <!-- ===== 四叶星光 ===== -->
+
+    <!-- 上叶 - 金黄 -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M54,30c5,5 5,14 0,18c-5,-4 -5,-13 0,-18z" />
 
     <!-- 右叶 - 橙色 -->
     <path
         android:fillColor="#FF8C42"
-        android:pathData="M70,42c-4,4 -12,4 -16,0c4,-4 12,-4 16,0z" />
+        android:pathData="M72,48c-5,5 -14,5 -18,0c4,-5 13,-5 18,0z" />
 
     <!-- 下叶 - 紫色 -->
     <path
         android:fillColor="#A855F7"
-        android:pathData="M54,58c-4,-4 -4,-12 0,-16c4,4 4,12 0,16z" />
+        android:pathData="M54,66c-5,-5 -5,-14 0,-18c5,4 5,13 0,18z" />
 
-    <!-- 左叶 - 蓝紫色 -->
+    <!-- 左叶 - 蓝紫 -->
     <path
         android:fillColor="#6366F1"
-        android:pathData="M38,42c4,-4 12,-4 16,0c-4,4 -12,4 -16,0z" />
+        android:pathData="M36,48c5,-5 14,-5 18,0c-4,5 -13,5 -18,0z" />
 
-    <!-- 中心高光 -->
+    <!-- ===== 灯泡主体 ===== -->
+
+    <!-- 灯泡玻璃部分 - 半透明暖光 -->
+    <path
+        android:fillColor="#FFF8DC"
+        android:fillAlpha="0.35"
+        android:pathData="M54,32c-9.4,0 -17,7.6 -17,17c0,5.5 2.6,10.4 6.7,13.6c1.3,1 2.3,2.4 2.3,4.1l0,3.3l16,0l0,-3.3c0,-1.7 1,-3.1 2.3,-4.1c4.1,-3.2 6.7,-8.1 6.7,-13.6c0,-9.4 -7.6,-17 -17,-17z" />
+
+    <!-- 灯泡内灯丝 - 发光核心 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,38c-2.2,0 -4,1.8 -4,4s1.8,4 4,4s4,-1.8 4,-4s-1.8,-4 -4,-4z" />
+        android:fillAlpha="0.95"
+        android:pathData="M54,42c-3.9,0 -7,3.1 -7,7s3.1,7 7,7s7,-3.1 7,-7s-3.1,-7 -7,-7z" />
 
-    <!-- 灯泡底座上部 -->
+    <!-- 灯泡内灯丝 - 柔和光 -->
+    <path
+        android:fillColor="#FFF8DC"
+        android:fillAlpha="0.6"
+        android:pathData="M54,44c-2.8,0 -5,2.2 -5,5s2.2,5 5,5s5,-2.2 5,-5s-2.2,-5 -5,-5z" />
+
+    <!-- ===== 灯泡底座 ===== -->
+
+    <!-- 底座连接环 -->
     <path
         android:fillColor="#4A4A5A"
-        android:pathData="M44,68c0,4 4.5,6 10,6s10,-2 10,-6l-2,4c-5,2 -11,2 -16,0l-2,-4z" />
+        android:pathData="M44,68l20,0c0,0 0,2 -2,3c-2,1 -5,1.5 -8,1.5s-6,-0.5 -8,-1.5c-2,-1 -2,-3 -2,-3z" />
 
-    <!-- 灯泡底座中部 -->
+    <!-- 底座第一环 -->
     <path
         android:fillColor="#3D3D4A"
-        android:pathData="M46,74c5,2 11,2 16,0l-1,4c-4.5,1.5 -9.5,1.5 -14,0l-1,-4z" />
+        android:pathData="M45,72l18,0c0,0 0,2 -1.5,2.8c-2.5,1 -5,1.2 -7.5,1.2s-5,-0.2 -7.5,-1.2c-1.5,-0.8 -1.5,-2.8 -1.5,-2.8z" />
 
-    <!-- 灯泡底座下部 -->
+    <!-- 底座第二环 -->
     <path
         android:fillColor="#2D2D3A"
-        android:pathData="M47,80c4.5,1.5 9.5,1.5 14,0l-1.5,4c-3.5,1 -7.5,1 -11,0l-1.5,-4z" />
+        android:pathData="M46.5,75.5l15,0c0,0 0,1.8 -1.2,2.5c-2,0.8 -4.2,1 -6.3,1s-4.3,-0.2 -6.3,-1c-1.2,-0.7 -1.2,-2.5 -1.2,-2.5z" />
 
-    <!-- 触点 -->
+    <!-- 底座底部 -->
     <path
-        android:fillColor="#2D2D3A"
-        android:pathData="M52,86h4v4h-4z" />
+        android:fillColor="#1F1F2E"
+        android:pathData="M48,78.5l12,0c0,0 0,1.5 -1,2c-1.5,0.8 -3.5,1 -5,1s-3.5,-0.2 -5,-1c-1,-0.5 -1,-2 -1,-2z" />
+
+    <!-- 底座触点 -->
+    <path
+        android:fillColor="#1F1F2E"
+        android:pathData="M52,81.5l4,0l0,3.5l-4,0z" />
+
+    <!-- ===== 高光细节 ===== -->
+
+    <!-- 灯泡左上高光弧 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.4"
+        android:pathData="M44,40c2,-4 6,-7 10,-7c-1,1 -2,3 -2,5c-3,0 -6,1 -8,2z" />
+
+    <!-- 灯泡小高光点 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.6"
+        android:pathData="M44,44m-1.5,0a1.5,1.5 0,1 1,3 0a1.5,1.5 0,1 1,-3 0" />
 
 </vector>

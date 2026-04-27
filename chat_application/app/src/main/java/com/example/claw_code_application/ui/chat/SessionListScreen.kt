@@ -137,7 +137,7 @@ private fun TopAppBar() {
         }
 
         Text(
-            text = "manus",
+            text = "收藏家",
             fontSize = 22.sp,
             color = Color.Black,
             letterSpacing = 0.5.sp
