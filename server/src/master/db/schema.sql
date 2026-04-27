@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS messages (
   id VARCHAR(36) PRIMARY KEY,
   session_id VARCHAR(36) NOT NULL,
   role ENUM('user', 'assistant', 'system') NOT NULL,
-  content TEXT NOT NULL,
+  content JSON NOT NULL,
+  attachments JSON,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
   INDEX idx_messages_session_id (session_id)
@@ -253,4 +254,25 @@ CREATE TABLE IF NOT EXISTS shared_sessions (
   INDEX idx_shared_sessions_share_code (share_code),
   INDEX idx_shared_sessions_session_id (session_id),
   INDEX idx_shared_sessions_user_id (user_id)
+);
+
+-- 聊天图片表
+CREATE TABLE IF NOT EXISTS chat_images (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  session_id VARCHAR(36),
+  message_id VARCHAR(36),
+  filename VARCHAR(255) NOT NULL COMMENT '存储文件名（UUID.ext）',
+  original_name VARCHAR(255) COMMENT '原始文件名',
+  mime_type VARCHAR(100) NOT NULL COMMENT 'MIME 类型',
+  size INT NOT NULL COMMENT '文件大小（字节）',
+  width INT COMMENT '图片宽度',
+  height INT COMMENT '图片高度',
+  storage_path VARCHAR(500) NOT NULL COMMENT '磁盘存储路径',
+  llm_ready_path VARCHAR(500) COMMENT 'LLM 就绪的压缩版本路径',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_chat_images_user_id (user_id),
+  INDEX idx_chat_images_session_id (session_id),
+  INDEX idx_chat_images_message_id (message_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

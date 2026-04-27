@@ -3,6 +3,7 @@ import { NConfigProvider, NMessageProvider, NDialogProvider, NNotificationProvid
 import { computed, onMounted } from 'vue'
 import { useTheme } from '@/composables/useTheme'
 import { useAuthStore } from '@/stores/auth'
+import AgentTaskMonitorPanel from '@/components/AgentTaskMonitorPanel.vue'
 
 const { currentTheme, getNaiveUiOverrides } = useTheme()
 const authStore = useAuthStore()
@@ -45,6 +46,9 @@ onMounted(async () => {
             <main class="app-main">
               <router-view />
             </main>
+
+            <!-- Agent任务监控面板 - 全局持久化悬浮组件 -->
+            <AgentTaskMonitorPanel v-if="authStore.isLoggedIn" />
           </div>
         </NNotificationProvider>
       </NDialogProvider>

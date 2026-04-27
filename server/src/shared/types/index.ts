@@ -40,6 +40,14 @@ export interface Attachment {
   path: string
 }
 
+/** 图片附件类型（用于 WebSocket 消息中传递图片信息） */
+export interface ImageAttachment {
+  imageId: string
+  type: 'image'
+  originalName?: string
+  mimeType?: string
+}
+
 export interface ContainerInfo {
   id: string
   name: string

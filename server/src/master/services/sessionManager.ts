@@ -4,6 +4,7 @@ import { SessionRepository } from '../db/repositories/sessionRepository'
 import { MessageRepository } from '../db/repositories/messageRepository'
 import { ToolCallRepository } from '../db/repositories/toolCallRepository'
 import type { Session, Message, ConversationMessage, ToolCall } from '../models/types'
+import type { MessageContent, ImageAttachment } from '../models/imageTypes'
 import { generateSessionTitleWithLLM } from './sessionTitleGenerator'
 import { extractIdeUserDisplay } from '../utils/ideUserMessageMarkers'
 import { buildCompleteSystemPrompt, getWebSearchPrompt } from '../prompts'
@@ -244,18 +245,17 @@ export class SessionManager {
     }
   }
 
-  addMessage(sessionId: string, role: 'user' | 'assistant', content: string | any[], toolCalls?: ToolCall[], externalId?: string): Message | null {
+  addMessage(sessionId: string, role: 'user' | 'assistant', content: MessageContent, imageAttachments?: ImageAttachment[], externalId?: string): Message | null {
     const sessionData = this.sessions.get(sessionId)
     if (!sessionData) {
       console.error(`Session ${sessionId} not found in memory`)
       return null
     }
 
-    // 如果提供了外部ID（来自前端），使用它；否则生成新的UUID
     const messageId = externalId || uuidv4()
     const message: Message = { id: messageId, sessionId, role, content, createdAt: new Date() }
-    if (role === 'assistant' && toolCalls && toolCalls.length > 0) {
-      message.toolCalls = toolCalls
+    if (imageAttachments && imageAttachments.length > 0) {
+      message.attachments = imageAttachments
     }
     sessionData.messages.push(message)
     sessionData.dirty = true
@@ -448,7 +448,7 @@ export class SessionManager {
   /**
    * 更新内存中的消息内容
    */
-  updateMessage(sessionId: string, messageId: string, content: string | any[], toolCalls?: ToolCall[]): Message | null {
+  updateMessage(sessionId: string, messageId: string, content: MessageContent, toolCalls?: ToolCall[]): Message | null {
     const sessionData = this.sessions.get(sessionId)
     if (!sessionData) {
       console.error(`Session ${sessionId} not found in memory`)
@@ -849,7 +849,7 @@ export class SessionManager {
       sessionId,
       'assistant',
       assistantMessage.content,
-      toolCalls,
+      undefined,
       assistantMessage.id
     )
 

@@ -32,14 +32,17 @@ export interface Session {
   updatedAt: Date
 }
 
+import type { MessageContent, ImageAttachment } from './imageTypes'
+
 export interface Message {
   id: string
   sessionId: string
   role: 'user' | 'assistant' | 'system'
-  content: string | any[]  // 支持字符串或 Anthropic 格式的内容数组
-  createdAt: Date | string  // 支持 Date 对象或 ISO 字符串
-  sequence?: number  // 消息序号，用于确保消息顺序
+  content: MessageContent
+  createdAt: Date | string
+  sequence?: number
   toolCalls?: ToolCall[]
+  attachments?: ImageAttachment[]
 }
 
 export interface ToolCall {

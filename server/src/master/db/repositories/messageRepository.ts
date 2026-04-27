@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { getPool } from '../mysql'
 import type { Message } from '../../models/types'
+import type { MessageContent, ImageAttachment } from '../../models/imageTypes'
 
 export class MessageRepository {
   /**
@@ -19,26 +20,28 @@ export class MessageRepository {
    * 创建消息（使用指定ID）
    * 使用 UPSERT 避免重复插入错误
    */
-  async createWithId(id: string, sessionId: string, role: 'user' | 'assistant' | 'system', content: string | any[]): Promise<Message> {
+  async createWithId(id: string, sessionId: string, role: 'user' | 'assistant' | 'system', content: MessageContent, attachments?: ImageAttachment[]): Promise<Message> {
     const pool = getPool()
 
-    let contentStr: string
+    let contentForDb: string
     if (typeof content === 'string') {
-      contentStr = content
+      contentForDb = content
     } else {
-      contentStr = JSON.stringify(content)
+      contentForDb = JSON.stringify(content)
     }
+
+    const attachmentsJson = attachments && attachments.length > 0
+      ? JSON.stringify(attachments)
+      : null
 
     console.log(`[MessageRepository] Creating/updating message with id: ${id}, role=${role}`)
 
-    // 获取下一个序号
     const sequence = await this.getNextSequence(sessionId)
 
-    // 使用 INSERT ... ON DUPLICATE KEY UPDATE 避免重复插入错误
     await pool.query(
-      `INSERT INTO messages (id, session_id, role, content, sequence) VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE content = VALUES(content), sequence = VALUES(sequence)`,
-      [id, sessionId, role, contentStr, sequence]
+      `INSERT INTO messages (id, session_id, role, content, sequence, attachments) VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE content = VALUES(content), sequence = VALUES(sequence), attachments = VALUES(attachments)`,
+      [id, sessionId, role, contentForDb, sequence, attachmentsJson]
     )
 
     const [rows] = await pool.query(
@@ -49,9 +52,9 @@ export class MessageRepository {
     return this.mapToMessage(rows[0])
   }
 
-  async create(sessionId: string, role: 'user' | 'assistant' | 'system', content: string | any[]): Promise<Message> {
+  async create(sessionId: string, role: 'user' | 'assistant' | 'system', content: MessageContent, attachments?: ImageAttachment[]): Promise<Message> {
     const id = uuidv4()
-    return this.createWithId(id, sessionId, role, content)
+    return this.createWithId(id, sessionId, role, content, attachments)
   }
 
   async findBySessionId(sessionId: string): Promise<Message[]> {
@@ -104,22 +107,21 @@ export class MessageRepository {
   /**
    * 更新消息内容
    */
-  async updateContent(id: string, content: string | any[]): Promise<void> {
+  async updateContent(id: string, content: MessageContent): Promise<void> {
     const pool = getPool()
-    
-    // 将 content 转换为字符串存储
-    let contentStr: string
+
+    let contentForDb: string
     if (typeof content === 'string') {
-      contentStr = content
+      contentForDb = content
     } else {
-      contentStr = JSON.stringify(content)
+      contentForDb = JSON.stringify(content)
     }
 
     console.log(`[MessageRepository] Updating message content: id=${id}`)
 
     await pool.query(
       'UPDATE messages SET content = ? WHERE id = ?',
-      [contentStr, id]
+      [contentForDb, id]
     )
   }
 
@@ -208,27 +210,48 @@ export class MessageRepository {
   }
 
   private mapToMessage(row: any): Message {
-    let content = row.content
+    let content: MessageContent = row.content
 
-    console.log(`[MessageRepository] Mapping message: id=${row.id}, role=${row.role}, content type=${typeof content}`)
+    if (typeof content === 'string') {
+      try {
+        const parsed = JSON.parse(content)
+        if (Array.isArray(parsed)) {
+          content = parsed as MessageContent
+        }
+      } catch {
+        // 纯文本消息，保持字符串
+      }
+    } else if (typeof content === 'object' && content !== null) {
+      if (Array.isArray(content)) {
+        content = content as MessageContent
+      } else {
+        content = JSON.stringify(content)
+      }
+    }
 
-    // 确保 content 始终是字符串返回给客户端
-    // 如果 content 是数组或对象，转换为 JSON 字符串
-    if (typeof content === 'object' && content !== null) {
-      content = JSON.stringify(content)
-      console.log(`[MessageRepository] Converted object content to string`)
+    let attachments: ImageAttachment[] | undefined
+    if (row.attachments) {
+      try {
+        const raw = typeof row.attachments === 'string'
+          ? JSON.parse(row.attachments)
+          : row.attachments
+        if (Array.isArray(raw)) {
+          attachments = raw
+        }
+      } catch {
+        // 忽略解析错误
+      }
     }
 
     const message: Message = {
       id: row.id,
       sessionId: row.session_id,
       role: row.role,
-      content: content,
+      content,
       createdAt: row.created_at,
       sequence: row.sequence,
+      attachments,
     }
-
-    console.log(`[MessageRepository] Mapped message:`, message)
 
     return message
   }

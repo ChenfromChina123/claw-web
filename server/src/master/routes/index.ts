@@ -31,6 +31,9 @@ export { handleDiagnosticsRoutes, default as diagnosticsRoutes } from './diagnos
 // 工作区路由
 export { handleWorkspaceRoutes, default as workspaceRoutes } from './workspace.routes'
 
+// 聊天图片路由
+export { handleChatImageRoutes, default as chatImageRoutes } from './chatImage.routes'
+
 // 提示词模板路由
 export { handlePromptTemplateRoutes, default as promptTemplateRoutes } from './promptTemplate.routes'
 
@@ -76,6 +79,9 @@ const routeHandlers = [
 
   // 工作区相关
   (req: Request) => import('./workspace.routes').then(m => m.handleWorkspaceRoutes(req)),
+
+  // 聊天图片相关
+  (req: Request) => import('./chatImage.routes').then(m => m.handleChatImageRoutes(req)),
 
   // 提示词模板相关
   (req: Request) => import('./promptTemplate.routes').then(m => m.handlePromptTemplateRoutes(req)),

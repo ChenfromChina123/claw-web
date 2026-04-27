@@ -30,8 +30,10 @@ import com.example.claw_code_application.ui.auth.LoginScreen
 import com.example.claw_code_application.ui.auth.RegisterScreen
 import com.example.claw_code_application.ui.chat.ChatScreen
 import com.example.claw_code_application.ui.chat.SessionListScreen
+import com.example.claw_code_application.ui.chat.components.AgentTaskMonitorPanel
 import com.example.claw_code_application.ui.theme.ClawCodeApplicationTheme
 import com.example.claw_code_application.ui.theme.AppColor
+import com.example.claw_code_application.viewmodel.AgentTaskMonitorViewModel
 import com.example.claw_code_application.viewmodel.AuthViewModel
 import com.example.claw_code_application.viewmodel.ChatViewModel
 import com.example.claw_code_application.viewmodel.SessionViewModel
@@ -190,6 +192,14 @@ private fun ChatMainScreen(
         sessionViewModel.loadSessions()
     }
 
+    // 创建Agent任务监控ViewModel
+    val taskMonitorViewModel = remember {
+        AgentTaskMonitorViewModel(
+            tokenManager = ClawCodeApplication.tokenManager,
+            webSocketManager = ClawCodeApplication.webSocketManager
+        )
+    }
+
     // 手机端：全屏切换模式
     Box(modifier = Modifier.fillMaxSize()) {
         // 会话列表（全屏）
@@ -326,5 +336,11 @@ private fun ChatMainScreen(
                 modifier = Modifier.fillMaxSize()
             )
         }
+
+        // Agent任务监控面板 - 全局持久化悬浮组件
+        AgentTaskMonitorPanel(
+            viewModel = taskMonitorViewModel,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }

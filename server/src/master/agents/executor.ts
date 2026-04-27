@@ -8,9 +8,9 @@
  *
  * 注意：此模块为路径 B（Agent 整体转发到 Worker）的核心组件
  * 当前路径 A（工具级转发）已满足安全需求，路径 B 为未来优化预留
+ *
+ * 重要：Worker sandbox 使用动态导入，避免 Master 端加载时的依赖问题
  */
-
-import { workerSandbox } from '../../worker/sandbox'
 
 export interface AgentExecutorConfig {
   userId: string
@@ -56,10 +56,9 @@ class AgentExecutor {
         for (const toolCall of llmResponse.toolCalls) {
           onEvent('tool_call', { name: toolCall.name, input: toolCall.input })
 
-          const toolResult = await workerSandbox.execTool(
+          const toolResult = await this.executeToolInSandbox(
             toolCall.name,
-            toolCall.input,
-            { cwd: '/workspace' }
+            toolCall.input
           )
 
           onEvent('tool_result', {
@@ -90,6 +89,24 @@ class AgentExecutor {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       onEvent('error', { message: errorMessage })
       return { success: false, error: errorMessage }
+    }
+  }
+
+  /**
+   * 在 Worker 沙箱中执行工具（动态导入避免 Master 端依赖）
+   */
+  private async executeToolInSandbox(
+    toolName: string,
+    toolInput: Record<string, unknown>
+  ): Promise<{ success: boolean; result?: unknown; error?: string; output?: string }> {
+    try {
+      const { workerSandbox } = await import('../../worker/sandbox')
+      return await workerSandbox.execTool(toolName, toolInput, { cwd: '/workspace' })
+    } catch (error) {
+      return {
+        success: false,
+        error: `Worker sandbox 不可用: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      }
     }
   }
 

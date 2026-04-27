@@ -21,8 +21,10 @@ import { stripIdeUserDisplayLayer } from '../../utils/ideUserMessageMarkers'
 import { buildCompleteSystemPrompt } from '../../prompts/contextBuilder'
 import { getToolRegistry } from '../../integrations/toolRegistry'
 import { shouldExecuteOnWorker } from '../../integrations/workerToolExecutor'
+import { imageStorageService } from '../imageStorageService'
 import type { ToolCall } from '../../models/types'
 import type { EventSender } from '../../types'
+import type { MessageContent, ImageContentBlock, ImageAttachment } from '../../models/imageTypes'
 
 interface StreamResult {
   text?: string
@@ -180,6 +182,7 @@ export class SessionConversationManager {
       maxIterations?: number
       debugMode?: boolean
       timeout?: number
+      imageAttachments?: ImageAttachment[]
     }
   ): Promise<void> {
     // 首先尝试从内存获取会话，如果不存在则从数据库加载
@@ -222,8 +225,26 @@ export class SessionConversationManager {
       return
     }
 
-    // 3. 保存用户消息到 session
-    const savedUserMessage = sessionManager.addMessage(sessionId, 'user', userMessage)
+    // 3. 保存用户消息到 session（支持图片附件）
+    let userContent: MessageContent = userMessage
+    const imageAttachments = options?.imageAttachments
+
+    if (imageAttachments && imageAttachments.length > 0) {
+      const contentBlocks: any[] = [{ type: 'text', text: userMessage }]
+      for (const attachment of imageAttachments) {
+        contentBlocks.push({
+          type: 'image',
+          source: {
+            type: 'url',
+            url: `/api/chat/images/${attachment.imageId}`,
+            media_type: attachment.mimeType || 'image/png',
+          },
+        })
+      }
+      userContent = contentBlocks
+    }
+
+    const savedUserMessage = sessionManager.addMessage(sessionId, 'user', userContent, imageAttachments)
 
     const sessionData = sessionManager.getInMemorySession(sessionId)
     if (!sessionData) {
@@ -446,13 +467,13 @@ export class SessionConversationManager {
       injectRules: true,
       useGlobalCacheScope: true,
     })
-    const systemPrompt = systemPromptSections.join('\n\n')
 
     // 根据提供商选择不同的调用方式
     if (provider === 'qwen') {
+      const systemPrompt = systemPromptSections.join('\n\n')
       return await this.callQwenWithStream(sessionId, model, messages, systemPrompt, sessionManager, sendEvent, signal)
     } else {
-      return await this.callAnthropicWithStream(sessionId, model, messages, systemPrompt, sessionManager, sendEvent, signal)
+      return await this.callAnthropicWithStream(sessionId, model, messages, systemPromptSections, sessionManager, sendEvent, signal)
     }
   }
 
@@ -463,7 +484,7 @@ export class SessionConversationManager {
     sessionId: string,
     model: string,
     messages: any[],
-    systemPrompt: string,
+    systemPromptSections: string[],
     sessionManager: SessionManager,
     sendEvent: EventSender,
     signal?: AbortSignal
@@ -472,21 +493,51 @@ export class SessionConversationManager {
     let assistantText = ''
     let pendingToolCalls: Array<{ id: string; name: string; input: string }> = []
 
+    // 构建带 cache_control 的系统提示
+    const systemBlocks: Anthropic.TextBlockParam[] = systemPromptSections.map((text, idx) => ({
+      type: 'text' as const,
+      text,
+      ...(idx === 0 ? { cache_control: { type: 'ephemeral' as const } } : {}),
+    }))
+
+    // 解析消息中的图片 URL 引用为 base64
+    const resolvedMessages = await this.resolveMessagesForAnthropic(messages)
+
+    // 在倒数第二个用户消息的最后一个内容块添加 cache_control（多轮对话缓存）
+    const userMsgIndices = resolvedMessages
+      .map((m, i) => m.role === 'user' ? i : -1)
+      .filter(i => i >= 0)
+    const secondLastUserMsgIdx = userMsgIndices.length >= 2
+      ? userMsgIndices[userMsgIndices.length - 2]
+      : -1
+
+    const anthropicMessages = resolvedMessages.map((m, idx) => {
+      let content = m.content
+
+      if (typeof content === 'string' && m.role === 'user') {
+        content = stripIdeUserDisplayLayer(content)
+      }
+
+      // 为倒数第二个用户消息的最后一个内容块添加 cache_control
+      if (idx === secondLastUserMsgIdx && Array.isArray(content)) {
+        const lastBlock = content[content.length - 1]
+        if (lastBlock && typeof lastBlock === 'object') {
+          lastBlock.cache_control = { type: 'ephemeral' as const }
+        }
+      }
+
+      return {
+        role: m.role as 'user' | 'assistant',
+        content,
+      }
+    })
+
     const streamParams = {
       model,
       max_tokens: 4096,
-      system: systemPrompt || undefined,
+      system: systemBlocks,
       tools: this.toolExecutor.getAnthropicTools() as Anthropic.Tool[],
-      messages: messages.map(m => {
-        let content: unknown = Array.isArray(m.content) ? m.content : m.content
-        if (m.role === 'user' && typeof content === 'string') {
-          content = stripIdeUserDisplayLayer(content)
-        }
-        return {
-          role: m.role as 'user' | 'assistant',
-          content,
-        }
-      }),
+      messages: anthropicMessages,
     }
     const stream = client.messages.stream(
       streamParams,
@@ -610,9 +661,9 @@ export class SessionConversationManager {
 
     /**
      * 将 Anthropic 格式消息转换为 OpenAI/Qwen 兼容格式
-     * 处理 tool_result 和 tool_use 等特殊格式
+     * 处理 tool_result、tool_use 和 image 等特殊格式
      */
-    const convertToOpenAIMessages = (msgs: any[]): Array<any> => {
+    const convertToOpenAIMessages = async (msgs: any[]): Promise<Array<any>> => {
       const result: Array<any> = []
       
       for (const m of msgs) {
@@ -622,7 +673,6 @@ export class SessionConversationManager {
         // 处理 tool_result 消息（Anthropic 格式 → OpenAI 格式）
         if (Array.isArray(content) && content.length > 0 && 
             content[0]?.type === 'tool_result') {
-          // 转换为 { role: "tool", content: "...", tool_call_id: "..." }
           for (const block of content) {
             if (block.type === 'tool_result') {
               result.push({
@@ -646,7 +696,6 @@ export class SessionConversationManager {
             } else if (block?.type === 'text') {
               textContent += block.text || ''
             } else if (block?.type === 'tool_use') {
-              // 提取工具调用信息
               toolCallsFromContent.push({
                 id: block.id,
                 type: 'function',
@@ -663,6 +712,27 @@ export class SessionConversationManager {
             content: textContent || null,
             ...(toolCallsFromContent.length > 0 ? { tool_calls: toolCallsFromContent } : {}),
           })
+          continue
+        }
+        
+        // 处理包含图片的用户消息
+        if (role === 'user' && Array.isArray(content)) {
+          const parts: any[] = []
+          for (const block of content) {
+            if (block?.type === 'text') {
+              parts.push({ type: 'text', text: stripIdeUserDisplayLayer(block.text || '') })
+            } else if (block?.type === 'image') {
+              try {
+                const imageBlock = block as ImageContentBlock
+                const resolved = await imageStorageService.resolveImageForOpenAI(imageBlock)
+                parts.push(resolved)
+              } catch (e) {
+                console.warn(`[${sessionId}] 解析图片失败:`, e)
+                parts.push({ type: 'text', text: '[图片加载失败]' })
+              }
+            }
+          }
+          result.push({ role: 'user', content: parts.length === 1 && parts[0].type === 'text' ? parts[0].text : parts })
           continue
         }
         
@@ -687,7 +757,7 @@ export class SessionConversationManager {
     // 构建 OpenAI/Qwen 格式的消息列表
     const openaiMessages: Array<any> = [
       { role: 'system', content: systemPrompt },
-      ...convertToOpenAIMessages(messages),
+      ...await convertToOpenAIMessages(messages),
     ]
 
     // 调试日志：打印实际传递给 LLM 的用户消息
@@ -962,7 +1032,41 @@ export class SessionConversationManager {
   }
 
   /**
-   * 分类错误���型
+   * 解析消息中的图片 URL 引用为 Anthropic base64 格式
+   */
+  private async resolveMessagesForAnthropic(messages: any[]): Promise<any[]> {
+    const resolved = []
+    for (const m of messages) {
+      const content = m.content
+
+      if (!Array.isArray(content)) {
+        resolved.push(m)
+        continue
+      }
+
+      const resolvedBlocks: any[] = []
+      for (const block of content) {
+        if (block?.type === 'image' && block.source?.type === 'url') {
+          try {
+            const imageBlock = block as ImageContentBlock
+            const resolvedBlock = await imageStorageService.resolveImageForAnthropic(imageBlock)
+            resolvedBlocks.push(resolvedBlock)
+          } catch (e) {
+            console.warn('[SessionConversationManager] 解析图片失败:', e)
+            resolvedBlocks.push({ type: 'text', text: '[图片加载失败]' })
+          }
+        } else {
+          resolvedBlocks.push(block)
+        }
+      }
+
+      resolved.push({ ...m, content: resolvedBlocks })
+    }
+    return resolved
+  }
+
+  /**
+   * 分类错误类型
    */
   private classifyErrorType(error: unknown): string {
     const msg = error instanceof Error ? error.message : String(error)

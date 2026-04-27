@@ -6,6 +6,7 @@ import com.example.claw_code_application.data.api.AuthInterceptor
 import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.repository.AuthRepository
 import com.example.claw_code_application.data.repository.ChatRepository
+import com.example.claw_code_application.data.websocket.WebSocketManager
 import com.example.claw_code_application.util.Constants
 import com.example.claw_code_application.util.NetworkConfig
 import com.example.claw_code_application.util.Logger
@@ -48,6 +49,9 @@ class ClawCodeApplication : Application() {
         /** 聊天仓库 */
         lateinit var chatRepository: ChatRepository
             private set
+
+        /** 全局WebSocket管理器 */
+        val webSocketManager = WebSocketManager()
     }
 
     override fun onCreate() {
