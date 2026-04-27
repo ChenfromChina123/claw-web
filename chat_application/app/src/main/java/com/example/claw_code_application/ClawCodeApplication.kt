@@ -5,6 +5,7 @@ import com.example.claw_code_application.data.api.ApiService
 import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.repository.AuthRepository
 import com.example.claw_code_application.data.repository.ChatRepository
+import com.example.claw_code_application.util.NetworkConfig
 import com.example.claw_code_application.util.Logger
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -50,6 +51,11 @@ class ClawCodeApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         INSTANCE = this
+        
+        // 初始化网络配置（必须在最前面）
+        NetworkConfig.init(this)
+        Logger.i(TAG, "网络配置初始化完成: ${NetworkConfig.getBaseUrl()}")
+        
         Logger.i(TAG, "应用启动...")
         
         // 初始化TokenManager
@@ -69,24 +75,26 @@ class ClawCodeApplication : Application() {
     }
 
     /**
-     * 创建Retrofit API服务实例
+     * 创建 Retrofit API 服务实例
+     * 使用 NetworkConfig 动态获取 Base URL，支持模拟器和真机
      */
     private fun createApiService(): ApiService {
-        Logger.d(TAG, "创建ApiService, BaseURL: ${com.example.claw_code_application.util.Constants.BASE_URL}")
+        val baseUrl = NetworkConfig.getBaseUrl()
+        Logger.d(TAG, "创建 ApiService, BaseURL: $baseUrl")
         
-        // 创建HTTP日志拦截器
+        // 创建 HTTP 日志拦截器
         val loggingInterceptor = HttpLoggingInterceptor { message ->
             Logger.d("OkHttp", message)
         }.apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
         
-        // 配置OkHttp客户端
+        // 配置 OkHttp 客户端
         val okHttpClient = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
-            .addInterceptor(loggingInterceptor)  // 添加日志拦截器
+            .connectTimeout(Constants.CONNECT_TIMEOUT, TimeUnit.SECONDS)
+            .readTimeout(Constants.READ_TIMEOUT, TimeUnit.SECONDS)
+            .writeTimeout(Constants.WRITE_TIMEOUT, TimeUnit.SECONDS)
+            .addInterceptor(loggingInterceptor)
             .addInterceptor { chain ->
                 val request = chain.request()
                 Logger.d(TAG, "发送请求: ${request.method} ${request.url}")
@@ -101,9 +109,9 @@ class ClawCodeApplication : Application() {
             }
             .build()
 
-        // 创建Retrofit实例
+        // 创建 Retrofit 实例
         val retrofit = Retrofit.Builder()
-            .baseUrl(com.example.claw_code_application.util.Constants.BASE_URL)
+            .baseUrl(baseUrl)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

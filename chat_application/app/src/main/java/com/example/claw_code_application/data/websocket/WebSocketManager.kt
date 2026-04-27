@@ -2,7 +2,7 @@ package com.example.claw_code_application.data.websocket
 
 import android.util.Log
 import com.example.claw_code_application.data.api.models.Message
-import com.example.claw_code_application.util.Constants
+import com.example.claw_code_application.util.NetworkConfig
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import kotlinx.coroutines.*
@@ -90,10 +90,8 @@ class WebSocketManager {
 
         _connectionState.value = ConnectionState.Connecting
 
-        // 将 HTTP URL 转换为 WebSocket URL
-        val wsUrl = Constants.BASE_URL
-            .replace("http://", "ws://")
-            .replace("https://", "wss://")
+        // 使用 NetworkConfig 获取 WebSocket URL（自动转换协议）
+        val wsUrl = NetworkConfig.getWebSocketUrl()
 
         val request = Request.Builder()
             .url(wsUrl)
