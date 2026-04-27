@@ -5,9 +5,12 @@ package com.example.claw_code_application.util
  */
 object Constants {
     /**
-     * 后端服务默认端口
+     * 后端服务默认端口（Docker 对外暴露的端口）
+     * 容器内部端口为 3000，通过 docker-compose.yml 映射到 13000
+     * 详见: docker-compose.yml -> ${MASTER_PORT:-3000}:3000
+     *       .env -> MASTER_PORT=13000
      */
-    const val DEFAULT_SERVER_PORT = 3000
+    const val DEFAULT_SERVER_PORT = 13000
 
     /** API超时时间（秒） */
     const val CONNECT_TIMEOUT = 30L

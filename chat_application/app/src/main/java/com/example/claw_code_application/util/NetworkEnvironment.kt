@@ -35,20 +35,23 @@ object NetworkEnvironment {
         UNKNOWN
     }
     
+    /** 默认端口（Docker 对外暴露的端口） */
+    private const val DEFAULT_PORT = 13000
+    
     /**
      * 可能的后端地址列表（按优先级排序）
      */
     private val POSSIBLE_URLS = listOf(
         // 模拟器专用（localhost 映射）
-        "http://10.0.2.2:3000",
+        "http://10.0.2.2:$DEFAULT_PORT",
         // 常见局域网地址段
-        "http://192.168.1.100:3000",
-        "http://192.168.0.100:3000",
-        "http://192.168.45.123:3000",
-        "http://192.168.31.100:3000",
+        "http://192.168.1.100:$DEFAULT_PORT",
+        "http://192.168.0.100:$DEFAULT_PORT",
+        "http://192.168.45.123:$DEFAULT_PORT",
+        "http://192.168.31.100:$DEFAULT_PORT",
         // 备用地址
-        "http://localhost:3000",
-        "http://127.0.0.1:3000"
+        "http://localhost:$DEFAULT_PORT",
+        "http://127.0.0.1:$DEFAULT_PORT"
     )
     
     /**
@@ -91,10 +94,10 @@ object NetworkEnvironment {
      */
     fun getRecommendedBaseUrl(environmentType: EnvironmentType): String {
         return when (environmentType) {
-            EnvironmentType.EMULATOR -> "http://10.0.2.2:3000"
-            EnvironmentType.REAL_DEVICE_LAN -> "http://192.168.45.123:3000" // 默认，需要用户修改
+            EnvironmentType.EMULATOR -> "http://10.0.2.2:$DEFAULT_PORT"
+            EnvironmentType.REAL_DEVICE_LAN -> "http://192.168.45.123:$DEFAULT_PORT"
             EnvironmentType.REAL_DEVICE_WAN -> "https://your-domain.com"
-            EnvironmentType.UNKNOWN -> "http://10.0.2.2:3000"
+            EnvironmentType.UNKNOWN -> "http://10.0.2.2:$DEFAULT_PORT"
         }
     }
     
