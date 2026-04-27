@@ -26,9 +26,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  send: [content: string, modelId?: string]
+  send: [content: string, modelId?: string, imageAttachments?: Array<{ imageId: string; type: 'image'; mimeType?: string }>]
   focus: []
-  /** 用户点击停止按钮，中断正在进行的生成 */
   stop: []
 }>()
 
@@ -108,6 +107,16 @@ interface IdeSkillAttachment {
 const codeAttachments = ref<IdeCodeAttachment[]>([])
 const terminalAttachments = ref<IdeTerminalAttachment[]>([])
 const skillAttachments = ref<IdeSkillAttachment[]>([])
+
+/** 图片附件（聊天中直接发送图片给 LLM） */
+interface ChatImageAttachment {
+  imageId: string
+  originalName: string
+  mimeType: string
+  previewUrl: string
+}
+const imageAttachments = ref<ChatImageAttachment[]>([])
+const isUploadingImage = ref(false)
 
 /**
  * 模板列表相关状态
@@ -427,13 +436,113 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const currentSessionId = computed(() => props.sessionId || '')
 
 /**
+ * 上传聊天图片
+ */
+async function uploadChatImage(file: File): Promise<void> {
+  if (!props.sessionId) {
+    message.error('无法上传：缺少会话ID')
+    return
+  }
+
+  const allowedTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+  if (!allowedTypes.includes(file.type)) {
+    message.error(`不支持的图片类型: ${file.type}`)
+    return
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    message.error('图片大小不能超过 10MB')
+    return
+  }
+
+  isUploadingImage.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('sessionId', props.sessionId)
+
+    const token = localStorage.getItem('token')
+    const response = await fetch('/api/chat/images/upload', {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    })
+
+    const result = await response.json()
+    if (result.success) {
+      const previewUrl = URL.createObjectURL(file)
+      imageAttachments.value.push({
+        imageId: result.data.imageId,
+        originalName: result.data.originalName,
+        mimeType: result.data.mimeType,
+        previewUrl,
+      })
+    } else {
+      message.error(`上传失败: ${result.error?.message || '未知错误'}`)
+    }
+  } catch (error) {
+    console.error('[ChatInput] 图片上传错误:', error)
+    message.error('图片上传失败，请重试')
+  } finally {
+    isUploadingImage.value = false
+  }
+}
+
+/**
+ * 移除图片附件
+ */
+function removeImageAttachment(index: number): void {
+  const attachment = imageAttachments.value[index]
+  if (attachment) {
+    URL.revokeObjectURL(attachment.previewUrl)
+    imageAttachments.value.splice(index, 1)
+  }
+}
+
+/**
+ * 处理图片选择
+ */
+function handleImageSelect(event: Event): void {
+  const target = event.target as HTMLInputElement
+  const files = target.files
+  if (!files || files.length === 0) return
+
+  for (let i = 0; i < files.length; i++) {
+    uploadChatImage(files[i])
+  }
+  target.value = ''
+}
+
+/**
+ * 处理粘贴事件（支持粘贴图片）
+ */
+function handlePaste(event: ClipboardEvent): void {
+  const items = event.clipboardData?.items
+  if (!items) return
+
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      event.preventDefault()
+      const file = item.getAsFile()
+      if (file) {
+        uploadChatImage(file)
+      }
+      return
+    }
+  }
+}
+
+/**
  * 处理发送消息
  */
 function handleSend() {
   const text = inputValue.value.trim()
   const hasIdeRefs = props.variant === 'ide' && codeAttachments.value.length > 0
   const hasTerminalRefs = props.variant === 'ide' && terminalAttachments.value.length > 0
-  if ((!text && !hasIdeRefs && !hasTerminalRefs) || props.disabled) return
+  const hasImages = imageAttachments.value.length > 0
+  if ((!text && !hasIdeRefs && !hasTerminalRefs && !hasImages) || props.disabled) return
 
   if (props.variant === 'ide') {
     /** 保存终端引用到持久化存储，并构建引用标记 */
@@ -497,12 +606,17 @@ function handleSend() {
         )
       : text
 
-    emit('send', payload, selectedModelId.value || undefined)
+    emit('send', payload, selectedModelId.value || undefined, undefined)
     codeAttachments.value = []
     terminalAttachments.value = []
     skillAttachments.value = []
   } else {
-    emit('send', inputValue.value)
+    const imgs = imageAttachments.value.length > 0
+      ? imageAttachments.value.map(a => ({ imageId: a.imageId, type: 'image' as const, mimeType: a.mimeType }))
+      : undefined
+    emit('send', inputValue.value, undefined, imgs)
+    imageAttachments.value.forEach(a => URL.revokeObjectURL(a.previewUrl))
+    imageAttachments.value = []
   }
   inputValue.value = ''
 }
@@ -818,6 +932,25 @@ defineExpose({
           </div>
         </div>
 
+        <!-- 图片附件预览 -->
+        <div v-if="imageAttachments.length > 0" class="image-attachments-preview">
+          <div
+            v-for="(img, index) in imageAttachments"
+            :key="img.imageId"
+            class="image-attachment-item"
+          >
+            <img :src="img.previewUrl" :alt="img.originalName" class="image-attachment-thumb" />
+            <button
+              type="button"
+              class="image-attachment-remove"
+              aria-label="移除图片"
+              @click="removeImageAttachment(index)"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
         <NInput
           ref="inputRef"
           v-model:value="inputValue"
@@ -827,12 +960,26 @@ defineExpose({
           :disabled="disabled"
           @keydown="handleKeyDown"
           @focus="handleFocus"
+          @paste="handlePaste"
         />
       </div>
 
       <!-- 底部：功能按钮栏 -->
       <div class="input-footer">
         <div class="left-tools">
+          <!-- 图片选择按钮 -->
+          <label class="image-select-button" :class="{ disabled: disabled || isUploadingImage }" :title="isUploadingImage ? '上传中...' : '添加图片'">
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              multiple
+              style="display: none"
+              :disabled="disabled || isUploadingImage"
+              @change="handleImageSelect"
+            />
+            <NIcon :size="16"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></NIcon>
+          </label>
+
           <!-- 提示词模板下拉选择器 -->
           <NDropdown
             :options="templateDropdownOptions"
@@ -892,8 +1039,8 @@ defineExpose({
           <!-- 发送/停止按钮 -->
           <button
             class="send-btn-minimal"
-            :class="{ 'can-send': inputValue.trim() || codeAttachments.length > 0 || terminalAttachments.length > 0 || skillAttachments.length > 0, 'is-generating': isGenerating }"
-            :disabled="isGenerating ? false : ((!inputValue.trim() && !(codeAttachments.length > 0) && !(terminalAttachments.length > 0) && !(skillAttachments.length > 0)) || disabled)"
+            :class="{ 'can-send': inputValue.trim() || codeAttachments.length > 0 || terminalAttachments.length > 0 || skillAttachments.length > 0 || imageAttachments.length > 0, 'is-generating': isGenerating }"
+            :disabled="isGenerating ? false : ((!inputValue.trim() && !(codeAttachments.length > 0) && !(terminalAttachments.length > 0) && !(skillAttachments.length > 0) && !(imageAttachments.length > 0)) || disabled)"
             @click="isGenerating ? emit('stop') : handleSend()"
           >
             <NIcon v-if="!isGenerating" :size="16">
@@ -2189,5 +2336,73 @@ defineExpose({
   .send-button {
     width: 100%;
   }
+}
+
+/* ========== 图片附件样式 ========== */
+.image-attachments-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.image-attachment-item {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--n-border-color, #e0e0e6);
+}
+
+.image-attachment-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-attachment-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+}
+
+.image-attachment-remove:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.image-select-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--n-text-color-3, #999);
+  transition: all 0.2s;
+}
+
+.image-select-button:hover {
+  color: var(--n-primary-color, #18a058);
+  background: var(--n-button-color-hover, #f3f3f5);
+}
+
+.image-select-button.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>

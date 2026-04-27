@@ -1,6 +1,8 @@
 package com.example.claw_code_application.data.api
 
 import com.example.claw_code_application.data.api.models.*
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -103,4 +105,23 @@ interface ApiService {
     suspend fun interruptAgent(
         @Path("agentId") agentId: String
     ): Response<ApiResponse<Unit>>
+
+    // ==================== 聊天图片 API ====================
+
+    /**
+     * 上传聊天图片
+     */
+    @Multipart
+    @POST("/api/chat/images/upload")
+    suspend fun uploadChatImage(
+        @Part file: MultipartBody.Part,
+        @Part("sessionId") sessionId: RequestBody? = null
+    ): Response<ApiResponse<ImageUploadResult>>
+
+    /**
+     * 获取图片 URL
+     */
+    fun getImageUrl(imageId: String): String {
+        return "${retrofit.baseUrl()}api/chat/images/$imageId"
+    }
 }

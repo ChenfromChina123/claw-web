@@ -26,7 +26,7 @@ import com.example.claw_code_application.viewmodel.ChatViewModel
 
 /**
  * 聊天详情界面
- * 基于原型Manus风格设计 - 浅色主题
+ * 基于原型Manus风格设计
  * 集成底部抽屉、语音输入、更多选项菜单
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,10 +41,22 @@ fun ChatScreen(
     var showBottomSheet by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
-    LaunchedEffect(viewModel.messages.size) {
-        if (viewModel.messages.isNotEmpty()) {
+    val displayMessages = viewModel.displayMessages
+
+    val canAutoScroll by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex <= 1
+        }
+    }
+
+    LaunchedEffect(displayMessages.size) {
+        if (displayMessages.isNotEmpty() && canAutoScroll) {
             listState.animateScrollToItem(0)
         }
+    }
+
+    val onSend: (String) -> Unit = remember(viewModel) {
+        { content: String -> viewModel.sendMessage(content) }
     }
 
     Scaffold(
@@ -57,9 +69,7 @@ fun ChatScreen(
         },
         bottomBar = {
             InputBar(
-                onSend = { content ->
-                    viewModel.sendMessage(content)
-                },
+                onSend = onSend,
                 enabled = uiState !is ChatViewModel.UiState.Loading,
                 onAddClick = { showBottomSheet = true }
             )
@@ -71,11 +81,16 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            ChatMessageList(
-                viewModel = viewModel,
-                uiState = uiState,
-                listState = listState
-            )
+            if (displayMessages.isEmpty() && uiState !is ChatViewModel.UiState.Loading) {
+                ChatEmptyState()
+            } else {
+                ChatMessageList(
+                    displayMessages = displayMessages,
+                    viewModel = viewModel,
+                    uiState = uiState,
+                    listState = listState
+                )
+            }
         }
     }
 
@@ -93,8 +108,33 @@ fun ChatScreen(
 }
 
 /**
+ * 聊天空状态
+ */
+@Composable
+private fun ChatEmptyState() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "开始新对话",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = AppColor.TextPrimary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "输入消息，让 Agent 为您工作",
+                fontSize = 14.sp,
+                color = AppColor.TextSecondary
+            )
+        }
+    }
+}
+
+/**
  * 聊天顶部导航栏
- * Manus风格：返回箭头 + 标题 + 模型版本标签 + 操作图标
  */
 @Composable
 private fun ChatTopBar(
@@ -189,9 +229,12 @@ private fun ChatTopBar(
 
 /**
  * 聊天消息列表
+ * 使用预计算的displayMessages避免重组时重复过滤
+ * 添加contentType提升LazyColumn复用效率
  */
 @Composable
 private fun ChatMessageList(
+    displayMessages: List<com.example.claw_code_application.data.api.models.Message>,
     viewModel: ChatViewModel,
     uiState: ChatViewModel.UiState,
     listState: androidx.compose.foundation.lazy.LazyListState
@@ -204,8 +247,11 @@ private fun ChatMessageList(
         modifier = Modifier.fillMaxSize()
     ) {
         items(
-            items = viewModel.messages.reversed().filter { shouldShowMessage(it) },
-            key = { it.id }
+            items = displayMessages,
+            key = { it.id },
+            contentType = { message ->
+                if (message.role == "user") "user_message" else "assistant_message"
+            }
         ) { message ->
             EnhancedMessageBubble(
                 message = message,
@@ -217,7 +263,7 @@ private fun ChatMessageList(
             it.status == "executing" || it.status == "pending"
         }
         if (activeToolCalls.isNotEmpty()) {
-            item {
+            item(key = "active_agent_task") {
                 AgentTaskCard(
                     taskTitle = "正在执行任务",
                     steps = activeToolCalls.mapIndexed { index, toolCall ->
@@ -236,7 +282,7 @@ private fun ChatMessageList(
         }
 
         if (uiState is ChatViewModel.UiState.Loading) {
-            item {
+            item(key = "loading_indicator") {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -257,7 +303,7 @@ private fun ChatMessageList(
         }
 
         if (uiState is ChatViewModel.UiState.Error) {
-            item {
+            item(key = "error_message") {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()

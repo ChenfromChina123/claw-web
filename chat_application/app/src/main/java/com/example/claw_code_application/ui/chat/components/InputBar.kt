@@ -1,10 +1,14 @@
 package com.example.claw_code_application.ui.chat.components
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -45,6 +49,7 @@ fun InputBar(
     onSend: (String) -> Unit,
     enabled: Boolean = true,
     onAddClick: () -> Unit = {},
+    onImageSelected: ((Uri) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var text by remember { mutableStateOf("") }
@@ -53,6 +58,12 @@ fun InputBar(
 
     var isListening by remember { mutableStateOf(false) }
     var speechRecognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        uri?.let { onImageSelected?.invoke(it) }
+    }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -71,7 +82,15 @@ fun InputBar(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AddButton(onClick = onAddClick)
+            AddButton(onClick = {
+                if (onImageSelected != null) {
+                    photoPickerLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                } else {
+                    onAddClick()
+                }
+            })
 
             Spacer(modifier = Modifier.width(12.dp))
 

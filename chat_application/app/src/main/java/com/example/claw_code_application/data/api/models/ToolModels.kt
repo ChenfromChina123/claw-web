@@ -1,11 +1,13 @@
 package com.example.claw_code_application.data.api.models
 
+import androidx.compose.runtime.Immutable
 import com.google.gson.annotations.SerializedName
 import com.google.gson.internal.LinkedTreeMap
 
 /**
  * 工具调用记录
  */
+@Immutable
 data class ToolCall(
     val id: String,
     @SerializedName("toolName")
@@ -64,6 +66,7 @@ data class ExecuteAgentResponse(
 /**
  * Agent执行状态
  */
+@Immutable
 data class ExecutionStatus(
     val status: String,             // "idle" | "running" | "completed" | "error"
     @SerializedName("currentTurn")

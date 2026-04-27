@@ -468,16 +468,15 @@ async function handleRetry(): Promise<void> {
  * 发送消息处理函数
  * @param content 消息内容
  */
-function handleSendMessage(content: string, modelId?: string): void {
-  if (!content.trim()) return
+function handleSendMessage(content: string, modelId?: string, imageAttachments?: Array<{ imageId: string; type: 'image'; mimeType?: string }>): void {
+  if (!content.trim() && !imageAttachments?.length) return
 
-  // 检查是否为命令
   if (content.startsWith('/')) {
     message.info('命令功能开发中...')
     return
   }
 
-  chatStore.sendMessage(content, modelId)
+  chatStore.sendMessage(content, modelId, imageAttachments)
 }
 
 /**

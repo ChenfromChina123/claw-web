@@ -1,11 +1,12 @@
 package com.example.claw_code_application.data.api.models
 
+import androidx.compose.runtime.Immutable
 import com.google.gson.annotations.SerializedName
 
 /**
  * 会话信息
- * 与后端数据库结构保持一致
  */
+@Immutable
 data class Session(
     val id: String,
     val title: String,

@@ -103,6 +103,13 @@ function isMessageHighlighted(messageId: string): boolean {
 }
 
 /**
+ * 图片预览（在新标签页打开）
+ */
+function previewImage(url: string): void {
+  window.open(url, '_blank')
+}
+
+/**
  * 切换终端引用的展开/收起状态
  */
 function toggleTerminalRef(refId: string) {
@@ -1029,6 +1036,22 @@ async function handleInterruptExecution() {
                     <!-- 显示模式 -->
                     <template v-else>
                       <div class="message-text">{{ stripTerminalRefs(formatUserMessageForBubble((message as any).content)) }}</div>
+                      <!-- 图片附件显示 -->
+                      <div v-if="(message as any).attachments?.length" class="message-image-attachments">
+                        <div
+                          v-for="attachment in (message as any).attachments"
+                          :key="attachment.imageId"
+                          class="message-image-attachment"
+                        >
+                          <img
+                            :src="`/api/chat/images/${attachment.imageId}`"
+                            :alt="attachment.originalName || '图片'"
+                            class="message-image-thumb"
+                            loading="lazy"
+                            @click="previewImage(`/api/chat/images/${attachment.imageId}`)"
+                          />
+                        </div>
+                      </div>
                       <!-- 终端引用气泡列表 -->
                       <div v-if="getTerminalRefsFromMessage((message as any).content).length > 0" class="terminal-refs-bubbles">
                         <div
@@ -4054,5 +4077,33 @@ async function handleInterruptExecution() {
   background: #1e1e1e;
   border: 1px solid #333;
   color: #d4d4d4;
+}
+
+/* ========== 图片附件样式 ========== */
+.message-image-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.message-image-attachment {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--n-border-color, #e0e0e6);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.message-image-attachment:hover {
+  transform: scale(1.02);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.message-image-thumb {
+  display: block;
+  max-width: 200px;
+  max-height: 200px;
+  object-fit: contain;
 }
 </style>

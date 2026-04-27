@@ -149,13 +149,31 @@ class WebSocketManager {
 
     /**
      * 发送用户消息（使用 WebSocket 流式输出）
+     * 支持图片附件
      */
-    fun sendUserMessage(sessionId: String, content: String, model: String = "qwen-plus") {
+    fun sendUserMessage(
+        sessionId: String,
+        content: String,
+        model: String = "qwen-plus",
+        imageAttachments: List<Map<String, String>>? = null
+    ) {
         val message = JsonObject().apply {
             addProperty("type", "user_message")
             addProperty("sessionId", sessionId)
             addProperty("content", content)
             addProperty("model", model)
+            if (!imageAttachments.isNullOrEmpty()) {
+                val attachmentsArray = com.google.gson.JsonArray()
+                for (attachment in imageAttachments) {
+                    val obj = JsonObject().apply {
+                        addProperty("imageId", attachment["imageId"] ?: "")
+                        addProperty("type", "image")
+                        attachment["mimeType"]?.let { addProperty("mimeType", it) }
+                    }
+                    attachmentsArray.add(obj)
+                }
+                add("imageAttachments", attachmentsArray)
+            }
         }
         webSocket?.send(message.toString())
             ?: Log.e(TAG, "Cannot send message: WebSocket not connected")

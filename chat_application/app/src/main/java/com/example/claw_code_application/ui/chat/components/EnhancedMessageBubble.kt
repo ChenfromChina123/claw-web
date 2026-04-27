@@ -11,10 +11,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.ui.theme.AppColor
@@ -218,6 +220,18 @@ private fun DynamicMessageContent(
                     originalCode = component.originalCode,
                     modifiedCode = component.modifiedCode,
                     language = component.language
+                )
+            }
+
+            is MessageComponent.Image -> {
+                AsyncImage(
+                    model = component.imageUrl,
+                    contentDescription = component.originalName ?: "图片",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 200.dp)
+                        .padding(vertical = 4.dp),
+                    contentScale = ContentScale.Fit
                 )
             }
         }

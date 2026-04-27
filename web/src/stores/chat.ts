@@ -700,63 +700,44 @@ export const useChatStore = defineStore('chat', () => {
     })
   }
   
-  function sendMessage(content: string, model?: string) {
+  function sendMessage(content: string, model?: string, imageAttachments?: Array<{ imageId: string; type: 'image'; mimeType?: string }>) {
     console.log('[ChatStore] sendMessage called:', {
       content,
       contentLength: content.length,
-      contentChars: [...content].map(c => c.charCodeAt(0)),
-      hasNewlines: content.includes('\n'),
-      newlinesCount: (content.match(/\n/g) || []).length,
       model,
-      currentSessionId: currentSessionId.value
+      currentSessionId: currentSessionId.value,
+      hasImages: !!imageAttachments?.length
     })
 
-    // 检查是否有当前会话
     if (!currentSessionId.value) {
       console.error('[ChatStore] Cannot send message: no current session')
       return
     }
 
-    // 发送消息后，清除空会话标记
     const sendingSessionId = currentSessionId.value
     if (pendingEmptySessionId.value === sendingSessionId) {
-      console.log('[ChatStore] sendMessage: 清除空会话标记 pendingEmptySessionId')
       pendingEmptySessionId.value = null
     }
 
-    // 立即在前端添加用户消息，提供更好的用户体验
     const userMessageId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    console.log('[ChatStore] Adding user message:', {
-      userMessageId,
-      content,
-      contentLength: content.length,
-      contentChars: [...content].map(c => c.charCodeAt(0)),
-      hasNewlines: content.includes('\n'),
-      newlinesCount: (content.match(/\n/g) || []).length,
-      sessionId: currentSessionId.value
-    })
     messages.value.push({
       id: userMessageId,
       sessionId: currentSessionId.value,
       role: 'user',
-      type: 'text',
+      type: imageAttachments?.length ? 'text' : 'text',
       content: content,
       createdAt: new Date().toISOString(),
+      attachments: imageAttachments,
     })
-    console.log('[ChatStore] User message added, total messages:', messages.value.length)
 
-    // 获取 Agent 配置
     const settingsStore = useSettingsStore()
     const agentOptions = {
       maxIterations: settingsStore.agent.maxIterations,
       debugMode: settingsStore.agent.debugMode,
       timeout: settingsStore.agent.timeout,
     }
-    console.log('[ChatStore] Agent options:', agentOptions)
 
-    // 同时发送消息给后端，传入 sessionId 确保消息能正确路由
-    console.log('[ChatStore] Calling wsClient.sendMessage')
-    wsClient.sendMessage(content, currentSessionId.value, model, agentOptions)
+    wsClient.sendMessage(content, currentSessionId.value, model, agentOptions, imageAttachments)
   }
   
   function deleteSession(sessionId: string) {

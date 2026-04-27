@@ -1099,7 +1099,7 @@ class EnhancedWebSocketClient {
     maxIterations?: number
     debugMode?: boolean
     timeout?: number
-  }): void {
+  }, imageAttachments?: Array<{ imageId: string; type: 'image'; mimeType?: string }>): void {
     console.log('[WS] sendMessage called:', {
       content,
       contentLength: content.length,
@@ -1123,6 +1123,7 @@ class EnhancedWebSocketClient {
       sessionId: targetSessionId,
       model: model || this.currentSession.value?.model || 'qwen-plus',
       agentOptions,
+      imageAttachments: imageAttachments || undefined,
     }
     console.log('[WS] Sending message:', message)
     this.send(message)

@@ -1,19 +1,22 @@
 package com.example.claw_code_application.ui.theme
 
 import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 /**
  * 浅色主题配色方案
- * 基于原型的Manus风格设计
  */
 private val LightColorScheme = lightColorScheme(
     primary = AppColor.Primary,
@@ -42,7 +45,6 @@ private val LightColorScheme = lightColorScheme(
 
 /**
  * 暗色主题配色方案
- * 基于Manus Web端深色主题设计
  */
 private val DarkColorScheme = darkColorScheme(
     primary = AppColor.DarkPrimary,
@@ -70,13 +72,22 @@ private val DarkColorScheme = darkColorScheme(
 /**
  * 应用主题
  * 支持浅色/暗色主题，跟随系统设置
+ * Android 12+ 支持动态颜色（Dynamic Color）
  */
 @Composable
 fun ClawCodeApplicationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
     val typography = Type.createTypography()
 
     val view = LocalView.current

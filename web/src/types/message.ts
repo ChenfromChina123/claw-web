@@ -6,7 +6,31 @@
 import type { ToolCall } from './tool'
 
 export type MessageRole = 'user' | 'assistant' | 'system'
-export type MessageType = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'system' | 'error'
+export type MessageType = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'system' | 'error' | 'image'
+
+/** 图片附件类型 */
+export interface ImageAttachment {
+  imageId: string
+  type: 'image'
+  originalName?: string
+  mimeType?: string
+}
+
+/** 图片内容块（多模态消息中的图片部分） */
+export interface ImageContentBlock {
+  type: 'image'
+  source: {
+    type: 'url'
+    url: string
+    media_type: string
+  }
+}
+
+/** 文本内容块 */
+export interface TextContentBlock {
+  type: 'text'
+  text: string
+}
 
 export interface BaseMessage {
   id: string
@@ -22,6 +46,17 @@ export interface TextMessage extends BaseMessage {
   type: 'text'
   content: string
   isStreaming?: boolean
+  attachments?: ImageAttachment[]
+  imageBlocks?: ImageContentBlock[]
+}
+
+export interface ImageMessage extends BaseMessage {
+  type: 'image'
+  content: string
+  imageUrl: string
+  imageId: string
+  mimeType: string
+  originalName?: string
 }
 
 export interface ToolUseMessage extends BaseMessage {
@@ -62,7 +97,7 @@ export interface ErrorMessage extends BaseMessage {
   recoverable?: boolean
 }
 
-export type Message = TextMessage | ToolUseMessage | ToolResultMessage | ThinkingMessage | SystemMessage | ErrorMessage
+export type Message = TextMessage | ImageMessage | ToolUseMessage | ToolResultMessage | ThinkingMessage | SystemMessage | ErrorMessage
 
 export interface MessageGroup {
   id: string

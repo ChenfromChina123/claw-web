@@ -1,6 +1,9 @@
 package com.example.claw_code_application.viewmodel
 
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -8,6 +11,7 @@ import com.example.claw_code_application.data.api.models.*
 import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.repository.ChatRepository
 import com.example.claw_code_application.data.websocket.WebSocketManager
+import com.example.claw_code_application.ui.chat.components.shouldShowMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,6 +28,9 @@ class ChatViewModel(
     private val tokenManager: TokenManager,
     private val webSocketManager: WebSocketManager = WebSocketManager()
 ) : ViewModel() {
+
+    /** 缓存的Gson实例，避免在事件处理中重复创建 */
+    private val gson = com.google.gson.Gson()
 
     /** UI状态密封类 */
     sealed class UiState {
@@ -49,6 +56,11 @@ class ChatViewModel(
     private val _messages = mutableStateListOf<Message>()
     val messages: List<Message> = _messages
 
+    /** 过滤后的可显示消息列表（缓存计算结果，避免重组时重复过滤） */
+    val displayMessages: List<Message> by derivedStateOf {
+        _messages.reversed().filter { shouldShowMessage(it) }
+    }
+
     /** 工具调用列表 */
     private val _toolCalls = mutableStateListOf<ToolCall>()
     val toolCalls: List<ToolCall> = _toolCalls
@@ -56,16 +68,16 @@ class ChatViewModel(
     /** WebSocket连接状态 */
     val connectionState = webSocketManager.connectionState
 
-    /** 当前正在流式输出的消息ID - 用于将工具调用关联到对应的助手消息 */
+    /** 当前正在流式输出的消息ID */
     private var streamingMessageId: String? = null
-    
+
     /** 当前正在累积工具输入参数的工具ID和参数 */
-    private var pendingToolInput = mutableMapOf<String, StringBuilder>()
-    
-    /** 消息ID与工具调用ID的映射 - 用于正确关联工具调用到消息 */
+    private val pendingToolInput = mutableMapOf<String, StringBuilder>()
+
+    /** 消息ID与工具调用ID的映射 */
     private val messageToToolCalls = mutableMapOf<String, MutableList<String>>()
 
-    /** 未关联到任何消息的工具调用ID列表 - 等待关联 */
+    /** 未关联到任何消息的工具调用ID列表 */
     private val unassociatedToolCallIds = mutableListOf<String>()
     
     /** 获取与指定消息关联的工具调用列表 */
@@ -224,7 +236,6 @@ class ChatViewModel(
                     val inputJson = pendingToolInput[event.id]?.toString()
                     val toolInput = if (!inputJson.isNullOrEmpty()) {
                         try {
-                            val gson = com.google.gson.Gson()
                             @Suppress("UNCHECKED_CAST")
                             gson.fromJson(inputJson, Map::class.java) as? Map<String, Any> ?: emptyMap()
                         } catch (e: Exception) {
@@ -313,36 +324,39 @@ class ChatViewModel(
      * 发送消息并执行Agent（使用WebSocket流式输出）
      * @param content 用户输入的消息内容
      */
-    fun sendMessage(content: String) {
+    fun sendMessage(content: String, imageAttachments: List<Map<String, String>>? = null) {
         viewModelScope.launch {
-            // 确保有可用会话
             val session = ensureSession() ?: run {
                 _uiState.value = UiState.Error("无法创建会话")
                 return@launch
             }
 
             try {
-                // 1. 乐观更新：立即显示用户消息
                 val userMessage = Message(
                     id = UUID.randomUUID().toString(),
                     role = "user",
                     content = content,
                     timestamp = System.currentTimeMillis().toString(),
-                    isStreaming = false
+                    isStreaming = false,
+                    attachments = imageAttachments?.map {
+                        ImageAttachment(
+                            imageId = it["imageId"] ?: "",
+                            type = "image",
+                            mimeType = it["mimeType"]
+                        )
+                    }
                 )
                 _messages.add(userMessage)
 
-                // 2. 设置加载状态
                 _uiState.value = UiState.Loading
 
-                // 3. 使用WebSocket发送消息（支持流式输出）
                 if (webSocketManager.isConnected) {
                     webSocketManager.sendUserMessage(
                         sessionId = session.id,
-                        content = content
+                        content = content,
+                        imageAttachments = imageAttachments
                     )
                 } else {
-                    // 降级到HTTP API
                     val result = chatRepository.executeAgent(
                         sessionId = session.id,
                         task = content,
@@ -497,8 +511,7 @@ class ChatViewModel(
                     jsonObj.get("id")?.asString?.let { ids.add(it) }
                 }
             }
-        } catch (e: Exception) {
-            // 解析失败
+        } catch (_: Exception) {
         }
         return ids
     }

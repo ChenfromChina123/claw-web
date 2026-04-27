@@ -6,6 +6,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
+import androidx.compose.runtime.Immutable
 
 /**
  * 消息内容解析器
@@ -422,6 +423,7 @@ object MessageContentParser {
 /**
  * 消息组件密封类
  */
+@Immutable
 sealed class MessageComponent {
     /**
      * 普通文本
@@ -506,11 +508,22 @@ sealed class MessageComponent {
         val modifiedCode: String,
         val language: String = ""
     ) : MessageComponent()
+
+    /**
+     * 图片内容
+     */
+    data class Image(
+        val imageId: String,
+        val imageUrl: String,
+        val mimeType: String = "image/png",
+        val originalName: String? = null
+    ) : MessageComponent()
 }
 
 /**
  * 文件信息
  */
+@Immutable
 data class FileInfo(
     val name: String,
     val path: String,
@@ -521,6 +534,7 @@ data class FileInfo(
 /**
  * 步骤信息
  */
+@Immutable
 data class StepInfo(
     val index: Int,
     val title: String,
