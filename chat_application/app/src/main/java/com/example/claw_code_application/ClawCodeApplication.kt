@@ -96,6 +96,8 @@ class ClawCodeApplication : Application() {
             .readTimeout(Constants.READ_TIMEOUT, TimeUnit.SECONDS)
             .writeTimeout(Constants.WRITE_TIMEOUT, TimeUnit.SECONDS)
             .addInterceptor(loggingInterceptor)
+            // 认证拦截器（自动添加 Token，处理 401 错误）
+            .addInterceptor(AuthInterceptor(this, tokenManager))
             .addInterceptor { chain ->
                 val request = chain.request()
                 Logger.d(TAG, "发送请求: ${request.method} ${request.url}")

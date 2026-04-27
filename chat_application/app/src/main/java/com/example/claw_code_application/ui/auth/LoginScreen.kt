@@ -34,11 +34,13 @@ import com.example.claw_code_application.viewmodel.AuthViewModel
 fun LoginScreen(
     viewModel: AuthViewModel,
     onLoginSuccess: () -> Unit,
-    onNavigateToRegister: () -> Unit
+    onNavigateToRegister: () -> Unit,
+    authFailedMessage: String? = null  // 认证失败的消息
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var showAuthFailedDialog by remember { mutableStateOf(authFailedMessage != null) }
     
     val uiState by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
@@ -48,6 +50,21 @@ fun LoginScreen(
         if (uiState is AuthViewModel.UiState.Success) {
             onLoginSuccess()
         }
+    }
+
+    // 显示认证失败对话框
+    if (showAuthFailedDialog && authFailedMessage != null) {
+        AlertDialog(
+            onDismissRequest = { showAuthFailedDialog = false },
+            title = { Text("登录已过期", color = AppColor.TextPrimary) },
+            text = { Text(authFailedMessage, color = AppColor.TextSecondary) },
+            confirmButton = {
+                TextButton(onClick = { showAuthFailedDialog = false }) {
+                    Text("确定", color = AppColor.Primary)
+                }
+            },
+            containerColor = AppColor.SurfaceDark
+        )
     }
 
     Box(
