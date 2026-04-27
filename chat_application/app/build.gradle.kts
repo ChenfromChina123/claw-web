@@ -63,6 +63,9 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.extended)
+    // Compose Animation
+    implementation("androidx.compose.animation:animation:1.6.0")
+    implementation("androidx.compose.animation:animation-core:1.6.0")
 
     // Navigation
     implementation(libs.navigation.compose)
