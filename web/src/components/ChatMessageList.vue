@@ -814,6 +814,43 @@ function getMessageText(content: unknown): string {
   return String(content)
 }
 
+/**
+ * 获取安全的助手消息内容（双重过滤保障）
+ * 在 getMessageText 基础上再进行一次防御性检查
+ * 确保不会把 tool_result/tool_use JSON 显示在聊天界面中
+ */
+function getSafeAssistantContent(message: any): string {
+  const raw = getMessageText(message.content)
+  if (!raw || raw.trim() === '') return ''
+  
+  const trimmed = raw.trim()
+  
+  /**
+   * 检测是否是工具结果的 JSON 字符串（包括各种格式变体）
+   * Anthropic API 可能返回的格式：
+   * - [{"type":"tool_result",...}]
+   * - {"type":"tool_result",...}
+   * - 包含 tool_use_id 的对象/数组
+   */
+  const isToolJson = (() => {
+    if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) return false
+    return trimmed.includes('tool_result') || 
+           trimmed.includes('tool_use') ||
+           trimmed.includes('tool_use_id')
+  })()
+
+  if (isToolJson) {
+    console.log('[ChatMessageList] ⛔ getSafeAssistantContent 过滤掉工具结果JSON:', {
+      messageId: message.id,
+      contentPreview: trimmed.substring(0, 120) + '...',
+      contentLength: trimmed.length
+    })
+    return ''
+  }
+  
+  return raw
+}
+
 /** 用户气泡：IDE 双轨消息只展示简短层，避免大段代码占满对话 */
 function formatUserMessageForBubble(content: unknown): string {
   return extractIdeUserDisplay(getMessageText(content))
@@ -1043,12 +1080,12 @@ async function handleInterruptExecution() {
 
             <!-- 助手消息 - 左边 -->
             <template v-else-if="message.role === 'assistant'">
-              <div class="message assistant-message">
+              <div class="message assistant-message" v-if="getSafeAssistantContent(message)">
                 <div class="message-content">
                   <div class="message-bubble assistant-bubble">
                     <div class="message-text markdown-content">
                       <MarkdownRender
-                        :content="getMessageText((message as any).content)"
+                        :content="getSafeAssistantContent(message)"
                         :enable-monaco="true"
                         :enable-mermaid="true"
                         :enable-katex="true"
