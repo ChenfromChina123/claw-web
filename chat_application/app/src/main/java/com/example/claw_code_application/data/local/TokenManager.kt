@@ -38,9 +38,9 @@ class TokenManager(private val context: Context) {
         }
         
         // 立即验证保存是否成功
-        val saved = context.dataStore.first()[tokenKey]
+        val saved: String? = context.dataStore.first()[tokenKey]
         android.util.Log.d(TAG, "验证保存: ${saved == token}")
-        android.util.Log.d(TAG, "读取长度: ${saved?.length}")
+        android.util.Log.d(TAG, "读取长度: ${saved?.length ?: 0}")
     }
 
     /**
@@ -58,7 +58,7 @@ class TokenManager(private val context: Context) {
      * @return Token字符串，如果不存在则返回null
      */
     suspend fun getTokenSync(): String? {
-        val token = context.dataStore.data.first()[tokenKey]
+        val token: String? = context.dataStore.data.first()[tokenKey]
         android.util.Log.d(TAG, "=== getTokenSync ===")
         android.util.Log.d(TAG, "Token: ${if (token != null) "存在(${token.length}字符)" else "null"}")
         if (token != null) {
