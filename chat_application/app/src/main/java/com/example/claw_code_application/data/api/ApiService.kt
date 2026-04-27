@@ -7,6 +7,9 @@ import retrofit2.http.*
 /**
  * 后端API服务接口定义
  * 基于claw-web Master服务的RESTful API
+ *
+ * 注意：Authorization 头由 AuthInterceptor 统一添加
+ * API 方法不再需要手动传递 token 参数
  */
 interface ApiService {
 
@@ -30,58 +33,51 @@ interface ApiService {
 
     /**
      * 获取当前用户信息
-     * @param token Bearer Token
+     * Authorization 头由 AuthInterceptor 自动添加
      * @return 用户信息
      */
     @GET("/api/auth/me")
-    suspend fun getUserInfo(
-        @Header("Authorization") token: String
-    ): Response<ApiResponse<UserInfo>>
+    suspend fun getUserInfo(): Response<ApiResponse<UserInfo>>
 
     // ==================== 会话管理 API ====================
 
     /**
      * 获取用户会话列表
-     * @param token Bearer Token
+     * Authorization 头由 AuthInterceptor 自动添加
      * @return 会话列表
      */
     @GET("/api/sessions")
-    suspend fun getSessions(
-        @Header("Authorization") token: String
-    ): Response<ApiResponse<List<Session>>>
+    suspend fun getSessions(): Response<ApiResponse<List<Session>>>
 
     /**
      * 创建新会话
-     * @param token Bearer Token
+     * Authorization 头由 AuthInterceptor 自动添加
      * @param request 创建会话请求（可选标题和模型）
      * @return 新创建的会话信息
      */
     @POST("/api/sessions")
     suspend fun createSession(
-        @Header("Authorization") token: String,
         @Body request: CreateSessionRequest = CreateSessionRequest()
     ): Response<ApiResponse<Session>>
 
     /**
      * 获取会话详情（含消息历史）
-     * @param token Bearer Token
+     * Authorization 头由 AuthInterceptor 自动添加
      * @param sessionId 会话ID
      * @return 会话详情（消息+工具调用）
      */
     @GET("/api/sessions/{id}")
     suspend fun getSessionDetail(
-        @Header("Authorization") token: String,
         @Path("id") sessionId: String
     ): Response<ApiResponse<SessionDetail>>
 
     /**
      * 删除会话
-     * @param token Bearer Token
+     * Authorization 头由 AuthInterceptor 自动添加
      * @param sessionId 会话ID
      */
     @DELETE("/api/sessions/{id}")
     suspend fun deleteSession(
-        @Header("Authorization") token: String,
         @Path("id") sessionId: String
     ): Response<ApiResponse<Unit>>
 
@@ -89,25 +85,22 @@ interface ApiService {
 
     /**
      * 执行Agent任务（核心API）
-     * 发送用户消息，Agent将自动执行工具并返回结果
-     * @param token Bearer Token
+     * Authorization 头由 AuthInterceptor 自动添加
      * @param request Agent执行请求
      * @return Agent执行结果（消息+工具调用+状态）
      */
     @POST("/api/agents/execute")
     suspend fun executeAgent(
-        @Header("Authorization") token: String,
         @Body request: ExecuteAgentRequest
     ): Response<ApiResponse<ExecuteAgentResponse>>
 
     /**
      * 中断Agent执行
-     * @param token Bearer Token
+     * Authorization 头由 AuthInterceptor 自动添加
      * @param agentId Agent ID
      */
     @POST("/api/agents/{agentId}/interrupt")
     suspend fun interruptAgent(
-        @Header("Authorization") token: String,
         @Path("agentId") agentId: String
     ): Response<ApiResponse<Unit>>
 }

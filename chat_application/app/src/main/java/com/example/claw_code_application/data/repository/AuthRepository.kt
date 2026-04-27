@@ -99,9 +99,11 @@ class AuthRepository(
      */
     suspend fun getUserInfo(): Result<UserInfo> {
         return try {
-            val token = getTokenOrThrow()
-            val authHeader = "Bearer $token"
-            val response = apiService.getUserInfo(authHeader)
+            val token = tokenManager.getTokenSync()
+            if (token.isNullOrBlank()) {
+                return Result.failure(Exception("未登录，请先登录"))
+            }
+            val response = apiService.getUserInfo()
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
                 if (body.success && body.data != null) {
