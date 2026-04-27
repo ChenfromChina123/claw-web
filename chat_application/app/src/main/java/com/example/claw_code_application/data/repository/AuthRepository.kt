@@ -3,6 +3,7 @@ package com.example.claw_code_application.data.repository
 import com.example.claw_code_application.data.api.ApiService
 import com.example.claw_code_application.data.api.models.*
 import com.example.claw_code_application.data.local.TokenManager
+import kotlinx.coroutines.runBlocking
 
 /**
  * 认证数据仓库
@@ -21,19 +22,40 @@ class AuthRepository(
     suspend fun login(email: String, password: String): Result<AuthData> {
         return try {
             val response = apiService.login(LoginRequest(email, password))
+            android.util.Log.d("AuthRepo", "=== login response ===")
+            android.util.Log.d("AuthRepo", "isSuccessful: ${response.isSuccessful}")
+            android.util.Log.d("AuthRepo", "code: ${response.code()}")
+            
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
+                android.util.Log.d("AuthRepo", "body.success: ${body.success}")
+                
                 if (body.success && body.data != null) {
+                    val token = body.data.token
+                    android.util.Log.d("AuthRepo", "=== 准备保存 Token ===")
+                    android.util.Log.d("AuthRepo", "Token from server length: ${token.length}")
+                    android.util.Log.d("AuthRepo", "Token from server: ${token}")
+                    
                     // 保存Token到本地
-                    tokenManager.saveToken(body.data.token)
+                    tokenManager.saveToken(token)
+                    
+                    // 再次读取验证
+                    val verifyToken = runBlocking { tokenManager.getTokenSync() }
+                    android.util.Log.d("AuthRepo", "=== 验证保存后 ===")
+                    android.util.Log.d("AuthRepo", "Token after save length: ${verifyToken?.length}")
+                    android.util.Log.d("AuthRepo", "Token match: ${token == verifyToken}")
+                    
                     Result.success(body.data)
                 } else {
                     Result.failure(Exception(body.error?.message ?: "登录失败"))
                 }
             } else {
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("AuthRepo", "登录失败: ${response.code()}, error: $errorBody")
                 Result.failure(Exception("网络错误: ${response.code()}"))
             }
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepo", "登录异常", e)
             Result.failure(Exception("登录失败: ${e.message}", e))
         }
     }
