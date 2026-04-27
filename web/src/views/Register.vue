@@ -87,7 +87,7 @@ async function handleRegister() {
   <div class="register-container">
     <div class="register-card">
       <div class="logo">
-        <h1>Claude Code</h1>
+        <h1>收藏家</h1>
         <p>创建您的账号</p>
       </div>
       

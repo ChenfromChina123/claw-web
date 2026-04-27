@@ -94,14 +94,40 @@ function handleGoogleLogin(): void {
         <!-- Logo区域 -->
         <div class="logo-section">
           <div class="logo-icon">
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <radialGradient id="glowGradient" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" style="stop-color:#FFD700;stop-opacity:1" />
+                  <stop offset="40%" style="stop-color:#FFA500;stop-opacity:0.9" />
+                  <stop offset="70%" style="stop-color:#FF6347;stop-opacity:0.6" />
+                  <stop offset="100%" style="stop-color:#FF4500;stop-opacity:0" />
+                </radialGradient>
+                <linearGradient id="bulbGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#FFF8DC;stop-opacity:1" />
+                  <stop offset="50%" style="stop-color:#FFE4B5;stop-opacity:1" />
+                  <stop offset="100%" style="stop-color:#FFD700;stop-opacity:1" />
+                </linearGradient>
+              </defs>
+              <circle cx="50" cy="50" r="45" fill="url(#glowGradient)" opacity="0.3" />
+              <circle cx="50" cy="50" r="35" fill="url(#glowGradient)" opacity="0.5" />
+              <g stroke="#FFD700" stroke-width="2" stroke-linecap="round" opacity="0.8">
+                <line x1="50" y1="8" x2="50" y2="18" />
+                <line x1="50" y1="82" x2="50" y2="92" />
+                <line x1="8" y1="50" x2="18" y2="50" />
+                <line x1="82" y1="50" x2="92" y2="50" />
+                <line x1="20" y1="20" x2="27" y2="27" />
+                <line x1="73" y1="73" x2="80" y2="80" />
+                <line x1="80" y1="20" x2="73" y2="27" />
+                <line x1="27" y1="73" x2="20" y2="80" />
+              </g>
+              <ellipse cx="50" cy="42" rx="22" ry="25" fill="url(#bulbGradient)" />
+              <rect x="42" y="65" width="16" height="8" rx="2" fill="#8B7355" />
+              <rect x="44" y="73" width="12" height="4" rx="1" fill="#6B5344" />
+              <ellipse cx="42" cy="32" rx="6" ry="8" fill="white" opacity="0.6" />
             </svg>
           </div>
-          <h1 class="logo-title gradient-text">Claude Code</h1>
-          <p class="logo-subtitle">AI 智能编程助手</p>
+          <h1 class="logo-title gradient-text">收藏家</h1>
+          <p class="logo-subtitle">收藏灵感，点亮智慧</p>
         </div>
 
         <!-- 表单区域 -->

@@ -358,7 +358,7 @@ function formatTime(date: Date | string) {
 
         <!-- 头部 -->
         <div class="sidebar-header">
-          <h2>Claude Code</h2>
+          <h2>收藏家</h2>
         </div>
 
         <!-- 搜索 -->
