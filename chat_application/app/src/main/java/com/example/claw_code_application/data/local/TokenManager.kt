@@ -17,6 +17,11 @@ import kotlinx.coroutines.flow.map
  */
 class TokenManager(private val context: Context) {
 
+    /** 日志标签 */
+    companion object {
+        private const val TAG = "TokenManager"
+    }
+
     /** DataStore实例 */
     private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = Constants.PREFS_NAME)
 
@@ -28,9 +33,19 @@ class TokenManager(private val context: Context) {
      * @param token 认证Token
      */
     suspend fun saveToken(token: String) {
+        android.util.Log.d(TAG, "=== saveToken ===")
+        android.util.Log.d(TAG, "Token 长度: ${token.length}")
+        android.util.Log.d(TAG, "Token 前80字符: ${token.take(80)}")
+        android.util.Log.d(TAG, "Token 后20字符: ${token.takeLast(20)}")
+        
         context.dataStore.edit { preferences ->
             preferences[tokenKey] = token
         }
+        
+        // 立即验证保存是否成功
+        val saved = context.dataStore.first()[tokenKey]
+        android.util.Log.d(TAG, "验证保存: ${saved == token}")
+        android.util.Log.d(TAG, "读取长度: ${saved?.length}")
     }
 
     /**
@@ -48,7 +63,13 @@ class TokenManager(private val context: Context) {
      * @return Token字符串，如果不存在则返回null
      */
     suspend fun getTokenSync(): String? {
-        return context.dataStore.data.first()[tokenKey]
+        val token = context.dataStore.data.first()[tokenKey]
+        android.util.Log.d(TAG, "=== getTokenSync ===")
+        android.util.Log.d(TAG, "Token: ${if (token != null) "存在(${token.length}字符)" else "null"}")
+        if (token != null) {
+            android.util.Log.d(TAG, "前80字符: ${token.take(80)}")
+        }
+        return token
     }
 
     /**

@@ -194,6 +194,13 @@ export class AuthService {
       isAdmin: user.is_admin,
     })
 
+    // 立即验证刚生成的 Token，确保一致性
+    const verifyResult = await (await import('./jwtService')).verifyToken(token)
+    console.log(`[Auth] 登录后立即验证 Token: ${verifyResult ? '✅ 成功' : '❌ 失败'}`)
+    if (!verifyResult) {
+      console.error('[Auth] ⚠️ 刚生成的 Token 验证失败！这是一个严重错误！')
+    }
+
     console.log(`用户登录成功: ${email}`)
 
     return {

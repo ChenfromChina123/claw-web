@@ -73,8 +73,27 @@ export async function authMiddleware(request: Request): Promise<AuthResult> {
   const payload = await verifyToken(token)
   console.log('[Auth] verifyToken result:', payload ? `userId: ${payload.userId}` : 'null')
   
+  // 如果验证失败，打印 Token 信息用于调试
   if (!payload) {
     console.warn('[Auth] Token verification failed')
+    console.warn('[Auth] Token preview:', token.substring(0, 80) + '...')
+    console.warn('[Auth] Token length:', token.length)
+    console.warn('[Auth] JWT_SECRET used:', process.env.JWT_SECRET?.substring(0, 30) + '...')
+    
+    // 尝试解码 Token 头部查看算法
+    try {
+      const parts = token.split('.')
+      if (parts.length >= 2) {
+        const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString())
+        console.warn('[Auth] Token header:', JSON.stringify(header))
+        
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+        console.warn('[Auth] Token payload (decoded):', JSON.stringify(payload).substring(0, 200))
+      }
+    } catch (e) {
+      console.error('[Auth] Failed to decode token for debugging:', e)
+    }
+    
     return { userId: null, isAdmin: null }
   }
 
