@@ -153,26 +153,92 @@ export async function handleAgentRoutes(req: Request): Promise<Response | null> 
       })
 
       // 收集所有事件
+      const toolCallMap = new Map<string, any>()
+
       for await (const event of runner) {
         console.log(`[AgentRoutes] 事件: ${event.type}`)
 
         if (event.type === 'message' && event.message.role === 'assistant') {
+          // 检查消息中是否包含工具调用
+          const toolCalls = event.message.toolCalls || []
+          const toolResults = event.message.toolResults || []
+
+          // 添加工具调用到列表
+          for (const tc of toolCalls) {
+            if (!toolCallMap.has(tc.id)) {
+              const toolCallData = {
+                id: tc.id,
+                toolName: tc.name,
+                status: 'executing',
+                toolInput: tc.input,
+                toolOutput: null,
+                error: null,
+                createdAt: new Date().toISOString(),
+                completedAt: null
+              }
+              toolCallMap.set(tc.id, toolCallData)
+              toolCallsList.push(toolCallData)
+            }
+          }
+
+          // 更新工具结果
+          for (const tr of toolResults) {
+            const existingTool = toolCallMap.get(tr.toolCallId)
+            if (existingTool) {
+              existingTool.status = tr.success ? 'completed' : 'error'
+              existingTool.toolOutput = tr.result
+              existingTool.error = tr.error
+              existingTool.completedAt = new Date().toISOString()
+            }
+          }
+
+          // 添加消息内容（过滤掉工具调用的JSON）
+          let content = event.message.content
+          // 如果内容包含工具结果JSON，尝试提取可读的文本
+          if (content.includes('tool_result') || content.includes('"type":"tool"')) {
+            try {
+              // 提取stdout内容
+              const stdoutMatch = content.match(/"stdout":"([^"]*)"/)
+              if (stdoutMatch) {
+                content = stdoutMatch[1].replace(/\\n/g, '\n').replace(/\\t/g, '\t')
+              }
+            } catch (e) {
+              // 保持原内容
+            }
+          }
+
           assistantMessages.push({
             id: `msg_${Date.now()}_${assistantMessages.length}`,
             role: 'assistant',
-            content: event.message.content,
+            content: content,
             timestamp: new Date().toISOString(),
             toolCalls: null
           })
         }
 
         if (event.type === 'tool_call') {
-          toolCallsList.push({
+          const toolCallData = {
             id: event.toolCall.id,
             toolName: event.toolCall.name,
             status: 'executing',
             toolInput: event.toolCall.input,
-          })
+            toolOutput: null,
+            error: null,
+            createdAt: new Date().toISOString(),
+            completedAt: null
+          }
+          toolCallMap.set(event.toolCall.id, toolCallData)
+          toolCallsList.push(toolCallData)
+        }
+
+        if (event.type === 'tool_result') {
+          const existingTool = toolCallMap.get(event.result.toolCallId)
+          if (existingTool) {
+            existingTool.status = event.result.success ? 'completed' : 'error'
+            existingTool.toolOutput = event.result.result
+            existingTool.error = event.result.error
+            existingTool.completedAt = new Date().toISOString()
+          }
         }
 
         if (event.type === 'error') {
