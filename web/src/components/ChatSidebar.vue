@@ -19,6 +19,7 @@ import {
   FolderOpen,
   CodeSlash,
   Add,
+  PersonCircleOutline,
 } from '@vicons/ionicons5'
 import { useChatStore } from '@/stores/chat'
 import { useSnippetStore } from '@/stores/snippet'
@@ -524,6 +525,12 @@ function formatTime(date: Date | string) {
             </NButton>
             <NButton block quaternary size="small" @click="router.push('/settings')">
               设置
+            </NButton>
+            <NButton block quaternary size="small" @click="router.push('/profile')">
+              <template #icon>
+                <NIcon><PersonCircleOutline /></NIcon>
+              </template>
+              个人主页
             </NButton>
             <NButton block quaternary size="small" @click="showSnippetLibrary = true">
               <template #icon>
