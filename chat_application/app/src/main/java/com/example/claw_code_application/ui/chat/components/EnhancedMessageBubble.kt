@@ -62,13 +62,23 @@ fun EnhancedMessageBubble(
                 ) {
                     // 动态组件渲染
                     if (isUser) {
-                        // 用户消息直接显示文本
-                        Text(
-                            text = message.content,
-                            color = AppColor.SurfaceDark,
-                            fontSize = 14.sp,
-                            lineHeight = 20.sp
-                        )
+                        /**
+                         * 用户消息内容过滤
+                         * Anthropic API 会将 tool_result 包装成 user 角色消息发送给 Agent
+                         * 需要过滤掉这些内部消息，避免显示原始 JSON
+                         */
+                        val filteredContent = remember(message.content) {
+                            filterToolResultContent(message.content)
+                        }
+                        
+                        if (filteredContent.isNotBlank()) {
+                            Text(
+                                text = filteredContent,
+                                color = AppColor.SurfaceDark,
+                                fontSize = 14.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
                     } else {
                         // AI消息使用动态组件渲染
                         DynamicMessageContent(
@@ -258,6 +268,36 @@ private fun StreamingCursor() {
         modifier = Modifier.alpha(alpha),
         fontSize = 14.sp
     )
+}
+
+/**
+ * 过滤用户消息中的 tool_result JSON 内容
+ * Anthropic API 会将工具结果包装成 user 角色消息，需要过滤掉这些内部数据
+ *
+ * @param content 原始消息内容
+ * @return 过滤后的内容，如果是 tool_result 则返回空字符串
+ */
+fun filterToolResultContent(content: String): String {
+    val trimmed = content.trim()
+    
+    // 检测是否是 tool_result / tool_use JSON 字符串
+    // 可能的格式：
+    // - [{"type":"tool_result",...}]
+    // - {"type":"tool_result",...}
+    val isToolJson = when {
+        trimmed.startsWith("[") || trimmed.startsWith("{") -> {
+            trimmed.contains("\"type\"") && 
+            (trimmed.contains("tool_result") || trimmed.contains("tool_use"))
+        }
+        else -> false
+    }
+    
+    return if (isToolJson) {
+        android.util.Log.d("MessageFilter", "过滤掉 tool_result JSON: ${trimmed.take(100)}...")
+        ""
+    } else {
+        content
+    }
 }
 
 /**
