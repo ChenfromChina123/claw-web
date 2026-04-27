@@ -3,7 +3,7 @@ package com.example.claw_code_application.data.api
 import android.content.Context
 import android.content.Intent
 import com.example.claw_code_application.data.local.TokenManager
-import com.example.claw_code_application.ui.login.LoginActivity
+import com.example.claw_code_application.MainActivity
 import com.example.claw_code_application.util.Logger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -101,22 +101,22 @@ class AuthInterceptor(
     }
 
     /**
-     * 跳转到登录页
+     * 跳转到主页面（会自动处理未登录状态）
      * 使用 FLAG_ACTIVITY_NEW_TASK 和 FLAG_ACTIVITY_CLEAR_TASK 清除任务栈
      */
     private fun navigateToLogin() {
         try {
-            val intent = Intent(context, LoginActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or 
+            val intent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_CLEAR_TASK or
                         Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra("auth_failed", true)
                 putExtra("message", "登录已过期，请重新登录")
             }
             context.startActivity(intent)
-            Logger.i(TAG, "已跳转到登录页")
+            Logger.i(TAG, "已跳转到主页面")
         } catch (e: Exception) {
-            Logger.e(TAG, "跳转到登录页失败: ${e.message}")
+            Logger.e(TAG, "跳转失败: ${e.message}")
         }
     }
 
