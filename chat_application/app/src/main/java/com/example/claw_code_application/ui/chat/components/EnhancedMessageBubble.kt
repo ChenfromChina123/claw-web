@@ -107,7 +107,7 @@ fun EnhancedMessageBubble(
                 ) {
                     toolCalls.forEachIndexed { index, toolCall ->
                         key(toolCall.id) {
-                            var expanded by rememberSaveable { mutableStateOf(false) }
+                            var expanded by remember { mutableStateOf(false) }
                             ToolCallCard(
                                 toolCall = toolCall,
                                 expanded = expanded,

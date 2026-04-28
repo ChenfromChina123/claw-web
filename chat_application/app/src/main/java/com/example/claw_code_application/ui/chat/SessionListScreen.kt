@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
@@ -91,6 +92,7 @@ fun SessionListScreen(
             onSearchExpandedChange = { isSearchExpanded = it },
             searchQuery = searchQuery,
             onSearchQueryChange = { searchQuery = it },
+            onCreateNew = onCreateNew,
             surfaceColor = surfaceColor
         )
 
@@ -143,7 +145,7 @@ private data class SessionDisplayData(
 )
 
 /**
- * 顶部栏（含搜索功能）
+ * 顶部栏（含搜索功能和新建会话按钮）
  */
 @Composable
 private fun TopAppBarWithSearch(
@@ -151,6 +153,7 @@ private fun TopAppBarWithSearch(
     onSearchExpandedChange: (Boolean) -> Unit,
     searchQuery: TextFieldValue,
     onSearchQueryChange: (TextFieldValue) -> Unit,
+    onCreateNew: () -> Unit,
     surfaceColor: androidx.compose.ui.graphics.Color
 ) {
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
@@ -191,21 +194,42 @@ private fun TopAppBarWithSearch(
                 letterSpacing = 0.5.sp
             )
 
-            IconButton(
-                onClick = {
-                    onSearchExpandedChange(!isSearchExpanded)
-                    if (isSearchExpanded) {
-                        onSearchQueryChange(TextFieldValue(""))
-                    }
-                },
-                modifier = Modifier.size(40.dp)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
-                    contentDescription = if (isSearchExpanded) "关闭搜索" else "搜索",
-                    tint = onSurfaceColor,
-                    modifier = Modifier.size(24.dp)
-                )
+                IconButton(
+                    onClick = {
+                        onSearchExpandedChange(!isSearchExpanded)
+                        if (isSearchExpanded) {
+                            onSearchQueryChange(TextFieldValue(""))
+                        }
+                    },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
+                        contentDescription = if (isSearchExpanded) "关闭搜索" else "搜索",
+                        tint = onSurfaceColor,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(onSurfaceColor)
+                        .clickable(onClick = onCreateNew),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "新建会话",
+                        tint = surfaceColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
 

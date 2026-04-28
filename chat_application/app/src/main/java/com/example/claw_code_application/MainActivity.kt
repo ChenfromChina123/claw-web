@@ -11,7 +11,6 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -261,30 +260,6 @@ private fun ChatMainScreen(
                                 modifier = Modifier.fillMaxSize()
                             )
 
-                            FloatingActionButton(
-                                onClick = {
-                                    scope.launch {
-                                        val newSessionId = sessionViewModel.createNewSession()
-                                        if (newSessionId != null) {
-                                            selectedSessionId = newSessionId
-                                            showSessionList = false
-                                        }
-                                    }
-                                },
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .padding(20.dp)
-                                    .size(56.dp),
-                                shape = androidx.compose.foundation.shape.CircleShape,
-                                containerColor = Color(0xFF1A1A1A),
-                                contentColor = Color.White
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "新建会话",
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
                         }
                     }
 
