@@ -20,8 +20,8 @@ data class RegisterRequest(
 @Serializable
 data class ApiResponse<T>(
     val success: Boolean,
-    val data: T?,
-    val error: ApiError?
+    val data: T? = null,
+    val error: ApiError? = null
 )
 
 @Serializable
