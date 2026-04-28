@@ -1,6 +1,9 @@
 package com.example.claw_code_application.data.repository
 
 import com.example.claw_code_application.data.api.ApiService
+import com.example.claw_code_application.data.api.models.CreateSessionRequest
+import com.example.claw_code_application.data.api.models.ExecuteAgentRequest
+import com.example.claw_code_application.data.api.models.ExecuteAgentResponse
 import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.data.api.models.Session
 import com.example.claw_code_application.data.api.models.SessionDetail
@@ -13,6 +16,7 @@ import com.example.claw_code_application.data.local.db.EntityMappers.toModels
 import com.example.claw_code_application.data.local.db.MessageDao
 import com.example.claw_code_application.data.local.db.SessionDao
 import com.example.claw_code_application.data.local.db.ToolCallDao
+import com.example.claw_code_application.util.Constants
 import com.example.claw_code_application.util.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -285,14 +289,13 @@ class CachedChatRepository(
             if (token.isNullOrBlank()) {
                 return@withContext Result.Error("未登录，请先登录")
             }
-            
+
             val response = apiService.createSession(
-                com.example.claw_code_application.data.api.models.CreateSessionRequest(title, model)
+                CreateSessionRequest(title, model)
             )
-            
+
             if (response.isSuccessful && response.body()?.data != null) {
                 val session = response.body()!!.data!!
-                // 缓存新会话
                 sessionDao.insertSession(session.toEntities())
                 Logger.i(TAG, "创建会话成功并缓存: ${session.id}")
                 Result.Success(session)
@@ -314,11 +317,10 @@ class CachedChatRepository(
             if (token.isNullOrBlank()) {
                 return@withContext Result.Error("未登录，请先登录")
             }
-            
+
             val response = apiService.deleteSession(sessionId)
-            
+
             if (response.isSuccessful) {
-                // 删除本地缓存
                 sessionDao.deleteSession(sessionId)
                 messageDao.deleteMessagesBySession(sessionId)
                 toolCallDao.deleteToolCallsBySession(sessionId)
@@ -330,6 +332,73 @@ class CachedChatRepository(
         } catch (e: Exception) {
             Logger.e(TAG, "删除会话失败", e)
             Result.Error(e.message ?: "删除会话失败", e)
+        }
+    }
+
+    // ==================== Agent执行 ====================
+
+    /**
+     * 执行Agent任务
+     */
+    suspend fun executeAgent(
+        sessionId: String,
+        task: String,
+        prompt: String,
+        tools: List<String> = emptyList(),
+        maxTurns: Int? = null
+    ): Result<ExecuteAgentResponse> = withContext(Dispatchers.IO) {
+        try {
+            val token = tokenManager.getTokenSync()
+            if (token.isNullOrBlank()) {
+                return@withContext Result.Error("未登录，请先登录")
+            }
+
+            val request = ExecuteAgentRequest(
+                agentId = Constants.DEFAULT_AGENT_ID,
+                sessionId = sessionId,
+                task = task,
+                prompt = prompt,
+                tools = tools,
+                maxTurns = maxTurns
+            )
+
+            val response = apiService.executeAgent(request)
+
+            if (response.isSuccessful && response.body()?.data != null) {
+                Logger.i(TAG, "Agent执行成功")
+                Result.Success(response.body()!!.data!!)
+            } else {
+                val errorBody = response.errorBody()?.string()
+                Logger.e(TAG, "Agent执行失败: HTTP ${response.code()}, $errorBody")
+                Result.Error("Agent执行失败: ${response.code()}")
+            }
+        } catch (e: Exception) {
+            Logger.e(TAG, "Agent执行异常", e)
+            Result.Error(e.message ?: "Agent执行失败", e)
+        }
+    }
+
+    /**
+     * 中断Agent执行
+     */
+    suspend fun interruptAgent(agentId: String = Constants.DEFAULT_AGENT_ID): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val token = tokenManager.getTokenSync()
+            if (token.isNullOrBlank()) {
+                return@withContext Result.Error("未登录，请先登录")
+            }
+
+            val response = apiService.interruptAgent(agentId)
+
+            if (response.isSuccessful) {
+                Logger.i(TAG, "中断Agent成功")
+                Result.Success(Unit)
+            } else {
+                Result.Error("中断Agent失败: ${response.code()}")
+            }
+        } catch (e: Exception) {
+            Logger.e(TAG, "中断Agent异常", e)
+            Result.Error(e.message ?: "中断Agent失败", e)
         }
     }
 

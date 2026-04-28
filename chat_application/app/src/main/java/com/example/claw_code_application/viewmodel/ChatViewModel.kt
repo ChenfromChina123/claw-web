@@ -11,6 +11,7 @@ import com.example.claw_code_application.data.api.models.*
 import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.local.SessionLocalStore
 import com.example.claw_code_application.data.repository.ChatRepository
+import com.example.claw_code_application.data.repository.CachedChatRepository
 import com.example.claw_code_application.data.websocket.WebSocketManager
 import com.example.claw_code_application.ui.chat.components.shouldShowMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,9 +26,17 @@ import java.util.UUID
  * 聊天ViewModel
  * 处理会话管理、消息发送、Agent执行等核心业务逻辑
  * 支持WebSocket流式输出
+ * 支持本地缓存，实现离线优先策略
+ *
+ * @param chatRepository 原始聊天仓库（用于Agent执行操作）
+ * @param cachedChatRepository 带缓存的聊天仓库（用于会话和消息缓存）
+ * @param tokenManager Token管理器
+ * @param webSocketManager WebSocket管理器
+ * @param sessionLocalStore 会话本地存储（用于持久化会话ID）
  */
 class ChatViewModel(
     private val chatRepository: ChatRepository,
+    private val cachedChatRepository: CachedChatRepository,
     private val tokenManager: TokenManager,
     private val webSocketManager: WebSocketManager = WebSocketManager(),
     private val sessionLocalStore: SessionLocalStore? = null
@@ -412,14 +421,15 @@ class ChatViewModel(
                         imageAttachments = imageAttachments
                     )
                 } else {
-                    val result = chatRepository.executeAgent(
+                    val result = cachedChatRepository.executeAgent(
                         sessionId = session.id,
                         task = content,
                         prompt = content
                     )
 
-                    result.fold(
-                        onSuccess = { response ->
+                    when (result) {
+                        is CachedChatRepository.Result.Success -> {
+                            val response = result.data
                             response.messages.forEach { msg ->
                                 _messages.add(msg)
                             }
@@ -430,11 +440,14 @@ class ChatViewModel(
                                 toolCalls = _toolCalls.toList(),
                                 executionStatus = response.executionStatus
                             )
-                        },
-                        onFailure = { e ->
-                            _uiState.value = UiState.Error(e.message ?: "发送消息失败")
                         }
-                    )
+                        is CachedChatRepository.Result.Error -> {
+                            _uiState.value = UiState.Error(result.message)
+                        }
+                        is CachedChatRepository.Result.Loading -> {
+                            // 忽略
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(e.message ?: "网络错误")
@@ -468,11 +481,13 @@ class ChatViewModel(
 
     /**
      * 加载会话历史消息
+     * 使用缓存优先策略：先显示本地缓存，后台更新网络数据
      * 同时持久化会话ID到本地存储
      * @param sessionId 会话ID
+     * @param forceRefresh 是否强制从网络刷新
      */
-    fun loadSession(sessionId: String) {
-        android.util.Log.d(TAG, "loadSession() - sessionId: $sessionId")
+    fun loadSession(sessionId: String, forceRefresh: Boolean = false) {
+        android.util.Log.d(TAG, "loadSession() - sessionId: $sessionId, forceRefresh: $forceRefresh")
         viewModelScope.launch {
             try {
                 currentSessionId = sessionId
@@ -486,31 +501,37 @@ class ChatViewModel(
 
                 _uiState.value = UiState.Loading
 
-                val result = chatRepository.getSessionDetail(sessionId)
+                // 使用带缓存的 Repository
+                cachedChatRepository.getSessionDetail(sessionId, forceRefresh).collect { result ->
+                    when (result) {
+                        is CachedChatRepository.Result.Loading -> {
+                            // 保持 Loading 状态
+                        }
+                        is CachedChatRepository.Result.Success -> {
+                            val detail = result.data
+                            _messages.clear()
+                            _messages.addAll(detail.messages)
 
-                result.fold(
-                    onSuccess = { detail ->
-                        _messages.clear()
-                        _messages.addAll(detail.messages)
+                            _toolCalls.clear()
+                            _toolCalls.addAll(detail.toolCalls)
 
-                        _toolCalls.clear()
-                        _toolCalls.addAll(detail.toolCalls)
-                        
-                        // 重建消息-工具调用映射
-                        rebuildMessageToolCallMapping()
+                            // 重建消息-工具调用映射
+                            rebuildMessageToolCallMapping()
 
-                        android.util.Log.d(TAG, "会话加载成功: ${detail.messages.size} 条消息, ${detail.toolCalls.size} 个工具调用")
-                        _uiState.value = UiState.Success(
-                            messages = _messages.toList(),
-                            toolCalls = _toolCalls.toList(),
-                            executionStatus = null
-                        )
-                    },
-                    onFailure = { e ->
-                        android.util.Log.e(TAG, "加载会话失败: ${e.message}")
-                        _uiState.value = UiState.Error(e.message ?: "加载会话失败")
+                            // 保存到缓存（如果是从网络获取的）
+                            android.util.Log.d(TAG, "会话加载成功: ${detail.messages.size} 条消息, ${detail.toolCalls.size} 个工具调用")
+                            _uiState.value = UiState.Success(
+                                messages = _messages.toList(),
+                                toolCalls = _toolCalls.toList(),
+                                executionStatus = null
+                            )
+                        }
+                        is CachedChatRepository.Result.Error -> {
+                            android.util.Log.e(TAG, "加载会话失败: ${result.message}")
+                            _uiState.value = UiState.Error(result.message)
+                        }
                     }
-                )
+                }
             } catch (e: Exception) {
                 android.util.Log.e(TAG, "加载异常", e)
                 _uiState.value = UiState.Error(e.message ?: "加载失败")
@@ -618,7 +639,7 @@ class ChatViewModel(
                     webSocketManager.interruptGeneration(sessionId)
                 }
 
-                chatRepository.interruptAgent()
+                cachedChatRepository.interruptAgent()
                 _uiState.value = UiState.Success(
                     messages = _messages.toList(),
                     toolCalls = _toolCalls.toList(),
@@ -662,19 +683,21 @@ class ChatViewModel(
             Session(id = id, title = "", createdAt = "", updatedAt = "")
         } ?: run {
             android.util.Log.d(TAG, "创建新会话...")
-            val result = chatRepository.createSession()
-            result.fold(
-                onSuccess = { session ->
+            val result = cachedChatRepository.createSession(null, "qwen-plus")
+            when (result) {
+                is CachedChatRepository.Result.Success -> {
+                    val session = result.data
                     currentSessionId = session.id
                     saveSessionToLocalStore(session.id)
                     android.util.Log.d(TAG, "新会话已创建并保存: ${session.id}")
                     session
-                },
-                onFailure = {
-                    android.util.Log.e(TAG, "创建会话失败: ${it.message}")
+                }
+                is CachedChatRepository.Result.Error -> {
+                    android.util.Log.e(TAG, "创建会话失败: ${result.message}")
                     null
                 }
-            )
+                is CachedChatRepository.Result.Loading -> null
+            }
         }
     }
 
@@ -706,19 +729,24 @@ class ChatViewModel(
 
         /**
          * 提供ViewModel工厂方法
-         * @param chatRepository 聊天数据仓库
+         * @param cachedChatRepository 带缓存的聊天仓库
          * @param tokenManager Token管理器
          * @param sessionLocalStore 会话本地存储（可选，用于持久化会话ID）
          */
         fun provideFactory(
-            chatRepository: ChatRepository,
+            cachedChatRepository: CachedChatRepository,
             tokenManager: com.example.claw_code_application.data.local.TokenManager,
             sessionLocalStore: SessionLocalStore? = null
         ): ViewModelProvider.Factory {
             return object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                    return ChatViewModel(chatRepository, tokenManager, sessionLocalStore = sessionLocalStore) as T
+                    return ChatViewModel(
+                        chatRepository = cachedChatRepository,
+                        cachedChatRepository = cachedChatRepository,
+                        tokenManager = tokenManager,
+                        sessionLocalStore = sessionLocalStore
+                    ) as T
                 }
             }
         }
