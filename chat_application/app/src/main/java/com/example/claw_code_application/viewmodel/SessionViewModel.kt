@@ -24,10 +24,6 @@ class SessionViewModel(
     private val tokenManager: TokenManager
 ) : ViewModel() {
 
-    companion object {
-        private const val TAG = "SessionViewModel"
-    }
-
     /** UI状态密封类 */
     sealed class UiState {
         data object Idle : UiState()

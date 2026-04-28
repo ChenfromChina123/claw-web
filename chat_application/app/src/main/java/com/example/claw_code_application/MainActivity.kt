@@ -30,6 +30,8 @@ import com.example.claw_code_application.ui.auth.RegisterScreen
 import com.example.claw_code_application.ui.chat.ChatScreen
 import com.example.claw_code_application.ui.chat.SessionListScreen
 import com.example.claw_code_application.ui.chat.components.AgentTaskMonitorPanel
+import com.example.claw_code_application.ui.chat.components.SettingsDrawer
+import com.example.claw_code_application.ui.chat.components.ThemeMode
 import com.example.claw_code_application.ui.theme.ClawCodeApplicationTheme
 import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.viewmodel.AgentTaskMonitorViewModel
@@ -165,12 +167,12 @@ private fun AuthCheckScreen(
 private fun ChatMainScreen(
     onLogout: () -> Unit
 ) {
-    val sessionViewModel: SessionViewModel = viewModel {
-        SessionViewModel(
+    val sessionViewModel: SessionViewModel = viewModel(
+        factory = SessionViewModel.provideFactory(
             cachedChatRepository = ClawCodeApplication.cachedChatRepository,
             tokenManager = ClawCodeApplication.tokenManager
         )
-    }
+    )
 
     val chatViewModel: ChatViewModel = viewModel(
         factory = ChatViewModel.provideFactory(
@@ -184,6 +186,8 @@ private fun ChatMainScreen(
     var showSessionList by remember { mutableStateOf(true) }
     var showExitDialog by remember { mutableStateOf(false) }
     var isNewSession by remember { mutableStateOf(false) }
+    var showSettingsDrawer by remember { mutableStateOf(false) }
+    var currentTheme by remember { mutableStateOf(ThemeMode.SYSTEM) }
 
     val sessionUiState by sessionViewModel.uiState.collectAsStateWithLifecycle()
 
@@ -262,6 +266,7 @@ private fun ChatMainScreen(
                                 onDelete = { sessionId ->
                                     sessionViewModel.deleteSession(sessionId)
                                 },
+                                onAvatarClick = { showSettingsDrawer = true },
                                 modifier = Modifier.fillMaxSize()
                             )
 
@@ -332,6 +337,15 @@ private fun ChatMainScreen(
         AgentTaskMonitorPanel(
             viewModel = taskMonitorViewModel,
             modifier = Modifier.fillMaxSize()
+        )
+
+        SettingsDrawer(
+            isVisible = showSettingsDrawer,
+            onDismiss = { showSettingsDrawer = false },
+            onThemeChange = { theme ->
+                currentTheme = theme
+            },
+            currentTheme = currentTheme
         )
     }
 

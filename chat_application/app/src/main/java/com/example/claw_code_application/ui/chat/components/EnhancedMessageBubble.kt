@@ -335,8 +335,7 @@ private fun StreamingCursor() {
                 initialValue = 0.3f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
-                    animation = tween(600, easing = LinearEasing),
-                    initialOffset = AnimationConstants.DefaultAnimationOffset + (index * 200),
+                    animation = tween(600, easing = LinearEasing, delayMillis = index * 200),
                     repeatMode = RepeatMode.Reverse
                 ),
                 label = "dot_${index}_alpha"

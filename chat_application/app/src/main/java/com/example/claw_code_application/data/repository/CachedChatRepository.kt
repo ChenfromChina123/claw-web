@@ -11,8 +11,14 @@ import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.local.db.AppDatabase
 import com.example.claw_code_application.data.local.db.EntityMappers.toCacheData
-import com.example.claw_code_application.data.local.db.EntityMappers.toEntities
-import com.example.claw_code_application.data.local.db.EntityMappers.toModels
+import com.example.claw_code_application.data.local.db.EntityMappers.toEntity
+import com.example.claw_code_application.data.local.db.EntityMappers.toMessageEntities
+import com.example.claw_code_application.data.local.db.EntityMappers.toMessages
+import com.example.claw_code_application.data.local.db.EntityMappers.toSession
+import com.example.claw_code_application.data.local.db.EntityMappers.toSessionEntities
+import com.example.claw_code_application.data.local.db.EntityMappers.toSessions
+import com.example.claw_code_application.data.local.db.EntityMappers.toToolCallEntities
+import com.example.claw_code_application.data.local.db.EntityMappers.toToolCalls
 import com.example.claw_code_application.data.local.db.MessageDao
 import com.example.claw_code_application.data.local.db.SessionDao
 import com.example.claw_code_application.data.local.db.ToolCallDao
@@ -109,7 +115,7 @@ class CachedChatRepository(
             // 2. 如果有缓存且不强制刷新，先发射缓存数据
             if (localSessions.isNotEmpty() && !forceRefresh) {
                 Logger.d(TAG, "发射本地缓存: ${localSessions.size} 个会话")
-                emit(Result.Success(localSessions.toModels()))
+                emit(Result.Success(localSessions.toSessions()))
             }
             
             // 3. 后台从网络获取最新数据
@@ -117,7 +123,7 @@ class CachedChatRepository(
             
             if (remoteSessions != null) {
                 // 4. 更新本地缓存
-                sessionDao.insertSessions(remoteSessions.toEntities())
+                sessionDao.insertSessions(remoteSessions.toSessionEntities())
                 Logger.d(TAG, "更新本地缓存: ${remoteSessions.size} 个会话")
                 
                 // 5. 发射最新数据
@@ -133,7 +139,7 @@ class CachedChatRepository(
             val localSessions = sessionDao.getAllSessionsOnce()
             if (localSessions.isNotEmpty()) {
                 Logger.d(TAG, "异常时使用本地缓存: ${localSessions.size} 个会话")
-                emit(Result.Success(localSessions.toModels()))
+                emit(Result.Success(localSessions.toSessions()))
             } else {
                 emit(Result.Error(e.message ?: "加载失败", e))
             }
@@ -146,7 +152,7 @@ class CachedChatRepository(
      */
     fun observeSessions(): Flow<List<Session>> {
         return sessionDao.getAllSessions()
-            .map { entities -> entities.toModels() }
+            .map { entities -> entities.toSessions() }
             .flowOn(Dispatchers.IO)
     }
 
@@ -158,7 +164,7 @@ class CachedChatRepository(
         try {
             val remoteSessions = fetchSessionsFromNetwork()
             if (remoteSessions != null) {
-                sessionDao.insertSessions(remoteSessions.toEntities())
+                sessionDao.insertSessions(remoteSessions.toSessionEntities())
                 Logger.i(TAG, "会话列表同步成功: ${remoteSessions.size} 个会话")
                 Result.Success(Unit)
             } else {
@@ -195,9 +201,9 @@ class CachedChatRepository(
             // 3. 如果有缓存且不强制刷新，先发射缓存数据
             if (localSession != null && localMessages.isNotEmpty() && !forceRefresh) {
                 val cachedDetail = SessionDetail(
-                    session = localSession.toModels(),
-                    messages = localMessages.toModels(),
-                    toolCalls = localToolCalls.toModels()
+                    session = localSession.toSession(),
+                    messages = localMessages.toMessages(),
+                    toolCalls = localToolCalls.toToolCalls()
                 )
                 Logger.d(TAG, "发射会话缓存: sessionId=$sessionId, ${localMessages.size} 条消息")
                 emit(Result.Success(cachedDetail))
@@ -230,9 +236,9 @@ class CachedChatRepository(
             
             if (localSession != null) {
                 val cachedDetail = SessionDetail(
-                    session = localSession.toModels(),
-                    messages = localMessages.toModels(),
-                    toolCalls = localToolCalls.toModels()
+                    session = localSession.toSession(),
+                    messages = localMessages.toMessages(),
+                    toolCalls = localToolCalls.toToolCalls()
                 )
                 Logger.d(TAG, "异常时使用本地缓存")
                 emit(Result.Success(cachedDetail))
@@ -247,7 +253,7 @@ class CachedChatRepository(
      */
     fun observeMessages(sessionId: String): Flow<List<Message>> {
         return messageDao.getMessagesBySession(sessionId)
-            .map { entities -> entities.toModels() }
+            .map { entities -> entities.toMessages() }
             .flowOn(Dispatchers.IO)
     }
 
@@ -296,7 +302,7 @@ class CachedChatRepository(
 
             if (response.isSuccessful && response.body()?.data != null) {
                 val session = response.body()!!.data!!
-                sessionDao.insertSession(session.toEntities())
+                sessionDao.insertSession(session.toEntity())
                 Logger.i(TAG, "创建会话成功并缓存: ${session.id}")
                 Result.Success(session)
             } else {
@@ -470,17 +476,4 @@ class CachedChatRepository(
 
 // ==================== 扩展函数 ====================
 
-private fun Session.toEntities() = com.example.claw_code_application.data.local.db.EntityMappers.toSessionEntities(listOf(this)).first()
-private fun List<Session>.toEntities() = com.example.claw_code_application.data.local.db.EntityMappers.toSessionEntities(this)
-private fun com.example.claw_code_application.data.local.db.SessionEntity.toModels() = com.example.claw_code_application.data.local.db.EntityMappers.toSession(this)
-private fun List<com.example.claw_code_application.data.local.db.SessionEntity>.toModels() = com.example.claw_code_application.data.local.db.EntityMappers.toSessions(this)
-
-private fun Message.toEntities(sessionId: String) = com.example.claw_code_application.data.local.db.EntityMappers.toMessageEntities(listOf(this), sessionId).first()
-private fun List<Message>.toEntities(sessionId: String) = com.example.claw_code_application.data.local.db.EntityMappers.toMessageEntities(this, sessionId)
-private fun com.example.claw_code_application.data.local.db.MessageEntity.toModels() = com.example.claw_code_application.data.local.db.EntityMappers.toMessage(this)
-private fun List<com.example.claw_code_application.data.local.db.MessageEntity>.toModels() = com.example.claw_code_application.data.local.db.EntityMappers.toMessages(this)
-
-private fun ToolCall.toEntities(sessionId: String, messageId: String?) = com.example.claw_code_application.data.local.db.EntityMappers.toToolCallEntities(listOf(this), sessionId, messageId).first()
-private fun List<ToolCall>.toEntities(sessionId: String, messageId: String?) = com.example.claw_code_application.data.local.db.EntityMappers.toToolCallEntities(this, sessionId, messageId)
-private fun com.example.claw_code_application.data.local.db.ToolCallEntity.toModels() = com.example.claw_code_application.data.local.db.EntityMappers.toToolCall(this)
-private fun List<com.example.claw_code_application.data.local.db.ToolCallEntity>.toModels() = com.example.claw_code_application.data.local.db.EntityMappers.toToolCalls(this)
+// 直接使用 EntityMappers 中的扩展函�
