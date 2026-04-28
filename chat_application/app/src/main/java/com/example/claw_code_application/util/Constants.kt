@@ -17,8 +17,8 @@ object Constants {
     const val READ_TIMEOUT = 60L
     const val WRITE_TIMEOUT = 60L
 
-    /** DataStore名称 */
-    const val PREFS_NAME = "auth_prefs"
+    /** EncryptedSharedPreferences名称（加密存储） */
+    const val PREFS_NAME = "claw_secure_prefs"
 
     /** Token存储键名 */
     const val KEY_AUTH_TOKEN = "auth_token"

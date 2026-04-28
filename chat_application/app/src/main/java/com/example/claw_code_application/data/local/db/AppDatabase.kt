@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.room.migration.AutoMigration
 
 /**
  * 应用数据库
@@ -17,20 +16,9 @@ import androidx.room.migration.AutoMigration
         ToolCallEntity::class
     ],
     version = 1,
-    exportSchema = true,
-    autoMigrations = [
-        AutoMigration(from = 1, to = 2, spec = AppDatabase.AutoMigrationSpec::class)
-    ]
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
-
-    /**
-     * 自动迁移策略说明
-     * 当Entity结构变化时（如添加/删除字段），Room会自动推断迁移
-     * 如果自动推断失败，会使用fallbackToDestructiveMigration()
-     */
-    @androidx.room.DeleteDatabase(database = AppDatabase::class)
-    annotation class AutoMigrationSpec
 
     abstract fun sessionDao(): SessionDao
     abstract fun messageDao(): MessageDao
