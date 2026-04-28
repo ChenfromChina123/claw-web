@@ -2,9 +2,11 @@ package com.example.claw_code_application.data.api.models
 
 import androidx.compose.runtime.Immutable
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
 @Immutable
+@Serializable
 data class ToolCall(
     val id: String,
     @SerialName("messageId")
@@ -33,6 +35,7 @@ data class ToolCall(
     }
 }
 
+@Serializable
 data class ExecuteAgentRequest(
     @SerialName("agentId")
     val agentId: String = "default",
@@ -45,6 +48,7 @@ data class ExecuteAgentRequest(
     val maxTurns: Int? = null
 )
 
+@Serializable
 data class ExecuteAgentResponse(
     val messages: List<Message>,
     val toolCalls: List<ToolCall>,
@@ -53,6 +57,7 @@ data class ExecuteAgentResponse(
 )
 
 @Immutable
+@Serializable
 data class ExecutionStatus(
     val status: String,
     @SerialName("currentTurn")

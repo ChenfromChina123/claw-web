@@ -1,6 +1,7 @@
 package com.example.claw_code_application.data.api.models
 
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 enum class BackgroundTaskStatus {
     PENDING,
@@ -10,6 +11,7 @@ enum class BackgroundTaskStatus {
     CANCELLED
 }
 
+@Serializable
 data class AgentBackgroundTask(
     @SerialName("taskId")
     val taskId: String,
@@ -28,6 +30,7 @@ data class AgentBackgroundTask(
     val completedAt: Long? = null
 )
 
+@Serializable
 data class AgentTaskStepInfo(
     val id: String,
     val title: String,
@@ -44,6 +47,7 @@ enum class StepStatus {
     ERROR
 }
 
+@Serializable
 data class AgentTaskMonitorState(
     val tasks: List<AgentBackgroundTask> = emptyList(),
     val activeTaskCount: Int = 0,

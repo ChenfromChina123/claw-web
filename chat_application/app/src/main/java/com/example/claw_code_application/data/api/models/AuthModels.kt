@@ -1,12 +1,15 @@
 package com.example.claw_code_application.data.api.models
 
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class LoginRequest(
     val email: String,
     val password: String
 )
 
+@Serializable
 data class RegisterRequest(
     val email: String,
     val username: String,
@@ -14,17 +17,20 @@ data class RegisterRequest(
     val code: String
 )
 
+@Serializable
 data class ApiResponse<T>(
     val success: Boolean,
     val data: T?,
     val error: ApiError?
 )
 
+@Serializable
 data class ApiError(
     val code: String,
     val message: String
 )
 
+@Serializable
 data class AuthData(
     @SerialName("accessToken")
     val token: String,
@@ -42,6 +48,7 @@ data class AuthData(
     val avatar: String? = null
 )
 
+@Serializable
 data class UserInfo(
     val id: String,
     val email: String,
