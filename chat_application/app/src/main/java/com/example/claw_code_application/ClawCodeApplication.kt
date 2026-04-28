@@ -13,58 +13,48 @@ import com.example.claw_code_application.data.websocket.WebSocketManager
 import com.example.claw_code_application.util.Constants
 import com.example.claw_code_application.util.NetworkConfig
 import com.example.claw_code_application.util.Logger
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
-/**
- * Application类
- * 初始化全局单例对象（Retrofit、Repository等）
- */
 class ClawCodeApplication : Application() {
 
     companion object {
         private const val TAG = "ClawCodeApplication"
-        
+
         @Volatile
         private var INSTANCE: ClawCodeApplication? = null
-        
+
         fun getInstance(): ClawCodeApplication {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: ClawCodeApplication().also { INSTANCE = it }
             }
         }
-        
-        /** Retrofit API服务实例 */
+
         lateinit var apiService: ApiService
             private set
-            
-        /** Token管理器 */
+
         lateinit var tokenManager: TokenManager
             private set
-            
-        /** 认证仓库 */
+
         lateinit var authRepository: AuthRepository
             private set
-            
-        /** 聊天仓库 */
+
         lateinit var chatRepository: ChatRepository
             private set
 
-        /** 会话本地存储（用于持久化会话ID） */
         lateinit var sessionLocalStore: SessionLocalStore
             private set
 
-        /** 全局WebSocket管理器 */
         val webSocketManager = WebSocketManager()
 
-        /** Room 数据库实例 */
         lateinit var appDatabase: AppDatabase
             private set
 
-        /** 带缓存的聊天仓库（推荐使用） */
         lateinit var cachedChatRepository: CachedChatRepository
             private set
     }
@@ -72,34 +62,27 @@ class ClawCodeApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         INSTANCE = this
-        
-        // 初始化网络配置（必须在最前面）
+
         NetworkConfig.init(this)
         Logger.i(TAG, "网络配置初始化完成: ${NetworkConfig.getBaseUrl()}")
-        
+
         Logger.i(TAG, "应用启动...")
-        
-        // 初始化TokenManager
+
         tokenManager = TokenManager.getInstance(this)
         Logger.d(TAG, "TokenManager初始化完成")
-        
-        // 初始化Retrofit和API服务
+
         apiService = createApiService()
         Logger.d(TAG, "ApiService初始化完成")
-        
-        // 初始化Repository
+
         authRepository = AuthRepository(apiService, tokenManager)
         chatRepository = ChatRepository(apiService, tokenManager)
-        
-        // 初始化会话本地存储（使用EncryptedSharedPreferences加密存储）
+
         sessionLocalStore = SessionLocalStore.getInstance(this)
         Logger.d(TAG, "SessionLocalStore初始化完成")
 
-        // 初始化 Room 数据库
         appDatabase = AppDatabase.getInstance(this)
         Logger.d(TAG, "AppDatabase初始化完成")
 
-        // 初始化带缓存的聊天仓库
         cachedChatRepository = CachedChatRepository(
             apiService = apiService,
             tokenManager = tokenManager,
@@ -110,52 +93,52 @@ class ClawCodeApplication : Application() {
         Logger.d(TAG, "CachedChatRepository初始化完成")
 
         Logger.d(TAG, "Repository初始化完成")
-        
+
         Logger.i(TAG, "应用初始化完成")
     }
 
-    /**
-     * 创建 Retrofit API 服务实例
-     * 使用 NetworkConfig 动态获取 Base URL，支持模拟器和真机
-     */
     private fun createApiService(): ApiService {
         val baseUrl = NetworkConfig.getBaseUrl()
         Logger.d(TAG, "创建 ApiService, BaseURL: $baseUrl")
-        
-        // 创建 HTTP 日志拦截器
+
         val loggingInterceptor = HttpLoggingInterceptor { message ->
             Logger.d("OkHttp", message)
         }.apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
-        
-        // 配置 OkHttp 客户端
+
+        val json = Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+            encodeDefaults = true
+        }
+
+        val contentType = "application/json".toMediaType()
+
         val okHttpClient = OkHttpClient.Builder()
             .connectTimeout(Constants.CONNECT_TIMEOUT, TimeUnit.SECONDS)
             .readTimeout(Constants.READ_TIMEOUT, TimeUnit.SECONDS)
             .writeTimeout(Constants.WRITE_TIMEOUT, TimeUnit.SECONDS)
             .addInterceptor(loggingInterceptor)
-            // 认证拦截器（自动添加 Token，处理 401 错误）
             .addInterceptor(AuthInterceptor(this, tokenManager))
             .addInterceptor { chain ->
                 val request = chain.request()
                 Logger.d(TAG, "发送请求: ${request.method} ${request.url}")
-                
+
                 val newRequest = request.newBuilder()
                     .addHeader("Content-Type", "application/json")
                     .build()
-                
+
                 val response = chain.proceed(newRequest)
                 Logger.d(TAG, "收到响应: HTTP ${response.code} for ${request.url}")
                 response
             }
             .build()
 
-        // 创建 Retrofit 实例
         val retrofit = Retrofit.Builder()
             .baseUrl(baseUrl)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(json.asConverterFactory(contentType))
             .build()
 
         return retrofit.create(ApiService::class.java)

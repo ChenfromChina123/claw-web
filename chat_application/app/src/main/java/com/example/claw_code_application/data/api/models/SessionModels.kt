@@ -1,37 +1,28 @@
 package com.example.claw_code_application.data.api.models
 
 import androidx.compose.runtime.Immutable
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
 
-/**
- * 会话信息
- */
 @Immutable
 data class Session(
     val id: String,
     val title: String,
     val model: String = "qwen-plus",
-    @SerializedName("userId")
+    @SerialName("userId")
     val userId: String? = null,
-    @SerializedName("isPinned")
+    @SerialName("isPinned")
     val isPinned: Boolean = false,
-    @SerializedName("createdAt")
+    @SerialName("createdAt")
     val createdAt: String,
-    @SerializedName("updatedAt")
+    @SerialName("updatedAt")
     val updatedAt: String
 )
 
-/**
- * 创建新会话的请求体
- */
 data class CreateSessionRequest(
     val title: String? = null,
     val model: String = "qwen-plus"
 )
 
-/**
- * 会话详情（包含消息和工具调用历史）
- */
 data class SessionDetail(
     val session: Session,
     val messages: List<Message>,

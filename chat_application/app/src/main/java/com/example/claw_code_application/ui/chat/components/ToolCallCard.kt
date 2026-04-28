@@ -21,34 +21,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.ui.theme.AppColor
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
-import com.google.gson.JsonParser
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
-/**
- * Gson 实例池 - 避免重复创建 GsonBuilder
- * 使用 ThreadLocal 确保线程安全
- */
-private object GsonPool {
-    private val gsonInstance: Gson = GsonBuilder()
-        .setPrettyPrinting()
-        .create()
+private object JsonPool {
+    private val jsonInstance = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        prettyPrint = false
+    }
 
-    private val simpleGsonInstance: Gson = Gson()
-
-    fun getPrettyGson(): Gson = gsonInstance
-
-    fun getSimpleGson(): Gson = simpleGsonInstance
+    fun getJson(): Json = jsonInstance
 }
 
-/**
- * 增强版工具调用卡片组件 - Manus 1.6 Lite 风格
- * 
- * 设计特点：
- * - 浅灰背景，圆角12dp
- * - 状态徽章：浅色背景 + 状态色文字
- * - 展开/收起动画流畅
- */
 @Composable
 fun ToolCallCard(
     toolCall: ToolCall,
@@ -57,13 +43,10 @@ fun ToolCallCard(
     onExpandedChange: (Boolean) -> Unit = {},
     onRetry: () -> Unit = {}
 ) {
-    // 使用 remember 缓存状态配置，避免重复计算
     val statusConfig by remember(toolCall.status) { derivedStateOf { getStatusConfig(toolCall.status) } }
 
-    // 使用 remember 缓存摘要计算结果
     val summary by remember(toolCall.id, toolCall.toolInput) { derivedStateOf { getToolSummary(toolCall) } }
 
-    // 缓存输入参数的解析和格式化结果
     val parsedInput by remember(toolCall.id, toolCall.toolInput) {
         derivedStateOf {
             val inputMap = parseToolInput(toolCall.toolInput)
@@ -72,7 +55,6 @@ fun ToolCallCard(
         }
     }
 
-    // 缓存输出结果的格式化结果
     val formattedOutput by remember(toolCall.id, toolCall.toolOutput, toolCall.status) {
         derivedStateOf {
             if (toolCall.toolOutput != null && toolCall.status == "completed") {
@@ -83,7 +65,6 @@ fun ToolCallCard(
         }
     }
 
-    // 状态对应的边框颜色
     val borderColor = when (toolCall.status) {
         "completed" -> AppColor.Success
         "error" -> AppColor.Error
@@ -91,7 +72,6 @@ fun ToolCallCard(
         else -> Color(0xFFE8E8ED)
     }
 
-    // 执行中状态的脉冲动画
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 1f,
@@ -122,7 +102,6 @@ fun ToolCallCard(
         border = BorderStroke(1.dp, borderColor.copy(alpha = 0.3f))
     ) {
         Column {
-            // 头部（可点击展开/收起）
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -136,14 +115,12 @@ fun ToolCallCard(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    // 工具图标
                     Text(
                         text = getToolIcon(toolCall.toolName),
                         fontSize = 16.sp
                     )
 
                     Column(modifier = Modifier.weight(1f)) {
-                        // 工具名称行
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -156,7 +133,6 @@ fun ToolCallCard(
                                 fontFamily = FontFamily.Monospace
                             )
 
-                            // 状态徽章 - 浅色背景
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = statusConfig.backgroundColor
@@ -166,7 +142,6 @@ fun ToolCallCard(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    // 状态指示点
                                     Surface(
                                         modifier = Modifier.size(6.dp),
                                         shape = RoundedCornerShape(50),
@@ -183,7 +158,6 @@ fun ToolCallCard(
                             }
                         }
 
-                        // 工具摘要
                         if (summary.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
@@ -198,7 +172,6 @@ fun ToolCallCard(
                     }
                 }
 
-                // 展开/收起图标
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = if (expanded) "收起详情" else "展开详情",
@@ -207,7 +180,6 @@ fun ToolCallCard(
                 )
             }
 
-            // 展开内容区域 - 平滑动画
             AnimatedVisibility(
                 visible = expanded,
                 enter = expandVertically(
@@ -226,7 +198,6 @@ fun ToolCallCard(
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
-                    // 输入参数区域
                     val (inputMap, formattedInput) = parsedInput
                     if (inputMap.isNotEmpty()) {
                         ResultSection(
@@ -240,7 +211,6 @@ fun ToolCallCard(
                         Spacer(modifier = Modifier.height(12.dp))
                     }
 
-                    // 输出结果区域
                     if (formattedOutput.isNotEmpty()) {
                         ResultSection(
                             title = "执行结果",
@@ -253,9 +223,7 @@ fun ToolCallCard(
                         Spacer(modifier = Modifier.height(12.dp))
                     }
 
-                    // 错误信息区域
                     if (toolCall.error != null && toolCall.status == "error") {
-                        // 错误提示框 - 浅红背景
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
@@ -298,7 +266,6 @@ fun ToolCallCard(
                                     lineHeight = 18.sp
                                 )
 
-                                // 重试按钮
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Button(
                                     onClick = onRetry,
@@ -323,9 +290,6 @@ fun ToolCallCard(
     }
 }
 
-/**
- * 结果区域组件 - Manus 1.6 Lite 风格
- */
 @Composable
 private fun ResultSection(
     title: String,
@@ -378,18 +342,12 @@ private fun ResultSection(
     }
 }
 
-/**
- * 工具调用状态配置数据类
- */
 private data class StatusConfig(
     val label: String,
     val color: Color,
     val backgroundColor: Color
 )
 
-/**
- * 获取状态配置 - Manus 风格
- */
 private fun getStatusConfig(status: String): StatusConfig {
     return when (status) {
         "pending" -> StatusConfig(
@@ -420,9 +378,6 @@ private fun getStatusConfig(status: String): StatusConfig {
     }
 }
 
-/**
- * 获取工具图标 - 简洁风格
- */
 private fun getToolIcon(toolName: String): String {
     return when {
         toolName.contains("shell", ignoreCase = true) ||
@@ -452,30 +407,37 @@ private fun getToolIcon(toolName: String): String {
     }
 }
 
-/**
- * 解析工具输入为 Map
- * 使用共享 Gson 实例避免重复创建
- */
-@Suppress("UNCHECKED_CAST")
-private fun parseToolInput(input: Any): Map<String, Any> {
-    return when (input) {
-        is Map<*, *> -> input as Map<String, Any>
-        is String -> {
-            // 尝试解析 JSON 字符串
-            try {
-                val map = GsonPool.getSimpleGson().fromJson(input, Map::class.java)
-                map as Map<String, Any>
-            } catch (e: Exception) {
-                emptyMap()
+private fun parseToolInput(input: kotlinx.serialization.json.JsonObject): Map<String, Any> {
+    val result = mutableMapOf<String, Any>()
+    for ((key, value) in input) {
+        result[key] = jsonElementToValue(value)
+    }
+    return result
+}
+
+private fun jsonElementToValue(element: kotlinx.serialization.json.JsonElement): Any {
+    return when {
+        element is kotlinx.serialization.json.JsonNull -> ""
+        element is kotlinx.serialization.json.JsonPrimitive -> {
+            val prim = element
+            if (prim.isString) {
+                prim.content
+            } else if (prim.content.toBooleanStrictOrNull() != null) {
+                prim.content.toBooleanStrict()
+            } else {
+                prim.content.toDoubleOrNull() ?: prim.content
             }
         }
-        else -> emptyMap()
+        element is kotlinx.serialization.json.JsonArray -> {
+            element.map { jsonElementToValue(it) }
+        }
+        element is kotlinx.serialization.json.JsonObject -> {
+            element.keys.associateWith { jsonElementToValue(element[it]!!) }
+        }
+        else -> element.toString()
     }
 }
 
-/**
- * 获取工具摘要（简短描述，使用 ToolParser 增强解析）
- */
 private fun getToolSummary(toolCall: ToolCall): String {
     val parsedInfo = ToolParser.parseToolCall(toolCall)
     val primaryParam = parsedInfo.parameters.firstOrNull()
@@ -489,32 +451,29 @@ private fun getToolSummary(toolCall: ToolCall): String {
     }
 }
 
-/**
- * 格式化工具输入参数
- * 使用共享 Gson 实例避免重复创建 GsonBuilder
- */
 private fun formatToolInput(input: Map<String, Any>): String {
     return try {
-        GsonPool.getPrettyGson().toJson(input)
+        val json = JsonPool.getJson()
+        val jsonObject = kotlinx.serialization.json.JsonObject(
+            input.entries.associate { it.key to kotlinx.serialization.json.JsonPrimitive(it.value.toString()) }
+        )
+        json.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), jsonObject)
     } catch (e: Exception) {
         input.toString()
     }
 }
 
-/**
- * 格式化工具输出
- * 使用共享 Gson 实例避免重复创建 GsonBuilder
- */
-private fun formatToolOutput(output: Any): String {
+private fun formatToolOutput(output: String?): String {
+    if (output == null) return ""
     return try {
-        // 尝试解析 JSON
-        if (output is String) {
-            val jsonElement = JsonParser.parseString(output)
-            GsonPool.getPrettyGson().toJson(jsonElement)
+        val json = JsonPool.getJson()
+        val element = json.parseToJsonElement(output)
+        if (element is kotlinx.serialization.json.JsonObject) {
+            json.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), element)
         } else {
-            output.toString()
+            output
         }
     } catch (e: Exception) {
-        output.toString()
+        output
     }
 }

@@ -1,27 +1,29 @@
 package com.example.claw_code_application.util
 
 import android.util.Log
+import kotlinx.serialization.json.Json
 
-/**
- * 应用日志工具类
- * 统一管理日志输出，方便调试
- */
 object Logger {
     private const val DEFAULT_TAG = "ClawApp"
-    
-    // 日志级别控制（发布时可关闭）
+
     private const val DEBUG_ENABLED = true
     private const val INFO_ENABLED = true
     private const val WARN_ENABLED = true
     private const val ERROR_ENABLED = true
-    
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+        prettyPrint = false
+    }
+
     @JvmStatic
     fun d(tag: String, message: String) {
         if (DEBUG_ENABLED) {
             Log.d(DEFAULT_TAG, "[$tag] $message")
         }
     }
-    
+
     @JvmStatic
     fun d(tag: String, message: String, throwable: Throwable) {
         if (DEBUG_ENABLED) {
@@ -64,22 +66,19 @@ object Logger {
         }
     }
 
-    /**
-     * 打印对象信息
-     */
     @JvmStatic
     fun obj(tag: String, label: String, obj: Any?) {
         if (DEBUG_ENABLED) {
-            val json = when (obj) {
+            val jsonStr = when (obj) {
                 null -> "null"
                 is String -> obj
                 else -> try {
-                    com.google.gson.Gson().toJson(obj)
-                } catch (e: Exception) {
                     obj.toString()
+                } catch (e: Exception) {
+                    "null"
                 }
             }
-            Log.d(DEFAULT_TAG, "[$tag] $label: $json")
+            Log.d(DEFAULT_TAG, "[$tag] $label: $jsonStr")
         }
     }
 }

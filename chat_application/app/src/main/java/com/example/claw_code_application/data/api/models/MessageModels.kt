@@ -1,27 +1,21 @@
 package com.example.claw_code_application.data.api.models
 
 import androidx.compose.runtime.Immutable
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
 
-/**
- * 聊天消息
- */
 @Immutable
 data class Message(
     val id: String,
     val role: String,
     val content: String,
-    @SerializedName("createdAt")
+    @SerialName("createdAt")
     val timestamp: String,
-    @SerializedName("toolCalls")
+    @SerialName("toolCalls")
     val toolCalls: List<ToolCall>? = null,
     val isStreaming: Boolean = false,
     val attachments: List<ImageAttachment>? = null
 )
 
-/**
- * 图片附件
- */
 @Immutable
 data class ImageAttachment(
     val imageId: String,
@@ -29,9 +23,6 @@ data class ImageAttachment(
     val mimeType: String? = null
 )
 
-/**
- * 图片上传结果
- */
 @Immutable
 data class ImageUploadResult(
     val imageId: String,

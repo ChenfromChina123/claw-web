@@ -13,8 +13,6 @@ object MessageContentParser {
     private val parseCache = mutableMapOf<String, List<MessageComponent>>()
     private const val MAX_CACHE_SIZE = 100
 
-    private const val TAG = "MessageParser"
-
     fun parse(content: String): List<MessageComponent> {
         if (content.isBlank()) return emptyList()
 
@@ -36,24 +34,32 @@ object MessageContentParser {
     private fun parseInternal(content: String): List<MessageComponent> {
         val trimmedContent = content.trim()
 
+        android.util.Log.d("MessageParser", "=== parse() 开始 ===")
+        android.util.Log.d("MessageParser", "内容长度: ${content.length}")
+        android.util.Log.d("MessageParser", "内容前100字符: ${content.take(100)}")
+
         val components = mutableListOf<MessageComponent>()
 
         if (trimmedContent.startsWith("[") && trimmedContent.endsWith("]")) {
+            android.util.Log.d("MessageParser", "检测到JSON数组格式")
             try {
                 val jsonArray = json.parseToJsonElement(content).jsonArray
+                android.util.Log.d("MessageParser", "数组元素数量: ${jsonArray.size}")
                 for ((index, element) in jsonArray.withIndex()) {
                     if (element is JsonObject) {
                         val component = parseContentBlock(element)
                         if (component != null) {
                             components.add(component)
+                            android.util.Log.d("MessageParser", "[$index] → ${component.javaClass.simpleName}")
                         }
                     }
                 }
                 if (components.isNotEmpty()) {
+                    android.util.Log.d("MessageParser", "解析完成: ${components.size} 个组件")
                     return components
                 }
             } catch (e: Exception) {
-                // 解析失败，尝试其他格式
+                android.util.Log.e("MessageParser", "JSON数组解析失败: ${e.message}", e)
             }
         }
 
@@ -66,7 +72,7 @@ object MessageContentParser {
                     return components
                 }
             } catch (e: Exception) {
-                // 解析失败，返回文本内容
+                android.util.Log.e("MessageParser", "JSON对象解析失败: ${e.message}", e)
             }
         }
 
@@ -121,22 +127,22 @@ object MessageContentParser {
         val contentElement = jsonObj["content"]
         val result = when {
             contentElement == null || contentElement is JsonNull -> {
-                JsonObject(emptyMap()).also { it.put("raw", JsonPrimitive("")) }
+                buildJsonObject { put("raw", "") }
             }
             contentElement is JsonObject -> contentElement
             contentElement is JsonArray -> {
-                JsonObject(emptyMap()).also { it.put("items", contentElement) }
+                buildJsonObject { put("items", contentElement) }
             }
             contentElement is JsonPrimitive -> {
                 val contentStr = contentElement.content
                 try {
                     json.parseToJsonElement(contentStr).jsonObject
                 } catch (e: Exception) {
-                    JsonObject(emptyMap()).also { it.put("raw", JsonPrimitive(contentStr)) }
+                    buildJsonObject { put("raw", contentStr) }
                 }
             }
             else -> {
-                JsonObject(emptyMap()).also { it.put("raw", JsonPrimitive(contentElement.toString())) }
+                buildJsonObject { put("raw", contentElement.toString()) }
             }
         }
 
@@ -318,13 +324,12 @@ object MessageContentParser {
             element is JsonNull -> ""
             element is JsonPrimitive -> {
                 val prim = element
-                when {
-                    prim.isBoolean -> prim.boolean
-                    prim.content.toDoubleOrNull()?.let { d ->
-                        val l = d.toLong()
-                        l.toDouble() == d
-                    } != null -> prim.content.toDouble()
-                    else -> prim.content
+                if (prim.isString) {
+                    prim.content
+                } else if (prim.content.toBooleanStrictOrNull() != null) {
+                    prim.content.toBooleanStrict()
+                } else {
+                    prim.content.toDoubleOrNull() ?: prim.content
                 }
             }
             element is JsonArray -> {

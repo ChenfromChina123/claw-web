@@ -5,20 +5,19 @@ import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.data.api.models.Session
 import com.example.claw_code_application.data.api.models.SessionDetail
 import com.example.claw_code_application.data.api.models.ToolCall
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
-/**
- * 数据库实体与API模型之间的转换扩展函数
- */
 object EntityMappers {
-    private val gson = Gson()
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
 
-    // ==================== Session 转换 ====================
-
-    /**
-     * Session -> SessionEntity
-     */
     fun Session.toEntity(): SessionEntity {
         return SessionEntity(
             id = id,
@@ -31,9 +30,6 @@ object EntityMappers {
         )
     }
 
-    /**
-     * SessionEntity -> Session
-     */
     fun SessionEntity.toSession(): Session {
         return Session(
             id = id,
@@ -46,25 +42,14 @@ object EntityMappers {
         )
     }
 
-    /**
-     * List<Session> -> List<SessionEntity>
-     */
     fun List<Session>.toSessionEntities(): List<SessionEntity> {
         return map { it.toEntity() }
     }
 
-    /**
-     * List<SessionEntity> -> List<Session>
-     */
     fun List<SessionEntity>.toSessions(): List<Session> {
         return map { it.toSession() }
     }
 
-    // ==================== Message 转换 ====================
-
-    /**
-     * Message -> MessageEntity
-     */
     fun Message.toEntity(sessionId: String): MessageEntity {
         return MessageEntity(
             id = id,
@@ -77,9 +62,6 @@ object EntityMappers {
         )
     }
 
-    /**
-     * MessageEntity -> Message
-     */
     fun MessageEntity.toMessage(): Message {
         return Message(
             id = id,
@@ -91,33 +73,22 @@ object EntityMappers {
         )
     }
 
-    /**
-     * List<Message> -> List<MessageEntity>
-     */
     fun List<Message>.toMessageEntities(sessionId: String): List<MessageEntity> {
         return map { it.toEntity(sessionId) }
     }
 
-    /**
-     * List<MessageEntity> -> List<Message>
-     */
     fun List<MessageEntity>.toMessages(): List<Message> {
         return map { it.toMessage() }
     }
 
-    // ==================== ToolCall 转换 ====================
-
-    /**
-     * ToolCall -> ToolCallEntity
-     */
     fun ToolCall.toEntity(sessionId: String, messageId: String?): ToolCallEntity {
         return ToolCallEntity(
             id = id,
             sessionId = sessionId,
             messageId = messageId,
             toolName = toolName,
-            toolInputJson = serializeToolInput(toolInput),
-            toolOutputJson = toolOutput?.let { serializeToolOutput(it) },
+            toolInputJson = json.encodeToString(toolInput),
+            toolOutputJson = toolOutput,
             status = status,
             error = error,
             createdAt = createdAt,
@@ -125,9 +96,6 @@ object EntityMappers {
         )
     }
 
-    /**
-     * ToolCallEntity -> ToolCall
-     */
     fun ToolCallEntity.toToolCall(): ToolCall {
         return ToolCall(
             id = id,
@@ -135,7 +103,7 @@ object EntityMappers {
             sessionId = sessionId,
             toolName = toolName,
             toolInput = deserializeToolInput(toolInputJson),
-            toolOutput = toolOutputJson?.let { deserializeToolOutput(it) },
+            toolOutput = toolOutputJson,
             status = status,
             error = error,
             createdAt = createdAt,
@@ -143,25 +111,14 @@ object EntityMappers {
         )
     }
 
-    /**
-     * List<ToolCall> -> List<ToolCallEntity>
-     */
     fun List<ToolCall>.toToolCallEntities(sessionId: String, messageId: String?): List<ToolCallEntity> {
         return map { it.toEntity(sessionId, messageId) }
     }
 
-    /**
-     * List<ToolCallEntity> -> List<ToolCall>
-     */
     fun List<ToolCallEntity>.toToolCalls(): List<ToolCall> {
         return map { it.toToolCall() }
     }
 
-    // ==================== SessionDetail 转换 ====================
-
-    /**
-     * SessionDetail -> 缓存数据（包含Session、Messages、ToolCalls）
-     */
     fun SessionDetail.toCacheData(): Triple<SessionEntity, List<MessageEntity>, List<ToolCallEntity>> {
         val sessionEntity = session.toEntity()
         val messageEntities = messages.map { it.toEntity(session.id) }
@@ -172,69 +129,31 @@ object EntityMappers {
         return Triple(sessionEntity, messageEntities, toolCallEntities)
     }
 
-    /**
-     * 根据 toolCalls 和 messages 找到工具调用对应的 messageId
-     */
     private fun findMessageIdForToolCall(toolCall: ToolCall, messages: List<Message>): String? {
         return messages.find { message ->
             message.toolCalls?.any { it.id == toolCall.id } == true
         }?.id
     }
 
-    // ==================== 辅助方法 ====================
-
-    /**
-     * 序列化工具输入参数
-     */
-    private fun serializeToolInput(input: Map<String, Any>): String {
-        return gson.toJson(input)
+    private fun serializeToolInput(input: JsonObject): String {
+        return json.encodeToString(input)
     }
 
-    /**
-     * 反序列化工具输入参数
-     */
-    @Suppress("UNCHECKED_CAST")
-    private fun deserializeToolInput(json: String): Map<String, Any> {
+    private fun deserializeToolInput(jsonStr: String): JsonObject {
         return try {
-            val type = object : TypeToken<Map<String, Any>>() {}.type
-            gson.fromJson(json, type) ?: emptyMap()
+            json.parseToJsonElement(jsonStr).jsonObject
         } catch (e: Exception) {
-            emptyMap()
+            JsonObject(emptyMap())
         }
     }
 
-    /**
-     * 序列化工具输出
-     */
-    private fun serializeToolOutput(output: Any?): String {
-        return gson.toJson(output)
-    }
-
-    /**
-     * 反序列化工具输出
-     */
-    private fun deserializeToolOutput(json: String): Any? {
-        return try {
-            gson.fromJson(json, Any::class.java)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    /**
-     * 序列化附件列表
-     */
     private fun serializeAttachments(attachments: List<ImageAttachment>): String {
-        return gson.toJson(attachments)
+        return json.encodeToString(attachments)
     }
 
-    /**
-     * 反序列化附件列表
-     */
-    private fun deserializeAttachments(json: String): List<ImageAttachment>? {
+    private fun deserializeAttachments(jsonStr: String): List<ImageAttachment>? {
         return try {
-            val type = object : TypeToken<List<ImageAttachment>>() {}.type
-            gson.fromJson(json, type)
+            json.decodeFromString<List<ImageAttachment>>(jsonStr)
         } catch (e: Exception) {
             null
         }
