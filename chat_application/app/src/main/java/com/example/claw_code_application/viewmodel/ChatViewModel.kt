@@ -426,6 +426,13 @@ class ChatViewModel(
             try {
                 currentSessionId = sessionId
                 saveSessionToLocalStore(sessionId)
+
+                _messages.clear()
+                _toolCalls.clear()
+                messageToToolCalls.clear()
+                unassociatedToolCallIds.clear()
+                pendingToolInput.clear()
+
                 _uiState.value = UiState.Loading
 
                 val result = chatRepository.getSessionDetail(sessionId)
