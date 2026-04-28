@@ -510,12 +510,10 @@ sealed class MessageComponent {
     ) : MessageComponent()
 
     /**
-     * 图片内容
+     * 图片组件
      */
     data class Image(
-        val imageId: String,
         val imageUrl: String,
-        val mimeType: String = "image/png",
         val originalName: String? = null
     ) : MessageComponent()
 }
