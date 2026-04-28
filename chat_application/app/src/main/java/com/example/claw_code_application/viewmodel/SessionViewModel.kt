@@ -69,7 +69,7 @@ class SessionViewModel(
                     }
                     is CachedChatRepository.Result.Error -> {
                         val errorMsg = result.message
-                        Logger.e(TAG, "加载会话失败: $errorMsg", result.exception)
+                        Logger.e(TAG, "加载会话失败: $errorMsg", result.exception ?: Exception(errorMsg))
                         _uiState.value = UiState.Error(errorMsg)
                         Logger.d(TAG, "UI状态: Error - $errorMsg")
                     }

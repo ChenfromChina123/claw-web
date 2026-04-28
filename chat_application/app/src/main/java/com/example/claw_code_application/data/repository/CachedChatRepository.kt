@@ -262,7 +262,7 @@ class CachedChatRepository(
      */
     fun observeToolCalls(sessionId: String): Flow<List<ToolCall>> {
         return toolCallDao.getToolCallsBySession(sessionId)
-            .map { entities -> entities.toModels() }
+            .map { entities -> entities.toToolCalls() }
             .flowOn(Dispatchers.IO)
     }
 
@@ -272,7 +272,7 @@ class CachedChatRepository(
      * 保存消息到本地缓存
      */
     suspend fun saveMessages(sessionId: String, messages: List<Message>) = withContext(Dispatchers.IO) {
-        messageDao.insertMessages(messages.toEntities(sessionId))
+        messageDao.insertMessages(messages.toMessageEntities(sessionId))
         Logger.d(TAG, "保存消息到缓存: sessionId=$sessionId, ${messages.size} 条")
     }
 
@@ -280,7 +280,7 @@ class CachedChatRepository(
      * 保存工具调用到本地缓存
      */
     suspend fun saveToolCalls(sessionId: String, toolCalls: List<ToolCall>) = withContext(Dispatchers.IO) {
-        toolCallDao.insertToolCalls(toolCalls.toEntities(sessionId, null))
+        toolCallDao.insertToolCalls(toolCalls.toToolCallEntities(sessionId, null))
         Logger.d(TAG, "保存工具调用到缓存: sessionId=$sessionId, ${toolCalls.size} 个")
     }
 
@@ -476,4 +476,4 @@ class CachedChatRepository(
 
 // ==================== 扩展函数 ====================
 
-// 直接使用 EntityMappers 中的扩展函�
+// 直接使用 EntityMappers 中的扩展函数
