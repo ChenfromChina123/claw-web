@@ -16,6 +16,8 @@ import com.example.claw_code_application.ui.chat.components.shouldShowMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -72,6 +74,15 @@ class ChatViewModel(
 
     /** 当前正在流式输出的消息ID */
     private var streamingMessageId: String? = null
+
+    /** 文本增量防抖：累积的待更新文本 */
+    private var pendingDeltaText = StringBuilder()
+
+    /** 文本增量防抖：当前防抖任务 */
+    private var debounceJob: Job? = null
+
+    /** 防抖延迟时间（毫秒） */
+    private val debounceIntervalMs = 50L
 
     /** 当前正在累积工具输入参数的工具ID和参数 */
     private val pendingToolInput = mutableMapOf<String, StringBuilder>()
@@ -180,25 +191,41 @@ class ChatViewModel(
             }
 
             is WebSocketManager.WebSocketEvent.MessageDelta -> {
-                // 更新流式消息内容
-                streamingMessageId?.let { messageId ->
-                    val index = _messages.indexOfFirst { it.id == messageId }
-                    if (index != -1) {
-                        val oldMessage = _messages[index]
-                        _messages[index] = oldMessage.copy(
-                            content = oldMessage.content + event.delta
-                        )
+                pendingDeltaText.append(event.delta)
+
+                debounceJob?.cancel()
+                debounceJob = viewModelScope.launch {
+                    delay(debounceIntervalMs)
+
+                    val deltaToApply = pendingDeltaText.toString()
+                    pendingDeltaText.clear()
+
+                    streamingMessageId?.let { messageId ->
+                        val index = _messages.indexOfFirst { it.id == messageId }
+                        if (index != -1) {
+                            val oldMessage = _messages[index]
+                            _messages[index] = oldMessage.copy(
+                                content = oldMessage.content + deltaToApply
+                            )
+                        }
                     }
                 }
             }
 
             is WebSocketManager.WebSocketEvent.MessageStop -> {
-                // 停止流式输出
+                debounceJob?.cancel()
+                val remainingDelta = pendingDeltaText.toString()
+                pendingDeltaText.clear()
+
                 streamingMessageId?.let { messageId ->
                     val index = _messages.indexOfFirst { it.id == messageId }
                     if (index != -1) {
                         val oldMessage = _messages[index]
-                        _messages[index] = oldMessage.copy(isStreaming = false)
+                        val updatedMessage = oldMessage.copy(
+                            content = oldMessage.content + remainingDelta,
+                            isStreaming = false
+                        )
+                        _messages[index] = updatedMessage
                     }
                 }
                 streamingMessageId = null

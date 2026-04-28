@@ -253,10 +253,6 @@ private fun ChatMessageList(
     uiState: ChatViewModel.UiState,
     listState: androidx.compose.foundation.lazy.LazyListState
 ) {
-    val indexedMessages = remember(displayMessages) {
-        displayMessages.mapIndexed { index, message -> index to message }
-    }
-
     LazyColumn(
         state = listState,
         reverseLayout = true,
@@ -265,12 +261,17 @@ private fun ChatMessageList(
         modifier = Modifier.fillMaxSize()
     ) {
         items(
-            items = indexedMessages,
-            key = { (index, message) -> "${message.id}_$index" },
-            contentType = { (_, message) ->
-                if (message.role == "user") "user_message" else "assistant_message"
+            count = displayMessages.size,
+            key = { index -> displayMessages[index].id },
+            contentType = { index ->
+                when (displayMessages[index].role) {
+                    "user" -> "user_message"
+                    "assistant" -> "assistant_message"
+                    else -> "system_message"
+                }
             }
-        ) { (index, message) ->
+        ) { index ->
+            val message = displayMessages[index]
             EnhancedMessageBubble(
                 message = message,
                 toolCalls = viewModel.getToolCallsForMessage(message.id)

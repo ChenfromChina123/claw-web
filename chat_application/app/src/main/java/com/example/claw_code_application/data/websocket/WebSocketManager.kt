@@ -41,6 +41,15 @@ class WebSocketManager {
     val isConnected: Boolean
         get() = _connectionState.value is ConnectionState.Connected
 
+    /** 重连相关配置 */
+    private var currentToken: String? = null
+    private var retryCount = 0
+    private val maxRetryCount = 5
+    private val baseRetryDelayMs = 1000L
+    private val maxRetryDelayMs = 30000L
+    private var reconnectJob: Job? = null
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
     /**
      * 连接状态密封类
      */
@@ -94,6 +103,15 @@ class WebSocketManager {
             return
         }
 
+        currentToken = token
+        retryCount = 0
+        performConnect(token)
+    }
+
+    /**
+     * 执行实际的连接操作
+     */
+    private fun performConnect(token: String) {
         _connectionState.value = ConnectionState.Connecting
 
         // 使用 NetworkConfig 获取 WebSocket URL（自动转换协议）
@@ -107,6 +125,8 @@ class WebSocketManager {
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
                 Log.i(TAG, "WebSocket connected")
+                retryCount = 0 // 重置重试计数器
+
                 // 发送登录消息
                 val loginMessage = JsonObject().apply {
                     addProperty("type", "login")
@@ -128,20 +148,59 @@ class WebSocketManager {
                 Log.i(TAG, "WebSocket closed: $code / $reason")
                 _connectionState.value = ConnectionState.Disconnected
                 webSocket = null
+
+                scheduleReconnectIfNeeded(code)
             }
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 Log.e(TAG, "WebSocket error: ${t.message}")
                 _connectionState.value = ConnectionState.Error(t.message ?: "连接失败")
                 webSocket = null
+
+                scheduleReconnectIfNeeded(null)
             }
         })
+    }
+
+    /**
+     * 根据关闭代码判断是否需要自动重连，并使用指数退避策略调度重连
+     * @param closeCode WebSocket关闭代码（null表示异常断开）
+     */
+    private fun scheduleReconnectIfNeeded(closeCode: Int?) {
+        val token = currentToken ?: return
+
+        // 正常关闭不重连
+        if (closeCode == NORMAL_CLOSURE_STATUS) {
+            Log.i(TAG, "Normal closure, not reconnecting")
+            return
+        }
+
+        if (retryCount >= maxRetryCount) {
+            Log.w(TAG, "Max retry count ($maxRetryCount) reached, giving up")
+            return
+        }
+
+        // 计算指数退避延迟：1s, 2s, 4s, 8s, 16s（最大30s）
+        val delayMs = minOf(baseRetryDelayMs * (1L shl retryCount), maxRetryDelayMs)
+        retryCount++
+
+        Log.i(TAG, "Scheduling reconnect in ${delayMs}ms (attempt $retryCount/$maxRetryCount)")
+
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch {
+            delay(delayMs)
+            Log.i(TAG, "Attempting reconnect (attempt $retryCount/$maxRetryCount)")
+            performConnect(token)
+        }
     }
 
     /**
      * 断开 WebSocket 连接
      */
     fun disconnect() {
+        reconnectJob?.cancel()
+        reconnectJob = null
+        retryCount = maxRetryCount // 阻止自动重连
         webSocket?.close(NORMAL_CLOSURE_STATUS, "User disconnected")
         webSocket = null
         _connectionState.value = ConnectionState.Disconnected

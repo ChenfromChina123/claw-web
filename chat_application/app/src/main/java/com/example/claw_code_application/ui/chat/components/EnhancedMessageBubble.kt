@@ -327,27 +327,61 @@ private fun ToolUseComponent(
 }
 
 /**
- * 流式输出光标动画
+ * 流式输出光标动画 - Manus 1.6 Lite 风格
+ * 显示三个跳动的圆点 + 闪烁光标
  */
 @Composable
 private fun StreamingCursor() {
-    val infiniteTransition = rememberInfiniteTransition(label = "cursor")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(500, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "cursor_alpha"
-    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.padding(top = 4.dp)
+    ) {
+        // 三个跳动的圆点动画
+        val infiniteTransition = rememberInfiniteTransition(label = "streaming_dots")
+        
+        repeat(3) { index ->
+            val alpha by infiniteTransition.animateFloat(
+                initialValue = 0.3f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(600, easing = LinearEasing),
+                    initialOffset = AnimationConstants.DefaultAnimationOffset + (index * 200),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "dot_${index}_alpha"
+            )
 
-    Text(
-        text = "▋",
-        color = AppColor.Primary,
-        modifier = Modifier.alpha(alpha),
-        fontSize = 14.sp
-    )
+            Box(
+                modifier = Modifier
+                    .size(5.dp)
+                    .background(
+                        color = AppColor.Primary.copy(alpha = alpha),
+                        shape = androidx.compose.foundation.shape.CircleShape
+                    )
+            )
+        }
+
+        Spacer(modifier = Modifier.width(6.dp))
+
+        // 闪烁光标
+        val cursorAlpha by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(500, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "cursor_alpha"
+        )
+
+        Text(
+            text = "▋",
+            color = AppColor.Primary,
+            modifier = Modifier.alpha(cursorAlpha),
+            fontSize = 14.sp
+        )
+    }
 }
 
 /**
