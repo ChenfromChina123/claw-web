@@ -416,6 +416,30 @@ class ChatViewModel(
     }
 
     /**
+     * 初始化新创建的会话（空白状态）
+     * 不加载历史消息，直接设置为干净的空状态
+     * @param sessionId 新会话ID
+     */
+    fun initNewSession(sessionId: String) {
+        android.util.Log.d(TAG, "initNewSession() - 初始化新会话: $sessionId")
+        currentSessionId = sessionId
+        saveSessionToLocalStore(sessionId)
+
+        _messages.clear()
+        _toolCalls.clear()
+        messageToToolCalls.clear()
+        unassociatedToolCallIds.clear()
+        pendingToolInput.clear()
+
+        _uiState.value = UiState.Success(
+            messages = emptyList(),
+            toolCalls = emptyList(),
+            executionStatus = null
+        )
+        android.util.Log.d(TAG, "新会话已初始化为空白状态")
+    }
+
+    /**
      * 加载会话历史消息
      * 同时持久化会话ID到本地存储
      * @param sessionId 会话ID

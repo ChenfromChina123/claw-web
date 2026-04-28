@@ -46,10 +46,9 @@ fun SessionListScreen(
     onSelect: (String) -> Unit,
     onCreateNew: () -> Unit,
     onDelete: (String) -> Unit,
+    onAvatarClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("全部", "Agent", "手动", "已定时", "收藏")
     var isSearchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf(TextFieldValue("")) }
 
@@ -93,13 +92,8 @@ fun SessionListScreen(
             searchQuery = searchQuery,
             onSearchQueryChange = { searchQuery = it },
             onCreateNew = onCreateNew,
+            onAvatarClick = onAvatarClick,
             surfaceColor = surfaceColor
-        )
-
-        TabRow(
-            tabs = tabs,
-            selectedTab = selectedTab,
-            onTabSelected = { selectedTab = it }
         )
 
         if (filteredData.isEmpty()) {
@@ -154,6 +148,7 @@ private fun TopAppBarWithSearch(
     searchQuery: TextFieldValue,
     onSearchQueryChange: (TextFieldValue) -> Unit,
     onCreateNew: () -> Unit,
+    onAvatarClick: () -> Unit,
     surfaceColor: androidx.compose.ui.graphics.Color
 ) {
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
@@ -176,7 +171,8 @@ private fun TopAppBarWithSearch(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(surfaceVariantColor),
+                    .background(surfaceVariantColor)
+                    .clickable(onClick = onAvatarClick),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -315,56 +311,6 @@ private fun SwipeToDismissSessionItem(
             item = item,
             isSelected = isSelected,
             onClick = onClick
-        )
-    }
-}
-
-/**
- * 标签栏
- */
-@Composable
-private fun TabRow(
-    tabs: List<String>,
-    selectedTab: Int,
-    onTabSelected: (Int) -> Unit
-) {
-    val surfaceColor = MaterialTheme.colorScheme.surface
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(surfaceColor)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        tabs.forEachIndexed { index, tab ->
-            val selected = index == selectedTab
-            TabItem(
-                text = tab,
-                selected = selected,
-                onClick = { onTabSelected(index) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun TabItem(text: String, selected: Boolean, onClick: () -> Unit) {
-    val bgColor = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceVariant
-    val textColor = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurfaceVariant
-
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(bgColor)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 6.dp)
-    ) {
-        Text(
-            text = text,
-            fontSize = 13.sp,
-            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-            color = textColor
         )
     }
 }

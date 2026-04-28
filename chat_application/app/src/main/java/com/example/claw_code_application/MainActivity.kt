@@ -183,6 +183,7 @@ private fun ChatMainScreen(
     var selectedSessionId by remember { mutableStateOf<String?>(null) }
     var showSessionList by remember { mutableStateOf(true) }
     var showExitDialog by remember { mutableStateOf(false) }
+    var isNewSession by remember { mutableStateOf(false) }
 
     val sessionUiState by sessionViewModel.uiState.collectAsStateWithLifecycle()
 
@@ -244,13 +245,16 @@ private fun ChatMainScreen(
                                 onSelect = { sessionId ->
                                     sessionViewModel.selectSession(sessionId)
                                     selectedSessionId = sessionId
+                                    isNewSession = false
                                     showSessionList = false
                                 },
                                 onCreateNew = {
                                     scope.launch {
                                         val newSessionId = sessionViewModel.createNewSession()
                                         if (newSessionId != null) {
+                                            chatViewModel.initNewSession(newSessionId)
                                             selectedSessionId = newSessionId
+                                            isNewSession = true
                                             showSessionList = false
                                         }
                                     }
@@ -308,7 +312,9 @@ private fun ChatMainScreen(
             val currentSessionId = selectedSessionId
             if (currentSessionId != null) {
                 LaunchedEffect(currentSessionId) {
-                    chatViewModel.loadSession(currentSessionId)
+                    if (!isNewSession) {
+                        chatViewModel.loadSession(currentSessionId)
+                    }
                 }
 
                 ChatScreen(
