@@ -719,12 +719,25 @@ function getErrorInfo(toolCall: ToolCall): { type: string; message: string; sugg
 }
 
 /**
- * 返回属于指定助手消息的工具调用列表
- * - 只按 messageId 精确匹配
- * - 数据一致性由后端保证
+ * 返回属于指定助手消息的工具调用列表（包含正在执行和已完成）
+ * - 精确匹配 messageId
+ * - 对于正在执行但未关联消息的工具，也包含在内（显示在最新消息下方）
  */
 function toolsForMessage(messageId: string): ToolCall[] {
-  return props.toolCalls.filter(t => t.messageId === messageId)
+  const matched = props.toolCalls.filter(t => t.messageId === messageId)
+  // 如果是最后一条助手消息，同时添加正在执行但未关联消息的工具
+  const isLastAssistant = props.messages.length > 0 &&
+    props.messages[props.messages.length - 1].id === messageId &&
+    props.messages[props.messages.length - 1].role === 'assistant'
+  if (isLastAssistant) {
+    const activeWithoutMessage = props.toolCalls.filter(t => {
+      const isActive = t.status === 'pending' || t.status === 'executing'
+      const hasNoMessage = !t.messageId || t.messageId === messageId
+      return isActive && hasNoMessage
+    })
+    return [...matched, ...activeWithoutMessage]
+  }
+  return matched
 }
 
 /**
@@ -1165,87 +1178,150 @@ async function handleInterruptExecution() {
                       @download-file="handleDownloadFile"
                     />
                     
-                    <!-- 其他工具 - 使用通用组件 -->
+                    <!-- 其他工具 - 使用通用组件（合并显示+向下展开） -->
                     <template v-else>
-                      <!-- 工具头部（可折叠） - 优化版 -->
-                      <div class="tool-call-header" @click="handleStepClick(toolCall.id)">
-                        <div class="tool-call-main">
-                          <span class="tool-call-icon">{{ getToolIcon(toolCall.toolName) }}</span>
-                          <div class="tool-call-info">
-                            <div class="tool-call-name-row">
-                              <span class="tool-call-name">{{ toolCall.toolName }}</span>
-                              <span class="tool-call-status-badge" :class="toolCall.status">
-                                <span class="status-dot"></span>
-                                {{ toolCall.status === 'pending' ? '等待' : toolCall.status === 'executing' ? '执行中' : toolCall.status === 'completed' ? '完成' : '错误' }}
-                              </span>
+                      <div 
+                        class="tool-call-card" 
+                        :class="[toolCall.status, { 'is-expanded': activeStep === toolCall.id }]"
+                      >
+                        <!-- 工具头部（可点击展开/收起） -->
+                        <div 
+                          class="tool-call-header" 
+                          @click="handleStepClick(toolCall.id)"
+                        >
+                          <div class="tool-call-main">
+                            <span class="tool-call-icon">{{ getToolIcon(toolCall.toolName) }}</span>
+                            <div class="tool-call-info">
+                              <div class="tool-call-name-row">
+                                <span class="tool-call-name">{{ toolCall.toolName }}</span>
+                                <!-- 状态徽章 - 根据状态显示不同样式 -->
+                                <span class="tool-call-status-badge" :class="toolCall.status">
+                                  <!-- 执行中：显示加载动画 -->
+                                  <template v-if="toolCall.status === 'executing' || toolCall.status === 'pending'">
+                                    <span class="status-spinner"></span>
+                                    {{ toolCall.status === 'pending' ? '等待中' : '执行中' }}
+                                  </template>
+                                  <!-- 已完成：显示完成标记 -->
+                                  <template v-else-if="toolCall.status === 'completed'">
+                                    <span class="status-dot success"></span>
+                                    完成
+                                  </template>
+                                  <!-- 错误：显示错误标记 -->
+                                  <template v-else>
+                                    <span class="status-dot error"></span>
+                                    错误
+                                  </template>
+                                </span>
+                              </div>
+                              <!-- 摘要信息 -->
+                              <div class="tool-call-summary">{{ getShortSummary(toolCall) }}</div>
                             </div>
-                            <div class="tool-call-summary">{{ getShortSummary(toolCall) }}</div>
+                          </div>
+                          
+                          <div class="tool-call-actions">
+                            <!-- 中断按钮：仅在执行中状态显示 -->
+                            <button
+                              v-if="(toolCall.status === 'executing' || toolCall.status === 'pending') && currentAgentId"
+                              type="button"
+                              class="interrupt-btn"
+                              :class="{ 'is-loading': isInterrupting }"
+                              @click.stop="handleInterruptExecution"
+                              title="中断执行"
+                            >
+                              <template v-if="!isInterrupting">
+                                <NIcon :size="14"><StopCircleOutline /></NIcon>
+                                <span>中断</span>
+                              </template>
+                              <template v-else>
+                                <NSpin size="small" />
+                                <span>中断中</span>
+                              </template>
+                            </button>
+
+                            <!-- 终端链接：仅 Shell 工具显示 -->
+                            <NTooltip v-if="isShellToolName(toolCall.toolName)" trigger="hover">
+                              <template #trigger>
+                                <button
+                                  type="button"
+                                  class="tool-call-terminal-link"
+                                  aria-label="在终端查看"
+                                  @click.stop="handleFocusTerminalClick"
+                                >
+                                  <span class="tool-call-terminal-icon">⌘</span>
+                                  <span class="tool-call-terminal-text">终端</span>
+                                </button>
+                              </template>
+                              跳转到底部终端面板并聚焦
+                            </NTooltip>
+
+                            <!-- 展开/收起图标 -->
+                            <span class="tool-call-expand-icon">
+                              <Transition name="icon-rotate" mode="out-in">
+                                <span :key="activeStep === toolCall.id">
+                                  {{ activeStep === toolCall.id ? '▼' : '▶' }}
+                                </span>
+                              </Transition>
+                            </span>
                           </div>
                         </div>
-                        <div class="tool-call-actions">
-                          <NTooltip v-if="isShellToolName(toolCall.toolName)" trigger="hover">
-                            <template #trigger>
-                              <button
-                                type="button"
-                                class="tool-call-terminal-link"
-                                aria-label="在终端查看"
-                                @click.stop="handleFocusTerminalClick"
-                              >
-                                <span class="tool-call-terminal-icon">⌘</span>
-                                <span class="tool-call-terminal-text">终端</span>
-                              </button>
-                            </template>
-                            跳转到底部终端面板并聚焦
-                          </NTooltip>
-                          <span class="tool-call-expand-icon">{{ activeStep === toolCall.id ? '▼' : '▶' }}</span>
-                        </div>
-                      </div>
 
-                      <!-- 展开内容 - 优化版 -->
-                      <Transition name="slide-toggle">
-                        <div v-if="activeStep === toolCall.id" class="tool-call-result">
-                          <!-- 输入参数展示 -->
-                          <div class="result-section" v-if="toolCall.toolInput && Object.keys(toolCall.toolInput).length > 0">
-                            <div class="result-header">
-                              <span class="result-label">输入参数</span>
-                              <span class="result-meta">{{ Object.keys(toolCall.toolInput).length }} 个参数</span>
+                        <!-- 展开内容区域 - 向下展开动画 -->
+                        <Transition name="slide-down">
+                          <div v-if="activeStep === toolCall.id" class="tool-call-result">
+                            <!-- 输入参数展示 -->
+                            <div class="result-section" v-if="toolCall.toolInput && Object.keys(toolCall.toolInput).length > 0">
+                              <div class="result-header">
+                                <span class="result-label">📥 输入参数</span>
+                                <span class="result-meta">{{ Object.keys(toolCall.toolInput).length }} 个参数</span>
+                              </div>
+                              <div class="result-content params-content">
+                                <div v-for="(value, key) in toolCall.toolInput" :key="String(key)" class="param-item">
+                                  <span class="param-key">{{ String(key) }}</span>
+                                  <span class="param-value">{{ formatParamValue(value) }}</span>
+                                </div>
+                              </div>
                             </div>
-                            <div class="result-content params-content">
-                              <div v-for="(value, key) in toolCall.toolInput" :key="String(key)" class="param-item">
-                                <span class="param-key">{{ String(key) }}</span>
-                                <span class="param-value">{{ formatParamValue(value) }}</span>
+
+                            <!-- 输出结果展示 -->
+                            <div class="result-section" v-if="toolCall.toolOutput">
+                              <div class="result-header">
+                                <span class="result-label">📤 执行结果</span>
+                                <span class="result-meta">{{ formatToolOutput(toolCall.toolOutput).length }} 字符</span>
+                              </div>
+                              <div class="result-content output-content">
+                                <pre>{{ formatToolOutput(toolCall.toolOutput) }}</pre>
+                              </div>
+                            </div>
+
+                            <!-- 执行中的占位提示 -->
+                            <div v-else-if="toolCall.status === 'executing' || toolCall.status === 'pending'" class="result-section executing-placeholder">
+                              <div class="executing-animation">
+                                <span class="executing-dots">
+                                  <span></span><span></span><span></span>
+                                </span>
+                                <span class="executing-text">正在执行...</span>
+                              </div>
+                            </div>
+
+                            <div v-else class="result-empty-wrapper">
+                              <div class="result-empty">暂无输出</div>
+                            </div>
+
+                            <!-- 错误提示 -->
+                            <div v-if="toolCall.status === 'error' && getErrorInfo(toolCall)" class="tool-call-error-alert">
+                              <div class="error-header">
+                                <span class="error-icon">⚠️</span>
+                                <span class="error-title">工具执行失败</span>
+                                <NTag size="small" type="error">{{ getErrorInfo(toolCall)?.type }}</NTag>
+                              </div>
+                              <div class="error-message">{{ getErrorInfo(toolCall)?.message }}</div>
+                              <div v-if="getErrorInfo(toolCall)?.suggestion" class="error-suggestion">
+                                💡 建议：{{ getErrorInfo(toolCall)?.suggestion }}
                               </div>
                             </div>
                           </div>
-
-                          <!-- 输出结果展示 -->
-                          <div class="result-section" v-if="toolCall.toolOutput">
-                            <div class="result-header">
-                              <span class="result-label">执行结果</span>
-                              <span class="result-meta">{{ formatToolOutput(toolCall.toolOutput).length }} 字符</span>
-                            </div>
-                            <div class="result-content" :class="{ 'has-output': toolCall.toolOutput }">
-                              <pre>{{ formatToolOutput(toolCall.toolOutput) }}</pre>
-                            </div>
-                          </div>
-                          <div v-else class="result-empty-wrapper">
-                            <div class="result-empty">暂无输出</div>
-                          </div>
-
-                          <!-- 错误提示 -->
-                          <div v-if="toolCall.status === 'error' && getErrorInfo(toolCall)" class="tool-call-error-alert">
-                            <div class="error-header">
-                              <span class="error-icon">⚠️</span>
-                              <span class="error-title">工具执行失败</span>
-                              <NTag size="small" type="error">{{ getErrorInfo(toolCall)?.type }}</NTag>
-                            </div>
-                            <div class="error-message">{{ getErrorInfo(toolCall)?.message }}</div>
-                            <div v-if="getErrorInfo(toolCall)?.suggestion" class="error-suggestion">
-                              💡 建议：{{ getErrorInfo(toolCall)?.suggestion }}
-                            </div>
-                          </div>
-                        </div>
-                      </Transition>
+                        </Transition>
+                      </div>
                     </template>
                   </div>
                 </div>
@@ -1301,47 +1377,6 @@ async function handleInterruptExecution() {
               <div class="message-content">
                 <NSpin size="small" />
               </div>
-            </div>
-          </div>
-          
-          <!-- 活动工具调用（带中断按钮） -->
-          <div v-if="activeToolCalls.length > 0" class="active-tools">
-            <div class="active-tools-header">
-              <span class="active-tools-title">🔄 正在执行工具</span>
-
-              <!-- 中断按钮：参考 claw-web 的取消机制 -->
-              <NButton
-                v-if="currentAgentId"
-                type="error"
-                size="small"
-                :loading="isInterrupting"
-                class="interrupt-button"
-                @click="handleInterruptExecution"
-              >
-                <template #icon>
-                  <NIcon><StopCircleOutline /></NIcon>
-                </template>
-                {{ isInterrupting ? '中断中...' : '中断执行' }}
-              </NButton>
-            </div>
-
-            <div v-for="tool in activeToolCalls" :key="tool.id" class="tool-call active">
-              <span class="tool-name">{{ tool.toolName }}</span>
-              <NTooltip v-if="isShellToolName(tool.toolName)" trigger="hover">
-                <template #trigger>
-                  <button
-                    type="button"
-                    class="inline-tool-terminal-link inline-tool-terminal-link--active-row"
-                    aria-label="在终端查看"
-                    @click="handleFocusTerminalClick"
-                  >
-                    <span class="inline-tool-terminal-icon" aria-hidden="true">⎘</span>
-                    终端
-                  </button>
-                </template>
-                跳转到底部终端面板并聚焦
-              </NTooltip>
-              <NSpin size="small" />
             </div>
           </div>
         </div>
@@ -4105,5 +4140,327 @@ async function handleInterruptExecution() {
   max-width: 200px;
   max-height: 200px;
   object-fit: contain;
+}
+
+/* ========== 优化后的工具调用卡片样式（合并显示+向下展开） ========== */
+
+/* 工具调用卡片容器 */
+.tool-call-card {
+  background: linear-gradient(145deg, rgba(35, 35, 45, 0.8) 0%, rgba(28, 28, 38, 0.9) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.tool-call-card:hover {
+  border-color: rgba(99, 102, 241, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.tool-call-card.is-expanded {
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+/* 不同状态的卡片边框 */
+.tool-call-card.executing {
+  border-left: 3px solid #f59e0b;
+  animation: executing-glow 2s ease-in-out infinite;
+}
+
+.tool-call-card.completed {
+  border-left: 3px solid #22c55e;
+}
+
+.tool-call-card.error {
+  border-left: 3px solid #ef4444;
+}
+
+.tool-call-card.pending {
+  border-left: 3px solid #6b7280;
+}
+
+@keyframes executing-glow {
+  0%, 100% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), 0 0 12px rgba(245, 158, 11, 0.1); }
+  50% { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 20px rgba(245, 158, 11, 0.2); }
+}
+
+/* 状态徽章增强 */
+.status-dot.success {
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+}
+
+.status-dot.error {
+  background: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
+}
+
+/* 执行中的加载动画 */
+.status-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 3px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 中断按钮 */
+.interrupt-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.08) 100%);
+  color: #fca5a5;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.interrupt-btn:hover:not(.is-loading) {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.15) 100%);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #fecaca;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+}
+
+.interrupt-btn.is-loading {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* 执行中占位提示 */
+.executing-placeholder {
+  padding: 20px 14px !important;
+  background: transparent !important;
+  border-bottom: none !important;
+}
+
+.executing-animation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #f59e0b;
+  font-size: 13px;
+}
+
+.executing-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.executing-dots span {
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+  animation: bounce-dot 1.4s ease-in-out infinite;
+}
+
+.executing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.executing-dots span:nth-child(2) { animation-delay: -0.16s; }
+.executing-dots span:nth-child(3) { animation-delay: 0s; }
+
+@keyframes bounce-dot {
+  0%, 80%, 100% { 
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+  40% { 
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.executing-text {
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+/* 输出结果内容区域 */
+.output-content pre {
+  background: rgba(15, 15, 20, 0.6) !important;
+  padding: 14px !important;
+  border-radius: 0 !important;
+  font-size: 12px !important;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace !important;
+  color: #d4d4d4 !important;
+  overflow-x: auto !important;
+  margin: 0 !important;
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  max-height: 280px !important;
+  overflow-y: auto !important;
+  line-height: 1.6 !important;
+  border-left: 2px solid rgba(34, 197, 94, 0.3) !important;
+}
+
+/* 向下展开动画 */
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.slide-down-enter-from,
+.slide-down-leave-to {
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.slide-down-enter-to,
+.slide-down-leave-from {
+  opacity: 1;
+  max-height: 500px;
+}
+
+/* 图标旋转动画 */
+.icon-rotate-enter-active,
+.icon-rotate-leave-active {
+  transition: all 0.2s ease;
+}
+
+.icon-rotate-enter-from,
+.icon-rotate-leave-to {
+  opacity: 0;
+  transform: rotate(-90deg);
+}
+
+.icon-rotate-enter-to,
+.icon-rotate-leave-from {
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
+/* ========== 手机端响应式优化 ========== */
+@media (max-width: 768px) {
+  .tool-calls-wrapper {
+    margin-left: 40px !important;
+    margin-top: 4px !important;
+  }
+
+  .tool-calls-container {
+    max-width: 100% !important;
+  }
+
+  .tool-call-card {
+    border-radius: 8px !important;
+  }
+
+  .tool-call-header {
+    padding: 8px 10px !important;
+    gap: 8px !important;
+  }
+
+  .tool-call-icon {
+    font-size: 14px !important;
+  }
+
+  .tool-call-name {
+    font-size: 12px !important;
+  }
+
+  .tool-call-status-badge {
+    font-size: 10px !important;
+    padding: 2px 8px !important;
+  }
+
+  .tool-call-summary {
+    font-size: 10.5px !important;
+    max-width: 200px !important;
+  }
+
+  .tool-call-actions {
+    gap: 6px !important;
+  }
+
+  .interrupt-btn {
+    padding: 3px 8px !important;
+    font-size: 10px !important;
+  }
+
+  .tool-call-terminal-link {
+    padding: 3px 8px !important;
+    font-size: 10px !important;
+  }
+
+  .tool-call-expand-icon {
+    width: 16px !important;
+    height: 16px !important;
+    font-size: 9px !important;
+  }
+
+  .tool-call-result {
+    max-height: 300px !important;
+  }
+
+  .result-header {
+    padding: 8px 10px !important;
+  }
+
+  .result-label {
+    font-size: 10px !important;
+  }
+
+  .result-meta {
+    font-size: 9px !important;
+  }
+
+  .result-content {
+    padding: 10px !important;
+  }
+
+  .result-content pre {
+    font-size: 11px !important;
+    max-height: 200px !important;
+    padding: 10px !important;
+  }
+
+  .params-content {
+    padding: 6px 10px 10px !important;
+  }
+
+  .param-item {
+    font-size: 10.5px !important;
+  }
+
+  .param-key {
+    min-width: 60px !important;
+    font-size: 10.5px !important;
+  }
+
+  .param-value {
+    font-size: 10.5px !important;
+  }
+
+  .tool-call-error-alert {
+    margin: 10px 10px !important;
+    padding: 10px !important;
+  }
+
+  .executing-placeholder {
+    padding: 16px 10px !important;
+  }
+
+  .executing-text {
+    font-size: 12px !important;
+  }
 }
 </style>
