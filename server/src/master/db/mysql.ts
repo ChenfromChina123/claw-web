@@ -404,13 +404,19 @@ export async function initDatabase(): Promise<void> {
 
     // 添加 sequence 字段到 messages 表（用于确保消息顺序）
     await tempPool.query(`
-      ALTER TABLE messages 
+      ALTER TABLE messages
       ADD COLUMN sequence INT DEFAULT 0
     `).catch(() => {})
 
     // 创建 sequence 字段索引
     await tempPool.query(`
       CREATE INDEX idx_messages_sequence ON messages(session_id, sequence)
+    `).catch(() => {})
+
+    // 添加 attachments 字段到 messages 表（支持图片附件元数据）
+    await tempPool.query(`
+      ALTER TABLE messages
+      ADD COLUMN attachments JSON
     `).catch(() => {})
 
     // 添加 error 字段到 tool_calls 表（如果不存在）

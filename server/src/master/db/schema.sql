@@ -50,9 +50,11 @@ CREATE TABLE IF NOT EXISTS messages (
   role ENUM('user', 'assistant', 'system') NOT NULL,
   content JSON NOT NULL,
   attachments JSON,
+  sequence INT DEFAULT 0 COMMENT '消息序号，用于确保消息顺序',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
-  INDEX idx_messages_session_id (session_id)
+  INDEX idx_messages_session_id (session_id),
+  INDEX idx_messages_sequence (session_id, sequence)
 );
 
 -- 工具调用表
