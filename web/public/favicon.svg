@@ -1,34 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <defs>
-    <radialGradient id="g" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" style="stop-color:#FFF8DC;stop-opacity:0.4" />
-      <stop offset="50%" style="stop-color:#FFD700;stop-opacity:0.1" />
-      <stop offset="100%" style="stop-color:#6366F1;stop-opacity:0" />
-    </radialGradient>
-  </defs>
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="body_1" width="1254" height="1254">
 
-  <rect width="100" height="100" rx="22" fill="#0F0F1A"/>
-  <circle cx="50" cy="46" r="36" fill="url(#g)"/>
-
-  <!-- 4条主光芒 -->
-  <rect x="48" y="8" width="4" height="20" rx="2" fill="#FFD700" opacity="0.9"/>
-  <rect x="48" y="64" width="4" height="20" rx="2" fill="#A855F7" opacity="0.75"/>
-  <rect x="8" y="44" width="20" height="4" rx="2" fill="#6366F1" opacity="0.8"/>
-  <rect x="72" y="44" width="20" height="4" rx="2" fill="#FF8C42" opacity="0.85"/>
-
-  <!-- 4条对角光芒 -->
-  <rect x="18" y="22" width="3" height="14" rx="1.5" fill="#818CF8" opacity="0.7" transform="rotate(45 19.5 29)"/>
-  <rect x="79" y="22" width="3" height="14" rx="1.5" fill="#FFB347" opacity="0.7" transform="rotate(-45 80.5 29)"/>
-  <rect x="18" y="64" width="3" height="14" rx="1.5" fill="#818CF8" opacity="0.6" transform="rotate(-45 19.5 71)"/>
-  <rect x="79" y="64" width="3" height="14" rx="1.5" fill="#C084FC" opacity="0.6" transform="rotate(45 80.5 71)"/>
-
-  <!-- 四叶星光 -->
-  <path d="M50,26c5,5 5,14 0,20c-5,-6 -5,-15 0,-20z" fill="#FFD700" opacity="0.95"/>
-  <path d="M68,44c-5,5 -14,5 -20,0c6,-5 15,-5 20,0z" fill="#FF8C42" opacity="0.9"/>
-  <path d="M50,62c-5,-5 -5,-14 0,-20c5,6 5,15 0,20z" fill="#A855F7" opacity="0.85"/>
-  <path d="M32,44c5,-5 14,-5 20,0c-6,5 -15,5 -20,0z" fill="#6366F1" opacity="0.9"/>
-
-  <!-- 中心白光 -->
-  <circle cx="50" cy="44" r="6" fill="white" opacity="0.9"/>
-  <circle cx="50" cy="44" r="3" fill="white"/>
+<g transform="matrix(1.3333334 0 0 1.3333334 0 0)">
+	<image  x="0" y="0" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABOYAAATmCAYAAACF/K4qAAAACXBIWXMAAA7DAAAOwwHHb6hkAAB//0lEQVR4nNx965rkqK7svP8rd9XeZ6rSYElEhELOnDVrnx983WVj0CUUgAzOv/58f/3v1/f3/359ff3vnz+rvP7O5efadf3vZ77//venfP1d/+vPn7+f+bPrfl9tfh/levbn/1e9n//ffdxtrJLaXdd/+lz/v9pMJdx79XGX1c9Pu0vfs8+ib5Xj0uXWwdPl7jfc2zLf937v/8n67OtFx/TM5actX5DrvhZ8sdpYsh5149/KFpc/f/qOBTyb9FY2qXYM9dc1pMv3nxub1fesVJxDnQ85it223tf/C+a/VP/x/pId2IvJnbGcbR3xffjz0P3sK8ZVxszpy5s/bh/d3LG44lWQf2j8Fn1wHzUWFkaW3Lw+jxvWb8F+xHKKpVOfw7aB2zJuM4YQjqovcMwHnVb7lw+SDUGsH20l2VA8xrpXfcLVN19+/8p/4jT7KY8tUV5W78I3ssUVozcec/tHSbx2YrfqtPUqujOfLh2Odg/s3WXHVeTWGFsXnn/vH5x48vniEGiHik/7PpoD4DGyYi3FzZIL8VCSufQTMJBL7uMnZitvvO6d45bGZsTjD66/E29kjj7Hrhojb5eD02+8wHgDXHXycbAb4WAWS3gcqRzEx552HIc6Z9lQQdyiy8uOrpx1PN44SGNhiY16n8lXYwRhCNmE8ffFcbv/FKN8fIzjWB2XDm5MMfhNxk4+51zx8xNfNZbw+Bd8ReIZjQtbnlX3Z110cLru68BXiZt73txwK/ubxAsqceyWMbTr43nwT7nH+DImrpiu2C0yaznx+JTG9hJPiMvQOEp5/Ffml9yTNUSew73sUWOQj72cfzJWMW/tguacgocUR3cYg7GP/Fri7O7rXleneQyUjazBki0RvtnaC88/alvIvxHfdR58lpOLpM5wHnT6MdvonHO/2jzXPiiWzrlSxGtew8d50mn/3Dbm32obMe8p1+D8sWAPjXeUS8OcX62bz3Gv+GvlaBZfXH7Nfeo570v+NZf4n//9n/+5yt///+t3URQGuK/fpFwY8OK9OAiue3sAjwFYEjShHZS4OYMYTIhBeykBApJBqV/UV0rAYV0xweAFB9bl7uO1AK1JqDBZvgq6x66h5OKxOCk6LttA3ZidG1vc+Dn1hjYpA+Zhk6M+xsnhf4SvDf7bHtkOse0Om7hkGxGbF1m6kurWGIJY/urjttoK9Y3itfqZFYDFxC1/Tk74MuTZMXTgPfuvu8/4hcV1p1scdFuOUPxF9GU4Yr6QcRrtzjjjiHngIxLXNy4B11f8ET27ccHj3GyjhDNkhy65E/GLdBE2Q7EH7aNw5xYQXzDWqt1WsqBwVyuH4q8DI7jfis/KzZTToY1fE6MXFlfh7UTM7JdhAcsTbDLZYgIGzTcoRyj+EDaX9wVnpLjsxiUS+4xzIL+z+mh8CvhlMdbzqTGGK56Gbd8T/mrLGBsZD6+SZQdY/YnjGsudfF3sfBm82c3rA074+MPHjaRnxwdQxhBDYQMBxgUeDxD2q6wpZn8XXsAfCY9o7oXkxvPGY6ztYhzK0GOD+0X3oea8kFO37c72af9Gn924ZHMe4oadTKw6Gbwp4gzHDR8/RrxV5rpKHjpPQjohHga6MH5O9jf8ofgY2guMV7ktPMbidWToS41Zh28KnhhGCH5OH2q7UzsoTMlY0uv9NvYVRxc/V/8cdkW2PvrX9eh85eqb6xN5+3Ut5mHgmBm5Ao4NQd7w3Fqb7vt/J+G+vv7n99+/q73+/boSc19DAsggJMSZJi1lYCLZxPxWrDq6Tl7u63eSJ5NAqxMpaBcdCoY0QTscgHf/SR1J0EzlV8SuJ2YlYJwA3XVPnIxKmAimADHtRQdHhqX6piG8DXUI7Xhz2pHYc[... 1345206 chars omitted ...]
+</g>
 </svg>

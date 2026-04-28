@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { NLayout, NLayoutContent, NSpin, NButton, NEmpty, useMessage, NIcon } from 'naive-ui'
+import { NLayout, NLayoutContent, NSpin, NButton, NEmpty, useMessage, NIcon, NAvatar } from 'naive-ui'
 import { ChatbubblesOutline, ListOutline, SearchOutline } from '@vicons/ionicons5'
 import ChatSidebar from '@/components/ChatSidebar.vue'
 import ChatMessageList from '@/components/ChatMessageList.vue'
@@ -10,6 +10,7 @@ import CommandPalette from '@/components/CommandPalette.vue'
 import GlassPanel from '@/components/common/GlassPanel.vue'
 import AgentStatusPanel from '@/components/AgentStatusPanel.vue'
 import AgentActivitySidebar from '@/components/AgentActivitySidebar.vue'
+import UserProfileSidebar from '@/components/UserProfileSidebar.vue'
 import IdeSessionsPanel from '@/views/IdeSessionsPanel.vue'
 import SessionSwitcher from '@/components/SessionSwitcher.vue'
 import MessageSearch from '@/components/MessageSearch.vue'
@@ -71,6 +72,11 @@ const showAgentPanel = ref(false)
  * 是否显示 Agent 活动侧边栏（新）
  */
 const showAgentActivitySidebar = ref(false)
+
+/**
+ * 是否显示用户个人主页侧边栏
+ */
+const showUserProfileSidebar = ref(false)
 
 /**
  * 显示导出/分享弹窗
@@ -656,6 +662,22 @@ function handleQuickNavNavigate(messageId: string) {
     }, 2000)
   }
 }
+
+/**
+ * 处理退出登录
+ */
+function handleLogout() {
+  authStore.logout()
+  message.success('已退出登录')
+  router.push('/login')
+}
+
+/**
+ * 打开设置页面
+ */
+function handleOpenSettings() {
+  router.push('/settings')
+}
 </script>
 
 <template>
@@ -671,7 +693,29 @@ function handleQuickNavNavigate(messageId: string) {
     >
       <!-- 顶部视图切换 + Agent 活动侧边栏切换 -->
       <div class="top-bar">
-        <!-- 视图切换标签 -->
+        <!-- 左侧：用户头像按钮 -->
+        <button
+          type="button"
+          class="user-avatar-btn"
+          @click="showUserProfileSidebar = true"
+          title="个人中心"
+        >
+          <NAvatar
+            v-if="authStore.user?.avatar"
+            :src="authStore.user.avatar"
+            :size="32"
+            round
+          />
+          <NAvatar
+            v-else
+            :size="32"
+            round
+          >
+            {{ authStore.user?.username?.charAt(0).toUpperCase() || 'U' }}
+          </NAvatar>
+        </button>
+
+        <!-- 中间：视图切换标签 -->
         <div class="view-tabs">
           <button
             type="button"
@@ -832,6 +876,14 @@ function handleQuickNavNavigate(messageId: string) {
       @agent-click="(agentId) => console.log('Agent clicked:', agentId)"
     />
     
+    <!-- 用户个人主页侧边栏 -->
+    <UserProfileSidebar
+      v-model:show="showUserProfileSidebar"
+      default-tab="profile"
+      @logout="handleLogout"
+      @open-settings="handleOpenSettings"
+    />
+    
     <!-- 会话切换器 -->
     <SessionSwitcher
       :show="showSessionSwitcher"
@@ -954,6 +1006,37 @@ function handleQuickNavNavigate(messageId: string) {
   position: relative;
   z-index: 10;
   flex-shrink: 0;
+  gap: 16px;
+}
+
+/* 用户头像按钮 */
+.user-avatar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  background: transparent;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.user-avatar-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 2px 12px rgba(102, 126, 234, 0.4);
+}
+
+.user-avatar-btn :deep(.n-avatar) {
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  transition: border-color 0.2s ease;
+}
+
+.user-avatar-btn:hover :deep(.n-avatar) {
+  border-color: rgba(102, 126, 234, 0.6);
 }
 
 .top-bar-actions {

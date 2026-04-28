@@ -1265,9 +1265,9 @@ async function handleInterruptExecution() {
                           </div>
                         </div>
 
-                        <!-- 展开内容区域 - 向下展开动画 -->
-                        <Transition name="slide-down">
-                          <div v-if="activeStep === toolCall.id" class="tool-call-result">
+                        <!-- 展开内容区域 - 向下展开动画（使用 grid-template-rows 实现） -->
+                        <div v-if="activeStep === toolCall.id" class="tool-call-result-wrapper">
+                          <div class="tool-call-result">
                             <!-- 输入参数展示 -->
                             <div class="result-section" v-if="toolCall.toolInput && Object.keys(toolCall.toolInput).length > 0">
                               <div class="result-header">
@@ -1320,7 +1320,7 @@ async function handleInterruptExecution() {
                               </div>
                             </div>
                           </div>
-                        </Transition>
+                        </div>
                       </div>
                     </template>
                   </div>
@@ -3850,14 +3850,34 @@ async function handleInterruptExecution() {
   font-size: 11px;
 }
 
-/* 工具调用结果区域 - 优化版 */
+/* 工具调用结果区域 - 优化版 - 带最大高度和滚动 */
 .tool-call-result {
-  padding: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   font-size: 12px;
-  max-height: 350px;
+  /* 固定最大高度，超过变成滚动区域 */
+  max-height: 400px;
   overflow-y: auto;
   background: rgba(0, 0, 0, 0.2);
+  /* 自定义滚动条样式 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
+}
+
+.tool-call-result::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tool-call-result::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tool-call-result::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 3px;
+}
+
+.tool-call-result::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.5);
 }
 
 .result-header {
@@ -4144,7 +4164,7 @@ async function handleInterruptExecution() {
 
 /* ========== 优化后的工具调用卡片样式（合并显示+向下展开） ========== */
 
-/* 工具调用卡片容器 */
+/* 工具调用卡片容器 - 使用 grid 实现展开动画 */
 .tool-call-card {
   background: linear-gradient(145deg, rgba(35, 35, 45, 0.8) 0%, rgba(28, 28, 38, 0.9) 100%);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -4152,6 +4172,12 @@ async function handleInterruptExecution() {
   overflow: hidden;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  /* Grid 结构用于展开动画 */
+  display: grid;
+  grid-template-rows: auto 0fr;
+  transition: grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.25s ease,
+              border-color 0.25s ease;
 }
 
 .tool-call-card:hover {
@@ -4160,7 +4186,18 @@ async function handleInterruptExecution() {
 }
 
 .tool-call-card.is-expanded {
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 6px 24px rgba(99, 102, 241, 0.15), 0 2px 8px rgba(0, 0, 0, 0.3);
+  /* 展开时设置最大高度 */
+  grid-template-rows: auto 1fr;
+}
+
+/* 展开内容的包装器 - 使用 min-content 实现平滑动画 */
+.tool-call-result-wrapper {
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 不同状态的卡片边框 */
@@ -4310,26 +4347,7 @@ async function handleInterruptExecution() {
   border-left: 2px solid rgba(34, 197, 94, 0.3) !important;
 }
 
-/* 向下展开动画 */
-.slide-down-enter-active,
-.slide-down-leave-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
-}
-
-.slide-down-enter-from,
-.slide-down-leave-to {
-  opacity: 0;
-  max-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.slide-down-enter-to,
-.slide-down-leave-from {
-  opacity: 1;
-  max-height: 500px;
-}
+/* ========== 过渡动画 ========== */
 
 /* 图标旋转动画 */
 .icon-rotate-enter-active,

@@ -1,0 +1,105 @@
+useWebSocket.ts:395 [WS] Raw message received: {type: 'ping', timestamp: 1777128341115}
+useWebSocket.ts:395 [WS] Raw message received: {type: 'session_loaded', session: {…}, messages: Array(4), toolCalls: Array(0)}
+useWebSocket.ts:450 [WS] Session loaded: 5b0941e3-b166-460d-8cd3-6cdf2b207bfe messages: 4
+chat.ts:102 [ChatStore] 会话加载完成，sessionId: 5b0941e3-b166-460d-8cd3-6cdf2b207bfe messages: 4 toolCalls: 0
+useWebSocket.ts:456 [WS] Session loaded event emitted
+ChatMessageList.vue:816 [ChatMessageList] shouldShowMessage: {messageId: 'c71678c0-5618-4621-af43-3e42d930e839', hasContent: true, hasTools: false, isLastMessage: false, isLoading: false, …}
+ChatMessageList.vue:816 [ChatMessageList] shouldShowMessage: {messageId: '3140de4e-0250-41b9-a9e2-66bf24947262', hasContent: true, hasTools: false, isLastMessage: true, isLoading: false, …}
+AgentAvatar.vue:74 [AgentAvatar] 清理 Rive 实例时出错: BindingError: Expected null or instance of Animation, got an instance of Animation
+    at bd (@rive-app_canvas.js?v=caea9e8d:2077:31)
+    at xd (@rive-app_canvas.js?v=caea9e8d:2270:28)
+    at Proxy.get (@rive-app_canvas.js?v=caea9e8d:3057:35)
+    at Reflect.get (<anonymous>)
+    at MutableReactiveHandler.get (chunk-4VAHRDA3.js?v=caea9e8d:1240:25)
+    at Proxy.get (@rive-app_canvas.js?v=caea9e8d:4941:46)
+    at Reflect.get (<anonymous>)
+    at MutableReactiveHandler.get (chunk-4VAHRDA3.js?v=caea9e8d:1240:25)
+    at @rive-app_canvas.js?v=caea9e8d:5189:32
+    at wrappedFn (chunk-4VAHRDA3.js?v=caea9e8d:1145:19)
+（匿名） @ AgentAvatar.vue:74
+（匿名） @ chunk-4VAHRDA3.js?v=caea9e8d:5263
+callWithErrorHandling @ chunk-4VAHRDA3.js?v=caea9e8d:2351
+callWithAsyncErrorHandling @ chunk-4VAHRDA3.js?v=caea9e8d:2358
+hook.__weh.hook.__weh @ chunk-4VAHRDA3.js?v=caea9e8d:5243
+flushPostFlushCbs @ chunk-4VAHRDA3.js?v=caea9e8d:2536
+flushJobs @ chunk-4VAHRDA3.js?v=caea9e8d:2578
+Promise.then
+queueFlush @ chunk-4VAHRDA3.js?v=caea9e8d:2473
+queueJob @ chunk-4VAHRDA3.js?v=caea9e8d:2468
+effect2.scheduler @ chunk-4VAHRDA3.js?v=caea9e8d:8417
+trigger @ chunk-4VAHRDA3.js?v=caea9e8d:535
+endBatch @ chunk-4VAHRDA3.js?v=caea9e8d:593
+notify @ chunk-4VAHRDA3.js?v=caea9e8d:855
+trigger @ chunk-4VAHRDA3.js?v=caea9e8d:829
+set value @ chunk-4VAHRDA3.js?v=caea9e8d:1743
+（匿名） @ chat.ts:109
+（匿名） @ useWebSocket.ts:581
+emitEvent @ useWebSocket.ts:579
+handleMessage @ useWebSocket.ts:451
+（匿名） @ useWebSocket.ts:130
+chat.ts:488 [ChatStore] createSession called: {force: true, pendingEmptySessionId: null, messagesLength: 4, callStack: Array(4)}
+chat.ts:507 [ChatStore] createSession: 开始创建新会话...
+useWebSocket.ts:395 [WS] Raw message received: {type: 'session_created', session: {…}}
+useWebSocket.ts:439 [WS] Session created: {id: '9e3a1230-5b07-4be1-bdc3-7cd7dcce4299', userId: 'e3b0b583-b8f3-4a9e-b6ab-2b3bf9ff21d0', title: '新对话', model: 'qwen-plus', isPinned: 0, …}
+chat.ts:541 [ChatStore] createSession: 收到 session_created 事件: {"id":"9e3a1230-5b07-4be1-bdc3-7cd7dcce4299","userId":"e3b0b583-b8f3-4a9e-b6ab-2b3bf9ff21d0","title":"新对话","model":"qwen-plus","isPinned":0,"createdAt":"2026-04-25T14:45:43.000Z","updatedAt":"2026-04-25T14:45:43.000Z"}
+chat.ts:547 [ChatStore] createSession: session_created 事件没有 session.id!
+（匿名） @ chat.ts:547
+（匿名） @ useWebSocket.ts:581
+emitEvent @ useWebSocket.ts:579
+handleMessage @ useWebSocket.ts:440
+（匿名） @ useWebSocket.ts:130
+useWebSocket.ts:441 [WS] Session created event emitted
+AgentAvatar.vue:21 [AgentAvatar] 开始加载 Rive 动画...
+AgentAvatar.vue:34 [AgentAvatar] Rive 加载成功
+useWebSocket.ts:395 [WS] Raw message received: {type: 'session_loaded', session: {…}, messages: Array(4), toolCalls: Array(0)}
+useWebSocket.ts:450 [WS] Session loaded: 5b0941e3-b166-460d-8cd3-6cdf2b207bfe messages: 4
+chat.ts:102 [ChatStore] 会话加载完成，sessionId: 5b0941e3-b166-460d-8cd3-6cdf2b207bfe messages: 4 toolCalls: 0
+useWebSocket.ts:456 [WS] Session loaded event emitted
+ChatMessageList.vue:816 [ChatMessageList] shouldShowMessage: {messageId: 'c71678c0-5618-4621-af43-3e42d930e839', hasContent: true, hasTools: false, isLastMessage: false, isLoading: false, …}
+ChatMessageList.vue:816 [ChatMessageList] shouldShowMessage: {messageId: '3140de4e-0250-41b9-a9e2-66bf24947262', hasContent: true, hasTools: false, isLastMessage: true, isLoading: false, …}
+AgentAvatar.vue:74 [AgentAvatar] 清理 Rive 实例时出错: BindingError: Expected null or instance of Animation, got an instance of Animation
+    at bd (@rive-app_canvas.js?v=caea9e8d:2077:31)
+    at xd (@rive-app_canvas.js?v=caea9e8d:2270:28)
+    at Proxy.get (@rive-app_canvas.js?v=caea9e8d:3057:35)
+    at Reflect.get (<anonymous>)
+    at MutableReactiveHandler.get (chunk-4VAHRDA3.js?v=caea9e8d:1240:25)
+    at Proxy.get (@rive-app_canvas.js?v=caea9e8d:4941:46)
+    at Reflect.get (<anonymous>)
+    at MutableReactiveHandler.get (chunk-4VAHRDA3.js?v=caea9e8d:1240:25)
+    at @rive-app_canvas.js?v=caea9e8d:5189:32
+    at wrappedFn (chunk-4VAHRDA3.js?v=caea9e8d:1145:19)
+（匿名） @ AgentAvatar.vue:74
+（匿名） @ chunk-4VAHRDA3.js?v=caea9e8d:5263
+callWithErrorHandling @ chunk-4VAHRDA3.js?v=caea9e8d:2351
+callWithAsyncErrorHandling @ chunk-4VAHRDA3.js?v=caea9e8d:2358
+hook.__weh.hook.__weh @ chunk-4VAHRDA3.js?v=caea9e8d:5243
+flushPostFlushCbs @ chunk-4VAHRDA3.js?v=caea9e8d:2536
+flushJobs @ chunk-4VAHRDA3.js?v=caea9e8d:2578
+Promise.then
+queueFlush @ chunk-4VAHRDA3.js?v=caea9e8d:2473
+queueJob @ chunk-4VAHRDA3.js?v=caea9e8d:2468
+effect2.scheduler @ chunk-4VAHRDA3.js?v=caea9e8d:8417
+trigger @ chunk-4VAHRDA3.js?v=caea9e8d:535
+endBatch @ chunk-4VAHRDA3.js?v=caea9e8d:593
+notify @ chunk-4VAHRDA3.js?v=caea9e8d:855
+trigger @ chunk-4VAHRDA3.js?v=caea9e8d:829
+set value @ chunk-4VAHRDA3.js?v=caea9e8d:1743
+（匿名） @ chat.ts:109
+（匿名） @ useWebSocket.ts:581
+emitEvent @ useWebSocket.ts:579
+handleMessage @ useWebSocket.ts:451
+（匿名） @ useWebSocket.ts:130
+chat.ts:488 [ChatStore] createSession called: {force: true, pendingEmptySessionId: null, messagesLength: 4, callStack: Array(4)}
+chat.ts:507 [ChatStore] createSession: 开始创建新会话...
+useWebSocket.ts:395 [WS] Raw message received: {type: 'session_created', session: {…}}
+useWebSocket.ts:439 [WS] Session created: {id: '1fffbe72-3f78-4b16-8c30-aa32772567a7', userId: 'e3b0b583-b8f3-4a9e-b6ab-2b3bf9ff21d0', title: '新对话', model: 'qwen-plus', isPinned: 0, …}
+chat.ts:541 [ChatStore] createSession: 收到 session_created 事件: {"id":"1fffbe72-3f78-4b16-8c30-aa32772567a7","userId":"e3b0b583-b8f3-4a9e-b6ab-2b3bf9ff21d0","title":"新对话","model":"qwen-plus","isPinned":0,"createdAt":"2026-04-25T14:45:52.000Z","updatedAt":"2026-04-25T14:45:52.000Z"}
+chat.ts:547 [ChatStore] createSession: session_created 事件没有 session.id!
+（匿名） @ chat.ts:547
+（匿名） @ useWebSocket.ts:581
+emitEvent @ useWebSocket.ts:579
+handleMessage @ useWebSocket.ts:440
+（匿名） @ useWebSocket.ts:130
+useWebSocket.ts:441 [WS] Session created event emitted
+AgentAvatar.vue:21 [AgentAvatar] 开始加载 Rive 动画...
+AgentAvatar.vue:34 [AgentAvatar] Rive 加载成功

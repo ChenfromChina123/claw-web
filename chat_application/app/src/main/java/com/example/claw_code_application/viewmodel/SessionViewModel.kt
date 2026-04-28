@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.claw_code_application.data.api.models.Session
 import com.example.claw_code_application.data.local.TokenManager
+import com.example.claw_code_application.data.repository.CachedChatRepository
 import com.example.claw_code_application.data.repository.ChatRepository
 import com.example.claw_code_application.util.Logger
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,9 +17,10 @@ import kotlinx.coroutines.launch
 /**
  * 会话列表ViewModel
  * 管理会话的获取、创建、删除等操作
+ * 支持本地缓存，实现离线优先策略
  */
 class SessionViewModel(
-    private val chatRepository: ChatRepository,
+    private val chatRepository: CachedChatRepository,
     private val tokenManager: TokenManager
 ) : ViewModel() {
 
@@ -48,30 +50,35 @@ class SessionViewModel(
 
     /**
      * 加载会话列表
+     * 使用缓存优先策略：先显示本地缓存，后台更新网络数据
      */
-    fun loadSessions() {
-        Logger.d(TAG, "开始加载会话列表...")
+    fun loadSessions(forceRefresh: Boolean = false) {
+        Logger.d(TAG, "开始加载会话列表... forceRefresh=$forceRefresh")
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             Logger.d(TAG, "UI状态: Loading")
 
-            val result = chatRepository.getSessions()
-            result.fold(
-                onSuccess = { sessionList ->
-                    val list = sessionList ?: emptyList()
-                    Logger.i(TAG, "加载会话成功: 共 ${list.size} 个会话")
-                    _sessions.clear()
-                    _sessions.addAll(list)
-                    _uiState.value = UiState.Success(_sessions.toList())
-                    Logger.d(TAG, "UI状态: Success, 会话数: ${_sessions.size}")
-                },
-                onFailure = { e ->
-                    val errorMsg = e.message ?: "加载会话失败"
-                    Logger.e(TAG, "加载会话失败: $errorMsg", e)
-                    _uiState.value = UiState.Error(errorMsg)
-                    Logger.d(TAG, "UI状态: Error - $errorMsg")
+            chatRepository.getSessions(forceRefresh).collect { result ->
+                when (result) {
+                    is CachedChatRepository.Result.Loading -> {
+                        // 保持 Loading 状态
+                    }
+                    is CachedChatRepository.Result.Success -> {
+                        val list = result.data
+                        Logger.i(TAG, "加载会话成功: 共 ${list.size} 个会话")
+                        _sessions.clear()
+                        _sessions.addAll(list)
+                        _uiState.value = UiState.Success(_sessions.toList())
+                        Logger.d(TAG, "UI状态: Success, 会话数: ${_sessions.size}")
+                    }
+                    is CachedChatRepository.Result.Error -> {
+                        val errorMsg = result.message
+                        Logger.e(TAG, "加载会话失败: $errorMsg", result.exception)
+                        _uiState.value = UiState.Error(errorMsg)
+                        Logger.d(TAG, "UI状态: Error - $errorMsg")
+                    }
                 }
-            )
+            }
         }
     }
 
@@ -82,22 +89,23 @@ class SessionViewModel(
     suspend fun createNewSession(): String? {
         Logger.d(TAG, "开始创建新会话...")
         return try {
-            val result = chatRepository.createSession()
-            result.fold(
-                onSuccess = { newSession ->
+            val result = chatRepository.createSession(null, "qwen-plus")
+            when (result) {
+                is CachedChatRepository.Result.Success -> {
+                    val newSession = result.data
                     Logger.i(TAG, "创建会话成功: id=${newSession.id}")
-                    // 添加到列表头部
                     _sessions.add(0, newSession)
                     selectedSessionId = newSession.id
                     _uiState.value = UiState.Success(_sessions.toList())
                     Logger.d(TAG, "当前选中会话: $selectedSessionId")
                     newSession.id
-                },
-                onFailure = { e ->
-                    Logger.e(TAG, "创建会话失败: ${e.message}", e)
+                }
+                is CachedChatRepository.Result.Error -> {
+                    Logger.e(TAG, "创建会话失败: ${result.message}")
                     null
                 }
-            )
+                is CachedChatRepository.Result.Loading -> null
+            }
         } catch (e: Exception) {
             Logger.e(TAG, "创建会话异常", e)
             null
@@ -121,13 +129,11 @@ class SessionViewModel(
         Logger.d(TAG, "开始删除会话: $sessionId")
         viewModelScope.launch {
             val result = chatRepository.deleteSession(sessionId)
-            result.fold(
-                onSuccess = {
+            when (result) {
+                is CachedChatRepository.Result.Success -> {
                     Logger.i(TAG, "删除会话成功: $sessionId")
-                    // 从列表中移除
                     _sessions.removeAll { it.id == sessionId }
 
-                    // 如果删除的是当前选中会话，清空选择
                     if (selectedSessionId == sessionId) {
                         Logger.d(TAG, "删除的是当前选中会话，清空选择")
                         selectedSessionId = null
@@ -135,13 +141,16 @@ class SessionViewModel(
 
                     _uiState.value = UiState.Success(_sessions.toList())
                     Logger.d(TAG, "删除后会话数: ${_sessions.size}")
-                },
-                onFailure = { e ->
-                    val errorMsg = e.message ?: "删除会话失败"
-                    Logger.e(TAG, "删除会话失败: $errorMsg", e)
+                }
+                is CachedChatRepository.Result.Error -> {
+                    val errorMsg = result.message
+                    Logger.e(TAG, "删除会话失败: $errorMsg")
                     _uiState.value = UiState.Error(errorMsg)
                 }
-            )
+                is CachedChatRepository.Result.Loading -> {
+                    // 忽略
+                }
+            }
         }
     }
 
@@ -159,5 +168,26 @@ class SessionViewModel(
     fun clearSelection() {
         Logger.d(TAG, "清空会话选择")
         selectedSessionId = null
+    }
+
+    companion object {
+        private const val TAG = "SessionViewModel"
+
+        /**
+         * 提供ViewModel工厂方法
+         * @param cachedChatRepository 带缓存的聊天仓库
+         * @param tokenManager Token管理器
+         */
+        fun provideFactory(
+            cachedChatRepository: CachedChatRepository,
+            tokenManager: com.example.claw_code_application.data.local.TokenManager
+        ): ViewModelProvider.Factory {
+            return object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                    return SessionViewModel(cachedChatRepository, tokenManager) as T
+                }
+            }
+        }
     }
 }

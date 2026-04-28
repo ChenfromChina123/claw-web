@@ -167,7 +167,7 @@ private fun ChatMainScreen(
 ) {
     val sessionViewModel: SessionViewModel = viewModel {
         SessionViewModel(
-            chatRepository = ClawCodeApplication.chatRepository,
+            cachedChatRepository = ClawCodeApplication.cachedChatRepository,
             tokenManager = ClawCodeApplication.tokenManager
         )
     }

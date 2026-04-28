@@ -5,8 +5,10 @@ import com.example.claw_code_application.data.api.ApiService
 import com.example.claw_code_application.data.api.AuthInterceptor
 import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.local.SessionLocalStore
+import com.example.claw_code_application.data.local.db.AppDatabase
 import com.example.claw_code_application.data.repository.AuthRepository
 import com.example.claw_code_application.data.repository.ChatRepository
+import com.example.claw_code_application.data.repository.CachedChatRepository
 import com.example.claw_code_application.data.websocket.WebSocketManager
 import com.example.claw_code_application.util.Constants
 import com.example.claw_code_application.util.NetworkConfig
@@ -57,6 +59,14 @@ class ClawCodeApplication : Application() {
 
         /** 全局WebSocket管理器 */
         val webSocketManager = WebSocketManager()
+
+        /** Room 数据库实例 */
+        lateinit var appDatabase: AppDatabase
+            private set
+
+        /** 带缓存的聊天仓库（推荐使用） */
+        lateinit var cachedChatRepository: CachedChatRepository
+            private set
     }
 
     override fun onCreate() {
@@ -84,7 +94,21 @@ class ClawCodeApplication : Application() {
         // 初始化会话本地存储（复用TokenManager的DataStore实例，避免多实例冲突）
         sessionLocalStore = SessionLocalStore.getInstance(tokenManager.getDataStore())
         Logger.d(TAG, "SessionLocalStore初始化完成")
-        
+
+        // 初始化 Room 数据库
+        appDatabase = AppDatabase.getInstance(this)
+        Logger.d(TAG, "AppDatabase初始化完成")
+
+        // 初始化带缓存的聊天仓库
+        cachedChatRepository = CachedChatRepository(
+            apiService = apiService,
+            tokenManager = tokenManager,
+            sessionDao = appDatabase.sessionDao(),
+            messageDao = appDatabase.messageDao(),
+            toolCallDao = appDatabase.toolCallDao()
+        )
+        Logger.d(TAG, "CachedChatRepository初始化完成")
+
         Logger.d(TAG, "Repository初始化完成")
         
         Logger.i(TAG, "应用初始化完成")
