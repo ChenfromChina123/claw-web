@@ -17,23 +17,51 @@ import androidx.compose.runtime.Immutable
  * 2. 单个JSON对象：{type: 'text', text: '...'}
  * 3. Anthropic API 数组格式：[{type: 'text', ...}, {type: 'tool_result', ...}]
  * 4. 纯文本
+ *
+ * 性能优化：内置 LRU 缓存，避免重复解析相同内容
  */
 object MessageContentParser {
 
     private val gson = Gson()
 
+    private val parseCache = mutableMapOf<String, List<MessageComponent>>()
+
+    private const val MAX_CACHE_SIZE = 100
+
     /**
-     * 解析消息内容为组件列表
+     * 解析消息内容为组件列表（带缓存）
      */
     fun parse(content: String): List<MessageComponent> {
         if (content.isBlank()) return emptyList()
 
-        val components = mutableListOf<MessageComponent>()
+        // 检查缓存
+        parseCache[content]?.let {
+            return it
+        }
+
+        val components = parseInternal(content)
+
+        // 缓存结果（限制大小防止内存泄漏）
+        if (parseCache.size >= MAX_CACHE_SIZE) {
+            val keyToRemove = parseCache.keys.first()
+            parseCache.remove(keyToRemove)
+        }
+        parseCache[content] = components
+
+        return components
+    }
+
+    /**
+     * 内部解析逻辑（无缓存）
+     */
+    private fun parseInternal(content: String): List<MessageComponent> {
         val trimmedContent = content.trim()
 
         android.util.Log.d("MessageParser", "=== parse() 开始 ===")
         android.util.Log.d("MessageParser", "内容长度: ${content.length}")
         android.util.Log.d("MessageParser", "内容前100字符: ${content.take(100)}")
+
+        val components = mutableListOf<MessageComponent>()
 
         // 1. 尝试解析为 JSON 数组（后端发送的标准格式 / Anthropic API 格式）
         if (trimmedContent.startsWith("[") && trimmedContent.endsWith("]")) {

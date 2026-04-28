@@ -105,13 +105,15 @@ fun EnhancedMessageBubble(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    toolCalls.forEach { toolCall ->
-                        var expanded by remember { mutableStateOf(false) }
-                        ToolCallCard(
-                            toolCall = toolCall,
-                            expanded = expanded,
-                            onExpandedChange = { expanded = it }
-                        )
+                    toolCalls.forEachIndexed { index, toolCall ->
+                        key(toolCall.id) {
+                            var expanded by rememberSaveable { mutableStateOf(false) }
+                            ToolCallCard(
+                                toolCall = toolCall,
+                                expanded = expanded,
+                                onExpandedChange = { expanded = it }
+                            )
+                        }
                     }
                 }
             }
@@ -145,8 +147,16 @@ private fun DynamicMessageContent(
     components.forEach { component ->
         when (component) {
             is MessageComponent.Text -> {
+                val displayContent = remember(component.content) {
+                    if (component.content.length > 5000) {
+                        component.content.take(5000) + "\n... (内容过长，已截断)"
+                    } else {
+                        component.content
+                    }
+                }
+
                 MarkdownText(
-                    markdown = component.content,
+                    markdown = displayContent,
                     modifier = Modifier.fillMaxWidth(),
                     color = AppColor.TextPrimary,
                     fontSize = 14.sp,
