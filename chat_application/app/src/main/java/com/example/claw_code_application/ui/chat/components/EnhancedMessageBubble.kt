@@ -1,13 +1,8 @@
 package com.example.claw_code_application.ui.chat.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,16 +14,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.data.api.models.ToolCall
-import com.example.claw_code_application.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
-import com.google.gson.JsonPrimitive
 
 /**
  * 增强版消息气泡组件
@@ -69,20 +61,13 @@ fun EnhancedMessageBubble(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(
-                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.tertiary
-                            )
-                        )
-                    ),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.SmartToy,
                     contentDescription = "AI",
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -131,7 +116,8 @@ fun EnhancedMessageBubble(
                     components.forEach { component ->
                         EnhancedMessageComponentRenderer(
                             component = component,
-                            isUser = isUser
+                            isUser = isUser,
+                            onToolCallClick = onToolCallClick
                         )
                     }
 
@@ -167,14 +153,7 @@ fun EnhancedMessageBubble(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(
-                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primaryContainer,
-                                MaterialTheme.colorScheme.secondaryContainer
-                            )
-                        )
-                    ),
+                    .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -195,7 +174,8 @@ fun EnhancedMessageBubble(
 @Composable
 private fun EnhancedMessageComponentRenderer(
     component: MessageComponent,
-    isUser: Boolean
+    isUser: Boolean,
+    onToolCallClick: (ToolCall) -> Unit
 ) {
     val contentColor = if (isUser) {
         MaterialTheme.colorScheme.onPrimary
@@ -215,7 +195,8 @@ private fun EnhancedMessageComponentRenderer(
         }
 
         is MessageComponent.ToolUse -> {
-            EnhancedToolUseCard(
+            // 使用基础的 ToolUseCard
+            ToolUseCard(
                 toolCall = ToolCall(
                     id = component.id,
                     toolName = component.toolName,
@@ -229,7 +210,8 @@ private fun EnhancedMessageComponentRenderer(
         }
 
         is MessageComponent.ToolResult -> {
-            EnhancedToolResultCard(
+            // 使用基础的 ToolResultCard
+            ToolResultCard(
                 toolCall = ToolCall(
                     id = component.toolUseId,
                     toolName = "执行结果",
@@ -247,7 +229,8 @@ private fun EnhancedMessageComponentRenderer(
         }
 
         is MessageComponent.FileListResult -> {
-            EnhancedFileListCard(
+            // 使用基础的 FileListCard
+            FileListCard(
                 path = component.path,
                 count = component.count,
                 files = component.files,
@@ -256,7 +239,8 @@ private fun EnhancedMessageComponentRenderer(
         }
 
         is MessageComponent.SearchResult -> {
-            EnhancedSearchResultCard(
+            // 使用基础的 SearchResultCard
+            SearchResultCard(
                 matchCount = component.matchCount,
                 matchedFiles = component.matchedFiles,
                 summary = component.summary,
@@ -265,7 +249,8 @@ private fun EnhancedMessageComponentRenderer(
         }
 
         is MessageComponent.FileContentResult -> {
-            EnhancedFileContentCard(
+            // 使用基础的 FileContentCard
+            FileContentCard(
                 path = component.path,
                 content = component.content,
                 lineCount = component.lineCount,
@@ -274,7 +259,8 @@ private fun EnhancedMessageComponentRenderer(
         }
 
         is MessageComponent.ErrorResult -> {
-            EnhancedErrorResultCard(
+            // 使用基础的 ErrorResultCard
+            ErrorResultCard(
                 error = component.error,
                 errorType = component.errorType
             )
@@ -341,32 +327,25 @@ private fun EnhancedStreamingIndicator() {
     ) {
         repeat(3) { index ->
             val delay = index * 200
-            val scale by animateFloatAsState(
-                targetValue = 1f,
+            val infiniteTransition = rememberInfiniteTransition(label = "dot_$index")
+            val scale by infiniteTransition.animateFloat(
+                initialValue = 0.6f,
+                targetValue = 1.2f,
                 animationSpec = infiniteRepeatable(
-                    animation = keyframes {
-                        durationMillis = 1200
-                        0.6f at delay
-                        1.2f at delay + 400
-                        0.6f at delay + 800
-                    },
-                    repeatMode = RepeatMode.Restart
+                    animation = tween(400, delayMillis = delay, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
                 ),
-                label = "dot_$index"
+                label = "scale_$index"
             )
             Box(
                 modifier = Modifier
                     .size(10.dp)
-                    .scale(scale)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    }
                     .clip(CircleShape)
-                    .background(
-                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                            )
-                        )
-                    )
+                    .background(MaterialTheme.colorScheme.primary)
             )
         }
     }
@@ -393,10 +372,3 @@ private fun formatEnhancedTimestamp(timestamp: String?): String {
         ""
     }
 }
-
-// 扩展函数：缩放修饰符
-private fun Modifier.scale(scale: Float): Modifier = this.then(
-    androidx.compose.ui.draw.DrawModifier {
-        drawContent()
-    }
-)

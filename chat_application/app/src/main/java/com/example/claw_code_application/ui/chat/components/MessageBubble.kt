@@ -1,10 +1,6 @@
 package com.example.claw_code_application.ui.chat.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,10 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.data.api.models.ToolCall
-import com.example.claw_code_application.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
-import com.google.gson.JsonPrimitive
 
 /**
  * 消息气泡组件
@@ -263,18 +257,15 @@ private fun StreamingIndicator() {
     ) {
         repeat(3) { index ->
             val delay = index * 150
-            val alpha by animateFloatAsState(
+            val infiniteTransition = rememberInfiniteTransition(label = "dot_$index")
+            val alpha by infiniteTransition.animateFloat(
+                initialValue = 0.3f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
-                    animation = keyframes {
-                        durationMillis = 900
-                        0.3f at delay
-                        1f at delay + 300
-                        0.3f at delay + 600
-                    },
-                    repeatMode = RepeatMode.Restart
+                    animation = tween(300, delayMillis = delay, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
                 ),
-                label = "dot_$index"
+                label = "alpha_$index"
             )
             Box(
                 modifier = Modifier
