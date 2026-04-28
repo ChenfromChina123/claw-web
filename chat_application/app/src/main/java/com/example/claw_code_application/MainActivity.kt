@@ -24,6 +24,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.BackHandler
 import com.example.claw_code_application.ui.auth.LoginScreen
 import com.example.claw_code_application.ui.auth.RegisterScreen
 import com.example.claw_code_application.ui.chat.ChatScreen
@@ -180,6 +182,7 @@ private fun ChatMainScreen(
 
     var selectedSessionId by remember { mutableStateOf<String?>(null) }
     var showSessionList by remember { mutableStateOf(true) }
+    var showExitDialog by remember { mutableStateOf(false) }
 
     val sessionUiState by sessionViewModel.uiState.collectAsStateWithLifecycle()
 
@@ -195,6 +198,23 @@ private fun ChatMainScreen(
     }
 
     val scope = rememberCoroutineScope()
+
+    /**
+     * 处理系统返回键事件
+     * 1. 在聊天界面：返回到会话列表
+     * 2. 在会话列表：弹出退出确认对话框
+     */
+    BackHandler(enabled = true) {
+        if (!showSessionList && selectedSessionId != null) {
+            // 当前在聊天界面，返回到会话列表
+            chatViewModel.clearSession()
+            selectedSessionId = null
+            showSessionList = true
+        } else if (showSessionList) {
+            // 当前在会话列表，显示退出确认对话框
+            showExitDialog = true
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         AnimatedVisibility(
@@ -330,6 +350,41 @@ private fun ChatMainScreen(
         AgentTaskMonitorPanel(
             viewModel = taskMonitorViewModel,
             modifier = Modifier.fillMaxSize()
+        )
+    }
+
+    /**
+     * 退出应用确认对话框
+     * 在会话列表界面按返回键时显示
+     */
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            containerColor = AppColor.SurfaceDark,
+            titleContentColor = AppColor.TextPrimary,
+            textContentColor = AppColor.TextSecondary,
+            title = { Text("确认退出") },
+            text = { Text("确定要退出应用吗？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showExitDialog = false
+                        // 调用系统的 finish() 方法退出应用
+                        if (android.os.Process.myPid() > 0) {
+                            android.os.Process.killProcess(android.os.Process.myPid())
+                        }
+                    }
+                ) {
+                    Text("退出", color = AppColor.Error)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showExitDialog = false }
+                ) {
+                    Text("取消", color = AppColor.Primary)
+                }
+            }
         )
     }
 }
