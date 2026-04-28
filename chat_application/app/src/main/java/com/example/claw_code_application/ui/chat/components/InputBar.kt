@@ -29,6 +29,8 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -240,15 +242,18 @@ private fun InputField(
                 disabledContainerColor = Color(0xFFF5F5F7),
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
-                cursorColor = AppColor.PrimaryLight,  // iOS系统蓝
+                cursorColor = AppColor.PrimaryLight,
                 focusedTextColor = AppColor.TextPrimary,
                 unfocusedTextColor = AppColor.TextPrimary,
                 disabledTextColor = AppColor.TextSecondary
             ),
+            textStyle = TextStyle(
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+                fontFamily = FontFamily.SansSerif
+            ),
             singleLine = false,
             maxLines = 5,
-            fontSize = 15.sp,
-            lineHeight = 22.sp,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(
                 onSend = {

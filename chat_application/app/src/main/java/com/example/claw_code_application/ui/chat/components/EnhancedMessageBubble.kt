@@ -12,7 +12,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -51,7 +53,7 @@ fun EnhancedMessageBubble(
     )
     
     // AI消息使用极淡阴影
-    val bubbleElevation = if (isUser) 0.dp else Modifier.shadow(
+    val bubbleElevation = if (isUser) Modifier else Modifier.shadow(
         elevation = 2.dp,
         shape = bubbleShape,
         ambientColor = androidx.compose.ui.graphics.Color(0x0F000000),
@@ -70,13 +72,11 @@ fun EnhancedMessageBubble(
         ) {
             // 消息内容卡片 - Manus 1.6 Lite 风格
             Surface(
+                modifier = bubbleElevation,
                 shape = bubbleShape,
-                // AI消息：iOS浅灰背景(#F5F5F7)
                 color = if (isUser) AppColor.UserBubbleBackground else Color(0xFFF5F5F7),
-                // 极淡阴影，几乎看不见，增加层次感
                 shadowElevation = if (isUser) 0.dp else 1.dp,
-                border = if (isUser) null else BorderStroke(1.dp, Color(0xFFE8E8ED)),
-                modifier = if (isUser) Modifier else bubbleElevation
+                border = if (isUser) null else BorderStroke(1.dp, Color(0xFFE8E8ED))
             ) {
                 Column(
                     modifier = Modifier.padding(
@@ -95,8 +95,10 @@ fun EnhancedMessageBubble(
                             Text(
                                 text = filteredContent,
                                 color = Color.White,
-                                fontSize = 15.sp,
-                                lineHeight = 23.sp  // 1.53倍行高
+                                style = TextStyle(
+                                    fontSize = 15.sp,
+                                    lineHeight = 23.sp
+                                )
                             )
                         }
                     } else {
@@ -181,11 +183,9 @@ private fun DynamicMessageContent(
                     markdown = displayContent,
                     modifier = Modifier.fillMaxWidth(),
                     color = AppColor.TextPrimary,
-                    fontSize = 15.sp,
-                    lineHeight = 23.sp,
                     // 行内代码样式：浅灰背景 + 圆角 + 等宽字体
                     linkColor = AppColor.PrimaryLight,  // iOS系统蓝
-                    style = androidx.compose.ui.text.SpanStyle(
+                    style = TextStyle(
                         fontFamily = FontFamily.SansSerif,
                         fontSize = 15.sp,
                         lineHeight = 23.sp
