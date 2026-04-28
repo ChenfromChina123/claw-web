@@ -48,6 +48,7 @@ object NetworkEnvironment {
         "http://192.168.1.100:$DEFAULT_PORT",
         "http://192.168.0.100:$DEFAULT_PORT",
         "http://192.168.45.123:$DEFAULT_PORT",
+        "http://192.168.69.123:$DEFAULT_PORT",
         "http://192.168.31.100:$DEFAULT_PORT",
         // 备用地址
         "http://localhost:$DEFAULT_PORT",

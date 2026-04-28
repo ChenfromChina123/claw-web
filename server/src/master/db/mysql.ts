@@ -413,6 +413,12 @@ export async function initDatabase(): Promise<void> {
       CREATE INDEX idx_messages_sequence ON messages(session_id, sequence)
     `).catch(() => {})
 
+    // 添加 error 字段到 tool_calls 表（如果不存在）
+    await tempPool.query(`
+      ALTER TABLE tool_calls 
+      ADD COLUMN error TEXT AFTER status
+    `).catch(() => {})
+
     console.log('Database schema initialized')
   } finally {
     await tempPool.end()

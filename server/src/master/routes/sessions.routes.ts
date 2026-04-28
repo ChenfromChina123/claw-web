@@ -76,9 +76,16 @@ export async function handleSessionRoutes(req: Request): Promise<Response | null
       if (!sessionData) {
         return createErrorResponse('SESSION_NOT_FOUND', '会话不存在', 404)
       }
+      
+      // 将 content 数组转换为字符串，确保与 Android 端 Message.content 类型兼容
+      const messages = sessionData.messages.map(msg => ({
+        ...msg,
+        content: Array.isArray(msg.content) ? JSON.stringify(msg.content) : msg.content,
+      }))
+      
       return createSuccessResponse({
         session: sessionData.session,
-        messages: sessionData.messages,
+        messages,
         toolCalls: sessionData.toolCalls,
       })
     } catch (error) {

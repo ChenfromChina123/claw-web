@@ -99,6 +99,7 @@ export class ToolCallRepository {
       toolInput: typeof row.tool_input === 'string' ? JSON.parse(row.tool_input) : row.tool_input || {},
       toolOutput: typeof row.tool_output === 'string' ? JSON.parse(row.tool_output) : row.tool_output || null,
       status: row.status,
+      error: row.error || undefined,
       createdAt: row.created_at,
     }
   }

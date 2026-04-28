@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS tool_calls (
   tool_input JSON,
   tool_output JSON,
   status ENUM('pending', 'executing', 'completed', 'error') DEFAULT 'pending',
+  error TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
   FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,

@@ -104,14 +104,17 @@ fun SessionListScreen(
                 EmptyState()
             }
         } else {
+            val indexedData = remember(filteredData) {
+                filteredData.mapIndexed { index, item -> index to item }
+            }
             LazyColumn(
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
                 items(
-                    items = filteredData,
-                    key = { it.id },
-                    contentType = { "session_item" }
-                ) { item ->
+                    items = indexedData,
+                    // 使用 index 辅助确保 key 唯一性，防止重复 ID 导致崩溃
+                    key = { (index, item) -> "${item.id}_$index" }
+                ) { (index, item) ->
                     SwipeToDismissSessionItem(
                         item = item,
                         isSelected = item.id == currentSessionId,

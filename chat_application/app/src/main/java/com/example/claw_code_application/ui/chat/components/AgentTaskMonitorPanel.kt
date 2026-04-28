@@ -370,6 +370,10 @@ private fun TaskList(
         return
     }
 
+    val indexedTasks = remember(tasks) {
+        tasks.mapIndexed { index, task -> index to task }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
@@ -379,9 +383,10 @@ private fun TaskList(
         contentPadding = PaddingValues(vertical = 8.dp)
     ) {
         items(
-            items = tasks,
-            key = { it.taskId }
-        ) { task ->
+            items = indexedTasks,
+            // 使用 index 辅助确保 key 唯一性
+            key = { (index, task) -> "${task.taskId}_$index" }
+        ) { (index, task) ->
             TaskItem(
                 task = task,
                 onCancel = { onCancelTask(task.taskId) },

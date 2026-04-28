@@ -232,6 +232,7 @@ private fun ChatTopBar(
  * 聊天消息列表
  * 使用预计算的displayMessages避免重组时重复过滤
  * 添加contentType提升LazyColumn复用效率
+ * 使用 index 辅助确保 key 唯一性，防止重复 ID 导致崩溃
  */
 @Composable
 private fun ChatMessageList(
@@ -240,6 +241,11 @@ private fun ChatMessageList(
     uiState: ChatViewModel.UiState,
     listState: androidx.compose.foundation.lazy.LazyListState
 ) {
+    // 使用 index 辅助确保 key 唯一，即使消息 ID 重复也能正常工作
+    val indexedMessages = remember(displayMessages) {
+        displayMessages.mapIndexed { index, message -> index to message }
+    }
+
     LazyColumn(
         state = listState,
         reverseLayout = true,
@@ -248,12 +254,12 @@ private fun ChatMessageList(
         modifier = Modifier.fillMaxSize()
     ) {
         items(
-            items = displayMessages,
-            key = { it.id },
-            contentType = { message ->
+            items = indexedMessages,
+            key = { (index, message) -> "${message.id}_$index" },
+            contentType = { (_, message) ->
                 if (message.role == "user") "user_message" else "assistant_message"
             }
-        ) { message ->
+        ) { (index, message) ->
             EnhancedMessageBubble(
                 message = message,
                 toolCalls = viewModel.getToolCallsForMessage(message.id)

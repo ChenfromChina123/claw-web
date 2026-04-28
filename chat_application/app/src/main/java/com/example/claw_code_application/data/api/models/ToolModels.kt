@@ -10,18 +10,22 @@ import com.google.gson.internal.LinkedTreeMap
 @Immutable
 data class ToolCall(
     val id: String,
+    @SerializedName("messageId")
+    val messageId: String? = null,     // 关联的消息ID
+    @SerializedName("sessionId")
+    val sessionId: String? = null,     // 会话ID
     @SerializedName("toolName")
-    val toolName: String,           // 工具名称: "Bash", "FileWrite", "WebSearch" 等
+    val toolName: String,              // 工具名称: "Bash", "FileWrite", "WebSearch" 等
     @SerializedName("toolInput")
-    val toolInput: Map<String, Any>, // 输入参数（JSON对象）
+    val toolInput: Map<String, Any>,   // 输入参数（JSON对象）
     @SerializedName("toolOutput")
-    val toolOutput: Any? = null,    // 输出结果
-    val status: String,             // "pending" | "executing" | "completed" | "error"
-    val error: String? = null,      // 错误信息
+    val toolOutput: Any? = null,       // 输出结果
+    val status: String,                // "pending" | "executing" | "completed" | "error"
+    val error: String? = null,         // 错误信息
     @SerializedName("createdAt")
-    val createdAt: String,          // 开始时间
+    val createdAt: String,             // 开始时间
     @SerializedName("completedAt")
-    val completedAt: String? = null // 完成时间
+    val completedAt: String? = null    // 完成时间
 ) {
     /**
      * 获取指定键的值，如果不存在返回null

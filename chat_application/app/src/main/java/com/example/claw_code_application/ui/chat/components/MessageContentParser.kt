@@ -7,7 +7,6 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import androidx.compose.runtime.Immutable
-import com.example.claw_code_application.data.api.models.Message
 
 /**
  * 消息内容解析器
@@ -18,7 +17,6 @@ import com.example.claw_code_application.data.api.models.Message
  * 2. 单个JSON对象：{type: 'text', text: '...'}
  * 3. Anthropic API 数组格式：[{type: 'text', ...}, {type: 'tool_result', ...}]
  * 4. 纯文本
- * 5. JsonElement（直接从 Message.content 传入）
  */
 object MessageContentParser {
 
@@ -26,69 +24,14 @@ object MessageContentParser {
 
     /**
      * 解析消息内容为组件列表
-     * @param content 消息内容（可以是 String 或 JsonElement）
      */
-    fun parse(content: Any): List<MessageComponent> {
-        return when (content) {
-            is JsonElement -> parseJsonElement(content)
-            is String -> parseString(content)
-            else -> emptyList()
-        }
-    }
-
-    /**
-     * 从 Message 对象解析内容
-     * 这是主要的入口方法，直接使用 Message 的 JsonElement content
-     */
-    fun parseFromMessage(message: Message): List<MessageComponent> {
-        return parseJsonElement(message.content)
-    }
-
-    /**
-     * 解析 JsonElement
-     */
-    private fun parseJsonElement(element: JsonElement): List<MessageComponent> {
-        return when {
-            element.isJsonArray -> parseJsonArray(element.asJsonArray)
-            element.isJsonObject -> {
-                val component = parseContentBlock(element.asJsonObject)
-                if (component != null) listOf(component) else emptyList()
-            }
-            element.isJsonPrimitive -> parseString(element.asString)
-            else -> emptyList()
-        }
-    }
-
-    /**
-     * 解析 JSON 数组
-     */
-    private fun parseJsonArray(jsonArray: JsonArray): List<MessageComponent> {
-        val components = mutableListOf<MessageComponent>()
-        android.util.Log.d("MessageParser", "解析 JSON 数组，元素数量: ${jsonArray.size()}")
-
-        for ((index, element) in jsonArray.withIndex()) {
-            if (element.isJsonObject) {
-                val obj = element.asJsonObject
-                val component = parseContentBlock(obj)
-                if (component != null) {
-                    components.add(component)
-                    android.util.Log.d("MessageParser", "[$index] → ${component.javaClass.simpleName}")
-                }
-            }
-        }
-        return components
-    }
-
-    /**
-     * 解析字符串内容
-     */
-    private fun parseString(content: String): List<MessageComponent> {
+    fun parse(content: String): List<MessageComponent> {
         if (content.isBlank()) return emptyList()
 
         val components = mutableListOf<MessageComponent>()
         val trimmedContent = content.trim()
 
-        android.util.Log.d("MessageParser", "=== parseString() 开始 ===")
+        android.util.Log.d("MessageParser", "=== parse() 开始 ===")
         android.util.Log.d("MessageParser", "内容长度: ${content.length}")
         android.util.Log.d("MessageParser", "内容前100字符: ${content.take(100)}")
 
@@ -97,7 +40,21 @@ object MessageContentParser {
             android.util.Log.d("MessageParser", "检测到JSON数组格式")
             try {
                 val jsonArray = JsonParser.parseString(content).asJsonArray
-                return parseJsonArray(jsonArray)
+                android.util.Log.d("MessageParser", "数组元素数量: ${jsonArray.size()}")
+                for ((index, element) in jsonArray.withIndex()) {
+                    if (element.isJsonObject) {
+                        val obj = element.asJsonObject
+                        val component = parseContentBlock(obj)
+                        if (component != null) {
+                            components.add(component)
+                            android.util.Log.d("MessageParser", "[$index] → ${component.javaClass.simpleName}")
+                        }
+                    }
+                }
+                if (components.isNotEmpty()) {
+                    android.util.Log.d("MessageParser", "解析完成: ${components.size} 个组件")
+                    return components
+                }
             } catch (e: Exception) {
                 android.util.Log.e("MessageParser", "JSON数组解析失败: ${e.message}", e)
             }

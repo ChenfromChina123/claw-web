@@ -12,7 +12,6 @@ import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.repository.ChatRepository
 import com.example.claw_code_application.data.websocket.WebSocketManager
 import com.example.claw_code_application.ui.chat.components.shouldShowMessage
-import com.google.gson.JsonPrimitive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -133,7 +132,7 @@ class ChatViewModel(
                 val assistantMessage = Message(
                     id = event.messageId,
                     role = "assistant",
-                    content = JsonPrimitive(""),
+                    content = "",
                     timestamp = System.currentTimeMillis().toString(),
                     isStreaming = true
                 )
@@ -156,12 +155,8 @@ class ChatViewModel(
                     val index = _messages.indexOfFirst { it.id == messageId }
                     if (index != -1) {
                         val oldMessage = _messages[index]
-                        // 使用 JsonPrimitive 包装字符串
-                        val currentText = if (oldMessage.content.isJsonPrimitive) {
-                            oldMessage.content.asString
-                        } else ""
                         _messages[index] = oldMessage.copy(
-                            content = JsonPrimitive(currentText + event.delta)
+                            content = oldMessage.content + event.delta
                         )
                     }
                 }
@@ -338,7 +333,7 @@ class ChatViewModel(
                 val userMessage = Message(
                     id = UUID.randomUUID().toString(),
                     role = "user",
-                    content = JsonPrimitive(content),
+                    content = content,
                     timestamp = System.currentTimeMillis().toString(),
                     isStreaming = false,
                     attachments = imageAttachments?.map {
@@ -440,12 +435,11 @@ class ChatViewModel(
         for (message in _messages) {
             if (message.role != "assistant") continue
 
-            // 获取内容的字符串表示
-            val contentStr = message.getContentAsString().trim()
-            if (!contentStr.startsWith("[") && !contentStr.startsWith("{")) continue
+            val content = message.content.trim()
+            if (!content.startsWith("[") && !content.startsWith("{")) continue
 
             try {
-                val toolUseIds = extractToolUseIdsFromContent(contentStr)
+                val toolUseIds = extractToolUseIdsFromContent(content)
                 if (toolUseIds.isNotEmpty()) {
                     messageToToolCalls[message.id] = toolUseIds.toMutableList()
                 }

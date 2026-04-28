@@ -53,8 +53,9 @@ export interface ToolCall {
   toolInput: Record<string, unknown>
   toolOutput: Record<string, unknown> | null
   status: 'pending' | 'executing' | 'completed' | 'error'
-  createdAt: Date | string  // 支持 Date 对象或 ISO 字符串
-  completedAt?: Date | string  // 可选的完成时间
+  error?: string                    // 错误信息
+  createdAt: Date | string         // 支持 Date 对象或 ISO 字符串
+  completedAt?: Date | string      // 可选的完成时间
 }
 
 export interface ConversationMessage {
