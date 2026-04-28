@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -86,6 +87,11 @@ dependencies {
     // DataStore (Token存储)
     implementation(libs.datastore.preferences)
 
+    // Room 数据库 (本地缓存)
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
     // 协程
     implementation(libs.coroutines.android)
 
@@ -95,8 +101,9 @@ dependencies {
     // Accompanist (系统UI控制器)
     implementation(libs.accompanist.systemuicontroller)
 
-    // Markdown渲染
+    // Markdown渲染 - mikepenz (Material3 + 代码高亮)
     implementation(libs.markdown.renderer)
+    implementation(libs.markdown.code.highlighting)
 
     // Testing
     testImplementation(libs.junit)

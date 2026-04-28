@@ -1,6 +1,9 @@
 [versions]
 agp = "8.13.2"
 kotlin = "2.0.21"
+# Room 数据库
+room = "2.6.1"
+ksp = "2.0.21-1.0.27"
 coreKtx = "1.12.0"
 junit = "4.13.2"
 junitVersion = "1.1.5"
@@ -29,8 +32,8 @@ coroutinesAndroid = "1.7.3"
 coilCompose = "2.5.0"
 # Accompanist
 accompanistSystemUiController = "0.34.0"
-# Markdown渲染 - 使用更常见的库
-markdownRenderer = "0.5.4"
+# Markdown渲染 - 使用 mikepenz multiplatform-markdown-renderer (Material3 + 代码高亮)
+markdownRenderer = "0.18.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -76,10 +79,18 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 # Accompanist
 accompanist-systemuicontroller = { group = "com.google.accompanist", name = "accompanist-systemuicontroller", version.ref = "accompanistSystemUiController" }
 
-# Markdown渲染 - 使用 compose-markdown
-markdown-renderer = { group = "com.github.jeziellago", name = "compose-markdown", version.ref = "markdownRenderer" }
+# Markdown渲染 - mikepenz multiplatform-markdown-renderer (Material3 + 代码高亮)
+markdown-renderer = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
+# 代码语法高亮（可选，用于代码块着色）
+markdown-code-highlighting = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-code-highlighting", version.ref = "markdownRenderer" }
+
+# Room 数据库
+room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

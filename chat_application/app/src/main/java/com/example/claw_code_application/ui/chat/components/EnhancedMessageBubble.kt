@@ -23,7 +23,6 @@ import coil.compose.AsyncImage
 import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.ui.theme.AppColor
-import dev.jeziellago.compose.markdowntext.MarkdownText
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -177,19 +176,10 @@ private fun DynamicMessageContent(
                     }
                 }
 
-                // Manus 风格的 Markdown 渲染
-                // 使用自定义配置的行内代码和链接样式
-                MarkdownText(
+                // 使用超美Markdown渲染组件（Material3 + 代码高亮）
+                BeautifulMarkdown(
                     markdown = displayContent,
-                    modifier = Modifier.fillMaxWidth(),
-                    color = AppColor.TextPrimary,
-                    // 行内代码样式：浅灰背景 + 圆角 + 等宽字体
-                    linkColor = AppColor.PrimaryLight,  // iOS系统蓝
-                    style = TextStyle(
-                        fontFamily = FontFamily.SansSerif,
-                        fontSize = 15.sp,
-                        lineHeight = 23.sp
-                    )
+                    isStreaming = isStreaming
                 )
             }
 
