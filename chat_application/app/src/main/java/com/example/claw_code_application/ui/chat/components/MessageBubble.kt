@@ -109,7 +109,16 @@ fun MessageBubble(
                     components.forEach { component ->
                         MessageComponentRenderer(
                             component = component,
-                            isUser = isUser
+                            isUser = isUser,
+                            onToolCallClick = onToolCallClick
+                        )
+                    }
+
+                    // 渲染关联的工具调用
+                    toolCalls.forEach { toolCall ->
+                        ToolCallCard(
+                            toolCall = toolCall,
+                            onExpandedChange = {}
                         )
                     }
 
@@ -157,7 +166,8 @@ fun MessageBubble(
 @Composable
 private fun MessageComponentRenderer(
     component: MessageComponent,
-    isUser: Boolean
+    isUser: Boolean,
+    onToolCallClick: (ToolCall) -> Unit
 ) {
     val contentColor = if (isUser) {
         MaterialTheme.colorScheme.onPrimary
@@ -175,7 +185,8 @@ private fun MessageComponentRenderer(
         }
 
         is MessageComponent.ToolUse -> {
-            ToolUseCard(
+            // 使用 ToolCallCard 显示工具调用
+            ToolCallCard(
                 toolCall = ToolCall(
                     id = component.id,
                     toolName = component.toolName,
@@ -184,64 +195,183 @@ private fun MessageComponentRenderer(
                     status = "pending",
                     createdAt = ""
                 ),
-                onClick = {}
+                onExpandedChange = {}
             )
         }
 
         is MessageComponent.ToolResult -> {
-            ToolResultCard(
-                toolCall = ToolCall(
-                    id = component.toolUseId,
-                    toolName = "执行结果",
-                    toolInput = emptyMap(),
-                    toolOutput = mapOf(
-                        "stdout" to component.stdout,
-                        "stderr" to component.stderr,
-                        "exitCode" to component.exitCode
-                    ),
-                    status = if (component.isSuccess) "completed" else "error",
-                    createdAt = ""
-                ),
-                onClick = {}
+            // 工具结果通过 ToolCallCard 显示
+            // 这里只显示文本摘要
+            val summary = if (component.isSuccess) {
+                "✓ 执行成功"
+            } else {
+                "✗ 执行失败"
+            }
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (component.isSuccess) Color(0xFF22C55E) else Color(0xFFEF4444)
             )
         }
 
         is MessageComponent.FileListResult -> {
-            FileListCard(
+            FileListSummary(
                 path = component.path,
-                count = component.count,
-                files = component.files,
-                onClick = {}
+                count = component.count
             )
         }
 
         is MessageComponent.SearchResult -> {
-            SearchResultCard(
+            SearchResultSummary(
                 matchCount = component.matchCount,
-                matchedFiles = component.matchedFiles,
-                summary = component.summary,
-                onClick = {}
+                summary = component.summary
             )
         }
 
         is MessageComponent.FileContentResult -> {
-            FileContentCard(
+            FileContentSummary(
                 path = component.path,
-                content = component.content,
-                lineCount = component.lineCount,
-                onClick = {}
+                lineCount = component.lineCount
             )
         }
 
         is MessageComponent.ErrorResult -> {
-            ErrorResultCard(
-                error = component.error,
-                errorType = component.errorType
+            ErrorResultSummary(
+                error = component.error
             )
         }
 
         else -> {
             // 其他类型暂不显示
+        }
+    }
+}
+
+/**
+ * 文件列表摘要
+ */
+@Composable
+private fun FileListSummary(path: String, count: Int) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(text = "📁", fontSize = 16.sp)
+            Column {
+                Text(
+                    text = "文件列表",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "$path · $count 个文件",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 搜索结果摘要
+ */
+@Composable
+private fun SearchResultSummary(matchCount: Int, summary: String) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(text = "🔍", fontSize = 16.sp)
+            Column {
+                Text(
+                    text = "搜索结果",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 文件内容摘要
+ */
+@Composable
+private fun FileContentSummary(path: String, lineCount: Int) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.1f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(text = "📄", fontSize = 16.sp)
+            Column {
+                Text(
+                    text = "文件内容",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "$path · $lineCount 行",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 错误结果摘要
+ */
+@Composable
+private fun ErrorResultSummary(error: String) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = Color(0xFFEF4444).copy(alpha = 0.1f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(text = "⚠️", fontSize = 16.sp)
+            Column {
+                Text(
+                    text = "错误",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFFEF4444)
+                )
+                Text(
+                    text = error.take(100),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFEF4444).copy(alpha = 0.8f)
+                )
+            }
         }
     }
 }

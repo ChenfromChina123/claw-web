@@ -24,7 +24,7 @@ import java.util.*
 
 /**
  * 增强版消息气泡组件
- * 支持用户消息和AI助手消息的显示，包含更丰富的交互和样式
+ * 支持用户消息和AI助手消息的显示
  * 改进：使用 MessageContentParser 解析 content 字段（支持 String 和 JsonArray 格式）
  */
 @Composable
@@ -56,7 +56,7 @@ fun EnhancedMessageBubble(
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
         if (!isUser) {
-            // AI头像 - 带渐变背景
+            // AI头像
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -116,8 +116,15 @@ fun EnhancedMessageBubble(
                     components.forEach { component ->
                         EnhancedMessageComponentRenderer(
                             component = component,
-                            isUser = isUser,
-                            onToolCallClick = onToolCallClick
+                            isUser = isUser
+                        )
+                    }
+
+                    // 渲染关联的工具调用
+                    toolCalls.forEach { toolCall ->
+                        ToolCallCard(
+                            toolCall = toolCall,
+                            onExpandedChange = {}
                         )
                     }
 
@@ -169,13 +176,11 @@ fun EnhancedMessageBubble(
 
 /**
  * 增强版消息组件渲染器
- * 根据组件类型渲染不同的UI，带更丰富的样式
  */
 @Composable
 private fun EnhancedMessageComponentRenderer(
     component: MessageComponent,
-    isUser: Boolean,
-    onToolCallClick: (ToolCall) -> Unit
+    isUser: Boolean
 ) {
     val contentColor = if (isUser) {
         MaterialTheme.colorScheme.onPrimary
@@ -195,8 +200,7 @@ private fun EnhancedMessageComponentRenderer(
         }
 
         is MessageComponent.ToolUse -> {
-            // 使用基础的 ToolUseCard
-            ToolUseCard(
+            ToolCallCard(
                 toolCall = ToolCall(
                     id = component.id,
                     toolName = component.toolName,
@@ -205,65 +209,39 @@ private fun EnhancedMessageComponentRenderer(
                     status = "pending",
                     createdAt = ""
                 ),
-                onClick = {}
+                onExpandedChange = {}
             )
         }
 
         is MessageComponent.ToolResult -> {
-            // 使用基础的 ToolResultCard
-            ToolResultCard(
-                toolCall = ToolCall(
-                    id = component.toolUseId,
-                    toolName = "执行结果",
-                    toolInput = emptyMap(),
-                    toolOutput = mapOf(
-                        "stdout" to component.stdout,
-                        "stderr" to component.stderr,
-                        "exitCode" to component.exitCode
-                    ),
-                    status = if (component.isSuccess) "completed" else "error",
-                    createdAt = ""
-                ),
-                onClick = {}
+            val summary = if (component.isSuccess) "✓ 执行成功" else "✗ 执行失败"
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (component.isSuccess) Color(0xFF22C55E) else Color(0xFFEF4444)
             )
         }
 
         is MessageComponent.FileListResult -> {
-            // 使用基础的 FileListCard
-            FileListCard(
-                path = component.path,
-                count = component.count,
-                files = component.files,
-                onClick = {}
-            )
+            EnhancedFileListSummary(path = component.path, count = component.count)
         }
 
         is MessageComponent.SearchResult -> {
-            // 使用基础的 SearchResultCard
-            SearchResultCard(
+            EnhancedSearchResultSummary(
                 matchCount = component.matchCount,
-                matchedFiles = component.matchedFiles,
-                summary = component.summary,
-                onClick = {}
+                summary = component.summary
             )
         }
 
         is MessageComponent.FileContentResult -> {
-            // 使用基础的 FileContentCard
-            FileContentCard(
+            EnhancedFileContentSummary(
                 path = component.path,
-                content = component.content,
-                lineCount = component.lineCount,
-                onClick = {}
+                lineCount = component.lineCount
             )
         }
 
         is MessageComponent.ErrorResult -> {
-            // 使用基础的 ErrorResultCard
-            ErrorResultCard(
-                error = component.error,
-                errorType = component.errorType
-            )
+            EnhancedErrorResultSummary(error = component.error)
         }
 
         else -> {
@@ -273,8 +251,136 @@ private fun EnhancedMessageComponentRenderer(
 }
 
 /**
+ * 文件列表摘要（增强版）
+ */
+@Composable
+private fun EnhancedFileListSummary(path: String, count: Int) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(text = "📁", fontSize = 18.sp)
+            Column {
+                Text(
+                    text = "文件列表",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "$path · $count 个文件",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 搜索结果摘要（增强版）
+ */
+@Composable
+private fun EnhancedSearchResultSummary(matchCount: Int, summary: String) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(text = "🔍", fontSize = 18.sp)
+            Column {
+                Text(
+                    text = "搜索结果",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 文件内容摘要（增强版）
+ */
+@Composable
+private fun EnhancedFileContentSummary(path: String, lineCount: Int) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.08f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(text = "📄", fontSize = 18.sp)
+            Column {
+                Text(
+                    text = "文件内容",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "$path · $lineCount 行",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 错误结果摘要（增强版）
+ */
+@Composable
+private fun EnhancedErrorResultSummary(error: String) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = Color(0xFFEF4444).copy(alpha = 0.08f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(text = "⚠️", fontSize = 18.sp)
+            Column {
+                Text(
+                    text = "错误",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFFEF4444)
+                )
+                Text(
+                    text = error.take(100),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFEF4444).copy(alpha = 0.8f)
+                )
+            }
+        }
+    }
+}
+
+/**
  * 消息操作栏
- * 复制、重新生成等功能
  */
 @Composable
 private fun MessageActionBar(
@@ -287,7 +393,6 @@ private fun MessageActionBar(
             .padding(top = 8.dp, start = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 复制按钮
         IconButton(
             onClick = { onCopy(content) },
             modifier = Modifier.size(32.dp)
@@ -300,7 +405,6 @@ private fun MessageActionBar(
             )
         }
 
-        // 重新生成按钮
         IconButton(
             onClick = onRegenerate,
             modifier = Modifier.size(32.dp)
@@ -328,24 +432,20 @@ private fun EnhancedStreamingIndicator() {
         repeat(3) { index ->
             val delay = index * 200
             val infiniteTransition = rememberInfiniteTransition(label = "dot_$index")
-            val scale by infiniteTransition.animateFloat(
-                initialValue = 0.6f,
-                targetValue = 1.2f,
+            val alpha by infiniteTransition.animateFloat(
+                initialValue = 0.4f,
+                targetValue = 1f,
                 animationSpec = infiniteRepeatable(
                     animation = tween(400, delayMillis = delay, easing = FastOutSlowInEasing),
                     repeatMode = RepeatMode.Reverse
                 ),
-                label = "scale_$index"
+                label = "alpha_$index"
             )
             Box(
                 modifier = Modifier
                     .size(10.dp)
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                    }
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha))
             )
         }
     }
