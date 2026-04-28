@@ -136,6 +136,7 @@ private fun ChatEmptyState() {
 /**
  * 聊天顶部导航栏
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatTopBar(
     onBack: () -> Unit,

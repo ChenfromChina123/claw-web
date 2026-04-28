@@ -307,7 +307,7 @@ object ToolParser {
             metrics = null
         )
 
-        val summary: String
+        var summary = ""
         val details = mutableListOf<String>()
         var metrics: OutputMetrics? = null
 

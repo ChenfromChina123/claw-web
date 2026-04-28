@@ -1,6 +1,7 @@
 package com.example.claw_code_application.data.api
 
 import com.example.claw_code_application.data.api.models.*
+import com.example.claw_code_application.util.NetworkConfig
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Response
@@ -122,6 +123,6 @@ interface ApiService {
      * 获取图片 URL
      */
     fun getImageUrl(imageId: String): String {
-        return "${retrofit.baseUrl()}api/chat/images/$imageId"
+        return "${NetworkConfig.getBaseUrl()}api/chat/images/$imageId"
     }
 }

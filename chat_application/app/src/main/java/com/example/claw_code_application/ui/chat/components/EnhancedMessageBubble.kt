@@ -251,7 +251,7 @@ private fun ToolUseComponent(
     toolUse: MessageComponent.ToolUse,
     isExecuting: Boolean
 ) {
-    val command = toolUse.input["command"] ?: toolUse.input["cmd"] ?: ""
+    val command = (toolUse.input["command"] ?: toolUse.input["cmd"] ?: "").toString()
 
     if (command.isNotBlank()) {
         // 显示为终端卡片（执行中状态）

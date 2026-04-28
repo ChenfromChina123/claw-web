@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,19 +20,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.Session
+import com.example.claw_code_application.ui.theme.AppColor
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
  * 会话列表界面 - Manus 风格设计
- * 集成搜索功能和滑动删除
+ * 集成搜索功能和滑动删除，支持暗色主题
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +49,8 @@ fun SessionListScreen(
     var isSearchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf(TextFieldValue("")) }
 
+    val isDarkTheme = !isSystemInDarkTheme().not()
+
     val sessionDisplayData = remember(sessions) {
         sessions.map { session ->
             SessionDisplayData(
@@ -56,7 +59,7 @@ fun SessionListScreen(
                 previewText = generatePreview(session.title),
                 timeText = formatTime(session.updatedAt),
                 iconText = getIconText(session.title),
-                iconBgColor = getIconBgColor(session.title)
+                iconBgColor = getIconBgColor(session.title, isDarkTheme)
             )
         }
     }
@@ -72,16 +75,20 @@ fun SessionListScreen(
         }
     }
 
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val surfaceColor = MaterialTheme.colorScheme.surface
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5))
+            .background(backgroundColor)
     ) {
         TopAppBarWithSearch(
             isSearchExpanded = isSearchExpanded,
             onSearchExpandedChange = { isSearchExpanded = it },
             searchQuery = searchQuery,
-            onSearchQueryChange = { searchQuery = it }
+            onSearchQueryChange = { searchQuery = it },
+            surfaceColor = surfaceColor
         )
 
         TabRow(
@@ -126,7 +133,7 @@ private data class SessionDisplayData(
     val previewText: String,
     val timeText: String,
     val iconText: String,
-    val iconBgColor: Color
+    val iconBgColor: androidx.compose.ui.graphics.Color
 )
 
 /**
@@ -137,9 +144,14 @@ private fun TopAppBarWithSearch(
     isSearchExpanded: Boolean,
     onSearchExpandedChange: (Boolean) -> Unit,
     searchQuery: TextFieldValue,
-    onSearchQueryChange: (TextFieldValue) -> Unit
+    onSearchQueryChange: (TextFieldValue) -> Unit,
+    surfaceColor: androidx.compose.ui.graphics.Color
 ) {
-    Column(modifier = Modifier.background(Color.White)) {
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
+
+    Column(modifier = Modifier.background(surfaceColor)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -151,21 +163,21 @@ private fun TopAppBarWithSearch(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFE0E0E0)),
+                    .background(surfaceVariantColor),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "U",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF757575)
+                    color = onSurfaceVariantColor
                 )
             }
 
             Text(
                 text = "收藏家",
                 fontSize = 22.sp,
-                color = Color.Black,
+                color = onSurfaceColor,
                 letterSpacing = 0.5.sp
             )
 
@@ -181,7 +193,7 @@ private fun TopAppBarWithSearch(
                 Icon(
                     imageVector = if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
                     contentDescription = if (isSearchExpanded) "关闭搜索" else "搜索",
-                    tint = Color(0xFF333333),
+                    tint = onSurfaceColor,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -199,18 +211,18 @@ private fun TopAppBarWithSearch(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 placeholder = {
-                    Text("搜索会话...", color = Color(0xFF999999), fontSize = 14.sp)
+                    Text("搜索会话...", color = onSurfaceVariantColor, fontSize = 14.sp)
                 },
                 singleLine = true,
                 shape = RoundedCornerShape(20.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFFF0F0F0),
-                    unfocusedContainerColor = Color(0xFFF0F0F0),
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    cursorColor = Color.Black,
-                    focusedTextColor = Color(0xFF1A1A1A),
-                    unfocusedTextColor = Color(0xFF1A1A1A)
+                    focusedContainerColor = surfaceVariantColor,
+                    unfocusedContainerColor = surfaceVariantColor,
+                    focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedTextColor = onSurfaceColor,
+                    unfocusedTextColor = onSurfaceColor
                 )
             )
         }
@@ -220,6 +232,7 @@ private fun TopAppBarWithSearch(
 /**
  * 滑动删除的会话列表项
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeToDismissSessionItem(
     item: SessionDisplayData,
@@ -243,9 +256,9 @@ private fun SwipeToDismissSessionItem(
         state = dismissState,
         backgroundContent = {
             val color = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) {
-                Color(0xFFFF3B30)
+                MaterialTheme.colorScheme.error
             } else {
-                Color.Transparent
+                androidx.compose.ui.graphics.Color.Transparent
             }
 
             Box(
@@ -258,7 +271,7 @@ private fun SwipeToDismissSessionItem(
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "删除",
-                    tint = Color.White
+                    tint = androidx.compose.ui.graphics.Color.White
                 )
             }
         },
@@ -281,10 +294,12 @@ private fun TabRow(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit
 ) {
+    val surfaceColor = MaterialTheme.colorScheme.surface
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(surfaceColor)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -301,8 +316,8 @@ private fun TabRow(
 
 @Composable
 private fun TabItem(text: String, selected: Boolean, onClick: () -> Unit) {
-    val bgColor = if (selected) Color(0xFF1A1A1A) else Color(0xFFF0F0F0)
-    val textColor = if (selected) Color.White else Color(0xFF666666)
+    val bgColor = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceVariant
+    val textColor = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurfaceVariant
 
     Box(
         modifier = Modifier
@@ -329,11 +344,19 @@ private fun SessionItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val itemBgColor = if (isSelected) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(68.dp)
-            .background(if (isSelected) Color(0xFFF0F0F0) else Color.White)
+            .background(itemBgColor)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp)
     ) {
@@ -349,14 +372,14 @@ private fun SessionItem(
                 text = item.iconText,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF555555)
+                color = onSurfaceVariantColor
             )
         }
 
         Text(
             text = item.timeText,
             fontSize = 12.sp,
-            color = Color(0xFF999999),
+            color = onSurfaceVariantColor,
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 14.dp)
         )
 
@@ -364,7 +387,7 @@ private fun SessionItem(
             text = item.title,
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
-            color = Color(0xFF1A1A1A),
+            color = onSurfaceColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
@@ -375,7 +398,7 @@ private fun SessionItem(
         Text(
             text = item.previewText,
             fontSize = 13.sp,
-            color = Color(0xFF888888),
+            color = onSurfaceVariantColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
@@ -404,18 +427,31 @@ private fun getIconText(title: String): String {
 }
 
 /**
- * 获取图标背景色
+ * 获取图标背景色（适配暗色主题）
  */
-private fun getIconBgColor(title: String): Color {
-    return when {
-        title.contains("Agent", ignoreCase = true) -> Color(0xFFF0E6FF)
-        title.contains("代码", ignoreCase = true) ||
-        title.contains("开发", ignoreCase = true) -> Color(0xFFE6F3FF)
-        title.contains("分析", ignoreCase = true) ||
-        title.contains("数据", ignoreCase = true) -> Color(0xFFFFF0E6)
-        title.contains("测试", ignoreCase = true) -> Color(0xFFE6FFE6)
-        title.contains("文件", ignoreCase = true) -> Color(0xFFFFF8E6)
-        else -> Color(0xFFF0F0F0)
+private fun getIconBgColor(title: String, isDark: Boolean): androidx.compose.ui.graphics.Color {
+    return if (isDark) {
+        when {
+            title.contains("Agent", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFF2D1B69)
+            title.contains("代码", ignoreCase = true) ||
+            title.contains("开发", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFF1B3A5C)
+            title.contains("分析", ignoreCase = true) ||
+            title.contains("数据", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFF5C3A1B)
+            title.contains("测试", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFF1B5C2D)
+            title.contains("文件", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFF5C4F1B)
+            else -> androidx.compose.ui.graphics.Color(0xFF2D2D3A)
+        }
+    } else {
+        when {
+            title.contains("Agent", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFFF0E6FF)
+            title.contains("代码", ignoreCase = true) ||
+            title.contains("开发", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFFE6F3FF)
+            title.contains("分析", ignoreCase = true) ||
+            title.contains("数据", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFFFFF0E6)
+            title.contains("测试", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFFE6FFE6)
+            title.contains("文件", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFFFFF8E6)
+            else -> androidx.compose.ui.graphics.Color(0xFFF0F0F0)
+        }
     }
 }
 
@@ -483,13 +519,13 @@ private fun EmptyState() {
                 text = "还没有会话",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF999999)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "点击右下角开始新对话",
                 fontSize = 14.sp,
-                color = Color(0xFFBBBBBB)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
         }
     }
@@ -509,13 +545,13 @@ private fun SearchEmptyState() {
                 text = "未找到匹配的会话",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF999999)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "尝试其他关键词",
                 fontSize = 14.sp,
-                color = Color(0xFFBBBBBB)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
         }
     }

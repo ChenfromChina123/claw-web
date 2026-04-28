@@ -262,8 +262,6 @@ class ChatViewModel(
                         completedAt = System.currentTimeMillis().toString()
                     )
                 }
-                }
-                // 清理pending输入
                 pendingToolInput.remove(event.id)
             }
 
