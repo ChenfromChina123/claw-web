@@ -7,6 +7,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -154,7 +157,11 @@ private fun TopAppBarWithSearch(
     val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
     val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
 
-    Column(modifier = Modifier.background(surfaceColor)) {
+    Column(
+        modifier = Modifier
+            .background(surfaceColor)
+            .windowInsetsPadding(WindowInsets.statusBars)
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

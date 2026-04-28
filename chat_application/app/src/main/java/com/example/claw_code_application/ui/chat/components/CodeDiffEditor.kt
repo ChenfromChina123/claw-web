@@ -4,6 +4,9 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -146,24 +149,30 @@ private fun FileTitleBar(
 
 /**
  * Diff 对比视图
+ * 使用 LazyColumn 实现虚拟化渲染，只渲染可见行以提升滚动性能
  */
 @Composable
 private fun DiffView(
     originalCode: String,
     modifiedCode: String
 ) {
-    val diffLines = calculateDiff(originalCode, modifiedCode)
-    val scrollState = rememberScrollState()
+    val diffLines = remember(originalCode, modifiedCode) {
+        calculateDiff(originalCode, modifiedCode)
+    }
+    val listState = rememberLazyListState()
 
-    Column(
+    LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 400.dp)
-            .verticalScroll(scrollState)
             .padding(12.dp)
     ) {
-        diffLines.forEach { diffLine ->
-            DiffLineItem(diffLine = diffLine)
+        items(
+            count = diffLines.size,
+            key = { index -> "${diffLines[index].type}_${diffLines[index].lineNumber}" }
+        ) { index ->
+            DiffLineItem(diffLine = diffLines[index])
         }
     }
 }
@@ -217,27 +226,31 @@ private fun DiffLineItem(diffLine: DiffLine) {
 
 /**
  * 代码视图（原版/修改后）
+ * 使用 LazyColumn 实现虚拟化渲染，只渲染可见行以提升滚动性能
  */
 @Composable
 private fun CodeView(
     code: String,
     isOriginal: Boolean
 ) {
-    val scrollState = rememberScrollState()
+    val listState = rememberLazyListState()
+    val lines = remember(code) { code.lines() }
     val backgroundColor = if (isOriginal)
         Color(0xFFF5F5F5) else Color(0xFFF0F8FF)
 
-    Column(
+    LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 400.dp)
-            .verticalScroll(scrollState)
             .background(backgroundColor)
             .padding(12.dp)
     ) {
-        code.lines().forEachIndexed { index, line ->
+        items(
+            count = lines.size,
+            key = { index -> "line_${index + 1}" }
+        ) { index ->
             Row {
-                // 行号
                 Text(
                     text = "${index + 1}",
                     fontSize = 11.sp,
@@ -246,9 +259,8 @@ private fun CodeView(
                     modifier = Modifier.width(32.dp)
                 )
 
-                // 代码内容
                 Text(
-                    text = line,
+                    text = lines[index],
                     fontSize = 12.sp,
                     color = AppColor.TextPrimary,
                     fontFamily = FontFamily.Monospace,
