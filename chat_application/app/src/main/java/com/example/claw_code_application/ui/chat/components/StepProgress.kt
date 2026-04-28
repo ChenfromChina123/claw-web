@@ -15,15 +15,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.ui.theme.AppColor
 
 /**
- * 步骤进度组件
+ * 步骤进度组件 - Manus 1.6 Lite 风格
  * 显示任务执行的多步骤进度，支持折叠/展开
  */
 @Composable
@@ -39,13 +39,13 @@ fun StepProgress(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = AppColor.SurfaceLight
+            containerColor = Color(0xFFF5F5F7)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, AppColor.Border)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE8E8ED))
     ) {
         Column {
             // 头部（可点击展开/收起）
@@ -53,13 +53,13 @@ fun StepProgress(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onExpandedChange(!isExpanded) }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     // 进度指示器
                     StepProgressIndicator(
@@ -103,10 +103,10 @@ fun StepProgress(
                 ) + fadeOut(animationSpec = tween(150))
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     HorizontalDivider(
-                        color = AppColor.Divider,
+                        color = Color(0xFFE8E8ED),
                         thickness = 1.dp,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
@@ -140,14 +140,14 @@ private fun StepProgressIndicator(
     )
 
     Box(
-        modifier = Modifier.size(40.dp),
+        modifier = Modifier.size(44.dp),
         contentAlignment = Alignment.Center
     ) {
         // 背景圆环
         CircularProgressIndicator(
             progress = { 1f },
             modifier = Modifier.fillMaxSize(),
-            color = AppColor.Border,
+            color = Color(0xFFE8E8ED),
             strokeWidth = 3.dp,
             trackColor = Color.Transparent
         )
@@ -156,7 +156,7 @@ private fun StepProgressIndicator(
         CircularProgressIndicator(
             progress = { animatedProgress },
             modifier = Modifier.fillMaxSize(),
-            color = AppColor.Primary,
+            color = AppColor.PrimaryLight,
             strokeWidth = 3.dp,
             trackColor = Color.Transparent
         )
@@ -164,9 +164,9 @@ private fun StepProgressIndicator(
         // 步骤数字
         Text(
             text = "$currentStep/$totalSteps",
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            color = AppColor.Primary
+            color = AppColor.PrimaryLight
         )
     }
 }
@@ -187,30 +187,28 @@ private fun StepItem(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 状态图标
             StepStatusIcon(status = step.status)
 
-            // 连接线（如果不是最后一个）
             if (!isLast) {
                 Box(
                     modifier = Modifier
                         .width(2.dp)
-                        .height(24.dp)
+                        .height(28.dp)
                         .background(
                             color = when (step.status) {
                                 StepStatus.COMPLETED -> AppColor.Success.copy(alpha = 0.3f)
-                                else -> AppColor.Border
+                                else -> Color(0xFFE8E8ED)
                             }
                         )
                 )
             }
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(14.dp))
 
         // 步骤内容
         Column(
-            modifier = Modifier.padding(bottom = if (isLast) 0.dp else 8.dp)
+            modifier = Modifier.padding(bottom = if (isLast) 0.dp else 10.dp)
         ) {
             Text(
                 text = step.title,
@@ -219,7 +217,7 @@ private fun StepItem(
                     FontWeight.SemiBold else FontWeight.Normal,
                 color = when (step.status) {
                     StepStatus.COMPLETED -> AppColor.TextPrimary
-                    StepStatus.IN_PROGRESS -> AppColor.Primary
+                    StepStatus.IN_PROGRESS -> AppColor.PrimaryLight
                     StepStatus.ERROR -> AppColor.Error
                     else -> AppColor.TextSecondary
                 }
@@ -227,11 +225,11 @@ private fun StepItem(
 
             // 状态标签
             if (step.status == StepStatus.IN_PROGRESS) {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "执行中...",
                     fontSize = 11.sp,
-                    color = AppColor.Primary
+                    color = AppColor.PrimaryLight
                 )
             }
         }
@@ -253,7 +251,6 @@ private fun StepStatusIcon(status: StepStatus) {
             )
         }
         StepStatus.IN_PROGRESS -> {
-            // 脉冲动画
             val infiniteTransition = rememberInfiniteTransition(label = "pulse")
             val alpha by infiniteTransition.animateFloat(
                 initialValue = 1f,
@@ -269,7 +266,7 @@ private fun StepStatusIcon(status: StepStatus) {
                 modifier = Modifier
                     .size(20.dp)
                     .background(
-                        color = AppColor.Primary.copy(alpha = alpha),
+                        color = AppColor.PrimaryLight.copy(alpha = alpha),
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
@@ -278,7 +275,7 @@ private fun StepStatusIcon(status: StepStatus) {
                     modifier = Modifier
                         .size(8.dp)
                         .background(
-                            color = AppColor.Primary,
+                            color = AppColor.PrimaryLight,
                             shape = CircleShape
                         )
                 )
@@ -297,7 +294,7 @@ private fun StepStatusIcon(status: StepStatus) {
                 modifier = Modifier
                     .size(20.dp)
                     .background(
-                        color = AppColor.Border,
+                        color = Color(0xFFE8E8ED),
                         shape = CircleShape
                     )
             )

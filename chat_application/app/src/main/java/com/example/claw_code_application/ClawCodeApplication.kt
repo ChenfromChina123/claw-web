@@ -4,6 +4,7 @@ import android.app.Application
 import com.example.claw_code_application.data.api.ApiService
 import com.example.claw_code_application.data.api.AuthInterceptor
 import com.example.claw_code_application.data.local.TokenManager
+import com.example.claw_code_application.data.local.SessionLocalStore
 import com.example.claw_code_application.data.repository.AuthRepository
 import com.example.claw_code_application.data.repository.ChatRepository
 import com.example.claw_code_application.data.websocket.WebSocketManager
@@ -50,6 +51,10 @@ class ClawCodeApplication : Application() {
         lateinit var chatRepository: ChatRepository
             private set
 
+        /** 会话本地存储（用于持久化会话ID） */
+        lateinit var sessionLocalStore: SessionLocalStore
+            private set
+
         /** 全局WebSocket管理器 */
         val webSocketManager = WebSocketManager()
     }
@@ -75,6 +80,11 @@ class ClawCodeApplication : Application() {
         // 初始化Repository
         authRepository = AuthRepository(apiService, tokenManager)
         chatRepository = ChatRepository(apiService, tokenManager)
+        
+        // 初始化会话本地存储
+        sessionLocalStore = SessionLocalStore.getInstance(this)
+        Logger.d(TAG, "SessionLocalStore初始化完成")
+        
         Logger.d(TAG, "Repository初始化完成")
         
         Logger.i(TAG, "应用初始化完成")

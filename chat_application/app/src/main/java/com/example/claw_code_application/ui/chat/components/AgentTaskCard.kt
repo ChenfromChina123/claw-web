@@ -39,20 +39,12 @@ enum class AgentStepStatus {
 }
 
 /**
- * Agent任务卡片 - Manus风格一体化设计
- * 核心特色：✦任务标题 + 步骤列表(✓/○) + 预览卡片
- * 完全复刻Manus原型的Agent Card布局
- *
- * @param taskTitle 任务标题
- * @param steps 任务步骤列表
- * @param isExpanded 是否展开步骤列表
- * @param onExpandedChange 展开/收起回调
- * @param previewTitle 预览卡片标题（为空则不显示预览卡片）
- * @param previewDescription 预览卡片描述
- * @param previewHeaderTitle 预览卡片标题栏文字
- * @param previewHeaderTime 预览卡片标题栏时间
- * @param onPreviewClick 预览按钮点击回调
- * @param onDashboardClick 仪表盘按钮点击回调
+ * Agent任务卡片 - Manus 1.6 Lite 风格
+ * 
+ * 设计理念：
+ * - 简洁、克制，专业
+ * - ✦图标 + 任务标题 + 步骤列表
+ * - 步骤用实心小圆点区分
  */
 @Composable
 fun AgentTaskCard(
@@ -72,10 +64,10 @@ fun AgentTaskCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = AppColor.SurfaceDark
+            containerColor = Color(0xFFF5F5F7)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = BorderStroke(1.dp, AppColor.Border)
+        border = BorderStroke(1.dp, Color(0xFFE8E8ED))
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -132,7 +124,7 @@ private fun AgentCardHeader(
             .fillMaxWidth()
             .clickable { onExpandedChange(!isExpanded) },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
             text = "✦",
@@ -159,13 +151,12 @@ private fun AgentCardHeader(
 }
 
 /**
- * Agent步骤列表
- * Manus风格：简洁的 ✓/○ 圆形图标 + 步骤文字
+ * Agent步骤列表 - Manus风格：简洁的 ✓/○ 圆形图标 + 步骤文字
  */
 @Composable
 private fun AgentStepList(steps: List<AgentStep>) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         steps.forEachIndexed { index, step ->
             AgentStepItem(
@@ -177,8 +168,7 @@ private fun AgentStepList(steps: List<AgentStep>) {
 }
 
 /**
- * 单个步骤项
- * Manus原型风格：
+ * 单个步骤项 - Manus 1.6 Lite 风格
  * - 已完成：灰色 ✓ 圆形图标 + 灰色删除线文字
  * - 进行中：空心 ○ 圆形图标 + 黑色文字 + 脉冲动画
  * - 待执行：空心 ○ 圆形图标 + 灰色文字
@@ -191,7 +181,7 @@ private fun AgentStepItem(
     Column {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             StepIcon(status = step.status)
 
@@ -199,7 +189,7 @@ private fun AgentStepItem(
                 text = step.title,
                 fontSize = 13.sp,
                 color = when (step.status) {
-                    AgentStepStatus.COMPLETED -> AppColor.TaskCompleted
+                    AgentStepStatus.COMPLETED -> AppColor.TextSecondary
                     AgentStepStatus.IN_PROGRESS -> AppColor.TextPrimary
                     AgentStepStatus.PENDING -> AppColor.TextSecondary
                 },
@@ -218,11 +208,11 @@ private fun AgentStepItem(
                 modifier = Modifier
                     .padding(start = 7.dp)
                     .width(1.dp)
-                    .height(10.dp)
+                    .height(12.dp)
                     .background(
                         color = when (step.status) {
                             AgentStepStatus.COMPLETED -> AppColor.TaskCompleted.copy(alpha = 0.3f)
-                            else -> AppColor.Border
+                            else -> Color(0xFFE8E8ED)
                         }
                     )
             )
@@ -231,8 +221,8 @@ private fun AgentStepItem(
 }
 
 /**
- * 步骤状态图标
- * Manus原型风格：16dp圆形图标
+ * 步骤状态图标 - Manus 1.6 Lite 风格
+ * 16dp 圆形图标
  */
 @Composable
 private fun StepIcon(status: AgentStepStatus) {
@@ -242,7 +232,7 @@ private fun StepIcon(status: AgentStepStatus) {
                 modifier = Modifier
                     .size(16.dp)
                     .background(
-                        color = AppColor.SurfaceLight,
+                        color = Color(0xFFF3F4F6),
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
@@ -271,7 +261,7 @@ private fun StepIcon(status: AgentStepStatus) {
                 modifier = Modifier
                     .size(16.dp)
                     .background(
-                        color = AppColor.Primary.copy(alpha = alpha * 0.2f),
+                        color = AppColor.PrimaryLight.copy(alpha = alpha * 0.15f),
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
@@ -280,7 +270,7 @@ private fun StepIcon(status: AgentStepStatus) {
                     modifier = Modifier
                         .size(6.dp)
                         .background(
-                            color = AppColor.Primary,
+                            color = AppColor.PrimaryLight,
                             shape = CircleShape
                         )
                 )
@@ -288,35 +278,11 @@ private fun StepIcon(status: AgentStepStatus) {
         }
 
         AgentStepStatus.PENDING -> {
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .background(
-                        color = Color.Transparent,
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .background(
-                            color = Color.Transparent,
-                            shape = CircleShape
-                        )
-                        .then(
-                            Modifier.background(
-                                color = Color.Transparent,
-                                shape = CircleShape
-                            )
-                        )
-                )
-                Surface(
-                    modifier = Modifier.size(16.dp),
-                    shape = CircleShape,
-                    border = BorderStroke(1.dp, AppColor.TaskIconBorder)
-                ) {}
-            }
+            Surface(
+                modifier = Modifier.size(16.dp),
+                shape = CircleShape,
+                border = BorderStroke(1.5.dp, AppColor.TaskIconBorder)
+            ) {}
         }
     }
 }

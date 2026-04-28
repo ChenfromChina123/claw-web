@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -25,8 +26,13 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * 增强版消息气泡组件
- * 支持：Markdown渲染、动态组件渲染（终端/代码差异/步骤进度）、流式输出动画
+ * 增强版消息气泡组件 - Manus 1.6 Lite 风格
+ * 
+ * 设计理念：
+ * - 轻、透、统一，没有多余的装饰
+ * - AI消息：浅灰背景(#F5F5F7)，极淡阴影，圆角18dp
+ * - 用户消息：纯黑背景，白色文字，圆角20dp
+ * - 最大宽度：屏幕的85%，避免单行文字过长
  */
 @Composable
 fun EnhancedMessageBubble(
@@ -35,6 +41,22 @@ fun EnhancedMessageBubble(
     modifier: Modifier = Modifier
 ) {
     val isUser = message.role == "user"
+    
+    // Manus 1.6 Lite 气泡配置
+    val bubbleShape = RoundedCornerShape(
+        topStart = if (isUser) 20.dp else 12.dp,
+        topEnd = if (isUser) 4.dp else 18.dp,
+        bottomStart = 18.dp,
+        bottomEnd = 18.dp
+    )
+    
+    // AI消息使用极淡阴影
+    val bubbleElevation = if (isUser) 0.dp else Modifier.shadow(
+        elevation = 2.dp,
+        shape = bubbleShape,
+        ambientColor = androidx.compose.ui.graphics.Color(0x0F000000),
+        spotColor = androidx.compose.ui.graphics.Color(0x0F000000)
+    )
 
     Row(
         modifier = modifier
@@ -46,41 +68,35 @@ fun EnhancedMessageBubble(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
             modifier = Modifier.fillMaxWidth(if (isUser) 0.85f else 0.95f)
         ) {
-            // 消息内容卡片
+            // 消息内容卡片 - Manus 1.6 Lite 风格
             Surface(
-                shape = RoundedCornerShape(
-                    topStart = if (isUser) 16.dp else 12.dp,
-                    topEnd = if (isUser) 4.dp else 16.dp,
-                    bottomStart = 16.dp,
-                    bottomEnd = 16.dp
-                ),
-                color = if (isUser) AppColor.UserBubbleBackground else AppColor.AssistantBubbleBackground,
+                shape = bubbleShape,
+                // AI消息：iOS浅灰背景(#F5F5F7)
+                color = if (isUser) AppColor.UserBubbleBackground else Color(0xFFF5F5F7),
+                // 极淡阴影，几乎看不见，增加层次感
                 shadowElevation = if (isUser) 0.dp else 1.dp,
-                border = if (isUser) null else androidx.compose.foundation.BorderStroke(1.dp, AppColor.Border)
+                border = if (isUser) null else BorderStroke(1.dp, Color(0xFFE8E8ED)),
+                modifier = if (isUser) Modifier else bubbleElevation
             ) {
                 Column(
                     modifier = Modifier.padding(
-                        horizontal = 14.dp,
-                        vertical = 10.dp
+                        horizontal = 16.dp,
+                        vertical = 12.dp
                     )
                 ) {
                     // 动态组件渲染
                     if (isUser) {
-                        /**
-                         * 用户消息内容过滤（与Web端三重过滤对齐）
-                         * Anthropic API 会将 tool_result 包装成 user 角色消息发送给 Agent
-                         * 需要过滤掉这些内部消息，避免显示原始 JSON
-                         */
                         val filteredContent = remember(message.content) {
                             getSafeAssistantContent(message.content)
                         }
                         
                         if (filteredContent.isNotBlank()) {
+                            // 用户消息：白色文字
                             Text(
                                 text = filteredContent,
-                                color = AppColor.SurfaceDark,
-                                fontSize = 14.sp,
-                                lineHeight = 20.sp
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                lineHeight = 23.sp  // 1.53倍行高
                             )
                         }
                     } else {
@@ -118,7 +134,7 @@ fun EnhancedMessageBubble(
                 }
             }
 
-            // 时间戳
+            // 时间戳 - Manus风格：简洁灰色
             Text(
                 text = formatTimestamp(message.timestamp),
                 color = AppColor.TextSecondary,
@@ -130,20 +146,24 @@ fun EnhancedMessageBubble(
 }
 
 /**
- * 动态消息内容渲染
+ * 动态消息内容渲染 - Manus 1.6 Lite 风格
  * 根据内容类型渲染不同组件
+ * 
+ * Manus 风格特点：
+ * - 标题：H1 20sp加粗，H2 18sp加粗，H3 16sp加粗
+ * - 文本：行高1.55倍，段落间距18sp
+ * - 代码/关键词：浅灰背景(#E8E8ED)，圆角6dp
+ * - 链接：iOS系统蓝(#007AFF)，无下划线
  */
 @Composable
 private fun DynamicMessageContent(
     content: String,
     isStreaming: Boolean
 ) {
-    // 解析消息内容为组件列表
     val components = remember(content) {
         MessageContentParser.parse(content)
     }
 
-    // 渲染每个组件
     components.forEach { component ->
         when (component) {
             is MessageComponent.Text -> {
@@ -155,12 +175,21 @@ private fun DynamicMessageContent(
                     }
                 }
 
+                // Manus 风格的 Markdown 渲染
+                // 使用自定义配置的行内代码和链接样式
                 MarkdownText(
                     markdown = displayContent,
                     modifier = Modifier.fillMaxWidth(),
                     color = AppColor.TextPrimary,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
+                    fontSize = 15.sp,
+                    lineHeight = 23.sp,
+                    // 行内代码样式：浅灰背景 + 圆角 + 等宽字体
+                    linkColor = AppColor.PrimaryLight,  // iOS系统蓝
+                    style = androidx.compose.ui.text.SpanStyle(
+                        fontFamily = FontFamily.SansSerif,
+                        fontSize = 15.sp,
+                        lineHeight = 23.sp
+                    )
                 )
             }
 
@@ -246,15 +275,16 @@ private fun DynamicMessageContent(
             }
         }
 
-        // 组件之间添加间距
+        // 组件之间添加间距 - Manus标准：16dp
         if (component !== components.lastOrNull()) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
 /**
- * 工具调用组件
+ * 工具调用组件 - Manus 1.6 Lite 风格
+ * 显示为简洁的终端卡片
  */
 @Composable
 private fun ToolUseComponent(
@@ -264,7 +294,6 @@ private fun ToolUseComponent(
     val command = (toolUse.input["command"] ?: toolUse.input["cmd"] ?: "").toString()
 
     if (command.isNotBlank()) {
-        // 显示为终端卡片（执行中状态）
         TerminalViewer(
             command = command,
             stdout = "",
@@ -273,25 +302,24 @@ private fun ToolUseComponent(
             isExecuting = isExecuting
         )
     } else {
-        // 显示为通用工具卡片
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = AppColor.SurfaceLight
-            ),
-            border = androidx.compose.foundation.BorderStroke(1.dp, AppColor.Border)
+        // 显示为通用工具卡片 - Manus风格
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = Color(0xFFF5F5F7),
+            border = BorderStroke(1.dp, Color(0xFFE8E8ED))
         ) {
             Row(
                 modifier = Modifier.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(text = "⚙️", fontSize = 16.sp)
+                // 简洁的工具图标
+                Text(text = "⚡", fontSize = 14.sp)
                 Text(
-                    text = "正在执行: ${toolUse.toolName}",
+                    text = if (isExecuting) "正在执行: ${toolUse.toolName}" else toolUse.toolName,
                     fontSize = 13.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    color = AppColor.TextPrimary
                 )
             }
         }
@@ -323,8 +351,8 @@ private fun StreamingCursor() {
 }
 
 /**
- * 文件列表查看器组件
- * 显示 FileList 工具返回的文件和目录列表
+ * 文件列表查看器组件 - Manus 1.6 Lite 风格
+ * 显示文件/目录列表
  */
 @Composable
 private fun FileListViewer(
@@ -333,23 +361,21 @@ private fun FileListViewer(
     files: List<FileInfo>,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AppColor.SurfaceLight
-        ),
-        border = BorderStroke(1.dp, AppColor.Border)
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFFF5F5F7),
+        border = BorderStroke(1.dp, Color(0xFFE8E8ED))
     ) {
         Column(
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
             // 路径标题
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(text = "📁", fontSize = 16.sp)
+                Text(text = "📁", fontSize = 14.sp)
                 Text(
                     text = path,
                     fontSize = 13.sp,
@@ -363,22 +389,20 @@ private fun FileListViewer(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            HorizontalDivider(color = AppColor.Divider, thickness = 1.dp)
-
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = Color(0xFFE8E8ED), thickness = 1.dp)
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 文件列表
             files.forEach { file ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 文件/目录图标
+                    // 文件图标
                     Text(
                         text = if (file.isDirectory) "📂" else "📄",
                         fontSize = 14.sp
@@ -387,25 +411,25 @@ private fun FileListViewer(
                     // 文件名
                     Text(
                         text = file.name,
-                        fontSize = 12.sp,
-                        color = if (file.isDirectory) AppColor.Primary else AppColor.TextPrimary,
+                        fontSize = 13.sp,
+                        color = if (file.isDirectory) AppColor.PrimaryLight else AppColor.TextPrimary,
                         fontWeight = if (file.isDirectory) FontWeight.Medium else FontWeight.Normal,
                         modifier = Modifier.weight(1f)
                     )
 
-                    // 类型标签
+                    // 类型标签 - 浅灰背景
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
+                        shape = RoundedCornerShape(6.dp),
                         color = if (file.isDirectory) 
-                            AppColor.Primary.copy(alpha = 0.1f) 
+                            AppColor.PrimaryLight.copy(alpha = 0.1f) 
                         else 
                             AppColor.TextSecondary.copy(alpha = 0.1f)
                     ) {
                         Text(
                             text = if (file.isDirectory) "目录" else "文件",
-                            fontSize = 10.sp,
-                            color = if (file.isDirectory) AppColor.Primary else AppColor.TextSecondary,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            fontSize = 11.sp,
+                            color = if (file.isDirectory) AppColor.PrimaryLight else AppColor.TextSecondary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
                 }
@@ -415,7 +439,7 @@ private fun FileListViewer(
 }
 
 /**
- * 搜索结果查看器组件
+ * 搜索结果查看器组件 - Manus 1.6 Lite 风格
  */
 @Composable
 private fun SearchResultViewer(
@@ -424,22 +448,20 @@ private fun SearchResultViewer(
     matchedFiles: List<String>,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AppColor.SurfaceLight
-        ),
-        border = BorderStroke(1.dp, AppColor.Border)
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFFF5F5F7),
+        border = BorderStroke(1.dp, Color(0xFFE8E8ED))
     ) {
         Column(
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(text = "🔍", fontSize = 16.sp)
+                Text(text = "🔍", fontSize = 14.sp)
                 Text(
                     text = summary,
                     fontSize = 13.sp,
@@ -449,21 +471,21 @@ private fun SearchResultViewer(
             }
 
             if (matchedFiles.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                HorizontalDivider(color = AppColor.Divider, thickness = 1.dp)
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = Color(0xFFE8E8ED), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(12.dp))
 
                 matchedFiles.take(10).forEach { filePath ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(text = "📄", fontSize = 12.sp)
                         Text(
                             text = filePath,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             color = AppColor.TextSecondary,
                             fontFamily = FontFamily.Monospace
                         )
@@ -475,7 +497,7 @@ private fun SearchResultViewer(
                         text = "...还有 ${matchedFiles.size - 10} 个文件",
                         fontSize = 11.sp,
                         color = AppColor.TextSecondary,
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = 8.dp)
                     )
                 }
             }
@@ -484,7 +506,7 @@ private fun SearchResultViewer(
 }
 
 /**
- * 文件内容读取结果查看器组件
+ * 文件内容读取结果查看器组件 - Manus 1.6 Lite 风格
  */
 @Composable
 private fun FileContentViewer(
@@ -493,28 +515,26 @@ private fun FileContentViewer(
     lineCount: Int,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AppColor.SurfaceLight
-        ),
-        border = BorderStroke(1.dp, AppColor.Border)
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFFF5F5F7),
+        border = BorderStroke(1.dp, Color(0xFFE8E8ED))
     ) {
         Column(
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(text = "📄", fontSize = 16.sp)
+                Text(text = "📄", fontSize = 14.sp)
                 if (path.isNotEmpty()) {
                     Text(
                         text = path,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        color = AppColor.Primary
+                        color = AppColor.PrimaryLight
                     )
                 }
                 Text(
@@ -525,9 +545,9 @@ private fun FileContentViewer(
             }
 
             if (content.isNotBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                HorizontalDivider(color = AppColor.Divider, thickness = 1.dp)
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = Color(0xFFE8E8ED), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(12.dp))
 
                 val displayContent = if (content.length > 500) {
                     content.take(500) + "\n... (已截断)"
@@ -537,10 +557,10 @@ private fun FileContentViewer(
 
                 Text(
                     text = displayContent,
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,
                     color = AppColor.TextPrimary,
-                    lineHeight = 16.sp
+                    lineHeight = 18.sp
                 )
             }
         }
@@ -548,7 +568,8 @@ private fun FileContentViewer(
 }
 
 /**
- * 错误结果查看器组件
+ * 错误结果查看器组件 - Manus 1.6 Lite 风格
+ * 错误提示：浅红背景 + 深红文字
  */
 @Composable
 private fun ErrorResultViewer(
@@ -556,27 +577,26 @@ private fun ErrorResultViewer(
     errorType: String,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AppColor.Error.copy(alpha = 0.05f)
-        ),
+        shape = RoundedCornerShape(12.dp),
+        // 浅红背景
+        color = AppColor.ErrorBackground,
         border = BorderStroke(1.dp, AppColor.Error.copy(alpha = 0.3f))
     ) {
         Column(
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(text = "❌", fontSize = 16.sp)
+                Text(text = "❌", fontSize = 14.sp)
                 Text(
                     text = "错误: $errorType",
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = AppColor.Error
+                    fontWeight = FontWeight.SemiBold,
+                    color = AppColor.ErrorText
                 )
             }
 
@@ -585,8 +605,9 @@ private fun ErrorResultViewer(
                 Text(
                     text = error,
                     fontSize = 12.sp,
-                    color = AppColor.Error.copy(alpha = 0.8f),
-                    fontFamily = FontFamily.Monospace
+                    color = AppColor.ErrorText.copy(alpha = 0.9f),
+                    fontFamily = FontFamily.Monospace,
+                    lineHeight = 18.sp
                 )
             }
         }

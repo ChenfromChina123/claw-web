@@ -1,9 +1,13 @@
 package com.example.claw_code_application.ui.chat
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -15,6 +19,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,9 +32,12 @@ import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.viewmodel.ChatViewModel
 
 /**
- * 聊天详情界面
- * 基于原型Manus风格设计
- * 集成底部抽屉、语音输入、更多选项菜单
+ * 聊天详情界面 - Manus 1.6 Lite 风格
+ * 
+ * 设计特点：
+ * - 极简、克制、专业
+ * - 消息气泡逐行淡入显示
+ * - 加载动效简洁流畅
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,7 +107,7 @@ fun ChatScreen(
     if (showBottomSheet) {
         ModalBottomSheet(
             onDismissRequest = { showBottomSheet = false },
-            containerColor = AppColor.SurfaceDark,
+            containerColor = Color.White,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
         ) {
             ToolBottomSheet(
@@ -108,7 +118,7 @@ fun ChatScreen(
 }
 
 /**
- * 聊天空状态
+ * 聊天空状态 - Manus风格
  */
 @Composable
 private fun ChatEmptyState() {
@@ -123,7 +133,7 @@ private fun ChatEmptyState() {
                 fontWeight = FontWeight.SemiBold,
                 color = AppColor.TextPrimary
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = "输入消息，让 Agent 为您工作",
                 fontSize = 14.sp,
@@ -134,7 +144,7 @@ private fun ChatEmptyState() {
 }
 
 /**
- * 聊天顶部导航栏
+ * 聊天顶部导航栏 - Manus 1.6 Lite 风格
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -150,18 +160,18 @@ private fun ChatTopBar(
                     text = "收藏家",
                     color = AppColor.TextPrimary,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp
+                    fontSize = 17.sp
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
-                    color = AppColor.SurfaceLight
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                    color = Color(0xFFF5F5F7)
                 ) {
                     Text(
                         text = "1.6 Lite",
                         color = AppColor.TextSecondary,
                         fontSize = 11.sp,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
             }
@@ -179,13 +189,13 @@ private fun ChatTopBar(
             Icon(
                 imageVector = Icons.Default.Person,
                 contentDescription = "用户",
-                tint = AppColor.TextPrimary,
+                tint = AppColor.TextSecondary,
                 modifier = Modifier.padding(end = 8.dp)
             )
             Icon(
                 imageVector = Icons.Default.Link,
                 contentDescription = "链接",
-                tint = AppColor.TextPrimary,
+                tint = AppColor.TextSecondary,
                 modifier = Modifier.padding(end = 8.dp)
             )
             Box {
@@ -193,7 +203,7 @@ private fun ChatTopBar(
                     Icon(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = "更多",
-                        tint = AppColor.TextPrimary
+                        tint = AppColor.TextSecondary
                     )
                 }
                 DropdownMenu(
@@ -223,16 +233,18 @@ private fun ChatTopBar(
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = AppColor.SurfaceDark
+            containerColor = Color.White
         )
     )
 }
 
 /**
- * 聊天消息列表
- * 使用预计算的displayMessages避免重组时重复过滤
- * 添加contentType提升LazyColumn复用效率
- * 使用 index 辅助确保 key 唯一性，防止重复 ID 导致崩溃
+ * 聊天消息列表 - Manus 1.6 Lite 风格
+ * 
+ * 特点：
+ * - 消息间距统一
+ * - 加载状态简洁
+ * - 错误提示清晰
  */
 @Composable
 private fun ChatMessageList(
@@ -241,7 +253,6 @@ private fun ChatMessageList(
     uiState: ChatViewModel.UiState,
     listState: androidx.compose.foundation.lazy.LazyListState
 ) {
-    // 使用 index 辅助确保 key 唯一，即使消息 ID 重复也能正常工作
     val indexedMessages = remember(displayMessages) {
         displayMessages.mapIndexed { index, message -> index to message }
     }
@@ -250,7 +261,7 @@ private fun ChatMessageList(
         state = listState,
         reverseLayout = true,
         contentPadding = PaddingValues(vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxSize()
     ) {
         items(
@@ -296,14 +307,40 @@ private fun ChatMessageList(
                         .padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    CircularProgressIndicator(color = AppColor.Primary)
+                    // Manus风格的简洁加载动画
+                    val infiniteTransition = rememberInfiniteTransition(label = "loading")
+                    val alpha by infiniteTransition.animateFloat(
+                        initialValue = 0.3f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(600, easing = LinearEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "loading_alpha"
+                    )
+                    
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(3) { index ->
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(
+                                        color = AppColor.PrimaryLight.copy(alpha = alpha),
+                                        shape = CircleShape
+                                    )
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
                         text = "Agent 思考中...",
                         color = AppColor.TextSecondary,
-                        fontSize = 14.sp
+                        fontSize = 13.sp
                     )
                 }
             }
@@ -311,20 +348,26 @@ private fun ChatMessageList(
 
         if (uiState is ChatViewModel.UiState.Error) {
             item(key = "error_message") {
-                Card(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = AppColor.Error.copy(alpha = 0.1f)
-                    ),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    color = AppColor.ErrorBackground,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AppColor.Error.copy(alpha = 0.3f))
                 ) {
-                    Text(
-                        text = (uiState as ChatViewModel.UiState.Error).message,
-                        color = AppColor.Error,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(text = "⚠️", fontSize = 18.sp)
+                        Text(
+                            text = (uiState as ChatViewModel.UiState.Error).message,
+                            color = AppColor.ErrorText,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
         }

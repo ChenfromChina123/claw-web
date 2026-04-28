@@ -23,8 +23,12 @@ import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.ui.theme.AppColor
 
 /**
- * 增强版工具调用卡片组件
- * 类似Web端可折叠的UI设计 - 浅色主题
+ * 增强版工具调用卡片组件 - Manus 1.6 Lite 风格
+ * 
+ * 设计特点：
+ * - 浅灰背景，圆角12dp
+ * - 状态徽章：浅色背景 + 状态色文字
+ * - 展开/收起动画流畅
  */
 @Composable
 fun ToolCallCard(
@@ -42,7 +46,7 @@ fun ToolCallCard(
         "completed" -> AppColor.Success
         "error" -> AppColor.Error
         "executing" -> AppColor.Warning
-        else -> AppColor.Border
+        else -> Color(0xFFE8E8ED)
     }
 
     // 执行中状态的脉冲动画
@@ -57,7 +61,6 @@ fun ToolCallCard(
         label = "pulse_alpha"
     )
 
-    // 状态点颜色
     val statusDotColor = if (toolCall.status == "executing") {
         statusConfig.color.copy(alpha = pulseAlpha)
     } else {
@@ -67,13 +70,13 @@ fun ToolCallCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(10.dp),
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = AppColor.SurfaceDark,
+            containerColor = Color(0xFFF5F5F7),
             contentColor = AppColor.TextPrimary
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         border = BorderStroke(1.dp, borderColor.copy(alpha = 0.3f))
     ) {
         Column {
@@ -82,13 +85,13 @@ fun ToolCallCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onExpandedChange(!expanded) }
-                    .padding(12.dp),
+                    .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     // 工具图标
@@ -101,25 +104,25 @@ fun ToolCallCard(
                         // 工具名称行
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
                                 text = toolCall.toolName,
-                                fontSize = 13.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = AppColor.TextPrimary,
                                 fontFamily = FontFamily.Monospace
                             )
 
-                            // 状态徽章
+                            // 状态徽章 - 浅色背景
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = statusConfig.backgroundColor
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     // 状态指示点
                                     Surface(
@@ -138,12 +141,12 @@ fun ToolCallCard(
                             }
                         }
 
-                        // 工具摘要（简短描述）
+                        // 工具摘要
                         if (summary.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = summary,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 color = AppColor.TextSecondary,
                                 fontFamily = FontFamily.Monospace,
                                 maxLines = 1,
@@ -162,7 +165,7 @@ fun ToolCallCard(
                 )
             }
 
-            // 展开内容区域
+            // 展开内容区域 - 平滑动画
             AnimatedVisibility(
                 visible = expanded,
                 enter = expandVertically(
@@ -173,10 +176,10 @@ fun ToolCallCard(
                 ) + fadeOut(animationSpec = tween(150))
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
                     HorizontalDivider(
-                        color = AppColor.Divider,
+                        color = Color(0xFFE8E8ED),
                         thickness = 1.dp,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
@@ -210,14 +213,14 @@ fun ToolCallCard(
 
                     // 错误信息区域
                     if (toolCall.error != null && toolCall.status == "error") {
-                        // 错误提示框
+                        // 错误提示框 - 浅红背景
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            color = AppColor.Error.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(10.dp),
+                            color = AppColor.ErrorBackground,
                             border = BorderStroke(1.dp, AppColor.Error.copy(alpha = 0.3f))
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
+                            Column(modifier = Modifier.padding(14.dp)) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -227,7 +230,7 @@ fun ToolCallCard(
                                         text = "工具执行失败",
                                         fontWeight = FontWeight.SemiBold,
                                         fontSize = 13.sp,
-                                        color = AppColor.Error
+                                        color = AppColor.ErrorText
                                     )
                                     Surface(
                                         shape = RoundedCornerShape(4.dp),
@@ -237,19 +240,20 @@ fun ToolCallCard(
                                             text = "ERROR",
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = AppColor.Error,
+                                            color = AppColor.ErrorText,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
 
                                 Text(
                                     text = toolCall.error!!,
                                     fontSize = 12.sp,
-                                    color = AppColor.Error,
-                                    fontFamily = FontFamily.Monospace
+                                    color = AppColor.ErrorText.copy(alpha = 0.9f),
+                                    fontFamily = FontFamily.Monospace,
+                                    lineHeight = 18.sp
                                 )
 
                                 // 重试按钮
@@ -259,7 +263,7 @@ fun ToolCallCard(
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = AppColor.Error
                                     ),
-                                    shape = RoundedCornerShape(6.dp),
+                                    shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
@@ -278,7 +282,7 @@ fun ToolCallCard(
 }
 
 /**
- * 结果区域组件
+ * 结果区域组件 - Manus 1.6 Lite 风格
  */
 @Composable
 private fun ResultSection(
@@ -295,7 +299,7 @@ private fun ResultSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(text = titleIcon, fontSize = 14.sp)
@@ -313,19 +317,20 @@ private fun ResultSection(
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            color = AppColor.BackgroundDark
+            shape = RoundedCornerShape(10.dp),
+            color = Color(0xFFF5F5F7)
         ) {
             Text(
                 text = content,
                 fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = contentColor,
-                modifier = Modifier.padding(12.dp)
+                modifier = Modifier.padding(14.dp),
+                lineHeight = 18.sp
             )
         }
     }
@@ -341,40 +346,40 @@ private data class StatusConfig(
 )
 
 /**
- * 获取状态配置
+ * 获取状态配置 - Manus 风格
  */
 private fun getStatusConfig(status: String): StatusConfig {
     return when (status) {
         "pending" -> StatusConfig(
             label = "等待",
-            color = Color(0xFF9CA3AF),
-            backgroundColor = Color(0xFF9CA3AF).copy(alpha = 0.12f)
+            color = Color(0xFF6B7280),
+            backgroundColor = Color(0xFFF3F4F6)
         )
         "executing" -> StatusConfig(
             label = "执行中",
-            color = Color(0xFFF59E0B),
-            backgroundColor = Color(0xFFF59E0B).copy(alpha = 0.12f)
+            color = AppColor.Warning,
+            backgroundColor = Color(0xFFFFF7ED)
         )
         "completed" -> StatusConfig(
             label = "完成",
-            color = Color(0xFF22C55E),
-            backgroundColor = Color(0xFF22C55E).copy(alpha = 0.12f)
+            color = AppColor.Success,
+            backgroundColor = Color(0xFFECFDF5)
         )
         "error" -> StatusConfig(
             label = "错误",
-            color = Color(0xFFEF4444),
-            backgroundColor = Color(0xFFEF4444).copy(alpha = 0.12f)
+            color = AppColor.Error,
+            backgroundColor = Color(0xFFFEE2E2)
         )
         else -> StatusConfig(
             label = "未知",
             color = AppColor.TextSecondary,
-            backgroundColor = AppColor.TextSecondary.copy(alpha = 0.12f)
+            backgroundColor = Color(0xFFF3F4F6)
         )
     }
 }
 
 /**
- * 获取工具图标
+ * 获取工具图标 - 简洁风格
  */
 private fun getToolIcon(toolName: String): String {
     return when {
@@ -401,7 +406,7 @@ private fun getToolIcon(toolName: String): String {
         toolName.contains("docker", ignoreCase = true) -> "🐳"
         toolName.contains("api", ignoreCase = true) -> "🔌"
         toolName.contains("data", ignoreCase = true) -> "💾"
-        else -> "⚙️"
+        else -> "⚡"
     }
 }
 

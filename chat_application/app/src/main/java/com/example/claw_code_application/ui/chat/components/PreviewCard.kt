@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -15,16 +16,8 @@ import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.ui.theme.AppColor
 
 /**
- * 预览卡片组件
- * 复刻Manus原型中的网页/文件预览卡片设计
- * 嵌入在AgentTaskCard内部，展示任务生成的网页或文件预览
- *
- * @param title 预览标题
- * @param description 预览描述
- * @param headerTitle 标题栏左侧文字（如网站名称）
- * @param headerTime 标题栏右侧时间文字
- * @param onPreviewClick 预览按钮点击回调
- * @param onDashboardClick 仪表盘按钮点击回调
+ * 预览卡片组件 - Manus 1.6 Lite 风格
+ * 展示任务生成的网页或文件预览
  */
 @Composable
 fun PreviewCard(
@@ -38,9 +31,9 @@ fun PreviewCard(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        color = AppColor.SurfaceDark,
-        border = BorderStroke(1.dp, AppColor.Border)
+        shape = RoundedCornerShape(10.dp),
+        color = androidx.compose.ui.graphics.Color.White,
+        border = BorderStroke(1.dp, Color(0xFFE8E8ED))
     ) {
         Column {
             PreviewCardHeader(
@@ -69,8 +62,8 @@ private fun PreviewCardHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(AppColor.SurfaceLight.copy(alpha = 0.6f))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .background(Color(0xFFF5F5F7).copy(alpha = 0.8f))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -119,7 +112,7 @@ private fun PreviewCardBody(
         )
 
         if (description.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = description,
@@ -130,41 +123,41 @@ private fun PreviewCardBody(
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextButton(
                 onClick = onDashboardClick,
-                shape = RoundedCornerShape(6.dp),
+                shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.textButtonColors(
-                    containerColor = AppColor.SurfaceLight,
+                    containerColor = Color(0xFFF5F5F7),
                     contentColor = AppColor.TextPrimary
                 ),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
             ) {
                 Text(
                     text = "仪表盘",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
 
             TextButton(
                 onClick = onPreviewClick,
-                shape = RoundedCornerShape(6.dp),
+                shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.textButtonColors(
-                    containerColor = AppColor.Primary,
-                    contentColor = AppColor.SurfaceDark
+                    containerColor = AppColor.PrimaryLight,
+                    contentColor = androidx.compose.ui.graphics.Color.White
                 ),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
             ) {
                 Text(
                     text = "预览",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
         }

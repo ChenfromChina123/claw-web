@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.claw_code_application.data.api.models.*
 import com.example.claw_code_application.data.local.TokenManager
+import com.example.claw_code_application.data.local.SessionLocalStore
 import com.example.claw_code_application.data.repository.ChatRepository
 import com.example.claw_code_application.data.websocket.WebSocketManager
 import com.example.claw_code_application.ui.chat.components.shouldShowMessage
@@ -26,7 +27,8 @@ import java.util.UUID
 class ChatViewModel(
     private val chatRepository: ChatRepository,
     private val tokenManager: TokenManager,
-    private val webSocketManager: WebSocketManager = WebSocketManager()
+    private val webSocketManager: WebSocketManager = WebSocketManager(),
+    private val sessionLocalStore: SessionLocalStore? = null
 ) : ViewModel() {
 
     /** 缓存的Gson实例，避免在事件处理中重复创建 */
@@ -99,6 +101,34 @@ class ChatViewModel(
 
         // 自动连接WebSocket
         connectWebSocket()
+
+        // 从本地存储恢复会话ID（确保记忆持久化）
+        restoreSessionFromLocalStore()
+    }
+
+    /**
+     * 从本地存储恢复会话ID
+     * 确保应用重建后能保持对话上下文
+     */
+    private fun restoreSessionFromLocalStore() {
+        viewModelScope.launch {
+            sessionLocalStore?.let { store ->
+                val savedSessionId = store.getSessionIdSync()
+                if (!savedSessionId.isNullOrBlank()) {
+                    android.util.Log.d(TAG, "从本地存储恢复会话: $savedSessionId")
+                    currentSessionId = savedSessionId
+                }
+            }
+        }
+    }
+
+    /**
+     * 保存当前会话ID到本地存储
+     */
+    private fun saveSessionToLocalStore(sessionId: String) {
+        viewModelScope.launch {
+            sessionLocalStore?.saveSessionId(sessionId)
+        }
     }
 
     /**
@@ -387,12 +417,15 @@ class ChatViewModel(
 
     /**
      * 加载会话历史消息
+     * 同时持久化会话ID到本地存储
      * @param sessionId 会话ID
      */
     fun loadSession(sessionId: String) {
+        android.util.Log.d(TAG, "loadSession() - sessionId: $sessionId")
         viewModelScope.launch {
             try {
                 currentSessionId = sessionId
+                saveSessionToLocalStore(sessionId)
                 _uiState.value = UiState.Loading
 
                 val result = chatRepository.getSessionDetail(sessionId)
@@ -408,6 +441,7 @@ class ChatViewModel(
                         // 重建消息-工具调用映射
                         rebuildMessageToolCallMapping()
 
+                        android.util.Log.d(TAG, "会话加载成功: ${detail.messages.size} 条消息, ${detail.toolCalls.size} 个工具调用")
                         _uiState.value = UiState.Success(
                             messages = _messages.toList(),
                             toolCalls = _toolCalls.toList(),
@@ -415,10 +449,12 @@ class ChatViewModel(
                         )
                     },
                     onFailure = { e ->
+                        android.util.Log.e(TAG, "加载会话失败: ${e.message}")
                         _uiState.value = UiState.Error(e.message ?: "加载会话失败")
                     }
                 )
             } catch (e: Exception) {
+                android.util.Log.e(TAG, "加载异常", e)
                 _uiState.value = UiState.Error(e.message ?: "加载失败")
             }
         }
@@ -558,30 +594,48 @@ class ChatViewModel(
 
     /**
      * 确保有可用会话，没有则创建新的
+     * 同时持久化会话ID到本地存储
      */
     private suspend fun ensureSession(): Session? {
+        android.util.Log.d(TAG, "ensureSession() - currentSessionId: $currentSessionId")
+
         return currentSessionId?.let { id ->
+            android.util.Log.d(TAG, "复用现有会话: $id")
             Session(id = id, title = "", createdAt = "", updatedAt = "")
         } ?: run {
+            android.util.Log.d(TAG, "创建新会话...")
             val result = chatRepository.createSession()
             result.fold(
                 onSuccess = { session ->
                     currentSessionId = session.id
+                    saveSessionToLocalStore(session.id)
+                    android.util.Log.d(TAG, "新会话已创建并保存: ${session.id}")
                     session
                 },
-                onFailure = { null }
+                onFailure = {
+                    android.util.Log.e(TAG, "创建会话失败: ${it.message}")
+                    null
+                }
             )
         }
     }
 
     /**
      * 清空当前会话状态
+     * 同时清除本地存储的会话ID
      */
     fun clearSession() {
+        android.util.Log.d(TAG, "clearSession() - 清空当前会话")
         currentSessionId = null
         _messages.clear()
         _toolCalls.clear()
         _uiState.value = UiState.Idle
+
+        // 异步清除本地存储
+        viewModelScope.launch {
+            sessionLocalStore?.clearSessionId()
+            android.util.Log.d(TAG, "本地存储的会话ID已清除")
+        }
     }
 
     override fun onCleared() {
@@ -590,17 +644,23 @@ class ChatViewModel(
     }
 
     companion object {
+        private const val TAG = "ChatViewModel"
+
         /**
          * 提供ViewModel工厂方法
+         * @param chatRepository 聊天数据仓库
+         * @param tokenManager Token管理器
+         * @param sessionLocalStore 会话本地存储（可选，用于持久化会话ID）
          */
         fun provideFactory(
             chatRepository: ChatRepository,
-            tokenManager: com.example.claw_code_application.data.local.TokenManager
+            tokenManager: com.example.claw_code_application.data.local.TokenManager,
+            sessionLocalStore: SessionLocalStore? = null
         ): ViewModelProvider.Factory {
             return object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                    return ChatViewModel(chatRepository, tokenManager) as T
+                    return ChatViewModel(chatRepository, tokenManager, sessionLocalStore = sessionLocalStore) as T
                 }
             }
         }

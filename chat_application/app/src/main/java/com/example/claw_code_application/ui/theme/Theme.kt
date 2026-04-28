@@ -10,24 +10,28 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 /**
- * 浅色主题配色方案
+ * 浅色主题配色方案 - Manus 1.6 Lite 风格
  */
 private val LightColorScheme = lightColorScheme(
     primary = AppColor.Primary,
-    onPrimary = AppColor.SurfaceDark,
+    onPrimary = Color.White,
     primaryContainer = AppColor.SurfaceLight,
     onPrimaryContainer = AppColor.TextPrimary,
 
     secondary = AppColor.PrimaryLight,
-    onSecondary = AppColor.SurfaceDark,
+    onSecondary = Color.White,
     secondaryContainer = AppColor.SurfaceLight,
     onSecondaryContainer = AppColor.TextPrimary,
+
+    tertiary = AppColor.PrimaryLight,
+    onTertiary = Color.White,
 
     background = AppColor.BackgroundDark,
     onBackground = AppColor.TextPrimary,
@@ -38,13 +42,13 @@ private val LightColorScheme = lightColorScheme(
     onSurfaceVariant = AppColor.TextSecondary,
 
     error = AppColor.Error,
-    onError = AppColor.SurfaceDark,
+    onError = Color.White,
 
     outline = AppColor.Border
 )
 
 /**
- * 暗色主题配色方案
+ * 暗色主题配色方案 - Manus 1.6 Lite 风格
  */
 private val DarkColorScheme = darkColorScheme(
     primary = AppColor.DarkPrimary,
@@ -54,6 +58,9 @@ private val DarkColorScheme = darkColorScheme(
 
     secondary = AppColor.DarkSecondary,
     onSecondary = AppColor.DarkOnSecondary,
+
+    tertiary = AppColor.DarkPrimary,
+    onTertiary = Color.White,
 
     background = AppColor.DarkBackground,
     onBackground = AppColor.DarkOnBackground,
@@ -70,14 +77,15 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 /**
- * 应用主题
+ * 应用主题 - Manus 1.6 Lite 风格
+ * 
  * 支持浅色/暗色主题，跟随系统设置
- * Android 12+ 支持动态颜色（Dynamic Color）
+ * Android 12+ 支持动态颜色
  */
 @Composable
 fun ClawCodeApplicationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,  // 默认关闭动态颜色，保持Manus风格一致
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

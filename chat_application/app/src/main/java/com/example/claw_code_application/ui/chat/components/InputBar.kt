@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,24 +25,23 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.ui.theme.AppColor
 
 /**
- * 输入框组件
- * 基于原型Manus风格设计 - 浅色主题
- * 集成底部抽屉弹出和语音输入功能
- *
- * @param onSend 发送消息回调
- * @param enabled 是否启用输入
- * @param onAddClick "+"按钮点击回调（弹出底部抽屉）
- * @param modifier 修饰符
+ * 输入框组件 - Manus 1.6 Lite 风格
+ * 
+ * 设计理念：
+ * - 固定在屏幕底部，高度56dp，确保单手可以轻松点击
+ * - 触控区域不小于48dp x 48dp
+ * - 简洁、克制、专业
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,17 +71,26 @@ fun InputBar(
         }
     }
 
+    // 发送按钮点击动画状态
+    var isSendPressed by remember { mutableStateOf(false) }
+    val sendScale by animateFloatAsState(
+        targetValue = if (isSendPressed) 0.9f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "send_scale"
+    )
+
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = AppColor.SurfaceDark,
-        shadowElevation = 4.dp
+        shadowElevation = 8.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // 添加按钮 - Manus风格
             AddButton(onClick = {
                 if (onImageSelected != null) {
                     photoPickerLauncher.launch(
@@ -94,6 +103,7 @@ fun InputBar(
 
             Spacer(modifier = Modifier.width(12.dp))
 
+            // 输入框
             InputField(
                 text = text,
                 onTextChange = {
@@ -115,15 +125,33 @@ fun InputBar(
             Spacer(modifier = Modifier.width(8.dp))
 
             if (text.isNotBlank() && enabled) {
-                SendButton(
-                    onClick = {
-                        if (text.isNotBlank() && enabled) {
-                            onSend(text.trim())
-                            text = ""
-                            focusManager.clearFocus()
-                        }
+                // 发送按钮 - Manus风格
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .scale(sendScale),
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconButton(
+                        onClick = {
+                            isSendPressed = true
+                            if (text.isNotBlank() && enabled) {
+                                onSend(text.trim())
+                                text = ""
+                                focusManager.clearFocus()
+                            }
+                            isSendPressed = false
+                        },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "发送",
+                            tint = AppColor.Primary,
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
-                )
+                }
             } else {
                 VoiceInputButton(
                     isListening = isListening,
@@ -155,21 +183,22 @@ fun InputBar(
 }
 
 /**
- * "+"添加按钮 - 点击弹出底部抽屉
+ * "+"添加按钮 - Manus风格：简洁圆形按钮
  */
 @Composable
 private fun AddButton(onClick: () -> Unit) {
     Surface(
         modifier = Modifier
-            .size(32.dp)
+            .size(36.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = AppColor.SurfaceLight
+        shape = CircleShape,
+        color = Color(0xFFF5F5F7)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
                 text = "+",
-                fontSize = 20.sp,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Light,
                 color = AppColor.TextPrimary
             )
         }
@@ -177,7 +206,7 @@ private fun AddButton(onClick: () -> Unit) {
 }
 
 /**
- * 文本输入框
+ * 文本输入框 - Manus 1.6 Lite 风格
  */
 @Composable
 private fun InputField(
@@ -191,33 +220,35 @@ private fun InputField(
 
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        color = AppColor.SurfaceLight
+        shape = RoundedCornerShape(24.dp),
+        color = Color(0xFFF5F5F7)
     ) {
         TextField(
             value = text,
             onValueChange = onTextChange,
-            modifier = Modifier.heightIn(min = 40.dp, max = 120.dp),
+            modifier = Modifier.heightIn(min = 48.dp, max = 120.dp),
             placeholder = {
                 Text(
                     "向 Manus 发送消息...",
                     color = AppColor.TextSecondary,
-                    fontSize = 14.sp
+                    fontSize = 15.sp
                 )
             },
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = AppColor.SurfaceLight,
-                unfocusedContainerColor = AppColor.SurfaceLight,
-                disabledContainerColor = AppColor.SurfaceLight,
+                focusedContainerColor = Color(0xFFF5F5F7),
+                unfocusedContainerColor = Color(0xFFF5F5F7),
+                disabledContainerColor = Color(0xFFF5F5F7),
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
-                cursorColor = AppColor.Primary,
+                cursorColor = AppColor.PrimaryLight,  // iOS系统蓝
                 focusedTextColor = AppColor.TextPrimary,
                 unfocusedTextColor = AppColor.TextPrimary,
                 disabledTextColor = AppColor.TextSecondary
             ),
             singleLine = false,
             maxLines = 5,
+            fontSize = 15.sp,
+            lineHeight = 22.sp,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(
                 onSend = {
@@ -230,29 +261,8 @@ private fun InputField(
 }
 
 /**
- * 发送按钮
- */
-@Composable
-private fun SendButton(onClick: () -> Unit) {
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier.size(40.dp)
-    ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.Send,
-            contentDescription = "发送",
-            tint = AppColor.Primary
-        )
-    }
-}
-
-/**
- * 语音输入按钮
- * Manus风格：麦克风图标，录音时有脉冲动画
- *
- * @param isListening 是否正在录音
- * @param onStartListening 开始录音回调
- * @param onStopListening 停止录音回调
+ * 语音输入按钮 - Manus 1.6 Lite 风格
+ * 简洁的麦克风图标，录音时有轻微脉冲动画
  */
 @Composable
 private fun VoiceInputButton(
@@ -263,7 +273,7 @@ private fun VoiceInputButton(
     val infiniteTransition = rememberInfiniteTransition(label = "voice_pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 0.4f,
+        targetValue = 0.3f,
         animationSpec = infiniteRepeatable(
             animation = tween(800, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
@@ -287,22 +297,23 @@ private fun VoiceInputButton(
                     modifier = Modifier
                         .size(36.dp)
                         .background(
-                            color = AppColor.Primary.copy(alpha = pulseAlpha * 0.2f),
+                            color = AppColor.PrimaryLight.copy(alpha = pulseAlpha * 0.2f),
                             shape = CircleShape
                         )
                 )
                 Icon(
                     imageVector = Icons.Default.Mic,
                     contentDescription = "停止录音",
-                    tint = AppColor.Primary,
-                    modifier = Modifier.size(24.dp)
+                    tint = AppColor.PrimaryLight,
+                    modifier = Modifier.size(22.dp)
                 )
             }
         } else {
             Icon(
                 imageVector = Icons.Default.Mic,
                 contentDescription = "语音输入",
-                tint = AppColor.TextSecondary
+                tint = AppColor.TextSecondary,
+                modifier = Modifier.size(22.dp)
             )
         }
     }

@@ -23,6 +23,9 @@ object Constants {
     /** Token存储键名 */
     const val KEY_AUTH_TOKEN = "auth_token"
 
+    /** 当前会话ID存储键名 */
+    const val KEY_CURRENT_SESSION_ID = "current_session_id"
+
     /** 默认AI模型 */
     const val DEFAULT_MODEL = "qwen-plus"
 
