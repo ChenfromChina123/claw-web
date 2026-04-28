@@ -21,6 +21,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.ui.theme.AppColor
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonParser
+
+/**
+ * Gson 实例池 - 避免重复创建 GsonBuilder
+ * 使用 ThreadLocal 确保线程安全
+ */
+private object GsonPool {
+    private val gsonInstance: Gson = GsonBuilder()
+        .setPrettyPrinting()
+        .create()
+
+    private val simpleGsonInstance: Gson = Gson()
+
+    fun getPrettyGson(): Gson = gsonInstance
+
+    fun getSimpleGson(): Gson = simpleGsonInstance
+}
 
 /**
  * 增强版工具调用卡片组件 - Manus 1.6 Lite 风格
@@ -38,8 +57,31 @@ fun ToolCallCard(
     onExpandedChange: (Boolean) -> Unit = {},
     onRetry: () -> Unit = {}
 ) {
-    val statusConfig = getStatusConfig(toolCall.status)
-    val summary = getToolSummary(toolCall)
+    // 使用 remember 缓存状态配置，避免重复计算
+    val statusConfig by remember(toolCall.status) { derivedStateOf { getStatusConfig(toolCall.status) } }
+
+    // 使用 remember 缓存摘要计算结果
+    val summary by remember(toolCall.id, toolCall.toolInput) { derivedStateOf { getToolSummary(toolCall) } }
+
+    // 缓存输入参数的解析和格式化结果
+    val parsedInput by remember(toolCall.id, toolCall.toolInput) {
+        derivedStateOf {
+            val inputMap = parseToolInput(toolCall.toolInput)
+            val formattedInput = if (inputMap.isNotEmpty()) formatToolInput(inputMap) else ""
+            Pair(inputMap, formattedInput)
+        }
+    }
+
+    // 缓存输出结果的格式化结果
+    val formattedOutput by remember(toolCall.id, toolCall.toolOutput, toolCall.status) {
+        derivedStateOf {
+            if (toolCall.toolOutput != null && toolCall.status == "completed") {
+                formatToolOutput(toolCall.toolOutput)
+            } else {
+                ""
+            }
+        }
+    }
 
     // 状态对应的边框颜色
     val borderColor = when (toolCall.status) {
@@ -185,12 +227,12 @@ fun ToolCallCard(
                     )
 
                     // 输入参数区域
-                    val inputMap = parseToolInput(toolCall.toolInput)
+                    val (inputMap, formattedInput) = parsedInput
                     if (inputMap.isNotEmpty()) {
                         ResultSection(
                             title = "输入参数",
                             titleIcon = "📥",
-                            content = formatToolInput(inputMap),
+                            content = formattedInput,
                             contentColor = AppColor.TextSecondary,
                             metaText = "${inputMap.size} 个参数"
                         )
@@ -199,13 +241,13 @@ fun ToolCallCard(
                     }
 
                     // 输出结果区域
-                    if (toolCall.toolOutput != null && toolCall.status == "completed") {
+                    if (formattedOutput.isNotEmpty()) {
                         ResultSection(
                             title = "执行结果",
                             titleIcon = "📤",
-                            content = formatToolOutput(toolCall.toolOutput),
+                            content = formattedOutput,
                             contentColor = AppColor.Success,
-                            metaText = "${formatToolOutput(toolCall.toolOutput).length} 字符"
+                            metaText = "${formattedOutput.length} 字符"
                         )
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -412,6 +454,7 @@ private fun getToolIcon(toolName: String): String {
 
 /**
  * 解析工具输入为 Map
+ * 使用共享 Gson 实例避免重复创建
  */
 @Suppress("UNCHECKED_CAST")
 private fun parseToolInput(input: Any): Map<String, Any> {
@@ -420,8 +463,7 @@ private fun parseToolInput(input: Any): Map<String, Any> {
         is String -> {
             // 尝试解析 JSON 字符串
             try {
-                val gson = com.google.gson.Gson()
-                val map = gson.fromJson(input, Map::class.java)
+                val map = GsonPool.getSimpleGson().fromJson(input, Map::class.java)
                 map as Map<String, Any>
             } catch (e: Exception) {
                 emptyMap()
@@ -449,13 +491,11 @@ private fun getToolSummary(toolCall: ToolCall): String {
 
 /**
  * 格式化工具输入参数
+ * 使用共享 Gson 实例避免重复创建 GsonBuilder
  */
 private fun formatToolInput(input: Map<String, Any>): String {
     return try {
-        val gson = com.google.gson.GsonBuilder()
-            .setPrettyPrinting()
-            .create()
-        gson.toJson(input)
+        GsonPool.getPrettyGson().toJson(input)
     } catch (e: Exception) {
         input.toString()
     }
@@ -463,16 +503,14 @@ private fun formatToolInput(input: Map<String, Any>): String {
 
 /**
  * 格式化工具输出
+ * 使用共享 Gson 实例避免重复创建 GsonBuilder
  */
 private fun formatToolOutput(output: Any): String {
     return try {
         // 尝试解析 JSON
         if (output is String) {
-            val gson = com.google.gson.GsonBuilder()
-                .setPrettyPrinting()
-                .create()
-            val jsonElement = com.google.gson.JsonParser.parseString(output)
-            gson.toJson(jsonElement)
+            val jsonElement = JsonParser.parseString(output)
+            GsonPool.getPrettyGson().toJson(jsonElement)
         } else {
             output.toString()
         }

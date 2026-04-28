@@ -91,6 +91,15 @@ class ChatViewModel(
     /** 防抖延迟时间（毫秒） */
     private val debounceIntervalMs = 50L
 
+    /** 工具状态更新防抖：待更新的工具调用 */
+    private val pendingToolUpdates = mutableMapOf<String, ToolCall>()
+
+    /** 工具状态更新防抖：当前防抖任务 */
+    private var toolUpdateDebounceJob: Job? = null
+
+    /** 工具状态更新防抖延迟时间（毫秒） */
+    private val toolUpdateDebounceIntervalMs = 100L
+
     /** 当前正在累积工具输入参数的工具ID和参数 */
     private val pendingToolInput = mutableMapOf<String, StringBuilder>()
 
@@ -107,6 +116,51 @@ class ChatViewModel(
             return emptyList()
         }
         return _toolCalls.filter { it.id in toolCallIds }
+    }
+
+    /**
+     * 批量更新工具状态（带防抖）
+     * 避免频繁的 UI 重组
+     */
+    private fun scheduleToolUpdate(toolCallId: String, updatedTool: ToolCall) {
+        pendingToolUpdates[toolCallId] = updatedTool
+
+        toolUpdateDebounceJob?.cancel()
+        toolUpdateDebounceJob = viewModelScope.launch {
+            delay(toolUpdateDebounceIntervalMs)
+
+            // 批量应用所有待更新的工具
+            for ((id, tool) in pendingToolUpdates) {
+                val index = _toolCalls.indexOfFirst { it.id == id }
+                if (index != -1) {
+                    _toolCalls[index] = tool
+                } else {
+                    // 如果工具不存在，可能是新添加的
+                    _toolCalls.add(tool)
+                }
+            }
+            pendingToolUpdates.clear()
+
+            // 触发一次 UI 状态更新
+            emitUiStateUpdate()
+        }
+    }
+
+    /**
+     * 触发 UI 状态更新（带防抖）
+     */
+    private var uiStateUpdateJob: Job? = null
+
+    private fun emitUiStateUpdate() {
+        uiStateUpdateJob?.cancel()
+        uiStateUpdateJob = viewModelScope.launch {
+            delay(50L)
+            _uiState.value = UiState.Success(
+                messages = _messages.toList(),
+                toolCalls = _toolCalls.toList(),
+                executionStatus = null
+            )
+        }
     }
 
     init {
@@ -275,7 +329,7 @@ class ChatViewModel(
                 )
                 _toolCalls.add(toolCall)
                 pendingToolInput[event.id] = StringBuilder()
-                
+
                 // 将工具调用关联到当前流式消息
                 streamingMessageId?.let { messageId ->
                     messageToToolCalls.getOrPut(messageId) { mutableListOf() }.add(event.id)
@@ -284,6 +338,9 @@ class ChatViewModel(
                     // 等 MessageStart 事件到达后再关联
                     unassociatedToolCallIds.add(event.id)
                 }
+
+                // ToolUse 立即更新 UI（用户需要立即看到新工具）
+                emitUiStateUpdate()
             }
 
             // 工具输入参数增量更新
@@ -308,10 +365,12 @@ class ChatViewModel(
                     } else {
                         emptyMap()
                     }
-                    _toolCalls[index] = oldTool.copy(
+                    val updatedTool = oldTool.copy(
                         status = "executing",
                         toolInput = toolInput
                     )
+                    // 使用防抖更新，避免频繁 UI 重组
+                    scheduleToolUpdate(event.id, updatedTool)
                 }
             }
 
@@ -320,11 +379,13 @@ class ChatViewModel(
                 val index = _toolCalls.indexOfFirst { it.id == event.id }
                 if (index != -1) {
                     val oldTool = _toolCalls[index]
-                    _toolCalls[index] = oldTool.copy(
+                    val updatedTool = oldTool.copy(
                         status = "completed",
                         toolOutput = normalizeToolOutput(event.result),
                         completedAt = System.currentTimeMillis().toString()
                     )
+                    // 使用防抖更新
+                    scheduleToolUpdate(event.id, updatedTool)
                 }
                 pendingToolInput.remove(event.id)
             }
@@ -334,11 +395,13 @@ class ChatViewModel(
                 val index = _toolCalls.indexOfFirst { it.id == event.id }
                 if (index != -1) {
                     val oldTool = _toolCalls[index]
-                    _toolCalls[index] = oldTool.copy(
+                    val updatedTool = oldTool.copy(
                         status = "error",
                         error = event.error,
                         completedAt = System.currentTimeMillis().toString()
                     )
+                    // 使用防抖更新
+                    scheduleToolUpdate(event.id, updatedTool)
                 }
                 pendingToolInput.remove(event.id)
             }
@@ -354,12 +417,14 @@ class ChatViewModel(
                 if (index != -1) {
                     val oldTool = _toolCalls[index]
                     val newStatus = if (event.error != null) "error" else "completed"
-                    _toolCalls[index] = oldTool.copy(
+                    val updatedTool = oldTool.copy(
                         status = newStatus,
                         toolOutput = event.output ?: oldTool.toolOutput,
                         error = event.error ?: oldTool.error,
                         completedAt = System.currentTimeMillis().toString()
                     )
+                    // 使用防抖更新
+                    scheduleToolUpdate(event.id, updatedTool)
                 }
             }
 

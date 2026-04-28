@@ -669,7 +669,6 @@ fun filterToolResultContent(content: String): String {
     }
 
     return if (isToolJson) {
-        android.util.Log.d("MessageFilter", "过滤掉 tool_result/tool_use JSON: ${trimmed.take(100)}...")
         ""
     } else {
         content
@@ -692,7 +691,6 @@ fun shouldShowMessage(message: Message): Boolean {
             val hasToolResult = content.contains("\"type\"") &&
                 (content.contains("tool_result") || content.contains("tool_use"))
             if (hasToolResult) {
-                android.util.Log.d("MessageFilter", "shouldShowMessage: 隐藏 tool_result 数组格式用户消息")
                 return false
             }
         }
@@ -702,7 +700,6 @@ fun shouldShowMessage(message: Message): Boolean {
             val hasToolResult = content.contains("\"type\"") &&
                 (content.contains("tool_result") || content.contains("tool_use"))
             if (hasToolResult) {
-                android.util.Log.d("MessageFilter", "shouldShowMessage: 隐藏 tool_result 对象格式用户消息")
                 return false
             }
         }
@@ -710,7 +707,6 @@ fun shouldShowMessage(message: Message): Boolean {
         // 情况3：包含 tool_use_id 的内容
         if ((content.startsWith("[") || content.startsWith("{")) &&
             content.contains("tool_use_id")) {
-            android.util.Log.d("MessageFilter", "shouldShowMessage: 隐藏 tool_use_id 用户消息")
             return false
         }
 
@@ -744,7 +740,6 @@ fun getSafeAssistantContent(content: String): String {
     }
 
     return if (isToolJson) {
-        android.util.Log.d("MessageFilter", "getSafeAssistantContent: 二次过滤掉工具JSON")
         ""
     } else {
         filtered
