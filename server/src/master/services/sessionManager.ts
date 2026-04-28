@@ -128,13 +128,13 @@ export class SessionManager {
 
     console.log(`[SessionManager] Retrieved from DB - messages: ${dbMessages.length}, toolCalls: ${dbToolCalls.length}`)
 
-    // 过滤掉内部的 tool_result 消息（这些是工具调用的返回值，不应显示给用户）
-    const visibleMessages = this.filterVisibleMessages(dbMessages)
-    console.log(`[SessionManager] After filtering tool_result messages: ${visibleMessages.length} (removed ${dbMessages.length - visibleMessages.length} internal messages)`)
+    // 保留完整消息（包括 tool_result），用于AI上下文
+    // 前端负责过滤显示的消息
+    console.log(`[SessionManager] Keeping all messages including tool_result for AI context`)
 
     // 标准化 createdAt 为 ISO 字符串格式，确保与前端兼容
     // 同时包含 sequence 字段用于确保消息顺序
-    const messages: Message[] = visibleMessages.map(msg => {
+    const messages: Message[] = dbMessages.map(msg => {
       const normalized: Message = {
         id: msg.id,
         sessionId: msg.sessionId,
@@ -179,13 +179,13 @@ export class SessionManager {
     console.log(`[SessionManager] Hydrating session ${sessionId} from DB...`)
     const dbMessages = await this.messageRepo.findBySessionId(sessionId)
     if (dbMessages.length > 0) {
-      // 过滤掉内部的 tool_result 消息
-      const visibleMessages = this.filterVisibleMessages(dbMessages)
-      console.log(`[SessionManager] Hydrated ${visibleMessages.length} visible messages for session ${sessionId} (filtered ${dbMessages.length - visibleMessages.length} tool_result messages)`)
+      // 保留完整消息（包括 tool_result），用于AI上下文
+      // 前端负责过滤显示的消息
+      console.log(`[SessionManager] Hydrated ${dbMessages.length} messages for session ${sessionId} (including tool_result)`)
 
       // 标准化 createdAt 为 ISO 字符串格式，确保与前端兼容
       // 同时包含 sequence 字段用于确保消息顺序
-      cached.messages = visibleMessages.map(msg => {
+      cached.messages = dbMessages.map(msg => {
         const normalized: Message = {
           id: msg.id,
           sessionId: msg.sessionId,
@@ -227,6 +227,32 @@ export class SessionManager {
 
   getInMemorySession(sessionId: string): InMemorySession | undefined {
     return this.sessions.get(sessionId)
+  }
+
+  /**
+   * 获取用于AI上下文的完整消息列表（包括 tool_result 消息）
+   * 这个方法从数据库加载完整的消息，不过滤 tool_result，确保AI获得完整上下文
+   * @param sessionId 会话ID
+   * @returns 完整的消息列表
+   */
+  async getMessagesForAI(sessionId: string): Promise<Message[]> {
+    // 从数据库加载完整消息（包括 tool_result）
+    const dbMessages = await this.messageRepo.findBySessionId(sessionId)
+    
+    // 标准化 createdAt 为 ISO 字符串格式
+    const messages: Message[] = dbMessages.map(msg => ({
+      id: msg.id,
+      sessionId: msg.sessionId,
+      role: msg.role,
+      content: msg.content,
+      createdAt: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : msg.createdAt,
+      sequence: msg.sequence,
+      toolCalls: msg.toolCalls,
+    }))
+    
+    console.log(`[SessionManager] getMessagesForAI: loaded ${messages.length} messages for session ${sessionId} (including tool_result)`)
+    
+    return messages
   }
 
   /**

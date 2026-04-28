@@ -438,7 +438,9 @@ export class SessionConversationManager {
     sendEvent: EventSender,
     signal?: AbortSignal
   ): Promise<StreamResult> {
-    const messages = sessionManager.getInMemorySession(sessionId)?.messages || []
+    // 从数据库加载完整消息（包括 tool_result），确保AI获得完整上下文
+    // 不使用内存中已过滤的消息，因为 tool_result 是AI上下文的重要组成部分
+    const messages = await sessionManager.getMessagesForAI(sessionId)
     const provider = this.detectLLMProvider()
 
     let assistantText = ''
