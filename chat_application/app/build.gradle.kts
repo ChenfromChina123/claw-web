@@ -87,6 +87,9 @@ dependencies {
     // DataStore (Token存储)
     implementation(libs.datastore.preferences)
 
+    // Security - EncryptedSharedPreferences (敏感数据加密存储)
+    implementation(libs.security.crypto)
+
     // Room 数据库 (本地缓存)
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)

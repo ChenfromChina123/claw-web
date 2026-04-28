@@ -28,14 +28,12 @@ import java.util.UUID
  * 支持WebSocket流式输出
  * 支持本地缓存，实现离线优先策略
  *
- * @param chatRepository 原始聊天仓库（用于Agent执行操作）
  * @param cachedChatRepository 带缓存的聊天仓库（用于会话和消息缓存）
  * @param tokenManager Token管理器
  * @param webSocketManager WebSocket管理器
  * @param sessionLocalStore 会话本地存储（用于持久化会话ID）
  */
 class ChatViewModel(
-    private val chatRepository: ChatRepository,
     private val cachedChatRepository: CachedChatRepository,
     private val tokenManager: TokenManager,
     private val webSocketManager: WebSocketManager = WebSocketManager(),
@@ -742,7 +740,6 @@ class ChatViewModel(
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
                     return ChatViewModel(
-                        chatRepository = cachedChatRepository,
                         cachedChatRepository = cachedChatRepository,
                         tokenManager = tokenManager,
                         sessionLocalStore = sessionLocalStore

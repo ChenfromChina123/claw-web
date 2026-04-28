@@ -41,9 +41,6 @@
 docker-compose build
 # 步骤 2：启动开发环境（代码修改后自动重载）
 docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
-# 步骤 3：修改代码
-# - 后端：保存文件 → Bun 自动重载（2-3 秒）
-# - 前端：保存文件 → Vite HMR（毫秒级）
 ```
 ### 生产环境构建
 ```bash
@@ -68,3 +65,4 @@ docker-compose build --no-cache master
    - 使用 `--watch` 模式自动重载
    - 前端使用 Vite 开发服务器
 
+当前开发项目为web：claw-web/web，手机app：claw-web/chat_application，后端：claw-web/server

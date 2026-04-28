@@ -26,6 +26,8 @@ retrofit = "2.9.0"
 gson = "2.10.1"
 # DataStore
 datastorePreferences = "1.0.0"
+# Security - 加密存储
+securityCrypto = "1.1.0-alpha06"
 # 协程
 coroutinesAndroid = "1.7.3"
 # 图片加载
@@ -70,6 +72,8 @@ gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 
 # DataStore
 datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
+# Security - EncryptedSharedPreferences
+security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 
 # 协程
 coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutinesAndroid" }
