@@ -33,7 +33,8 @@ coilCompose = "2.5.0"
 # Accompanist
 accompanistSystemUiController = "0.34.0"
 # Markdown渲染 - 使用 mikepenz multiplatform-markdown-renderer (Material3 + 代码高亮)
-markdownRenderer = "0.18.0"
+markdownRenderer = "0.27.0"
+markdownCode = "0.27.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -81,8 +82,7 @@ accompanist-systemuicontroller = { group = "com.google.accompanist", name = "acc
 
 # Markdown渲染 - mikepenz multiplatform-markdown-renderer (Material3 + 代码高亮)
 markdown-renderer = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
-# 代码语法高亮（可选，用于代码块着色）
-markdown-code-highlighting = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-code-highlighting", version.ref = "markdownRenderer" }
+markdown-code = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-code", version.ref = "markdownCode" }
 
 # Room 数据库
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

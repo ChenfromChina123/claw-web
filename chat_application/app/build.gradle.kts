@@ -103,7 +103,7 @@ dependencies {
 
     // Markdown渲染 - mikepenz (Material3 + 代码高亮)
     implementation(libs.markdown.renderer)
-    implementation(libs.markdown.code.highlighting)
+    implementation(libs.markdown.code)
 
     // Testing
     testImplementation(libs.junit)

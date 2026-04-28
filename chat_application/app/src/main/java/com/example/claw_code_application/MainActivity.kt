@@ -174,9 +174,9 @@ private fun ChatMainScreen(
 
     val chatViewModel: ChatViewModel = viewModel(
         factory = ChatViewModel.provideFactory(
-            ClawCodeApplication.chatRepository,
-            ClawCodeApplication.tokenManager,
-            ClawCodeApplication.sessionLocalStore
+            cachedChatRepository = ClawCodeApplication.cachedChatRepository,
+            tokenManager = ClawCodeApplication.tokenManager,
+            sessionLocalStore = ClawCodeApplication.sessionLocalStore
         )
     )
 
