@@ -1,711 +1,402 @@
 package com.example.claw_code_application.ui.chat.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.data.api.models.ToolCall
-import com.example.claw_code_application.ui.theme.AppColor
-import dev.jeziellago.compose.markdowntext.MarkdownText
+import com.example.claw_code_application.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
+import com.google.gson.JsonPrimitive
 
 /**
  * 增强版消息气泡组件
- * 支持：Markdown渲染、动态组件渲染（终端/代码差异/步骤进度）、流式输出动画
+ * 支持用户消息和AI助手消息的显示，包含更丰富的交互和样式
+ * 改进：使用 MessageContentParser 解析 content 字段（支持 String 和 JsonArray 格式）
  */
 @Composable
 fun EnhancedMessageBubble(
     message: Message,
     toolCalls: List<ToolCall> = emptyList(),
-    modifier: Modifier = Modifier
+    isLast: Boolean = false,
+    onToolCallClick: (ToolCall) -> Unit = {},
+    onCopy: (String) -> Unit = {},
+    onRegenerate: () -> Unit = {}
 ) {
     val isUser = message.role == "user"
+    val isStreaming = message.isStreaming
+
+    // 使用新的 parseFromMessage 方法解析内容
+    val components = remember(message.content) {
+        MessageContentParser.parseFromMessage(message)
+    }
+
+    // 获取纯文本内容（用于复制）
+    val textContent = remember(message.content) {
+        message.getTextContent()
+    }
 
     Row(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
+        if (!isUser) {
+            // AI头像 - 带渐变背景
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.tertiary
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.SmartToy,
+                    contentDescription = "AI",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+        }
+
         Column(
-            horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
-            modifier = Modifier.fillMaxWidth(if (isUser) 0.85f else 0.95f)
+            modifier = Modifier.weight(1f, fill = false),
+            horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
         ) {
-            // 消息内容卡片
+            // 消息气泡
             Surface(
                 shape = RoundedCornerShape(
-                    topStart = if (isUser) 16.dp else 12.dp,
-                    topEnd = if (isUser) 4.dp else 16.dp,
-                    bottomStart = 16.dp,
-                    bottomEnd = 16.dp
+                    topStart = 20.dp,
+                    topEnd = 20.dp,
+                    bottomStart = if (isUser) 20.dp else 6.dp,
+                    bottomEnd = if (isUser) 6.dp else 20.dp
                 ),
-                color = if (isUser) AppColor.UserBubbleBackground else AppColor.AssistantBubbleBackground,
-                shadowElevation = if (isUser) 0.dp else 1.dp,
-                border = if (isUser) null else androidx.compose.foundation.BorderStroke(1.dp, AppColor.Border)
+                color = if (isUser) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+                shadowElevation = if (isUser) 0.dp else 2.dp,
+                modifier = Modifier
+                    .border(
+                        width = if (isUser) 0.dp else 1.dp,
+                        color = if (isUser) {
+                            Color.Transparent
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        },
+                        shape = RoundedCornerShape(
+                            topStart = 20.dp,
+                            topEnd = 20.dp,
+                            bottomStart = if (isUser) 20.dp else 6.dp,
+                            bottomEnd = if (isUser) 6.dp else 20.dp
+                        )
+                    )
             ) {
                 Column(
-                    modifier = Modifier.padding(
-                        horizontal = 14.dp,
-                        vertical = 10.dp
-                    )
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // 动态组件渲染
-                    if (isUser) {
-                        /**
-                         * 用户消息内容过滤（与Web端三重过滤对齐）
-                         * Anthropic API 会将 tool_result 包装成 user 角色消息发送给 Agent
-                         * 需要过滤掉这些内部消息，避免显示原始 JSON
-                         */
-                        val filteredContent = remember(message.content) {
-                            getSafeAssistantContent(message.content)
-                        }
-                        
-                        if (filteredContent.isNotBlank()) {
-                            Text(
-                                text = filteredContent,
-                                color = AppColor.SurfaceDark,
-                                fontSize = 14.sp,
-                                lineHeight = 20.sp
-                            )
-                        }
-                    } else {
-                        // AI消息使用动态组件渲染
-                        DynamicMessageContent(
-                            content = message.content,
-                            isStreaming = message.isStreaming
+                    // 渲染消息组件
+                    components.forEach { component ->
+                        EnhancedMessageComponentRenderer(
+                            component = component,
+                            isUser = isUser
                         )
                     }
 
-                    // 流式输出光标动画
-                    if (message.isStreaming && !isUser) {
-                        StreamingCursor()
+                    // 流式输出指示器
+                    if (isStreaming) {
+                        EnhancedStreamingIndicator()
                     }
                 }
             }
 
-            // 工具调用显示 - 使用增强版可折叠卡片
-            if (toolCalls.isNotEmpty() && !isUser) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    toolCalls.forEach { toolCall ->
-                        var expanded by remember { mutableStateOf(false) }
-                        ToolCallCard(
-                            toolCall = toolCall,
-                            expanded = expanded,
-                            onExpandedChange = { expanded = it }
-                        )
-                    }
-                }
+            // 底部操作栏（仅AI消息且非流式状态显示）
+            if (!isUser && !isStreaming && isLast) {
+                MessageActionBar(
+                    content = textContent,
+                    onCopy = onCopy,
+                    onRegenerate = onRegenerate
+                )
             }
 
             // 时间戳
             Text(
-                text = formatTimestamp(message.timestamp),
-                color = AppColor.TextSecondary,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp)
+                text = formatEnhancedTimestamp(message.timestamp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+
+        if (isUser) {
+            Spacer(modifier = Modifier.width(12.dp))
+            // 用户头像
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primaryContainer,
+                                MaterialTheme.colorScheme.secondaryContainer
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "User",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 增强版消息组件渲染器
+ * 根据组件类型渲染不同的UI，带更丰富的样式
+ */
+@Composable
+private fun EnhancedMessageComponentRenderer(
+    component: MessageComponent,
+    isUser: Boolean
+) {
+    val contentColor = if (isUser) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
+    when (component) {
+        is MessageComponent.Text -> {
+            Text(
+                text = component.content,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    lineHeight = 24.sp
+                ),
+                color = contentColor
+            )
+        }
+
+        is MessageComponent.ToolUse -> {
+            EnhancedToolUseCard(
+                toolCall = ToolCall(
+                    id = component.id,
+                    toolName = component.toolName,
+                    toolInput = component.input,
+                    toolOutput = null,
+                    status = "pending",
+                    createdAt = ""
+                ),
+                onClick = {}
+            )
+        }
+
+        is MessageComponent.ToolResult -> {
+            EnhancedToolResultCard(
+                toolCall = ToolCall(
+                    id = component.toolUseId,
+                    toolName = "执行结果",
+                    toolInput = emptyMap(),
+                    toolOutput = mapOf(
+                        "stdout" to component.stdout,
+                        "stderr" to component.stderr,
+                        "exitCode" to component.exitCode
+                    ),
+                    status = if (component.isSuccess) "completed" else "error",
+                    createdAt = ""
+                ),
+                onClick = {}
+            )
+        }
+
+        is MessageComponent.FileListResult -> {
+            EnhancedFileListCard(
+                path = component.path,
+                count = component.count,
+                files = component.files,
+                onClick = {}
+            )
+        }
+
+        is MessageComponent.SearchResult -> {
+            EnhancedSearchResultCard(
+                matchCount = component.matchCount,
+                matchedFiles = component.matchedFiles,
+                summary = component.summary,
+                onClick = {}
+            )
+        }
+
+        is MessageComponent.FileContentResult -> {
+            EnhancedFileContentCard(
+                path = component.path,
+                content = component.content,
+                lineCount = component.lineCount,
+                onClick = {}
+            )
+        }
+
+        is MessageComponent.ErrorResult -> {
+            EnhancedErrorResultCard(
+                error = component.error,
+                errorType = component.errorType
+            )
+        }
+
+        else -> {
+            // 其他类型暂不显示
+        }
+    }
+}
+
+/**
+ * 消息操作栏
+ * 复制、重新生成等功能
+ */
+@Composable
+private fun MessageActionBar(
+    content: String,
+    onCopy: (String) -> Unit,
+    onRegenerate: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .padding(top = 8.dp, start = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // 复制按钮
+        IconButton(
+            onClick = { onCopy(content) },
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.ContentCopy,
+                contentDescription = "复制",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            )
+        }
+
+        // 重新生成按钮
+        IconButton(
+            onClick = onRegenerate,
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = "重新生成",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
         }
     }
 }
 
 /**
- * 动态消息内容渲染
- * 根据内容类型渲染不同组件
+ * 增强版流式输出指示器
  */
 @Composable
-private fun DynamicMessageContent(
-    content: String,
-    isStreaming: Boolean
-) {
-    // 解析消息内容为组件列表
-    val components = remember(content) {
-        MessageContentParser.parse(content)
-    }
-
-    // 渲染每个组件
-    components.forEach { component ->
-        when (component) {
-            is MessageComponent.Text -> {
-                MarkdownText(
-                    markdown = component.content,
-                    modifier = Modifier.fillMaxWidth(),
-                    color = AppColor.TextPrimary,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                )
-            }
-
-            is MessageComponent.ToolUse -> {
-                ToolUseComponent(
-                    toolUse = component,
-                    isExecuting = isStreaming
-                )
-            }
-
-            is MessageComponent.ToolResult -> {
-                TerminalViewer(
-                    command = component.stdout.lines().firstOrNull() ?: "",
-                    stdout = component.stdout,
-                    stderr = component.stderr,
-                    exitCode = component.exitCode,
-                    isExecuting = false
-                )
-            }
-
-            is MessageComponent.FileListResult -> {
-                FileListViewer(
-                    path = component.path,
-                    count = component.count,
-                    files = component.files
-                )
-            }
-
-            is MessageComponent.SearchResult -> {
-                SearchResultViewer(
-                    summary = component.summary,
-                    matchCount = component.matchCount,
-                    matchedFiles = component.matchedFiles
-                )
-            }
-
-            is MessageComponent.FileContentResult -> {
-                FileContentViewer(
-                    path = component.path,
-                    content = component.content,
-                    lineCount = component.lineCount
-                )
-            }
-
-            is MessageComponent.ErrorResult -> {
-                ErrorResultViewer(
-                    error = component.error,
-                    errorType = component.errorType
-                )
-            }
-
-            is MessageComponent.StepProgress -> {
-                var expanded by remember { mutableStateOf(true) }
-                StepProgress(
-                    title = component.title,
-                    currentStep = component.currentStep,
-                    totalSteps = component.totalSteps,
-                    steps = component.steps,
-                    isExpanded = expanded,
-                    onExpandedChange = { expanded = it }
-                )
-            }
-
-            is MessageComponent.CodeDiff -> {
-                CodeDiffEditor(
-                    fileName = component.fileName,
-                    originalCode = component.originalCode,
-                    modifiedCode = component.modifiedCode,
-                    language = component.language
-                )
-            }
-
-            is MessageComponent.Image -> {
-                AsyncImage(
-                    model = component.imageUrl,
-                    contentDescription = component.originalName ?: "图片",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 200.dp)
-                        .padding(vertical = 4.dp),
-                    contentScale = ContentScale.Fit
-                )
-            }
-        }
-
-        // 组件之间添加间距
-        if (component !== components.lastOrNull()) {
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-    }
-}
-
-/**
- * 工具调用组件
- */
-@Composable
-private fun ToolUseComponent(
-    toolUse: MessageComponent.ToolUse,
-    isExecuting: Boolean
-) {
-    val command = (toolUse.input["command"] ?: toolUse.input["cmd"] ?: "").toString()
-
-    if (command.isNotBlank()) {
-        // 显示为终端卡片（执行中状态）
-        TerminalViewer(
-            command = command,
-            stdout = "",
-            stderr = "",
-            exitCode = 0,
-            isExecuting = isExecuting
-        )
-    } else {
-        // 显示为通用工具卡片
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = AppColor.SurfaceLight
-            ),
-            border = androidx.compose.foundation.BorderStroke(1.dp, AppColor.Border)
-        ) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(text = "⚙️", fontSize = 16.sp)
-                Text(
-                    text = "正在执行: ${toolUse.toolName}",
-                    fontSize = 13.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                )
-            }
-        }
-    }
-}
-
-/**
- * 流式输出光标动画
- */
-@Composable
-private fun StreamingCursor() {
-    val infiniteTransition = rememberInfiniteTransition(label = "cursor")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(500, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "cursor_alpha"
-    )
-
-    Text(
-        text = "▋",
-        color = AppColor.Primary,
-        modifier = Modifier.alpha(alpha),
-        fontSize = 14.sp
-    )
-}
-
-/**
- * 文件列表查看器组件
- * 显示 FileList 工具返回的文件和目录列表
- */
-@Composable
-private fun FileListViewer(
-    path: String,
-    count: Int,
-    files: List<FileInfo>,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AppColor.SurfaceLight
-        ),
-        border = BorderStroke(1.dp, AppColor.Border)
+private fun EnhancedStreamingIndicator() {
+    Row(
+        modifier = Modifier.padding(top = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            // 路径标题
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(text = "📁", fontSize = 16.sp)
-                Text(
-                    text = path,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = AppColor.TextPrimary
-                )
-                Text(
-                    text = "($count 项)",
-                    fontSize = 11.sp,
-                    color = AppColor.TextSecondary
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            HorizontalDivider(color = AppColor.Divider, thickness = 1.dp)
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 文件列表
-            files.forEach { file ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // 文件/目录图标
-                    Text(
-                        text = if (file.isDirectory) "📂" else "📄",
-                        fontSize = 14.sp
-                    )
-
-                    // 文件名
-                    Text(
-                        text = file.name,
-                        fontSize = 12.sp,
-                        color = if (file.isDirectory) AppColor.Primary else AppColor.TextPrimary,
-                        fontWeight = if (file.isDirectory) FontWeight.Medium else FontWeight.Normal,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    // 类型标签
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = if (file.isDirectory) 
-                            AppColor.Primary.copy(alpha = 0.1f) 
-                        else 
-                            AppColor.TextSecondary.copy(alpha = 0.1f)
-                    ) {
-                        Text(
-                            text = if (file.isDirectory) "目录" else "文件",
-                            fontSize = 10.sp,
-                            color = if (file.isDirectory) AppColor.Primary else AppColor.TextSecondary,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        repeat(3) { index ->
+            val delay = index * 200
+            val scale by animateFloatAsState(
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = keyframes {
+                        durationMillis = 1200
+                        0.6f at delay
+                        1.2f at delay + 400
+                        0.6f at delay + 800
+                    },
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "dot_$index"
+            )
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .scale(scale)
+                    .clip(CircleShape)
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                            )
                         )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 搜索结果查看器组件
- */
-@Composable
-private fun SearchResultViewer(
-    summary: String,
-    matchCount: Int,
-    matchedFiles: List<String>,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AppColor.SurfaceLight
-        ),
-        border = BorderStroke(1.dp, AppColor.Border)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(text = "🔍", fontSize = 16.sp)
-                Text(
-                    text = summary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = AppColor.TextPrimary
-                )
-            }
-
-            if (matchedFiles.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                HorizontalDivider(color = AppColor.Divider, thickness = 1.dp)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                matchedFiles.take(10).forEach { filePath ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(text = "📄", fontSize = 12.sp)
-                        Text(
-                            text = filePath,
-                            fontSize = 11.sp,
-                            color = AppColor.TextSecondary,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
-
-                if (matchedFiles.size > 10) {
-                    Text(
-                        text = "...还有 ${matchedFiles.size - 10} 个文件",
-                        fontSize = 11.sp,
-                        color = AppColor.TextSecondary,
-                        modifier = Modifier.padding(top = 4.dp)
                     )
-                }
-            }
+            )
         }
     }
 }
 
 /**
- * 文件内容读取结果查看器组件
+ * 格式化时间戳（增强版）
  */
-@Composable
-private fun FileContentViewer(
-    path: String,
-    content: String,
-    lineCount: Int,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AppColor.SurfaceLight
-        ),
-        border = BorderStroke(1.dp, AppColor.Border)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(text = "📄", fontSize = 16.sp)
-                if (path.isNotEmpty()) {
-                    Text(
-                        text = path,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = AppColor.Primary
-                    )
-                }
-                Text(
-                    text = "($lineCount 行)",
-                    fontSize = 11.sp,
-                    color = AppColor.TextSecondary
-                )
-            }
-
-            if (content.isNotBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                HorizontalDivider(color = AppColor.Divider, thickness = 1.dp)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                val displayContent = if (content.length > 500) {
-                    content.take(500) + "\n... (已截断)"
-                } else {
-                    content
-                }
-
-                Text(
-                    text = displayContent,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = AppColor.TextPrimary,
-                    lineHeight = 16.sp
-                )
-            }
-        }
-    }
-}
-
-/**
- * 错误结果查看器组件
- */
-@Composable
-private fun ErrorResultViewer(
-    error: String,
-    errorType: String,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AppColor.Error.copy(alpha = 0.05f)
-        ),
-        border = BorderStroke(1.dp, AppColor.Error.copy(alpha = 0.3f))
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(text = "❌", fontSize = 16.sp)
-                Text(
-                    text = "错误: $errorType",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = AppColor.Error
-                )
-            }
-
-            if (error.isNotBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = error,
-                    fontSize = 12.sp,
-                    color = AppColor.Error.copy(alpha = 0.8f),
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-        }
-    }
-}
-
-/**
- * 过滤用户消息中的 tool_result/tool_use JSON 内容（与Web端三重过滤对齐）
- * Anthropic API 会将工具结果包装成 user 角色消息，需要过滤掉这些内部数据
- *
- * 支持检测的格式（与Web端 getMessageText + getSafeAssistantContent 对齐）：
- * - 对象格式: {"type":"tool_result", ...}
- * - 数组格式: [{"type":"tool_result", ...}, ...]
- * - 包含 tool_use_id 的对象/数组
- *
- * @param content 原始消息内容
- * @return 过滤后的内容，如果是 tool_result/tool_use 则返回空字符串
- */
-fun filterToolResultContent(content: String): String {
-    if (content.isBlank()) return ""
-
-    val trimmed = content.trim()
-
-    val isToolJson = when {
-        trimmed.startsWith("[") -> {
-            trimmed.contains("\"type\"") &&
-            (trimmed.contains("tool_result") || trimmed.contains("tool_use")) ||
-            trimmed.contains("tool_use_id")
-        }
-        trimmed.startsWith("{") -> {
-            trimmed.contains("\"type\"") &&
-            (trimmed.contains("tool_result") || trimmed.contains("tool_use")) ||
-            trimmed.contains("tool_use_id")
-        }
-        else -> false
-    }
-
-    return if (isToolJson) {
-        android.util.Log.d("MessageFilter", "过滤掉 tool_result/tool_use JSON: ${trimmed.take(100)}...")
-        ""
-    } else {
-        content
-    }
-}
-
-/**
- * 判断消息是否应该显示（与Web端 shouldShowMessage 对齐）
- * 过滤掉 tool_result 类型的用户消息（内部消息，不显示给用户）
- *
- * @param message 消息对象
- * @return true 表示应该显示，false 表示应该隐藏
- */
-fun shouldShowMessage(message: Message): Boolean {
-    if (message.role == "user") {
-        val content = message.content.trim()
-
-        // 情况1：content 是 JSON 数组格式（标准 Anthropic 格式）
-        if (content.startsWith("[") && content.endsWith("]")) {
-            val hasToolResult = content.contains("\"type\"") &&
-                (content.contains("tool_result") || content.contains("tool_use"))
-            if (hasToolResult) {
-                android.util.Log.d("MessageFilter", "shouldShowMessage: 隐藏 tool_result 数组格式用户消息")
-                return false
-            }
-        }
-
-        // 情况2：content 是 JSON 对象格式
-        if (content.startsWith("{") && content.endsWith("}")) {
-            val hasToolResult = content.contains("\"type\"") &&
-                (content.contains("tool_result") || content.contains("tool_use"))
-            if (hasToolResult) {
-                android.util.Log.d("MessageFilter", "shouldShowMessage: 隐藏 tool_result 对象格式用户消息")
-                return false
-            }
-        }
-
-        // 情况3：包含 tool_use_id 的内容
-        if ((content.startsWith("[") || content.startsWith("{")) &&
-            content.contains("tool_use_id")) {
-            android.util.Log.d("MessageFilter", "shouldShowMessage: 隐藏 tool_use_id 用户消息")
-            return false
-        }
-
-        // 过滤后内容为空则不显示
-        return filterToolResultContent(content).isNotBlank()
-    }
-
-    // 助手消息：有内容或有关联的工具调用就显示
-    return true
-}
-
-/**
- * 获取安全的助手消息内容（与Web端 getSafeAssistantContent 对齐）
- * 双重过滤保障，确保不会把 tool_result/tool_use JSON 显示在聊天界面中
- *
- * @param content 原始消息内容
- * @return 安全的内容文本
- */
-fun getSafeAssistantContent(content: String): String {
-    val filtered = filterToolResultContent(content)
-    if (filtered.isBlank()) return ""
-
-    val trimmed = filtered.trim()
-
-    // 防御性检查：再次确认不是工具结果JSON
-    val isToolJson = when {
-        !trimmed.startsWith("[") && !trimmed.startsWith("{") -> false
-        else -> trimmed.contains("tool_result") ||
-                trimmed.contains("tool_use") ||
-                trimmed.contains("tool_use_id")
-    }
-
-    return if (isToolJson) {
-        android.util.Log.d("MessageFilter", "getSafeAssistantContent: 二次过滤掉工具JSON")
-        ""
-    } else {
-        filtered
-    }
-}
-
-/**
- * 格式化时间戳为可读格式
- */
-private fun formatTimestamp(timestamp: String): String {
+private fun formatEnhancedTimestamp(timestamp: String?): String {
+    if (timestamp == null) return ""
     return try {
-        val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val date = Date(timestamp.toLong())
-        sdf.format(date)
+        val time = timestamp.toLong()
+        val date = Date(time)
+        val now = Date()
+        val diff = now.time - date.time
+
+        when {
+            diff < 60000 -> "刚刚"
+            diff < 3600000 -> "${diff / 60000}分钟前"
+            diff < 86400000 -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
+            else -> SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(date)
+        }
     } catch (e: Exception) {
         ""
     }
 }
+
+// 扩展函数：缩放修饰符
+private fun Modifier.scale(scale: Float): Modifier = this.then(
+    androidx.compose.ui.draw.DrawModifier {
+        drawContent()
+    }
+)
