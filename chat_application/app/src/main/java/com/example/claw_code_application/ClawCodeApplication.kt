@@ -81,8 +81,8 @@ class ClawCodeApplication : Application() {
         authRepository = AuthRepository(apiService, tokenManager)
         chatRepository = ChatRepository(apiService, tokenManager)
         
-        // 初始化会话本地存储
-        sessionLocalStore = SessionLocalStore.getInstance(this)
+        // 初始化会话本地存储（复用TokenManager的DataStore实例，避免多实例冲突）
+        sessionLocalStore = SessionLocalStore.getInstance(tokenManager.getDataStore())
         Logger.d(TAG, "SessionLocalStore初始化完成")
         
         Logger.d(TAG, "Repository初始化完成")

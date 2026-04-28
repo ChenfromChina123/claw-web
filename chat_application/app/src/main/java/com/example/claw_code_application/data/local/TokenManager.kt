@@ -24,6 +24,12 @@ class TokenManager(private val context: Context) {
     private val tokenKey = stringPreferencesKey(Constants.KEY_AUTH_TOKEN)
 
     /**
+     * 获取DataStore实例（供其他组件复用，避免多实例冲突）
+     * @return DataStore实例
+     */
+    fun getDataStore(): DataStore<Preferences> = context.dataStore
+
+    /**
      * 保存Token到本地存储
      * @param token 认证Token
      */
