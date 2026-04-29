@@ -23,6 +23,7 @@ import com.example.claw_code_application.ui.chat.components.ThemeMode
  * @param themeMode 用户选择的主题模式
  * @return true 表示使用暗色主题，false 表示使用浅色主题
  */
+@Composable
 private fun shouldUseDarkTheme(themeMode: ThemeMode): Boolean {
     return when (themeMode) {
         ThemeMode.LIGHT -> false
