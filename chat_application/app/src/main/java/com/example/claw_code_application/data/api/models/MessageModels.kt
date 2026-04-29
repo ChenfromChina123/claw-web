@@ -11,7 +11,7 @@ data class Message(
     val role: String,
     val content: String,
     @SerialName("timestamp")
-    val timestamp: String,
+    val timestamp: String = "",
     @SerialName("toolCalls")
     val toolCalls: List<ToolCall>? = null,
     val isStreaming: Boolean = false,
