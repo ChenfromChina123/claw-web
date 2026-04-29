@@ -6,13 +6,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.ui.theme.AppColor
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
 
 /**
- * Manus 风格 Markdown 颜色配置
+ * 优化版 Manus 风格 Markdown 颜色配置
+ * 修复代码块对比度，统一深浅主题色调
  */
 @Composable
 fun markdownColors() = markdownColor(
@@ -22,11 +24,14 @@ fun markdownColors() = markdownColor(
     inlineCodeText = if (isSystemInDarkTheme()) Color(0xFFE06C75) else Color(0xFFD63384),
     inlineCodeBackground = if (isSystemInDarkTheme()) Color(0xFF2D2D3A) else Color(0xFFE8E8ED),
     dividerColor = if (isSystemInDarkTheme()) AppColor.DarkDivider else AppColor.Divider,
-    linkText = if (isSystemInDarkTheme()) Color(0xFF818CF8) else Color(0xFF007AFF)
+    linkText = if (isSystemInDarkTheme()) Color(0xFF818CF8) else Color(0xFF007AFF),
+    quoteText = if (isSystemInDarkTheme()) Color(0xFF9CA3AF) else Color(0xFF6B7280),
+    quoteBackground = if (isSystemInDarkTheme()) Color(0xFF27272A) else Color(0xFFF9FAFB)
 )
 
 /**
- * Manus 风格 Markdown 字体排版配置
+ * 优化版 Manus 风格 Markdown 字体排版
+ * 整体缩小字号，优化行高，更适合手机阅读
  */
 @Composable
 fun markdownTypography() = markdownTypography(
@@ -121,3 +126,13 @@ fun markdownTypography() = markdownTypography(
         lineHeight = 21.sp
     )
 )
+
+/**
+ * 全局配置常量
+ */
+object MarkdownConfig {
+    val codeBlockCornerRadius = 12.dp
+    val codeBlockPadding = 12.dp
+    val listIndent = 20.dp
+    val paragraphSpacing = 8.dp
+}

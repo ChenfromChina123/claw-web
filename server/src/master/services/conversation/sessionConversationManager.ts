@@ -261,6 +261,9 @@ export class SessionConversationManager {
       })
     }
 
+    // 确保用户消息已保存到数据库，避免 AI 读取时消息还未落库
+    await sessionManager.forceSaveSession(sessionId)
+
     console.log(`[${sessionId}] Starting Agent Loop with model: ${model}`)
     console.log(`[${sessionId}] Total messages in history: ${sessionData.messages.length}`)
     if (userId) {
@@ -370,6 +373,9 @@ export class SessionConversationManager {
               }))
             )
           }
+          
+          // 确保工具调用和工具结果消息已保存到数据库，避免 AI 下一轮读取时数据还未落库
+          await sessionManager.forceSaveSession(sessionId)
           
           console.log(`[${sessionId}] Tool execution completed, continuing to next iteration...`)
 
