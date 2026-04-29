@@ -570,7 +570,7 @@ export class SessionConversationManager {
           case 'content_block_delta':
             if (event.delta.type === 'text_delta') {
               assistantText += event.delta.text
-              sendEvent('content_block_delta', { text: event.delta.text })
+              sendEvent('message_delta', { delta: event.delta.text })
             } else if (event.delta.type === 'input_json_delta') {
               if (pendingToolCalls.length > 0) {
                 const lastTool = pendingToolCalls[pendingToolCalls.length - 1]
@@ -810,7 +810,7 @@ export class SessionConversationManager {
         // 处理文本内容
         if (delta?.content) {
           assistantText += delta.content
-          sendEvent('content_block_delta', { text: delta.content })
+          sendEvent('message_delta', { delta: delta.content })
         }
 
         // 处理工具调用

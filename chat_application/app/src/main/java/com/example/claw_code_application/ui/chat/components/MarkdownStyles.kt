@@ -25,8 +25,7 @@ fun markdownColors() = markdownColor(
     inlineCodeBackground = if (isSystemInDarkTheme()) Color(0xFF2D2D3A) else Color(0xFFE8E8ED),
     dividerColor = if (isSystemInDarkTheme()) AppColor.DarkDivider else AppColor.Divider,
     linkText = if (isSystemInDarkTheme()) Color(0xFF818CF8) else Color(0xFF007AFF),
-    quoteText = if (isSystemInDarkTheme()) Color(0xFF9CA3AF) else Color(0xFF6B7280),
-    quoteBackground = if (isSystemInDarkTheme()) Color(0xFF27272A) else Color(0xFFF9FAFB)
+    quoteText = if (isSystemInDarkTheme()) Color(0xFF9CA3AF) else Color(0xFF6B7280)
 )
 
 /**
@@ -96,12 +95,6 @@ fun markdownTypography() = markdownTypography(
         lineHeight = 19.sp
     ),
     paragraph = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 21.sp
-    ),
-    link = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
