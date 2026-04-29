@@ -2,7 +2,9 @@ package com.example.claw_code_application.ui.chat.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
@@ -24,7 +26,7 @@ import org.intellij.markdown.ast.getTextInNode
 
 /**
  * 自定义 Markdown 表格组件
- * 提供明显的表头和内容分隔，更好的视觉效果
+ * 提供明显的表头和内容分隔，支持水平滑动，单元格内 Markdown 解析
  */
 object MarkdownTable {
 
@@ -45,9 +47,10 @@ object MarkdownTable {
 /**
  * 自定义表格渲染组件
  * 特点：
+ * - 支持水平滑动（表格宽度超出屏幕时）
  * - 表头使用深色背景
  * - 表头和内容之间有粗分隔线
- * - 单元格有边框
+ * - 单元格内支持 Markdown 解析
  * - 圆角设计
  */
 @Composable
@@ -82,79 +85,115 @@ private fun CustomTable(
         lines.drop(1)
     }
 
-    // 表格容器
-    Column(
+    // 计算每列的最小宽度（基于内容长度）
+    val minColumnWidth = 100.dp
+    val columnWidths = calculateColumnWidths(headers, dataLines, minColumnWidth)
+
+    // 表格容器 - 支持水平滑动
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
             .border(1.dp, colors.Border, RoundedCornerShape(8.dp))
             .clip(RoundedCornerShape(8.dp))
             .background(colors.Surface)
+            .horizontalScroll(rememberScrollState())
     ) {
-        // 表头 - 使用深色背景
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(colors.SurfaceVariant.copy(alpha = 0.9f))
-        ) {
-            headers.forEachIndexed { index, headerText ->
-                val isLastCell = index == headers.size - 1
-                TableCell(
-                    text = headerText,
-                    textStyle = TextStyle(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.TextPrimary
-                    ),
-                    isLastCell = isLastCell,
-                    borderColor = colors.Border,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
-        // 表头和内容之间的粗分隔线
-        HorizontalDivider(
-            color = colors.Border.copy(alpha = 0.8f),
-            thickness = 2.dp
-        )
-
-        // 数据行
-        dataLines.forEachIndexed { rowIndex, line ->
-            val cells = parseTableRow(line)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        if (rowIndex % 2 == 0) colors.Surface
-                        else colors.SurfaceVariant.copy(alpha = 0.2f)
-                    )
-            ) {
-                cells.forEachIndexed { cellIndex, cellText ->
-                    val isLastCell = cellIndex == cells.size - 1
+        Column {
+            // 表头 - 使用深色背景
+            Row {
+                headers.forEachIndexed { index, headerText ->
+                    val isLastCell = index == headers.size - 1
                     TableCell(
-                        text = cellText,
+                        text = headerText,
                         textStyle = TextStyle(
                             fontSize = 14.sp,
-                            fontWeight = FontWeight.Normal,
+                            fontWeight = FontWeight.Bold,
                             color = colors.TextPrimary
                         ),
                         isLastCell = isLastCell,
+                        isHeader = true,
                         borderColor = colors.Border,
-                        modifier = Modifier.weight(1f)
+                        backgroundColor = colors.SurfaceVariant.copy(alpha = 0.9f),
+                        minWidth = columnWidths.getOrElse(index) { minColumnWidth },
+                        modifier = Modifier
                     )
                 }
             }
 
-            // 行间分隔线（除了最后一行）
-            if (rowIndex < dataLines.size - 1) {
-                HorizontalDivider(
-                    color = colors.Border.copy(alpha = 0.4f),
-                    thickness = 0.5.dp
-                )
+            // 表头和内容之间的粗分隔线
+            HorizontalDivider(
+                color = colors.Border.copy(alpha = 0.8f),
+                thickness = 2.dp
+            )
+
+            // 数据行
+            dataLines.forEachIndexed { rowIndex, line ->
+                val cells = parseTableRow(line)
+                Row {
+                    cells.forEachIndexed { cellIndex, cellText ->
+                        val isLastCell = cellIndex == cells.size - 1
+                        TableCell(
+                            text = cellText,
+                            textStyle = TextStyle(
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = colors.TextPrimary
+                            ),
+                            isLastCell = isLastCell,
+                            isHeader = false,
+                            borderColor = colors.Border,
+                            backgroundColor = if (rowIndex % 2 == 0) colors.Surface
+                            else colors.SurfaceVariant.copy(alpha = 0.2f),
+                            minWidth = columnWidths.getOrElse(cellIndex) { minColumnWidth },
+                            modifier = Modifier
+                        )
+                    }
+                }
+
+                // 行间分隔线（除了最后一行）
+                if (rowIndex < dataLines.size - 1) {
+                    HorizontalDivider(
+                        color = colors.Border.copy(alpha = 0.4f),
+                        thickness = 0.5.dp
+                    )
+                }
             }
         }
     }
+}
+
+/**
+ * 计算每列的宽度
+ * 基于表头和数据行的内容长度
+ */
+private fun calculateColumnWidths(
+    headers: List<String>,
+    dataLines: List<String>,
+    minWidth: androidx.compose.ui.unit.Dp
+): List<androidx.compose.ui.unit.Dp> {
+    val columnCount = headers.size
+    val widths = MutableList(columnCount) { minWidth }
+
+    // 根据表头内容调整宽度
+    headers.forEachIndexed { index, header ->
+        val contentWidth = (header.length * 14).coerceAtLeast(100)
+        widths[index] = androidx.compose.ui.unit.Dp(contentWidth.toFloat()).coerceAtLeast(minWidth)
+    }
+
+    // 根据数据行内容调整宽度
+    dataLines.forEach { line ->
+        val cells = parseTableRow(line)
+        cells.forEachIndexed { index, cell ->
+            if (index < columnCount) {
+                val contentWidth = (cell.length * 12).coerceAtLeast(100)
+                val cellWidth = androidx.compose.ui.unit.Dp(contentWidth.toFloat())
+                widths[index] = widths[index].coerceAtLeast(cellWidth.coerceAtLeast(minWidth))
+            }
+        }
+    }
+
+    return widths
 }
 
 /**
@@ -172,20 +211,26 @@ private fun parseTableRow(line: String): List<String> {
 
 /**
  * 表格单元格组件
+ * 支持 Markdown 内容解析
  */
 @Composable
 private fun RowScope.TableCell(
     text: String,
     textStyle: TextStyle,
     isLastCell: Boolean,
+    isHeader: Boolean,
     borderColor: Color,
+    backgroundColor: Color,
+    minWidth: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
+            .widthIn(min = minWidth)
+            .background(backgroundColor)
             .then(
                 if (!isLastCell) {
-                    Modifier.border(width = 1.dp, color = borderColor.copy(alpha = 0.5f))
+                    Modifier.border(width = 0.5.dp, color = borderColor.copy(alpha = 0.5f))
                 } else {
                     Modifier
                 }
@@ -193,10 +238,9 @@ private fun RowScope.TableCell(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         contentAlignment = Alignment.CenterStart
     ) {
-        Text(
-            text = text,
-            style = textStyle,
-            textAlign = TextAlign.Start,
+        // 使用 SimpleMarkdown 渲染单元格内容，支持 Markdown 语法
+        SimpleMarkdown(
+            markdown = text,
             modifier = Modifier.fillMaxWidth()
         )
     }
