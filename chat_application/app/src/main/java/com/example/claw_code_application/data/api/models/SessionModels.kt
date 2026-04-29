@@ -17,7 +17,11 @@ data class Session(
     @SerialName("createdAt")
     val createdAt: String,
     @SerialName("updatedAt")
-    val updatedAt: String
+    val updatedAt: String,
+    @SerialName("lastMessage")
+    val lastMessage: String? = null,
+    @SerialName("isRunning")
+    val isRunning: Boolean = false
 )
 
 @Serializable

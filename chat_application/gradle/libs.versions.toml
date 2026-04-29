@@ -1,31 +1,43 @@
 [versions]
 agp = "8.13.2"
-kotlin = "2.1.21"
+kotlin = "2.0.21"
+# Kotlinx Serialization (JSON)
 kotlinxSerialization = "1.6.3"
+# Room 数据库
 room = "2.6.1"
-ksp = "2.1.21-2.0.1"
-coreKtx = "1.13.1"
+ksp = "2.0.21-1.0.27"
+coreKtx = "1.12.0"
 junit = "4.13.2"
-junitVersion = "1.2.1"
-espressoCore = "3.6.1"
-appcompat = "1.7.0"
-material = "1.12.0"
+junitVersion = "1.1.5"
+espressoCore = "3.5.1"
+appcompat = "1.6.1"
+material = "1.10.0"
+# Compose BOM 版本 - 使用与 Kotlin 2.0.21 兼容的版本（已升级以兼容 markdown renderer）
 composeBom = "2024.09.00"
-navigationCompose = "2.8.4"
-lifecycleRuntimeKtx = "2.8.6"
-lifecycleViewmodelCompose = "2.8.6"
-lifecycleRuntimeCompose = "2.8.6"
-activityCompose = "1.9.2"
+# 导航组件
+navigationCompose = "2.7.6"
+# Lifecycle
+lifecycleRuntimeKtx = "2.7.0"
+lifecycleViewmodelCompose = "2.7.0"
+lifecycleRuntimeCompose = "2.7.0"
+activityCompose = "1.8.2"
+# 网络
 okhttp = "4.12.0"
 okhttpLogging = "4.12.0"
-retrofit = "2.11.0"
-datastorePreferences = "1.1.1"
+retrofit = "2.9.0"
+# DataStore
+datastorePreferences = "1.0.0"
+# Security - 加密存储
 securityCrypto = "1.1.0-alpha06"
-coroutinesAndroid = "1.9.0"
-coilCompose = "2.7.0"
-accompanistSystemUiController = "0.36.0"
-markdownRenderer = "0.38.0"
-markdownCode = "0.38.0"
+# 协程
+coroutinesAndroid = "1.7.3"
+# 图片加载
+coilCompose = "2.5.0"
+# Accompanist
+accompanistSystemUiController = "0.34.0"
+# Markdown渲染 - 使用 mikepenz multiplatform-markdown-renderer (Material3 + 代码高亮)
+markdownRenderer = "0.27.0"
+markdownCode = "0.27.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -35,6 +47,7 @@ androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-co
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 
+# Compose 相关
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 compose-ui = { group = "androidx.compose.ui", name = "ui" }
 compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
@@ -42,33 +55,44 @@ compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling
 compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 
+# Navigation
 navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 
+# Lifecycle
 lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
 lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
 lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleRuntimeCompose" }
 activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 
+# 网络
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttpLogging" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 
+# DataStore
 datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
+# Security - EncryptedSharedPreferences
 security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 
+# 协程
 coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutinesAndroid" }
 
+# 图片加载
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coilCompose" }
 
+# Accompanist
 accompanist-systemuicontroller = { group = "com.google.accompanist", name = "accompanist-systemuicontroller", version.ref = "accompanistSystemUiController" }
 
+# Markdown渲染 - mikepenz multiplatform-markdown-renderer (Material3 + 代码高亮)
 markdown-renderer = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
 markdown-code = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-code", version.ref = "markdownCode" }
 
+# Room 数据库
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 
+# Kotlinx Serialization
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 
 [plugins]

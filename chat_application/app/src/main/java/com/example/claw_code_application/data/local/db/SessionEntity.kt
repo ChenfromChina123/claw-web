@@ -17,6 +17,8 @@ data class SessionEntity(
     val isPinned: Boolean,
     val createdAt: String,
     val updatedAt: String,
+    val lastMessage: String? = null,
+    val isRunning: Boolean = false,
     val lastAccessedAt: Long = System.currentTimeMillis(),
     val cachedAt: Long = System.currentTimeMillis()
 )

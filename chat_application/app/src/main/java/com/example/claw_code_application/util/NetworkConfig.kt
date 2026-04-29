@@ -78,7 +78,7 @@ object NetworkConfig {
         val httpUrl = getBaseUrl()
         // 将 http:// 或 https:// 转换为 ws:// 或 wss://
         val wsProtocol = httpUrl.replace("http://", "ws://").replace("https://", "wss://")
-        val wsUrl = "$wsProtocol/api/ws"
+        val wsUrl = "$wsProtocol/ws"
         
         cachedWebSocketUrl = wsUrl
         Log.d(TAG, "WebSocket URL: $wsUrl")

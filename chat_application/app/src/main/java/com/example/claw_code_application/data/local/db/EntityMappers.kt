@@ -27,7 +27,9 @@ object EntityMappers {
             userId = userId,
             isPinned = isPinned,
             createdAt = createdAt,
-            updatedAt = updatedAt
+            updatedAt = updatedAt,
+            lastMessage = lastMessage,
+            isRunning = isRunning
         )
     }
 
@@ -39,7 +41,9 @@ object EntityMappers {
             userId = userId,
             isPinned = isPinned,
             createdAt = createdAt,
-            updatedAt = updatedAt
+            updatedAt = updatedAt,
+            lastMessage = lastMessage,
+            isRunning = isRunning
         )
     }
 
