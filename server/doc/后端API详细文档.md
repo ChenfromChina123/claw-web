@@ -562,8 +562,8 @@ GET /api/sessions/:id
         "id": "tc-uuid",
         "messageId": "msg-uuid-2",
         "toolName": "Bash",
-        "toolInput": "{\"command\": \"ls -la\"}",
-        "result": "total 8\ndrwxr-xr-x ...",
+        "toolInput": {"command": "ls -la"},
+        "toolOutput": {"stdout": "total 8\ndrwxr-xr-x ...", "exitCode": 0},
         "status": "completed",
         "createdAt": "2026-04-28T00:00:00.000Z"
       }
