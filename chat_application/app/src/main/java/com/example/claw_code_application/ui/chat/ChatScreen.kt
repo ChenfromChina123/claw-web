@@ -297,7 +297,7 @@ private fun ChatMessageList(
     ) {
         items(
             count = displayMessages.size,
-            key = { index -> displayMessages[index].id },
+            key = { index -> "${displayMessages[index].id}_$index" },
             contentType = { index ->
                 when (displayMessages[index].role) {
                     "user" -> "user_message"
