@@ -1,11 +1,15 @@
 package com.example.claw_code_application.ui.chat
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -34,6 +38,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,6 +53,7 @@ import java.util.*
 /**
  * 会话列表界面 - Manus 风格设计
  * 集成搜索功能和滑动删除，支持暗色主题
+ * 显示最新消息摘要和AI运行状态
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,16 +72,17 @@ fun SessionListScreen(
     val isDarkTheme = !isSystemInDarkTheme().not()
 
     val sessionDisplayData = remember(
-        sessions.map { it.id to it.updatedAt }.hashCode()
+        sessions.map { it.id to it.updatedAt to it.lastMessage to it.isRunning }.hashCode()
     ) {
         sessions.map { session ->
             SessionDisplayData(
                 id = session.id,
                 title = session.title.ifEmpty { "新对话" },
-                previewText = generatePreview(session.title),
+                previewText = session.lastMessage?.takeIf { it.isNotBlank() } ?: generatePreview(session.title),
                 timeText = formatTime(session.updatedAt),
                 iconType = getIconType(session.title),
-                iconBgColor = getIconBgColor(session.title, isDarkTheme)
+                iconBgColor = getIconBgColor(session.title, isDarkTheme),
+                isRunning = session.isRunning
             )
         }
     }
@@ -153,7 +161,8 @@ private data class SessionDisplayData(
     val previewText: String,
     val timeText: String,
     val iconType: IconType,
-    val iconBgColor: androidx.compose.ui.graphics.Color
+    val iconBgColor: Color,
+    val isRunning: Boolean = false
 )
 
 /**
@@ -179,7 +188,7 @@ private fun TopAppBarWithSearch(
     onSearchQueryChange: (TextFieldValue) -> Unit,
     onCreateNew: () -> Unit,
     onAvatarClick: () -> Unit,
-    surfaceColor: androidx.compose.ui.graphics.Color
+    surfaceColor: Color
 ) {
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -278,8 +287,8 @@ private fun TopAppBarWithSearch(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = surfaceVariantColor,
                     unfocusedContainerColor = surfaceVariantColor,
-                    focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
-                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
                     cursorColor = MaterialTheme.colorScheme.primary,
                     focusedTextColor = onSurfaceColor,
                     unfocusedTextColor = onSurfaceColor
@@ -318,7 +327,7 @@ private fun SwipeToDismissSessionItem(
             val color = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) {
                 MaterialTheme.colorScheme.error
             } else {
-                androidx.compose.ui.graphics.Color.Transparent
+                Color.Transparent
             }
 
             Box(
@@ -331,7 +340,7 @@ private fun SwipeToDismissSessionItem(
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "删除",
-                    tint = androidx.compose.ui.graphics.Color.White
+                    tint = Color.White
                 )
             }
         },
@@ -346,7 +355,7 @@ private fun SwipeToDismissSessionItem(
 }
 
 /**
- * 会话列表项 - 使用 Row + Column 布局实现高度对齐
+ * 会话列表项 - 显示标题、最新消息摘要和AI运行状态
  */
 @Composable
 private fun SessionItem(
@@ -371,20 +380,29 @@ private fun SessionItem(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 左侧图标
+        // 左侧图标（带运行状态指示器）
         Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(item.iconBgColor),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = getIconForType(item.iconType),
-                contentDescription = null,
-                tint = onSurfaceVariantColor,
-                modifier = Modifier.size(20.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(item.iconBgColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = getIconForType(item.iconType),
+                    contentDescription = null,
+                    tint = onSurfaceVariantColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // AI运行状态转圈动画
+            if (item.isRunning) {
+                RunningIndicator()
+            }
         }
 
         // 中间内容区域
@@ -406,9 +424,9 @@ private fun SessionItem(
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = item.previewText,
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 color = onSurfaceVariantColor,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -418,6 +436,37 @@ private fun SessionItem(
             text = item.timeText,
             fontSize = 12.sp,
             color = onSurfaceVariantColor
+        )
+    }
+}
+
+/**
+ * AI运行状态指示器 - 在图标外圈显示旋转动画
+ */
+@Composable
+private fun RunningIndicator() {
+    val infiniteTransition = rememberInfiniteTransition(label = "running")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(46.dp)
+            .rotate(rotation),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.primary,
+            strokeWidth = 2.dp,
+            trackColor = Color.Transparent
         )
     }
 }
@@ -456,28 +505,28 @@ private fun getIconForType(iconType: IconType): ImageVector {
 /**
  * 获取图标背景色（适配暗色主题）
  */
-private fun getIconBgColor(title: String, isDark: Boolean): androidx.compose.ui.graphics.Color {
+private fun getIconBgColor(title: String, isDark: Boolean): Color {
     return if (isDark) {
         when {
-            title.contains("Agent", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFF2D1B69)
+            title.contains("Agent", ignoreCase = true) -> Color(0xFF2D1B69)
             title.contains("代码", ignoreCase = true) ||
-            title.contains("开发", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFF1B3A5C)
+            title.contains("开发", ignoreCase = true) -> Color(0xFF1B3A5C)
             title.contains("分析", ignoreCase = true) ||
-            title.contains("数据", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFF5C3A1B)
-            title.contains("测试", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFF1B5C2D)
-            title.contains("文件", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFF5C4F1B)
-            else -> androidx.compose.ui.graphics.Color(0xFF2D2D3A)
+            title.contains("数据", ignoreCase = true) -> Color(0xFF5C3A1B)
+            title.contains("测试", ignoreCase = true) -> Color(0xFF1B5C2D)
+            title.contains("文件", ignoreCase = true) -> Color(0xFF5C4F1B)
+            else -> Color(0xFF2D2D3A)
         }
     } else {
         when {
-            title.contains("Agent", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFFF0E6FF)
+            title.contains("Agent", ignoreCase = true) -> Color(0xFFF0E6FF)
             title.contains("代码", ignoreCase = true) ||
-            title.contains("开发", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFFE6F3FF)
+            title.contains("开发", ignoreCase = true) -> Color(0xFFE6F3FF)
             title.contains("分析", ignoreCase = true) ||
-            title.contains("数据", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFFFFF0E6)
-            title.contains("测试", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFFE6FFE6)
-            title.contains("文件", ignoreCase = true) -> androidx.compose.ui.graphics.Color(0xFFFFF8E6)
-            else -> androidx.compose.ui.graphics.Color(0xFFF0F0F0)
+            title.contains("数据", ignoreCase = true) -> Color(0xFFFFF0E6)
+            title.contains("测试", ignoreCase = true) -> Color(0xFFE6FFE6)
+            title.contains("文件", ignoreCase = true) -> Color(0xFFFFF8E6)
+            else -> Color(0xFFF0F0F0)
         }
     }
 }
