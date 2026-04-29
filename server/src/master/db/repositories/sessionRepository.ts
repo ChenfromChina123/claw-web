@@ -111,11 +111,27 @@ export class SessionRepository {
   async findByUserId(userId: string): Promise<Session[]> {
     const pool = getPool() as Pool
     console.log(`[SessionRepo] findByUserId: userId=${userId}`)
+    // 联表查询最后一条消息的预览内容（取前100个字符）
     const [rows] = await pool.query(
-      'SELECT * FROM sessions WHERE user_id = ? ORDER BY updated_at DESC',
+      `SELECT s.*, 
+        SUBSTRING(m.content, 1, 100) as last_message
+       FROM sessions s
+       LEFT JOIN (
+         SELECT session_id, content
+         FROM messages
+         WHERE role = 'assistant'
+         AND (session_id, created_at) IN (
+           SELECT session_id, MAX(created_at)
+           FROM messages
+           WHERE role = 'assistant'
+           GROUP BY session_id
+         )
+       ) m ON s.id = m.session_id
+       WHERE s.user_id = ? 
+       ORDER BY s.updated_at DESC`,
       [userId]
-    ) as [Session[], unknown]
-    console.log(`[SessionRepo] findByUserId: found ${rows.length} sessions for user ${userId}, rows:`, JSON.stringify(rows, null, 2))
+    ) as [any[], unknown]
+    console.log(`[SessionRepo] findByUserId: found ${rows.length} sessions for user ${userId}`)
 
     return rows.map(row => this.mapToSession(row))
   }
@@ -278,6 +294,8 @@ export class SessionRepository {
       isPinned: Boolean(row.is_pinned),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      lastMessage: row.last_message || undefined,
+      isRunning: Boolean(row.is_running),
     }
   }
 }

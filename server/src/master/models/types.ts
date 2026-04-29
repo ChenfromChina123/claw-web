@@ -30,6 +30,8 @@ export interface Session {
   isPinned?: boolean
   createdAt: Date
   updatedAt: Date
+  lastMessage?: string
+  isRunning?: boolean
 }
 
 import type { MessageContent, ImageAttachment } from './imageTypes'
