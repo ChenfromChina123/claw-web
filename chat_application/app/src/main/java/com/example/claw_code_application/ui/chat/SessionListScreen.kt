@@ -338,7 +338,7 @@ private fun SwipeToDismissSessionItem(
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
             title = { Text("删除会话") },
-            text = { Text("确定要删除会话"${item.title}"吗？此操作不可撤销。") },
+            text = { Text("确定要删除会话「${item.title}」吗？此操作不可撤销。") },
             confirmButton = {
                 TextButton(
                     onClick = {
