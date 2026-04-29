@@ -540,7 +540,7 @@ private fun AccountSection(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
                     .background(colors.Primary.copy(alpha = 0.1f))
-                    .clickable { }
+                    .clickable { onNavigateToLogin() }
                     .padding(horizontal = 12.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -623,3 +623,13 @@ private fun AccountSection(
             textContentColor = colors.TextSecondary
         )
     }
+}
+
+/**
+ * 主题模式枚举
+ */
+enum class ThemeMode {
+    LIGHT,
+    DARK,
+    SYSTEM
+}

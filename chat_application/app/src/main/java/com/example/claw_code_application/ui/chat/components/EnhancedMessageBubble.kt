@@ -325,6 +325,7 @@ private fun FileListViewer(
     files: List<FileInfo>,
     modifier: Modifier = Modifier
 ) {
+    val colors = AppColor.current
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -412,11 +413,12 @@ private fun SearchResultViewer(
     matchedFiles: List<String>,
     modifier: Modifier = Modifier
 ) {
+    val colors = AppColor.current
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = Color(0xFFF5F5F7),
-        border = BorderStroke(1.dp, Color(0xFFE8E8ED))
+        color = colors.SurfaceVariant,
+        border = BorderStroke(1.dp, colors.Border)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -430,13 +432,13 @@ private fun SearchResultViewer(
                     text = summary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = AppColor.TextPrimary
+                    color = colors.TextPrimary
                 )
             }
 
             if (matchedFiles.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = Color(0xFFE8E8ED), thickness = 1.dp)
+                HorizontalDivider(color = colors.Border, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(12.dp))
 
                 matchedFiles.take(10).forEach { filePath ->
@@ -450,7 +452,7 @@ private fun SearchResultViewer(
                         Text(
                             text = filePath,
                             fontSize = 12.sp,
-                            color = AppColor.TextSecondary,
+                            color = colors.TextSecondary,
                             fontFamily = FontFamily.Monospace
                         )
                     }
@@ -460,7 +462,7 @@ private fun SearchResultViewer(
                     Text(
                         text = "...还有 ${matchedFiles.size - 10} 个文件",
                         fontSize = 11.sp,
-                        color = AppColor.TextSecondary,
+                        color = colors.TextSecondary,
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }

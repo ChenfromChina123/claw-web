@@ -143,6 +143,11 @@ class MainActivity : ComponentActivity() {
                                         popUpTo(0) { inclusive = true }
                                     }
                                 }
+                            },
+                            onNavigateToLogin = {
+                                navController.navigate("login") {
+                                    popUpTo(0) { inclusive = true }
+                                }
                             }
                         )
                     }
@@ -204,17 +209,19 @@ private fun AuthCheckScreen(
 /**
  * 聊天主界面
  * 使用viewModel()确保ViewModel生命周期正确管理，避免重组时重复创建
- * 
+ *
  * @param currentTheme 当前主题模式
  * @param onThemeChange 主题变更回调
  * @param onLogout 登出回调
+ * @param onNavigateToLogin 跳转到登录页面回调
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatMainScreen(
     currentTheme: ThemeMode,
     onThemeChange: (ThemeMode) -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToLogin: () -> Unit
 ) {
     val sessionViewModel: SessionViewModel = viewModel(
         factory = SessionViewModel.provideFactory(
@@ -380,7 +387,8 @@ private fun ChatMainScreen(
             onDismiss = { showSettingsDrawer = false },
             onThemeChange = onThemeChange,
             currentTheme = currentTheme,
-            onLogout = onLogout
+            onLogout = onLogout,
+            onNavigateToLogin = onNavigateToLogin
         )
     }
 
