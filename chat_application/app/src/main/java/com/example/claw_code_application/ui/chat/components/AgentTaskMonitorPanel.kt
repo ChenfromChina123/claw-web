@@ -606,6 +606,7 @@ private data class TaskStatusUIConfig(
     val borderColor: Color
 )
 
+@Composable
 private fun getTaskStatusConfig(status: BackgroundTaskStatus): TaskStatusUIConfig {
     return when (status) {
         BackgroundTaskStatus.PENDING -> TaskStatusUIConfig(

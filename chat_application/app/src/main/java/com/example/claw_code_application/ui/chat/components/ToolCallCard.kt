@@ -43,7 +43,7 @@ fun ToolCallCard(
     onExpandedChange: (Boolean) -> Unit = {},
     onRetry: () -> Unit = {}
 ) {
-    val statusConfig by remember(toolCall.status) { derivedStateOf { getStatusConfig(toolCall.status) } }
+    val statusConfig = getStatusConfig(toolCall.status)
 
     val summary by remember(toolCall.id, toolCall.toolInput) { derivedStateOf { getToolSummary(toolCall) } }
 
