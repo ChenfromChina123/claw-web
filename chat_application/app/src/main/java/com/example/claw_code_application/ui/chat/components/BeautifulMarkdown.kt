@@ -34,7 +34,6 @@ fun BeautifulMarkdown(
     val colors = AppColor.current
 
     // 自定义 Markdown 颜色配置
-    // 注意：0.31.0 版本不支持 table 相关颜色参数
     val markdownColors = markdownColor(
         text = colors.TextPrimary,
         codeText = colors.PrimaryLight,
@@ -46,7 +45,6 @@ fun BeautifulMarkdown(
     )
 
     // 自定义 Markdown 排版配置
-    // 注意：0.31.0 版本不支持 table 相关排版参数
     val markdownTypography = markdownTypography(
         h1 = TextStyle(
             fontSize = 20.sp,
@@ -140,6 +138,9 @@ fun BeautifulMarkdown(
         )
     )
 
+    // 使用自定义表格组件
+    val components = MarkdownTable.createComponents()
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -151,7 +152,8 @@ fun BeautifulMarkdown(
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp, vertical = 4.dp),
             colors = markdownColors,
-            typography = markdownTypography
+            typography = markdownTypography,
+            components = components
         )
     }
 }

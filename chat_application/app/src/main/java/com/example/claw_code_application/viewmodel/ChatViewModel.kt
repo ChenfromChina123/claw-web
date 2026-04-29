@@ -427,7 +427,10 @@ class ChatViewModel(
                         is CachedChatRepository.Result.Success -> {
                             val response = result.data
                             response.messages.forEach { msg ->
-                                _messages.add(msg)
+                                // 避免重复添加已存在的消息
+                                if (_messages.none { it.id == msg.id }) {
+                                    _messages.add(msg)
+                                }
                             }
                             _toolCalls.clear()
                             _toolCalls.addAll(response.toolCalls)
