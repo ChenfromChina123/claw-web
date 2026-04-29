@@ -127,19 +127,16 @@ fun SessionListScreen(
                 EmptyState()
             }
         } else {
-            val indexedData = remember(filteredData) {
-                filteredData.mapIndexed { index, item -> index to item }
-            }
             val listState = rememberLazyListState()
             LazyColumn(
                 state = listState,
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
                 items(
-                    items = indexedData,
-                    key = { (index, item) -> "${item.id}_$index" },
+                    items = filteredData,
+                    key = { item -> item.id },
                     contentType = { "session_item" }
-                ) { (index, item) ->
+                ) { item ->
                     SwipeToDismissSessionItem(
                         item = item,
                         isSelected = item.id == currentSessionId,

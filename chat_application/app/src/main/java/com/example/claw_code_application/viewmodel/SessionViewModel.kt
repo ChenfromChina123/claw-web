@@ -62,8 +62,13 @@ class SessionViewModel(
                     is CachedChatRepository.Result.Success -> {
                         val list = result.data
                         Logger.i(TAG, "加载会话成功: 共 ${list.size} 个会话")
+                        // 使用会话ID去重，保留最新的会话数据
+                        val uniqueSessions = list.distinctBy { it.id }
+                        if (uniqueSessions.size < list.size) {
+                            Logger.w(TAG, "发现重复会话，已去重: ${list.size - uniqueSessions.size} 个")
+                        }
                         _sessions.clear()
-                        _sessions.addAll(list)
+                        _sessions.addAll(uniqueSessions)
                         _uiState.value = UiState.Success(_sessions.toList())
                         Logger.d(TAG, "UI状态: Success, 会话数: ${_sessions.size}")
                     }
