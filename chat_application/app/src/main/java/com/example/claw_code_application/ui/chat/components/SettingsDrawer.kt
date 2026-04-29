@@ -45,6 +45,8 @@ fun SettingsDrawer(
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colors = AppColor.current
+    
     AnimatedVisibility(
         visible = isVisible,
         enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
@@ -54,7 +56,7 @@ fun SettingsDrawer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(AppColor.BackgroundDark.copy(alpha = 0.5f))
+                .background(colors.Background.copy(alpha = 0.5f))
                 .clickable(onClick = onDismiss)
         ) {
             Surface(
@@ -65,7 +67,7 @@ fun SettingsDrawer(
                     .shadow(16.dp, RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
                     .clickable(enabled = false) { },
                 shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
-                color = AppColor.SurfaceDark
+                color = colors.Surface
             ) {
                 Column(
                     modifier = Modifier
@@ -74,24 +76,22 @@ fun SettingsDrawer(
                 ) {
                     SettingsHeader(onClose = onDismiss)
 
-                    Divider(color = AppColor.Divider, thickness = 1.dp)
+                    HorizontalDivider(color = colors.Divider, thickness = 1.dp)
 
-                    AccountSection(
-                        onLogout = onLogout
-                    )
+                    AccountSection(onLogout = onLogout)
 
-                    Divider(color = AppColor.Divider, thickness = 1.dp)
+                    HorizontalDivider(color = colors.Divider, thickness = 1.dp)
 
                     ServerConfigSection()
 
-                    Divider(color = AppColor.Divider, thickness = 1.dp)
+                    HorizontalDivider(color = colors.Divider, thickness = 1.dp)
 
                     ThemeSection(
                         currentTheme = currentTheme,
                         onThemeChange = onThemeChange
                     )
 
-                    Divider(color = AppColor.Divider, thickness = 1.dp)
+                    HorizontalDivider(color = colors.Divider, thickness = 1.dp)
 
                     AboutSection()
                 }
@@ -105,6 +105,8 @@ fun SettingsDrawer(
  */
 @Composable
 private fun SettingsHeader(onClose: () -> Unit) {
+    val colors = AppColor.current
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -119,14 +121,14 @@ private fun SettingsHeader(onClose: () -> Unit) {
             Icon(
                 imageVector = Icons.Default.Settings,
                 contentDescription = null,
-                tint = AppColor.TextPrimary,
+                tint = colors.TextPrimary,
                 modifier = Modifier.size(24.dp)
             )
             Text(
                 text = "设置",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = AppColor.TextPrimary
+                color = colors.TextPrimary
             )
         }
 
@@ -134,7 +136,7 @@ private fun SettingsHeader(onClose: () -> Unit) {
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = "关闭",
-                tint = AppColor.TextSecondary
+                tint = colors.TextSecondary
             )
         }
     }
@@ -145,6 +147,7 @@ private fun SettingsHeader(onClose: () -> Unit) {
  */
 @Composable
 private fun ServerConfigSection() {
+    val colors = AppColor.current
     var ipAddress by remember { mutableStateOf(NetworkConfig.getCustomIpAddress() ?: "") }
     var port by remember { mutableStateOf(NetworkConfig.getPort().toString()) }
     var isUsingCustomIp by remember { mutableStateOf(NetworkConfig.isUsingCustomIp()) }
@@ -157,7 +160,7 @@ private fun ServerConfigSection() {
             text = "服务器配置",
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            color = AppColor.TextSecondary,
+            color = colors.TextSecondary,
             modifier = Modifier.padding(bottom = 12.dp)
         )
 
@@ -169,7 +172,7 @@ private fun ServerConfigSection() {
             Text(
                 text = "自定义服务器",
                 fontSize = 15.sp,
-                color = AppColor.TextPrimary
+                color = colors.TextPrimary
             )
             Switch(
                 checked = isUsingCustomIp,
@@ -180,8 +183,8 @@ private fun ServerConfigSection() {
                     }
                 },
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = AppColor.Primary,
-                    checkedTrackColor = AppColor.Primary.copy(alpha = 0.3f)
+                    checkedThumbColor = colors.Primary,
+                    checkedTrackColor = colors.Primary.copy(alpha = 0.3f)
                 )
             )
         }
@@ -199,8 +202,8 @@ private fun ServerConfigSection() {
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AppColor.Primary,
-                    unfocusedBorderColor = AppColor.Border
+                    focusedBorderColor = colors.Primary,
+                    unfocusedBorderColor = colors.Border
                 )
             )
 
@@ -216,8 +219,8 @@ private fun ServerConfigSection() {
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AppColor.Primary,
-                    unfocusedBorderColor = AppColor.Border
+                    focusedBorderColor = colors.Primary,
+                    unfocusedBorderColor = colors.Border
                 )
             )
 
@@ -235,7 +238,7 @@ private fun ServerConfigSection() {
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppColor.Primary
+                    containerColor = colors.Primary
                 )
             ) {
                 Text("保存配置", fontSize = 14.sp)
@@ -246,7 +249,7 @@ private fun ServerConfigSection() {
                 Text(
                     text = "配置已保存，应用重启后生效",
                     fontSize = 12.sp,
-                    color = AppColor.Success
+                    color = colors.Success
                 )
                 LaunchedEffect(showSuccess) {
                     kotlinx.coroutines.delay(2000)
@@ -261,7 +264,7 @@ private fun ServerConfigSection() {
         Text(
             text = "当前服务器: $currentUrl",
             fontSize = 11.sp,
-            color = AppColor.TextSecondary
+            color = colors.TextSecondary
         )
     }
 }
@@ -274,6 +277,8 @@ private fun ThemeSection(
     currentTheme: ThemeMode,
     onThemeChange: (ThemeMode) -> Unit
 ) {
+    val colors = AppColor.current
+    
     Column(
         modifier = Modifier.padding(16.dp)
     ) {
@@ -281,7 +286,7 @@ private fun ThemeSection(
             text = "外观",
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            color = AppColor.TextSecondary,
+            color = colors.TextSecondary,
             modifier = Modifier.padding(bottom = 12.dp)
         )
 
@@ -318,12 +323,14 @@ private fun ThemeOption(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val colors = AppColor.current
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(
-                if (isSelected) AppColor.Primary.copy(alpha = 0.1f)
+                if (isSelected) colors.Primary.copy(alpha = 0.1f)
                 else Color.Transparent
             )
             .clickable(onClick = onClick)
@@ -338,13 +345,13 @@ private fun ThemeOption(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (isSelected) AppColor.Primary else AppColor.TextSecondary,
+                tint = if (isSelected) colors.Primary else colors.TextSecondary,
                 modifier = Modifier.size(20.dp)
             )
             Text(
                 text = title,
                 fontSize = 14.sp,
-                color = if (isSelected) AppColor.Primary else AppColor.TextPrimary
+                color = if (isSelected) colors.Primary else colors.TextPrimary
             )
         }
 
@@ -352,7 +359,7 @@ private fun ThemeOption(
             Icon(
                 imageVector = Icons.Default.Check,
                 contentDescription = null,
-                tint = AppColor.Primary,
+                tint = colors.Primary,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -364,6 +371,8 @@ private fun ThemeOption(
  */
 @Composable
 private fun AboutSection() {
+    val colors = AppColor.current
+    
     Column(
         modifier = Modifier.padding(16.dp)
     ) {
@@ -371,7 +380,7 @@ private fun AboutSection() {
             text = "关于",
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            color = AppColor.TextSecondary,
+            color = colors.TextSecondary,
             modifier = Modifier.padding(bottom = 12.dp)
         )
 
@@ -390,12 +399,12 @@ private fun AboutSection() {
         Text(
             text = "Claw Code Application",
             fontSize = 12.sp,
-            color = AppColor.TextSecondary
+            color = colors.TextSecondary
         )
         Text(
             text = "基于 Manus AI 智能体",
             fontSize = 11.sp,
-            color = AppColor.TextSecondary.copy(alpha = 0.7f)
+            color = colors.TextSecondary.copy(alpha = 0.7f)
         )
     }
 }
@@ -408,6 +417,8 @@ private fun SettingsItem(
     title: String,
     value: String
 ) {
+    val colors = AppColor.current
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -418,12 +429,12 @@ private fun SettingsItem(
         Text(
             text = title,
             fontSize = 14.sp,
-            color = AppColor.TextPrimary
+            color = colors.TextPrimary
         )
         Text(
             text = value,
             fontSize = 14.sp,
-            color = AppColor.TextSecondary
+            color = colors.TextSecondary
         )
     }
 }
@@ -438,6 +449,7 @@ private fun SettingsItem(
 private fun AccountSection(
     onLogout: () -> Unit
 ) {
+    val colors = AppColor.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val userManager = remember { UserManager.getInstance(context) }
     val userInfo by userManager.getUserInfo().collectAsState(initial = null)
@@ -450,30 +462,28 @@ private fun AccountSection(
             text = "账号管理",
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            color = AppColor.TextSecondary,
+            color = colors.TextSecondary,
             modifier = Modifier.padding(bottom = 12.dp)
         )
 
         if (userInfo != null) {
-            // 已登录状态 - 显示用户信息
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 用户头像
                 Box(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(RoundedCornerShape(24.dp))
-                        .background(AppColor.Primary.copy(alpha = 0.2f)),
+                        .background(colors.Primary.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
-                        tint = AppColor.Primary,
+                        tint = colors.Primary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -487,27 +497,26 @@ private fun AccountSection(
                         text = userInfo?.username ?: "",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = AppColor.TextPrimary
+                        color = colors.TextPrimary
                     )
                     Text(
                         text = userInfo?.email ?: "",
                         fontSize = 12.sp,
-                        color = AppColor.TextSecondary
+                        color = colors.TextSecondary
                     )
                 }
             }
 
-            // 登出按钮
             OutlinedButton(
                 onClick = { showLogoutConfirm = true },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = AppColor.Error
+                    contentColor = colors.Error
                 ),
                 border = androidx.compose.foundation.BorderStroke(
                     width = 1.dp,
-                    color = AppColor.Error.copy(alpha = 0.5f)
+                    color = colors.Error.copy(alpha = 0.5f)
                 )
             ) {
                 Icon(
@@ -519,20 +528,19 @@ private fun AccountSection(
                 Text("退出登录", fontSize = 14.sp)
             }
         } else {
-            // 未登录状态
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
-                    .background(AppColor.Primary.copy(alpha = 0.1f))
-                    .clickable { /* 跳转到登录页面 */ }
+                    .background(colors.Primary.copy(alpha = 0.1f))
+                    .clickable { }
                     .padding(horizontal = 12.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = Icons.Default.AccountCircle,
                     contentDescription = null,
-                    tint = AppColor.Primary,
+                    tint = colors.Primary,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
@@ -543,25 +551,24 @@ private fun AccountSection(
                         text = "未登录",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
-                        color = AppColor.TextPrimary
+                        color = colors.TextPrimary
                     )
                     Text(
                         text = "点击登录账号",
                         fontSize = 12.sp,
-                        color = AppColor.TextSecondary
+                        color = colors.TextSecondary
                     )
                 }
                 Icon(
                     imageVector = Icons.Default.ChevronRight,
                     contentDescription = null,
-                    tint = AppColor.TextSecondary,
+                    tint = colors.TextSecondary,
                     modifier = Modifier.size(20.dp)
                 )
             }
         }
     }
 
-    // 登出确认对话框
     if (showLogoutConfirm) {
         AlertDialog(
             onDismissRequest = { showLogoutConfirm = false },
@@ -576,7 +583,7 @@ private fun AccountSection(
                 Text(
                     text = "退出登录后，您需要重新登录才能使用完整功能。",
                     fontSize = 14.sp,
-                    color = AppColor.TextSecondary
+                    color = colors.TextSecondary
                 )
             },
             confirmButton = {
@@ -588,7 +595,7 @@ private fun AccountSection(
                 ) {
                     Text(
                         text = "确认退出",
-                        color = AppColor.Error,
+                        color = colors.Error,
                         fontSize = 14.sp
                     )
                 }
@@ -599,14 +606,14 @@ private fun AccountSection(
                 ) {
                     Text(
                         text = "取消",
-                        color = AppColor.TextSecondary,
+                        color = colors.TextSecondary,
                         fontSize = 14.sp
                     )
                 }
             },
-            containerColor = AppColor.SurfaceDark,
-            titleContentColor = AppColor.TextPrimary,
-            textContentColor = AppColor.TextSecondary
+            containerColor = colors.Surface,
+            titleContentColor = colors.TextPrimary,
+            textContentColor = colors.TextSecondary
         )
     }
 }

@@ -188,13 +188,13 @@ private fun AuthCheckScreen(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(color = AppColor.Primary)
+            CircularProgressIndicator(color = AppColor.current.Primary)
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
                 text = "正在检查登录状态...",
-                color = AppColor.TextSecondary,
+                color = AppColor.current.TextSecondary,
                 fontSize = 14.sp
             )
         }
@@ -270,7 +270,7 @@ private fun ChatMainScreen(
         ) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
-                color = AppColor.BackgroundDark
+                color = AppColor.current.Background
             ) {
                 when (val state = sessionUiState) {
                     is SessionViewModel.UiState.Loading -> {
@@ -278,7 +278,7 @@ private fun ChatMainScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(color = AppColor.Primary)
+                            CircularProgressIndicator(color = AppColor.current.Primary)
                         }
                     }
 
@@ -324,7 +324,7 @@ private fun ChatMainScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
                                     text = "加载失败",
-                                    color = AppColor.Error,
+                                    color = AppColor.current.Error,
                                     fontSize = 16.sp
                                 )
 
@@ -332,7 +332,7 @@ private fun ChatMainScreen(
 
                                 Text(
                                     text = state.message,
-                                    color = AppColor.TextSecondary,
+                                    color = AppColor.current.TextSecondary,
                                     fontSize = 14.sp
                                 )
 
@@ -391,9 +391,9 @@ private fun ChatMainScreen(
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
-            containerColor = AppColor.SurfaceDark,
-            titleContentColor = AppColor.TextPrimary,
-            textContentColor = AppColor.TextSecondary,
+            containerColor = AppColor.current.Surface,
+            titleContentColor = AppColor.current.TextPrimary,
+            textContentColor = AppColor.current.TextSecondary,
             title = { Text("确认退出") },
             text = { Text("确定要退出应用吗？") },
             confirmButton = {
@@ -406,14 +406,14 @@ private fun ChatMainScreen(
                         }
                     }
                 ) {
-                    Text("退出", color = AppColor.Error)
+                    Text("退出", color = AppColor.current.Error)
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showExitDialog = false }
                 ) {
-                    Text("取消", color = AppColor.Primary)
+                    Text("取消", color = AppColor.current.Primary)
                 }
             }
         )

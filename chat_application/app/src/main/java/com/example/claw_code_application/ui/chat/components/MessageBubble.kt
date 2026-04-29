@@ -16,13 +16,14 @@ import java.util.*
 
 /**
  * 消息气泡组件
- * 基于原型Manus风格设计 - 浅色主题
+ * 基于原型Manus风格设计 - 支持主题切换
  */
 @Composable
 fun MessageBubble(
     message: Message,
     modifier: Modifier = Modifier
 ) {
+    val colors = AppColor.current
     val isUser = message.role == "user"
 
     Row(
@@ -34,7 +35,6 @@ fun MessageBubble(
         Column(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
         ) {
-            // 消息内容卡片 - 原型样式
             Surface(
                 shape = RoundedCornerShape(
                     topStart = if (isUser) 16.dp else 12.dp,
@@ -42,16 +42,16 @@ fun MessageBubble(
                     bottomStart = 16.dp,
                     bottomEnd = 16.dp
                 ),
-                color = if (isUser) AppColor.UserBubbleBackground else AppColor.AssistantBubbleBackground,
+                color = if (isUser) colors.UserBubbleBackground else colors.AssistantBubbleBackground,
                 shadowElevation = if (isUser) 0.dp else 1.dp,
-                border = if (isUser) null else androidx.compose.foundation.BorderStroke(1.dp, AppColor.Border)
+                border = if (isUser) null else androidx.compose.foundation.BorderStroke(1.dp, colors.Border)
             ) {
                 Row(
                     verticalAlignment = Alignment.Bottom
                 ) {
                     Text(
                         text = message.content,
-                        color = if (isUser) AppColor.SurfaceDark else AppColor.TextPrimary,
+                        color = if (isUser) colors.Surface else colors.TextPrimary,
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
                         modifier = Modifier.padding(
@@ -60,21 +60,19 @@ fun MessageBubble(
                         )
                     )
 
-                    // 流式输出光标
                     if (message.isStreaming) {
                         Text(
                             text = "▋",
-                            color = if (isUser) AppColor.SurfaceDark else AppColor.Primary,
+                            color = if (isUser) colors.Surface else colors.Primary,
                             modifier = Modifier.padding(end = 14.dp, bottom = 10.dp)
                         )
                     }
                 }
             }
 
-            // 时间戳
             Text(
                 text = formatTimestamp(message.timestamp),
-                color = AppColor.TextSecondary,
+                color = colors.TextSecondary,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp)
             )

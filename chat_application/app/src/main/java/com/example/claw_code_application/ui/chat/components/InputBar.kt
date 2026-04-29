@@ -44,6 +44,7 @@ import com.example.claw_code_application.ui.theme.AppColor
  * - 固定在屏幕底部，高度56dp，确保单手可以轻松点击
  * - 触控区域不小于48dp x 48dp
  * - 简洁、克制、专业
+ * - 支持主题切换
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +55,7 @@ fun InputBar(
     onImageSelected: ((Uri) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val colors = AppColor.current
     var text by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
@@ -73,7 +75,6 @@ fun InputBar(
         }
     }
 
-    // 发送按钮点击动画状态
     var isSendPressed by remember { mutableStateOf(false) }
     val sendScale by animateFloatAsState(
         targetValue = if (isSendPressed) 0.9f else 1f,
@@ -83,7 +84,7 @@ fun InputBar(
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = AppColor.SurfaceDark,
+        color = colors.Surface,
         shadowElevation = 8.dp
     ) {
         Row(
@@ -92,20 +93,21 @@ fun InputBar(
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 添加按钮 - Manus风格
-            AddButton(onClick = {
-                if (onImageSelected != null) {
-                    photoPickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                } else {
-                    onAddClick()
-                }
-            })
+            AddButton(
+                onClick = {
+                    if (onImageSelected != null) {
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    } else {
+                        onAddClick()
+                    }
+                },
+                colors = colors
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // 输入框
             InputField(
                 text = text,
                 onTextChange = {
@@ -121,13 +123,13 @@ fun InputBar(
                     }
                 },
                 enabled = enabled,
+                colors = colors,
                 modifier = Modifier.weight(1f)
             )
 
             Spacer(modifier = Modifier.width(8.dp))
 
             if (text.isNotBlank() && enabled) {
-                // 发送按钮 - Manus风格
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -149,7 +151,7 @@ fun InputBar(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = "发送",
-                            tint = AppColor.Primary,
+                            tint = colors.Primary,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -177,7 +179,8 @@ fun InputBar(
                     onStopListening = {
                         speechRecognizer?.stopListening()
                         isListening = false
-                    }
+                    },
+                    colors = colors
                 )
             }
         }
@@ -188,20 +191,23 @@ fun InputBar(
  * "+"添加按钮 - Manus风格：简洁圆形按钮
  */
 @Composable
-private fun AddButton(onClick: () -> Unit) {
+private fun AddButton(
+    onClick: () -> Unit,
+    colors: com.example.claw_code_application.ui.theme.AppColors
+) {
     Surface(
         modifier = Modifier
             .size(36.dp)
             .clickable(onClick = onClick),
         shape = CircleShape,
-        color = Color(0xFFF5F5F7)
+        color = colors.SurfaceVariant
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
                 text = "+",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Light,
-                color = AppColor.TextPrimary
+                color = colors.TextPrimary
             )
         }
     }
@@ -216,14 +222,13 @@ private fun InputField(
     onTextChange: (String) -> Unit,
     onSend: () -> Unit,
     enabled: Boolean,
+    colors: com.example.claw_code_application.ui.theme.AppColors,
     modifier: Modifier = Modifier
 ) {
-    val focusManager = LocalFocusManager.current
-
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(24.dp),
-        color = Color(0xFFF5F5F7)
+        color = colors.SurfaceVariant
     ) {
         TextField(
             value = text,
@@ -232,20 +237,20 @@ private fun InputField(
             placeholder = {
                 Text(
                     "向 Manus 发送消息...",
-                    color = AppColor.TextSecondary,
+                    color = colors.TextSecondary,
                     fontSize = 15.sp
                 )
             },
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color(0xFFF5F5F7),
-                unfocusedContainerColor = Color(0xFFF5F5F7),
-                disabledContainerColor = Color(0xFFF5F5F7),
+                focusedContainerColor = colors.SurfaceVariant,
+                unfocusedContainerColor = colors.SurfaceVariant,
+                disabledContainerColor = colors.SurfaceVariant,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
-                cursorColor = AppColor.PrimaryLight,
-                focusedTextColor = AppColor.TextPrimary,
-                unfocusedTextColor = AppColor.TextPrimary,
-                disabledTextColor = AppColor.TextSecondary
+                cursorColor = colors.PrimaryLight,
+                focusedTextColor = colors.TextPrimary,
+                unfocusedTextColor = colors.TextPrimary,
+                disabledTextColor = colors.TextSecondary
             ),
             textStyle = TextStyle(
                 fontSize = 15.sp,
@@ -273,7 +278,8 @@ private fun InputField(
 private fun VoiceInputButton(
     isListening: Boolean,
     onStartListening: () -> Unit,
-    onStopListening: () -> Unit
+    onStopListening: () -> Unit,
+    colors: com.example.claw_code_application.ui.theme.AppColors
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "voice_pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
@@ -302,14 +308,14 @@ private fun VoiceInputButton(
                     modifier = Modifier
                         .size(36.dp)
                         .background(
-                            color = AppColor.PrimaryLight.copy(alpha = pulseAlpha * 0.2f),
+                            color = colors.PrimaryLight.copy(alpha = pulseAlpha * 0.2f),
                             shape = CircleShape
                         )
                 )
                 Icon(
                     imageVector = Icons.Default.Mic,
                     contentDescription = "停止录音",
-                    tint = AppColor.PrimaryLight,
+                    tint = colors.PrimaryLight,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -317,7 +323,7 @@ private fun VoiceInputButton(
             Icon(
                 imageVector = Icons.Default.Mic,
                 contentDescription = "语音输入",
-                tint = AppColor.TextSecondary,
+                tint = colors.TextSecondary,
                 modifier = Modifier.size(22.dp)
             )
         }
