@@ -12,6 +12,7 @@ import com.example.claw_code_application.data.repository.AuthRepository
 import com.example.claw_code_application.data.repository.ChatRepository
 import com.example.claw_code_application.data.repository.CachedChatRepository
 import com.example.claw_code_application.data.websocket.WebSocketManager
+import com.example.claw_code_application.service.NotificationManager
 import com.example.claw_code_application.util.Constants
 import com.example.claw_code_application.util.NetworkConfig
 import com.example.claw_code_application.util.Logger
@@ -65,11 +66,19 @@ class ClawCodeApplication : Application() {
 
         lateinit var cachedChatRepository: CachedChatRepository
             private set
+
+        lateinit var notificationManager: NotificationManager
+            private set
     }
 
     override fun onCreate() {
         super.onCreate()
         INSTANCE = this
+
+        // 初始化通知渠道（Android 8.0+ 必需）
+        notificationManager = NotificationManager(this)
+        notificationManager.createNotificationChannels()
+        Logger.i(TAG, "通知渠道初始化完成")
 
         NetworkConfig.init(this)
         Logger.i(TAG, "网络配置初始化完成: ${NetworkConfig.getBaseUrl()}")

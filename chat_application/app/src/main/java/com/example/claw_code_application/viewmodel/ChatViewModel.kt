@@ -1,9 +1,11 @@
 package com.example.claw_code_application.viewmodel
 
+import android.app.Application
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -12,6 +14,7 @@ import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.local.SessionLocalStore
 import com.example.claw_code_application.data.repository.CachedChatRepository
 import com.example.claw_code_application.data.websocket.WebSocketManager
+import com.example.claw_code_application.service.NotificationManager
 import com.example.claw_code_application.ui.chat.components.shouldShowMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,7 +29,8 @@ class ChatViewModel(
     private val cachedChatRepository: CachedChatRepository,
     private val tokenManager: TokenManager,
     private val webSocketManager: WebSocketManager = WebSocketManager(),
-    private val sessionLocalStore: SessionLocalStore? = null
+    private val sessionLocalStore: SessionLocalStore? = null,
+    private val notificationManager: NotificationManager? = null
 ) : ViewModel() {
 
     private val json = Json {
@@ -364,6 +368,12 @@ class ChatViewModel(
             is WebSocketManager.WebSocketEvent.Error -> {
                 _uiState.value = UiState.Error(event.message)
             }
+
+            is WebSocketManager.WebSocketEvent.AgentPush -> {
+                // 处理 Agent 推送消息，显示系统通知
+                notificationManager?.showAgentPushNotification(event.message)
+                android.util.Log.d(TAG, "Agent push received: ${event.message.id}, category: ${event.message.category}")
+            }
         }
     }
 
@@ -658,7 +668,8 @@ class ChatViewModel(
         fun provideFactory(
             cachedChatRepository: CachedChatRepository,
             tokenManager: com.example.claw_code_application.data.local.TokenManager,
-            sessionLocalStore: SessionLocalStore? = null
+            sessionLocalStore: SessionLocalStore? = null,
+            notificationManager: NotificationManager? = null
         ): ViewModelProvider.Factory {
             return object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
@@ -666,7 +677,8 @@ class ChatViewModel(
                     return ChatViewModel(
                         cachedChatRepository = cachedChatRepository,
                         tokenManager = tokenManager,
-                        sessionLocalStore = sessionLocalStore
+                        sessionLocalStore = sessionLocalStore,
+                        notificationManager = notificationManager
                     ) as T
                 }
             }

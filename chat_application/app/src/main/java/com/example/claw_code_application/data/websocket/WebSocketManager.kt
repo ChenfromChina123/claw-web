@@ -70,6 +70,12 @@ class WebSocketManager {
 
         data class ConversationEnd(val totalMessages: Int) : WebSocketEvent()
         data class Error(val message: String) : WebSocketEvent()
+
+        /**
+         * Agent 推送消息事件
+         * 用于接收后端推送的隐私信息、通知等
+         */
+        data class AgentPush(val message: AgentPushMessage) : WebSocketEvent()
     }
 
     fun connect(token: String) {
@@ -344,6 +350,17 @@ class WebSocketManager {
             "error" -> {
                 val message = data["message"]?.jsonPrimitive?.content ?: "Unknown error"
                 WebSocketEvent.Error(message)
+            }
+
+            "agent_push" -> {
+                // Agent 推送消息事件
+                try {
+                    val pushMessage = json.decodeFromJsonElement(AgentPushMessage.serializer(), data)
+                    WebSocketEvent.AgentPush(pushMessage)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to parse agent_push message: ${e.message}")
+                    return
+                }
             }
 
             else -> {
