@@ -181,12 +181,22 @@ async function getUserWorkerInfo(userId: string): Promise<{ containerId: string;
 
 export class WebSocketPTYBridge {
   private static instance: WebSocketPTYBridge | null = null
+  private rpcMethodsRegistered = false
 
   private constructor() {
-    this.registerRPCMethods()
     this.setupWorkerOutputForwarder()
     this.startSuspendedSessionCleanup()
     console.log('[PTY Bridge] Initialized (Worker Forwarding Mode - Persistent Connection v2.0)')
+  }
+
+  /**
+   * 延迟注册 RPC 方法（避免循环依赖问题）
+   * 应在 wsManager 初始化完成后调用
+   */
+  registerRPCMethodsLazy(): void {
+    if (this.rpcMethodsRegistered) return
+    this.rpcMethodsRegistered = true
+    this.registerRPCMethods()
   }
 
   static getInstance(): WebSocketPTYBridge {

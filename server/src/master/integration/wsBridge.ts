@@ -1253,3 +1253,6 @@ class WebSocketConnection {
 // Singleton instance
 export const wsManager = new WebSocketManager()
 export { WebSocketConnection }
+
+// 延迟注册 PTY 的 RPC 方法（避免循环依赖）
+wsPTYBridge.registerRPCMethodsLazy()
