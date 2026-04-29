@@ -444,12 +444,12 @@ private fun getIconType(title: String): IconType {
  */
 private fun getIconForType(iconType: IconType): ImageVector {
     return when (iconType) {
-        IconType.AGENT -> Icons.AutoAwesome
-        IconType.CODE -> Icons.Code
-        IconType.CHART -> Icons.InsertChart
-        IconType.FILE -> Icons.Description
+        IconType.AGENT -> Icons.Filled.AutoAwesome
+        IconType.CODE -> Icons.Filled.Code
+        IconType.CHART -> Icons.Filled.InsertChart
+        IconType.FILE -> Icons.Filled.Description
         IconType.UPLOAD -> Icons.AutoMirrored.Filled.Chat
-        IconType.DEFAULT -> Icons.SmartToy
+        IconType.DEFAULT -> Icons.Filled.SmartToy
     }
 }
 
