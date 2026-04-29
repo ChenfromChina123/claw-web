@@ -36,6 +36,7 @@ import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.viewmodel.AuthViewModel
 import com.example.claw_code_application.viewmodel.ChatViewModel
 import com.example.claw_code_application.viewmodel.SessionViewModel
+import com.example.claw_code_application.data.local.PushMessageStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -234,7 +235,9 @@ private fun ChatMainScreen(
         factory = ChatViewModel.provideFactory(
             cachedChatRepository = ClawCodeApplication.cachedChatRepository,
             tokenManager = ClawCodeApplication.tokenManager,
-            sessionLocalStore = ClawCodeApplication.sessionLocalStore
+            sessionLocalStore = ClawCodeApplication.sessionLocalStore,
+            notificationManager = ClawCodeApplication.notificationManager,
+            pushMessageStore = PushMessageStore.getInstance(androidx.compose.ui.platform.LocalContext.current)
         )
     )
 

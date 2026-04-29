@@ -124,11 +124,18 @@ fun SettingsDrawer(
 
 /**
  * 设置头部
+ * @param onClose 关闭回调
+ * @param unreadCount 未读消息数量
+ * @param onNotificationClick 通知按钮点击回调
  */
 @Composable
-private fun SettingsHeader(onClose: () -> Unit) {
+private fun SettingsHeader(
+    onClose: () -> Unit,
+    unreadCount: Int = 0,
+    onNotificationClick: () -> Unit = {}
+) {
     val colors = AppColor.current
-    
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -154,12 +161,45 @@ private fun SettingsHeader(onClose: () -> Unit) {
             )
         }
 
-        IconButton(onClick = onClose) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "关闭",
-                tint = colors.TextSecondary
-            )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // 通知铃铛按钮
+            Box {
+                IconButton(onClick = onNotificationClick) {
+                    Icon(
+                        imageVector = if (unreadCount > 0) Icons.Default.NotificationsActive else Icons.Default.Notifications,
+                        contentDescription = "消息通知",
+                        tint = if (unreadCount > 0) colors.Primary else colors.TextSecondary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                // 未读数量徽章
+                if (unreadCount > 0) {
+                    Badge(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 4.dp, end = 4.dp),
+                        containerColor = colors.Error
+                    ) {
+                        Text(
+                            text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                            fontSize = 10.sp,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+
+            IconButton(onClick = onClose) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "关闭",
+                    tint = colors.TextSecondary
+                )
+            }
         }
     }
 }
