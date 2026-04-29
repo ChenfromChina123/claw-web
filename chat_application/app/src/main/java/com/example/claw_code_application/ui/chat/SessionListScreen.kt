@@ -14,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
@@ -105,46 +107,67 @@ fun SessionListScreen(
     val backgroundColor = MaterialTheme.colorScheme.background
     val surfaceColor = MaterialTheme.colorScheme.surface
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(backgroundColor)
     ) {
-        TopAppBarWithSearch(
-            isSearchExpanded = isSearchExpanded,
-            onSearchExpandedChange = { isSearchExpanded = it },
-            searchQuery = searchQuery,
-            onSearchQueryChange = { searchQuery = it },
-            onCreateNew = onCreateNew,
-            onAvatarClick = onAvatarClick,
-            surfaceColor = surfaceColor
-        )
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            TopAppBarWithSearch(
+                isSearchExpanded = isSearchExpanded,
+                onSearchExpandedChange = { isSearchExpanded = it },
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                onAvatarClick = onAvatarClick,
+                surfaceColor = surfaceColor
+            )
 
-        if (filteredData.isEmpty()) {
-            if (searchQuery.text.isNotBlank()) {
-                SearchEmptyState()
+            if (filteredData.isEmpty()) {
+                if (searchQuery.text.isNotBlank()) {
+                    SearchEmptyState()
+                } else {
+                    EmptyState()
+                }
             } else {
-                EmptyState()
-            }
-        } else {
-            val listState = rememberLazyListState()
-            LazyColumn(
-                state = listState,
-                contentPadding = PaddingValues(vertical = 4.dp)
-            ) {
-                items(
-                    items = filteredData,
-                    key = { item -> item.id },
-                    contentType = { "session_item" }
-                ) { item ->
-                    SwipeToDismissSessionItem(
-                        item = item,
-                        isSelected = item.id == currentSessionId,
-                        onClick = { onSelect(item.id) },
-                        onDelete = { onDelete(item.id) }
-                    )
+                val listState = rememberLazyListState()
+                LazyColumn(
+                    state = listState,
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    items(
+                        items = filteredData,
+                        key = { item -> item.id },
+                        contentType = { "session_item" }
+                    ) { item ->
+                        SwipeToDismissSessionItem(
+                            item = item,
+                            isSelected = item.id == currentSessionId,
+                            onClick = { onSelect(item.id) },
+                            onDelete = { onDelete(item.id) }
+                        )
+                    }
                 }
             }
+        }
+
+        // 右下角悬浮按钮 - 新建会话
+        FloatingActionButton(
+            onClick = onCreateNew,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 20.dp, bottom = 100.dp) // 底部留出100dp，不要太靠近底部
+                .size(56.dp),
+            shape = CircleShape,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = Color.White
+        ) {
+            Icon(
+                imageVector = Icons.Default.Edit,
+                contentDescription = "新建会话",
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }
@@ -175,7 +198,7 @@ private enum class IconType {
 }
 
 /**
- * 顶部栏（含搜索功能和新建会话按钮）
+ * 顶部栏（含搜索功能）
  */
 @Composable
 private fun TopAppBarWithSearch(
@@ -183,7 +206,6 @@ private fun TopAppBarWithSearch(
     onSearchExpandedChange: (Boolean) -> Unit,
     searchQuery: TextFieldValue,
     onSearchQueryChange: (TextFieldValue) -> Unit,
-    onCreateNew: () -> Unit,
     onAvatarClick: () -> Unit,
     surfaceColor: Color
 ) {
@@ -226,42 +248,21 @@ private fun TopAppBarWithSearch(
                 letterSpacing = 0.5.sp
             )
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
+            IconButton(
+                onClick = {
+                    onSearchExpandedChange(!isSearchExpanded)
+                    if (isSearchExpanded) {
+                        onSearchQueryChange(TextFieldValue(""))
+                    }
+                },
+                modifier = Modifier.size(40.dp)
             ) {
-                IconButton(
-                    onClick = {
-                        onSearchExpandedChange(!isSearchExpanded)
-                        if (isSearchExpanded) {
-                            onSearchQueryChange(TextFieldValue(""))
-                        }
-                    },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
-                        contentDescription = if (isSearchExpanded) "关闭搜索" else "搜索",
-                        tint = onSurfaceColor,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(onSurfaceColor)
-                        .clickable(onClick = onCreateNew),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "新建会话",
-                        tint = surfaceColor,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                Icon(
+                    imageVector = if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
+                    contentDescription = if (isSearchExpanded) "关闭搜索" else "搜索",
+                    tint = onSurfaceColor,
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
 
@@ -651,7 +652,7 @@ private fun EmptyState() {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "点击右下角开始新对话",
+                text = "点击右侧悬浮按钮开始新对话",
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
