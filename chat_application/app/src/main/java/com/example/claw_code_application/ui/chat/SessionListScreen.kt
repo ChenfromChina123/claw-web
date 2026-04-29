@@ -3,7 +3,9 @@ package com.example.claw_code_application.ui.chat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -12,13 +14,21 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.InsertChart
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,20 +64,26 @@ fun SessionListScreen(
 
     val isDarkTheme = !isSystemInDarkTheme().not()
 
-    val sessionDisplayData = remember(sessions) {
+    val sessionDisplayData = remember(
+        sessions.map { it.id to it.updatedAt }.hashCode()
+    ) {
         sessions.map { session ->
             SessionDisplayData(
                 id = session.id,
                 title = session.title.ifEmpty { "新对话" },
                 previewText = generatePreview(session.title),
                 timeText = formatTime(session.updatedAt),
-                iconText = getIconText(session.title),
+                iconType = getIconType(session.title),
                 iconBgColor = getIconBgColor(session.title, isDarkTheme)
             )
         }
     }
 
-    val filteredData = remember(sessionDisplayData, searchQuery) {
+    val filteredData = remember(
+        sessionDisplayData,
+        searchQuery.text,
+        sessionDisplayData.map { it.id }.hashCode()
+    ) {
         if (searchQuery.text.isBlank()) {
             sessionDisplayData
         } else {
@@ -106,13 +122,15 @@ fun SessionListScreen(
             val indexedData = remember(filteredData) {
                 filteredData.mapIndexed { index, item -> index to item }
             }
+            val listState = rememberLazyListState()
             LazyColumn(
+                state = listState,
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
                 items(
                     items = indexedData,
-                    // 使用 index 辅助确保 key 唯一性，防止重复 ID 导致崩溃
-                    key = { (index, item) -> "${item.id}_$index" }
+                    key = { (index, item) -> "${item.id}_$index" },
+                    contentType = { "session_item" }
                 ) { (index, item) ->
                     SwipeToDismissSessionItem(
                         item = item,
@@ -134,9 +152,21 @@ private data class SessionDisplayData(
     val title: String,
     val previewText: String,
     val timeText: String,
-    val iconText: String,
+    val iconType: IconType,
     val iconBgColor: androidx.compose.ui.graphics.Color
 )
+
+/**
+ * 会话图标类型枚举
+ */
+private enum class IconType {
+    AGENT,      // AI 相关
+    CODE,       // 代码/开发相关
+    CHART,      // 数据/分析相关
+    FILE,       // 文件相关
+    UPLOAD,     // 上传/下载相关
+    DEFAULT     // 默认图标
+}
 
 /**
  * 顶部栏（含搜索功能和新建会话按钮）
@@ -316,7 +346,7 @@ private fun SwipeToDismissSessionItem(
 }
 
 /**
- * 会话列表项
+ * 会话列表项 - 使用 Row + Column 布局实现高度对齐
  */
 @Composable
 private fun SessionItem(
@@ -332,77 +362,94 @@ private fun SessionItem(
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(68.dp)
+            .height(72.dp)
             .background(itemBgColor)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        // 左侧图标
         Box(
             modifier = Modifier
-                .align(Alignment.CenterStart)
                 .size(40.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(CircleShape)
                 .background(item.iconBgColor),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = item.iconText,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = onSurfaceVariantColor
+            Icon(
+                imageVector = getIconForType(item.iconType),
+                contentDescription = null,
+                tint = onSurfaceVariantColor,
+                modifier = Modifier.size(20.dp)
             )
         }
 
+        // 中间内容区域
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp)
+                .fillMaxHeight(),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = item.title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = onSurfaceColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = item.previewText,
+                fontSize = 14.sp,
+                color = onSurfaceVariantColor,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        // 右侧时间
         Text(
             text = item.timeText,
             fontSize = 12.sp,
-            color = onSurfaceVariantColor,
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 14.dp)
-        )
-
-        Text(
-            text = item.title,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            color = onSurfaceColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .padding(start = 52.dp, top = 12.dp, end = 50.dp)
-                .fillMaxWidth()
-        )
-
-        Text(
-            text = item.previewText,
-            fontSize = 13.sp,
-            color = onSurfaceVariantColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .padding(start = 52.dp, top = 36.dp, end = 16.dp)
-                .fillMaxWidth()
+            color = onSurfaceVariantColor
         )
     }
 }
 
 /**
- * 获取图标文本
+ * 获取图标类型
  */
-private fun getIconText(title: String): String {
+private fun getIconType(title: String): IconType {
     return when {
-        title.contains("Agent", ignoreCase = true) -> "Ai"
+        title.contains("Agent", ignoreCase = true) -> IconType.AGENT
         title.contains("代码", ignoreCase = true) ||
-        title.contains("开发", ignoreCase = true) -> "{ }"
+        title.contains("开发", ignoreCase = true) -> IconType.CODE
         title.contains("分析", ignoreCase = true) ||
-        title.contains("数据", ignoreCase = true) -> "#"
-        title.contains("测试", ignoreCase = true) -> "T"
-        title.contains("文件", ignoreCase = true) -> "F"
+        title.contains("数据", ignoreCase = true) -> IconType.CHART
+        title.contains("文件", ignoreCase = true) -> IconType.FILE
         title.contains("上传", ignoreCase = true) ||
-        title.contains("下载", ignoreCase = true) -> "↑"
-        else -> "M"
+        title.contains("下载", ignoreCase = true) -> IconType.UPLOAD
+        else -> IconType.DEFAULT
+    }
+}
+
+/**
+ * 根据图标类型获取对应的 ImageVector
+ */
+private fun getIconForType(iconType: IconType): ImageVector {
+    return when (iconType) {
+        IconType.AGENT -> Icons.AutoAwesome
+        IconType.CODE -> Icons.Code
+        IconType.CHART -> Icons.InsertChart
+        IconType.FILE -> Icons.Description
+        IconType.UPLOAD -> Icons.AutoMirrored.Filled.Chat
+        IconType.DEFAULT -> Icons.SmartToy
     }
 }
 
@@ -436,24 +483,40 @@ private fun getIconBgColor(title: String, isDark: Boolean): androidx.compose.ui.
 }
 
 /**
- * 生成预览文本
+ * 生成预览文本 - 根据标题关键词生成更丰富的预览内容
  */
 private fun generatePreview(title: String): String {
     return when {
-        title.contains("文件", ignoreCase = true) -> "Manus 将在您回复后继续工作"
+        title.contains("Agent", ignoreCase = true) ||
+        title.contains("AI", ignoreCase = true) -> "让我来帮您分析这个问题并提供最佳解决方案..."
+        title.contains("代码", ignoreCase = true) ||
+        title.contains("开发", ignoreCase = true) ||
+        title.contains("编程", ignoreCase = true) -> "好的，我来为您编写高效的代码实现这个功能..."
+        title.contains("文件", ignoreCase = true) ||
+        title.contains("文档", ignoreCase = true) -> "Manus 将在您回复后继续处理文件任务..."
         title.contains("提取", ignoreCase = true) ||
-        title.contains("转换", ignoreCase = true) -> "我已经为您从 Excel 文件中提取并整理了数据..."
-        title.contains("探索", ignoreCase = true) ||
-        title.contains("检查", ignoreCase = true) -> "当前系统中正在运行的主要进程包括..."
-        title.contains("分析", ignoreCase = true) -> "好的，我这就为您检查项目中的进度..."
-        title.contains("GitHub", ignoreCase = true) -> "抱歉，刚才我应该直接把分析结果展示给您..."
+        title.contains("转换", ignoreCase = true) -> "我已经为您从数据中提取并整理了关键信息..."
+        title.contains("分析", ignoreCase = true) ||
+        title.contains("调研", ignoreCase = true) -> "让我先深入分析这个问题，然后给出详细报告..."
+        title.contains("数据", ignoreCase = true) ||
+        title.contains("统计", ignoreCase = true) -> "我已经完成了对数据的深度统计分析..."
+        title.contains("测试", ignoreCase = true) -> "测试用例已生成，正在进行自动化测试..."
+        title.contains("GitHub", ignoreCase = true) ||
+        title.contains("仓库", ignoreCase = true) -> "已成功连接到 GitHub，正在获取仓库信息..."
         title.contains("趋势", ignoreCase = true) ||
-        title.contains("研究", ignoreCase = true) -> "我已完成对专业趋势的深度调研..."
-        title.contains("习惯", ignoreCase = true) -> "这是关于大多数人手机使用习惯的研究报告..."
-        title.contains("做什么", ignoreCase = true) -> "你好！我是 Manus，一个能够处理各种复杂任务..."
-        title.contains("投资", ignoreCase = true) ||
-        title.contains("组合", ignoreCase = true) -> "很好！项目已经成功初始化，开发服务器正在运..."
-        else -> "点击继续对话..."
+        title.contains("研究", ignoreCase = true) -> "我已完成对专业趋势的深度调研分析..."
+        title.contains("上传", ignoreCase = true) -> "文件上传成功，正在进行处理和分析..."
+        title.contains("下载", ignoreCase = true) -> "文件已准备就绪，正在为您打包下载..."
+        title.contains("搜索", ignoreCase = true) ||
+        title.contains("查找", ignoreCase = true) -> "正在为您搜索相关信息，请稍候..."
+        title.contains("解释", ignoreCase = true) ||
+        title.contains("说明", ignoreCase = true) -> "让我来详细解释这个概念和原理..."
+        title.contains("优化", ignoreCase = true) -> "检测到优化空间，正在调整参数以提升性能..."
+        title.contains("创建", ignoreCase = true) ||
+        title.contains("新建", ignoreCase = true) -> "正在为您创建，请稍等片刻..."
+        title.contains("删除", ignoreCase = true) ||
+        title.contains("移除", ignoreCase = true) -> "已确认删除操作，正在执行..."
+        else -> "点击继续这段对话..."
     }
 }
 
