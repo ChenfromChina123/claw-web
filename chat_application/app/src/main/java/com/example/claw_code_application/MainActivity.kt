@@ -154,6 +154,7 @@ class MainActivity : ComponentActivity() {
 
 /**
  * 认证检查屏幕
+ * 检查登录状态，如果已登录但缺少用户信息则尝试获取
  */
 @Composable
 private fun AuthCheckScreen(
@@ -163,6 +164,19 @@ private fun AuthCheckScreen(
     LaunchedEffect(Unit) {
         val token = ClawCodeApplication.tokenManager.getToken().first()
         if (!token.isNullOrEmpty()) {
+            // 检查是否有用户信息，如果没有则尝试获取
+            val userInfo = ClawCodeApplication.userManager.getUserInfoSync()
+            if (userInfo == null) {
+                // 尝试从服务器获取用户信息
+                try {
+                    val result = ClawCodeApplication.authRepository.getUserInfo()
+                    result.onFailure {
+                        android.util.Log.w("AuthCheck", "获取用户信息失败: ${it.message}")
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AuthCheck", "获取用户信息异常", e)
+                }
+            }
             onAuthenticated()
         } else {
             onNotAuthenticated()
