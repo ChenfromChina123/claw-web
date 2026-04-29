@@ -131,6 +131,109 @@ export function getWorkerInternalPort(): number {
   return DEFAULT_WORKER_PORT
 }
 
+// ==================== 远程 Worker 类型定义 ====================
+
+/**
+ * 远程 Worker 实例信息
+ */
+export interface RemoteWorkerInstance {
+  /** Worker ID */
+  workerId: string
+  /** 远程主机地址 */
+  host: string
+  /** Worker 服务端口 */
+  port: number
+  /** SSH 端口 */
+  sshPort: number
+  /** SSH 用户名 */
+  sshUsername: string
+  /** SSH 密码（加密存储） */
+  sshPasswordEncrypted?: string
+  /** 状态 */
+  status: 'deploying' | 'running' | 'error' | 'offline' | 'removing'
+  /** 健康状态 */
+  healthStatus: 'healthy' | 'unhealthy' | 'unknown'
+  /** 标签 */
+  labels?: Record<string, string>
+  /** 最后心跳时间 */
+  lastHeartbeatAt?: Date
+  /** Docker 版本 */
+  dockerVersion?: string
+  /** 系统信息 */
+  systemInfo?: {
+    os?: string
+    arch?: string
+    cpuCores?: number
+    memoryGB?: number
+    diskGB?: number
+  }
+  /** 创建时间 */
+  createdAt: Date
+  /** 更新时间 */
+  updatedAt: Date
+}
+
+/**
+ * 远程 Worker 部署配置
+ */
+export interface RemoteWorkerDeployConfig {
+  /** 远程主机地址 */
+  host: string
+  /** SSH 端口 */
+  sshPort?: number
+  /** SSH 用户名 */
+  username: string
+  /** SSH 密码 */
+  password: string
+  /** Worker 服务端口 */
+  workerPort?: number
+  /** 标签 */
+  labels?: Record<string, string>
+}
+
+/**
+ * 环境检查结果
+ */
+export interface EnvironmentCheckResult {
+  /** 是否通过 */
+  passed: boolean
+  /** 检查项列表 */
+  checks: Array<{
+    name: string
+    passed: boolean
+    message: string
+    details?: any
+  }>
+}
+
+/**
+ * 部署进度项
+ */
+export interface DeployProgressItem {
+  step: string
+  status: 'pending' | 'in_progress' | 'completed' | 'failed'
+  message: string
+  timestamp: Date
+}
+
+/**
+ * 远程 Worker 部署结果
+ */
+export interface RemoteWorkerDeployResult {
+  /** Worker ID */
+  workerId: string
+  /** 部署状态 */
+  status: 'deploying' | 'running' | 'error'
+  /** 主机地址 */
+  host: string
+  /** 端口 */
+  port: number
+  /** 部署进度 */
+  progress: DeployProgressItem[]
+  /** 错误信息 */
+  error?: string
+}
+
 // ==================== 运行时类型元数据（供测试使用）====================
 
 /**
@@ -142,7 +245,10 @@ export const _typeMetadata = {
     'ContainerInstance',
     'UserContainerMapping',
     'PoolConfig',
-    'OrchestratorResult'
+    'OrchestratorResult',
+    'RemoteWorkerInstance',
+    'RemoteWorkerDeployConfig',
+    'EnvironmentCheckResult'
   ],
   // 类型别名
   typeAliases: [
@@ -160,3 +266,6 @@ export const ContainerInstance = 'ContainerInstance' as any
 export const UserContainerMapping = 'UserContainerMapping' as any
 export const PoolConfig = 'PoolConfig' as any
 export const OrchestratorResult = 'OrchestratorResult' as any
+export const RemoteWorkerInstance = 'RemoteWorkerInstance' as any
+export const RemoteWorkerDeployConfig = 'RemoteWorkerDeployConfig' as any
+export const EnvironmentCheckResult = 'EnvironmentCheckResult' as any

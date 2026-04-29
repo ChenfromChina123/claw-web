@@ -21,7 +21,7 @@
  * - mappingPersistence.ts: 映射持久化
  */
 
-import type { UserContainerMapping, ContainerInstance, OrchestratorResult, PoolConfig } from './types'
+import type { UserContainerMapping, ContainerInstance, OrchestratorResult, PoolConfig, RemoteWorkerInstance } from './types'
 import { DEFAULT_POOL_CONFIG } from './types'
 import { UserTier } from '../config/hardwareResourceConfig'
 import { ContainerOperations } from './containerOperations'
@@ -30,6 +30,7 @@ import { ContainerLifecycle } from './containerLifecycle'
 import { HealthMonitor } from './healthMonitor'
 import { DockerCleanup } from './dockerCleanup'
 import { MappingPersistence } from './mappingPersistence'
+import { getRemoteWorkerRegistry, initializeRemoteWorkerRegistry } from './remoteWorkerRegistry'
 
 // 用户容器分配锁（用于并发控制）
 const userContainerLocks = new Map<string, { locked: boolean; timestamp: number }>()
@@ -131,6 +132,15 @@ export class ContainerOrchestrator {
       if (this.config.enableAutoCleanup) {
         this.dockerCleanup.startDockerCleanupLoop()
         console.log(`[ContainerOrchestrator] Docker 自动清理已启用（间隔: ${this.config.cleanupIntervalMs}ms）`)
+      }
+
+      // 初始化远程 Worker 注册表
+      try {
+        console.log('[ContainerOrchestrator] 初始化远程 Worker 注册表...')
+        await initializeRemoteWorkerRegistry()
+        console.log('[ContainerOrchestrator] 远程 Worker 注册表初始化完成')
+      } catch (error) {
+        console.warn('[ContainerOrchestrator] 远程 Worker 注册表初始化失败:', error)
       }
 
       console.log('[ContainerOrchestrator] 初始化完成')
@@ -455,10 +465,78 @@ export class ContainerOrchestrator {
     // 停止 Docker 清理定时任务
     this.dockerCleanup.stopDockerCleanupLoop()
 
+    // 停止远程 Worker 健康检查
+    try {
+      const registry = getRemoteWorkerRegistry()
+      registry.stopHealthCheckLoop()
+    } catch (error) {
+      // 忽略错误
+    }
+
     // 注意：不主动销毁用户容器，因为可能还有活跃会话
     // 用户容器会在下次健康检查时根据状态决定是否休眠
 
     console.log('[ContainerOrchestrator] 编排器已关闭')
+  }
+
+  // ==================== 远程 Worker 管理 ====================
+
+  /**
+   * 获取远程 Worker 注册表
+   */
+  getRemoteWorkerRegistry() {
+    return getRemoteWorkerRegistry()
+  }
+
+  /**
+   * 获取可用的 Worker（本地或远程）
+   * 优先返回本地容器，如果没有则返回远程 Worker
+   */
+  async getAvailableWorker(userId: string): Promise<{ type: 'local' | 'remote'; worker: ContainerInstance | RemoteWorkerInstance } | null> {
+    // 首先检查本地容器
+    const localMapping = this.userMappings.get(userId)
+    if (localMapping && localMapping.container.status === 'running') {
+      return { type: 'local', worker: localMapping.container }
+    }
+
+    // 如果没有本地容器，尝试获取远程 Worker
+    try {
+      const registry = getRemoteWorkerRegistry()
+      const remoteWorker = registry.selectWorker()
+      if (remoteWorker) {
+        return { type: 'remote', worker: remoteWorker }
+      }
+    } catch (error) {
+      console.warn('[ContainerOrchestrator] 获取远程 Worker 失败:', error)
+    }
+
+    return null
+  }
+
+  /**
+   * 获取所有远程 Worker 列表
+   */
+  getRemoteWorkers(): RemoteWorkerInstance[] {
+    try {
+      const registry = getRemoteWorkerRegistry()
+      return registry.getAllWorkers()
+    } catch (error) {
+      console.warn('[ContainerOrchestrator] 获取远程 Worker 列表失败:', error)
+      return []
+    }
+  }
+
+  /**
+   * 获取远程 Worker 统计信息
+   */
+  getRemoteWorkerStats() {
+    try {
+      const registry = getRemoteWorkerRegistry()
+      return registry.getStats()
+    } catch (error) {
+      console.warn('[ContainerOrchestrator] 获取远程 Worker 统计失败:', error)
+      return { total: 0, running: 0, healthy: 0, unhealthy: 0, offline: 0, error: 0 }
+    }
   }
 }
 

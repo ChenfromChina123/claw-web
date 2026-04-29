@@ -23,6 +23,7 @@
     "lodash-es": "^4.17.21",
     "mysql2": "^3.11.0",
     "node-pty": "^1.0.0",
+    "node-ssh": "^13.2.1",
     "nodemailer": "^6.9.0",
     "openai": "^4.73.0",
     "sharp": "^0.33.0",
@@ -30,8 +31,8 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/bun": "^1.1.0",
     "@types/uuid": "^10.0.0",
-    "@types/ws": "^8.5.12",
-    "@types/bun": "^1.1.0"
+    "@types/ws": "^8.5.12"
   }
 }

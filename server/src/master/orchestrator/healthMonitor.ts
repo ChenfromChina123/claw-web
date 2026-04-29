@@ -14,9 +14,10 @@
  * - 避免误杀活跃用户的容器
  */
 
-import type { UserContainerMapping, PoolConfig } from './types'
+import type { UserContainerMapping, PoolConfig, RemoteWorkerInstance } from './types'
 import { ContainerLifecycle } from './containerLifecycle'
 import { getSchedulingPolicy } from './schedulingPolicy'
+import { getRemoteWorkerRegistry } from './remoteWorkerRegistry'
 
 // 类型别名
 type RequiredPoolConfig = Required<PoolConfig>
@@ -40,6 +41,8 @@ export class HealthMonitor {
   private userMappings: Map<string, UserContainerMapping>
   private healthCheckTimer: NodeJS.Timeout | null = null
   private idleCheckTimer: NodeJS.Timeout | null = null
+  private remoteWorkerCheckTimer: NodeJS.Timeout | null = null
+  private masterToken: string
 
   constructor(
     config: RequiredPoolConfig,
@@ -49,6 +52,7 @@ export class HealthMonitor {
     this.config = config
     this.containerLifecycle = containerLifecycle
     this.userMappings = userMappings
+    this.masterToken = process.env.MASTER_INTERNAL_TOKEN || 'internal-master-worker-token-2024'
   }
 
   /**
@@ -93,6 +97,9 @@ export class HealthMonitor {
 
     // 启动空闲检测和智能休眠循环（每60秒检查一次）
     this.startIdleDetectionLoop()
+
+    // 启动远程 Worker 健康检查循环
+    this.startRemoteWorkerHealthCheckLoop()
   }
 
   /**
@@ -107,6 +114,11 @@ export class HealthMonitor {
     if (this.idleCheckTimer) {
       clearTimeout(this.idleCheckTimer)
       this.idleCheckTimer = null
+    }
+    // 停止远程 Worker 健康检查循环
+    if (this.remoteWorkerCheckTimer) {
+      clearTimeout(this.remoteWorkerCheckTimer)
+      this.remoteWorkerCheckTimer = null
     }
   }
 
@@ -336,6 +348,84 @@ export class HealthMonitor {
       console.log(`[HealthMonitor] 用户 ${userId} 的容器已休眠（空闲 ${Math.round(idleTime / 1000)}s）`)
     } catch (error) {
       console.error(`[HealthMonitor] 休眠用户 ${userId} 容器失败:`, error)
+    }
+  }
+
+  // ==================== 远程 Worker 健康检查 ====================
+
+  /**
+   * 启动远程 Worker 健康检查循环
+   * 注意：远程 Worker 使用更宽松的检查策略，只标记状态不关闭
+   */
+  private startRemoteWorkerHealthCheckLoop(): void {
+    const REMOTE_WORKER_CHECK_INTERVAL_MS = 5 * 60 * 1000 // 5 分钟检查一次
+    const REMOTE_WORKER_TIMEOUT_MS = 30000 // 30 秒超时
+
+    const checkLoop = async () => {
+      try {
+        const registry = getRemoteWorkerRegistry()
+        const runningWorkers = registry.getAllWorkers().filter(
+          w => w.status === 'running'
+        )
+
+        for (const worker of runningWorkers) {
+          const isHealthy = await this.checkRemoteWorkerHealth(worker, REMOTE_WORKER_TIMEOUT_MS)
+
+          if (isHealthy) {
+            if (worker.healthStatus !== 'healthy') {
+              console.log(`[HealthMonitor] 远程 Worker 恢复健康: ${worker.workerId}`)
+              await registry.updateWorker(worker.workerId, {
+                healthStatus: 'healthy',
+                lastHeartbeatAt: new Date()
+              })
+            }
+          } else {
+            if (worker.healthStatus !== 'unhealthy') {
+              console.warn(`[HealthMonitor] 远程 Worker 不健康: ${worker.workerId}`)
+              await registry.updateWorker(worker.workerId, {
+                healthStatus: 'unhealthy',
+                lastHeartbeatAt: new Date()
+              })
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[HealthMonitor] 远程 Worker 健康检查循环出错:', error)
+      } finally {
+        if (this.remoteWorkerCheckTimer) {
+          this.remoteWorkerCheckTimer = setTimeout(checkLoop, REMOTE_WORKER_CHECK_INTERVAL_MS) as any
+        }
+      }
+    }
+
+    this.remoteWorkerCheckTimer = setTimeout(checkLoop, REMOTE_WORKER_CHECK_INTERVAL_MS) as any
+    console.log('[HealthMonitor] 远程 Worker 健康检查已启动（间隔: 5分钟，超时: 30秒）')
+  }
+
+  /**
+   * 检查远程 Worker 健康状态
+   * @param worker 远程 Worker 实例
+   * @param timeoutMs 超时时间（毫秒）
+   * @returns 是否健康
+   */
+  private async checkRemoteWorkerHealth(
+    worker: RemoteWorkerInstance,
+    timeoutMs: number
+  ): Promise<boolean> {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+      const response = await fetch(`http://${worker.host}:${worker.port}/internal/health`, {
+        method: 'GET',
+        headers: { 'X-Master-Token': this.masterToken },
+        signal: controller.signal
+      })
+
+      clearTimeout(timeoutId)
+      return response.ok
+    } catch (error) {
+      return false
     }
   }
 }
