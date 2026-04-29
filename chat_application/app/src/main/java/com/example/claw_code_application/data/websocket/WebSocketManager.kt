@@ -264,6 +264,12 @@ class WebSocketManager {
                 WebSocketEvent.MessageDelta(messageId, delta)
             }
 
+            "content_block_delta" -> {
+                // Anthropic SDK 原始事件，转换为 message_delta 格式
+                val text = data["text"]?.jsonPrimitive?.content ?: ""
+                WebSocketEvent.MessageDelta("", text)
+            }
+
             "message_stop" -> {
                 val messageId = data["messageId"]?.jsonPrimitive?.content ?: ""
                 val stopReason = data["stop_reason"]?.jsonPrimitive?.content ?: ""
