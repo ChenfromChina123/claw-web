@@ -17,13 +17,15 @@ services:
       # ✅ 挂载源代码，修改后自动同步到容器
       - ./server/src:/app/src:ro
       - ./server/shared:/app/shared:ro
+      # ✅ 挂载 package.json（依赖变更时自动同步）
+      - ./server/package.json:/app/package.json:ro
       # 保留原有卷
       - master_logs:/app/logs
       - ${HOST_WORKSPACE_PATH:-/data/claws/workspaces}:/app/workspaces
       - /var/run/docker.sock:/var/run/docker.sock
     
-    # ✅ 使用 Bun 的热重载模式
-    command: ["bun", "run", "--watch", "src/index.ts"]
+    # ✅ 使用 Bun 的热重载模式，并在启动时检查安装依赖
+    command: ["/bin/sh", "-c", "bun install && bun run --watch src/index.ts"]
     
     environment:
       NODE_ENV: development

@@ -9,6 +9,7 @@ import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.data.api.models.Session
 import com.example.claw_code_application.data.api.models.SessionDetail
 import com.example.claw_code_application.data.api.models.ToolCall
+import com.example.claw_code_application.data.api.models.UpdateSessionRequest
 import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.local.db.AppDatabase
 import com.example.claw_code_application.data.local.db.EntityMappers.toCacheData

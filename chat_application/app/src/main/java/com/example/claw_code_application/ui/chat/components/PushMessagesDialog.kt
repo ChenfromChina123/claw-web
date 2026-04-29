@@ -28,6 +28,7 @@ import com.example.claw_code_application.data.api.models.PushPriority
 import com.example.claw_code_application.data.local.PushMessageItem
 import com.example.claw_code_application.data.local.PushMessageStore
 import com.example.claw_code_application.ui.theme.AppColor
+import com.example.claw_code_application.ui.theme.AppColors
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -494,7 +495,7 @@ private fun getCategoryIcon(category: PushCategory): androidx.compose.ui.graphic
 /**
  * 获取类别颜色
  */
-private fun getCategoryColor(category: PushCategory, colors: AppColor): Color {
+private fun getCategoryColor(category: PushCategory, colors: AppColors): Color {
     return when (category) {
         PushCategory.CREDENTIAL -> colors.Primary
         PushCategory.ALERT -> colors.Error
