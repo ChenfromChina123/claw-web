@@ -29,12 +29,10 @@ import com.example.claw_code_application.ui.auth.LoginScreen
 import com.example.claw_code_application.ui.auth.RegisterScreen
 import com.example.claw_code_application.ui.chat.ChatScreen
 import com.example.claw_code_application.ui.chat.SessionListScreen
-import com.example.claw_code_application.ui.chat.components.AgentTaskMonitorPanel
 import com.example.claw_code_application.ui.chat.components.SettingsDrawer
 import com.example.claw_code_application.ui.chat.components.ThemeMode
 import com.example.claw_code_application.ui.theme.ClawCodeApplicationTheme
 import com.example.claw_code_application.ui.theme.AppColor
-import com.example.claw_code_application.viewmodel.AgentTaskMonitorViewModel
 import com.example.claw_code_application.viewmodel.AuthViewModel
 import com.example.claw_code_application.viewmodel.ChatViewModel
 import com.example.claw_code_application.viewmodel.SessionViewModel
@@ -195,13 +193,6 @@ private fun ChatMainScreen(
         sessionViewModel.loadSessions()
     }
 
-    val taskMonitorViewModel: AgentTaskMonitorViewModel = viewModel {
-        AgentTaskMonitorViewModel(
-            tokenManager = ClawCodeApplication.tokenManager,
-            webSocketManager = ClawCodeApplication.webSocketManager
-        )
-    }
-
     val scope = rememberCoroutineScope()
 
     /**
@@ -333,11 +324,6 @@ private fun ChatMainScreen(
                 )
             }
         }
-
-        AgentTaskMonitorPanel(
-            viewModel = taskMonitorViewModel,
-            modifier = Modifier.fillMaxSize()
-        )
 
         SettingsDrawer(
             isVisible = showSettingsDrawer,
