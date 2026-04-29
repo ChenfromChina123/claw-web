@@ -36,8 +36,8 @@ coilCompose = "2.5.0"
 # Accompanist
 accompanistSystemUiController = "0.34.0"
 # Markdown渲染 - 使用 mikepenz multiplatform-markdown-renderer (Material3 + 代码高亮)
-markdownRenderer = "0.27.0"
-markdownCode = "0.27.0"
+markdownRenderer = "0.38.1"
+markdownCode = "0.38.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
