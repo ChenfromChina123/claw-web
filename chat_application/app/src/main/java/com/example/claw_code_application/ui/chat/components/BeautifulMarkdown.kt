@@ -34,6 +34,7 @@ fun BeautifulMarkdown(
     val colors = AppColor.current
 
     // 自定义 Markdown 颜色配置
+    // 注意：0.31.0 版本不支持 table 相关颜色参数
     val markdownColors = markdownColor(
         text = colors.TextPrimary,
         codeText = colors.PrimaryLight,
@@ -41,15 +42,11 @@ fun BeautifulMarkdown(
         inlineCodeText = colors.PrimaryLight,
         inlineCodeBackground = colors.SurfaceVariant,
         dividerColor = colors.Border,
-        linkText = colors.PrimaryLight,
-        tableText = colors.TextPrimary,
-        tableBackground = colors.Surface,
-        tableHeaderBackground = colors.SurfaceVariant,
-        tableHeaderText = colors.TextPrimary,
-        tableBorder = colors.Border
+        linkText = colors.PrimaryLight
     )
 
     // 自定义 Markdown 排版配置
+    // 注意：0.31.0 版本不支持 table 相关排版参数
     val markdownTypography = markdownTypography(
         h1 = TextStyle(
             fontSize = 20.sp,
@@ -139,18 +136,6 @@ fun BeautifulMarkdown(
             fontSize = 15.sp,
             fontWeight = FontWeight.Normal,
             lineHeight = 23.sp,
-            color = colors.TextPrimary
-        ),
-        table = TextStyle(
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 20.sp,
-            color = colors.TextPrimary
-        ),
-        tableHeader = TextStyle(
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            lineHeight = 20.sp,
             color = colors.TextPrimary
         )
     )

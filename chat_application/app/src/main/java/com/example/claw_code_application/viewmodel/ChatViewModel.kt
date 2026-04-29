@@ -17,6 +17,7 @@ import com.example.claw_code_application.data.local.SessionLocalStore
 import com.example.claw_code_application.data.repository.CachedChatRepository
 import com.example.claw_code_application.data.websocket.WebSocketManager
 import com.example.claw_code_application.service.NotificationManager
+import com.example.claw_code_application.ui.chat.components.FileInfo
 import com.example.claw_code_application.ui.chat.components.shouldShowMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
