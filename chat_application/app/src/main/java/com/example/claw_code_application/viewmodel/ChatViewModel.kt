@@ -476,7 +476,8 @@ class ChatViewModel(
                         is CachedChatRepository.Result.Success -> {
                             val detail = result.data
                             _messages.clear()
-                            _messages.addAll(detail.messages)
+                            // 加载历史消息时，强制将 isStreaming 设置为 false，避免显示闪烁动画
+                            _messages.addAll(detail.messages.map { it.copy(isStreaming = false) })
 
                             _toolCalls.clear()
                             _toolCalls.addAll(detail.toolCalls)

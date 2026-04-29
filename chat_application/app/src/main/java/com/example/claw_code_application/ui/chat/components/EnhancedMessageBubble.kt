@@ -41,6 +41,7 @@ fun EnhancedMessageBubble(
     toolCalls: List<ToolCall> = emptyList(),
     modifier: Modifier = Modifier
 ) {
+    val colors = AppColor.current
     val isUser = message.role == "user"
     
     // Manus 1.6 Lite 气泡配置
@@ -73,9 +74,9 @@ fun EnhancedMessageBubble(
             Surface(
                 modifier = bubbleElevation,
                 shape = bubbleShape,
-                color = if (isUser) AppColor.UserBubbleBackground else Color(0xFFF5F5F7),
+                color = if (isUser) colors.UserBubbleBackground else colors.AssistantBubbleBackground,
                 shadowElevation = if (isUser) 0.dp else 1.dp,
-                border = if (isUser) null else BorderStroke(1.dp, Color(0xFFE8E8ED))
+                border = if (isUser) null else BorderStroke(1.dp, colors.Border)
             ) {
                 Column(
                     modifier = Modifier.padding(
@@ -90,10 +91,10 @@ fun EnhancedMessageBubble(
                         }
                         
                         if (filteredContent.isNotBlank()) {
-                            // 用户消息：白色文字
+                            // 用户消息：使用主题表面色（深色主题下为深色文字）
                             Text(
                                 text = filteredContent,
-                                color = Color.White,
+                                color = colors.Surface,
                                 style = TextStyle(
                                     fontSize = 15.sp,
                                     lineHeight = 23.sp
@@ -108,10 +109,7 @@ fun EnhancedMessageBubble(
                         )
                     }
 
-                    // 流式输出光标动画
-                    if (message.isStreaming && !isUser) {
-                        StreamingCursor()
-                    }
+                    // 流式输出动画已移除
                 }
             }
 
@@ -317,63 +315,6 @@ private fun ToolUseComponent(
 }
 
 /**
- * 流式输出光标动画 - Manus 1.6 Lite 风格
- * 显示三个跳动的圆点 + 闪烁光标
- */
-@Composable
-private fun StreamingCursor() {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.padding(top = 4.dp)
-    ) {
-        // 三个跳动的圆点动画
-        val infiniteTransition = rememberInfiniteTransition(label = "streaming_dots")
-        
-        repeat(3) { index ->
-            val alpha by infiniteTransition.animateFloat(
-                initialValue = 0.3f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(600, easing = LinearEasing, delayMillis = index * 200),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "dot_${index}_alpha"
-            )
-
-            Box(
-                modifier = Modifier
-                    .size(5.dp)
-                    .background(
-                        color = AppColor.Primary.copy(alpha = alpha),
-                        shape = androidx.compose.foundation.shape.CircleShape
-                    )
-            )
-        }
-
-        Spacer(modifier = Modifier.width(6.dp))
-
-        // 闪烁光标
-        val cursorAlpha by infiniteTransition.animateFloat(
-            initialValue = 1f,
-            targetValue = 0f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(500, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "cursor_alpha"
-        )
-
-        Text(
-            text = "▋",
-            color = AppColor.Primary,
-            modifier = Modifier.alpha(cursorAlpha),
-            fontSize = 14.sp
-        )
-    }
-}
-
-/**
  * 文件列表查看器组件 - Manus 1.6 Lite 风格
  * 显示文件/目录列表
  */
@@ -387,8 +328,8 @@ private fun FileListViewer(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = Color(0xFFF5F5F7),
-        border = BorderStroke(1.dp, Color(0xFFE8E8ED))
+        color = colors.SurfaceVariant,
+        border = BorderStroke(1.dp, colors.Border)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -403,17 +344,17 @@ private fun FileListViewer(
                     text = path,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = AppColor.TextPrimary
+                    color = colors.TextPrimary
                 )
                 Text(
                     text = "($count 项)",
                     fontSize = 11.sp,
-                    color = AppColor.TextSecondary
+                    color = colors.TextSecondary
                 )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = Color(0xFFE8E8ED), thickness = 1.dp)
+            HorizontalDivider(color = colors.Border, thickness = 1.dp)
             Spacer(modifier = Modifier.height(12.dp))
 
             // 文件列表

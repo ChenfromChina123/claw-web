@@ -33,6 +33,7 @@ import com.example.claw_code_application.util.NetworkConfig
  * @param onThemeChange 主题变更回调
  * @param currentTheme 当前主题模式
  * @param onLogout 登出回调
+ * @param onNavigateToLogin 跳转到登录页面回调
  * @param modifier 修饰符
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,6 +44,7 @@ fun SettingsDrawer(
     onThemeChange: (ThemeMode) -> Unit,
     currentTheme: ThemeMode,
     onLogout: () -> Unit,
+    onNavigateToLogin: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = AppColor.current
@@ -78,7 +80,10 @@ fun SettingsDrawer(
 
                     HorizontalDivider(color = colors.Divider, thickness = 1.dp)
 
-                    AccountSection(onLogout = onLogout)
+                    AccountSection(
+                        onLogout = onLogout,
+                        onNavigateToLogin = onNavigateToLogin
+                    )
 
                     HorizontalDivider(color = colors.Divider, thickness = 1.dp)
 
@@ -444,10 +449,12 @@ private fun SettingsItem(
  * 显示当前登录用户信息并提供登出功能
  *
  * @param onLogout 登出回调
+ * @param onNavigateToLogin 跳转到登录页面回调
  */
 @Composable
 private fun AccountSection(
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToLogin: () -> Unit
 ) {
     val colors = AppColor.current
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -616,13 +623,3 @@ private fun AccountSection(
             textContentColor = colors.TextSecondary
         )
     }
-}
-
-/**
- * 主题模式枚举
- */
-enum class ThemeMode {
-    LIGHT,
-    DARK,
-    SYSTEM
-}
