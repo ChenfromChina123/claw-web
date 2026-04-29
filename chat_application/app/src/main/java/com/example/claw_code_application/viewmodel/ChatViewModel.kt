@@ -59,6 +59,13 @@ class ChatViewModel(
     var currentSessionId: String? = null
         private set
 
+    /**
+     * 标记当前会话是否是仅本地存在的临时会话
+     * 用于懒创建会话模式
+     */
+    var isLocalOnlySession: Boolean = false
+        private set
+
     private val _messages = mutableStateListOf<Message>()
     val messages: List<Message> = _messages
 
@@ -454,9 +461,15 @@ class ChatViewModel(
         }
     }
 
-    fun initNewSession(sessionId: String) {
-        android.util.Log.d(TAG, "initNewSession() - 初始化新会话: $sessionId")
+    /**
+     * 初始化新会话（懒创建模式）
+     * @param sessionId 会话ID（可能是本地临时ID）
+     * @param isLocalOnly 是否是仅本地存在的临时会话
+     */
+    fun initNewSession(sessionId: String, isLocalOnly: Boolean = false) {
+        android.util.Log.d(TAG, "initNewSession() - 初始化新会话: $sessionId, isLocalOnly=$isLocalOnly")
         currentSessionId = sessionId
+        this.isLocalOnlySession = isLocalOnly
         saveSessionToLocalStore(sessionId)
 
         _messages.clear()
@@ -703,8 +716,39 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * 用于将本地临时会话转换为真实会话的回调
+     * 由 MainActivity 设置，用于协调 SessionViewModel 和 ChatViewModel
+     */
+    var onConvertLocalSession: (suspend (tempSessionId: String) -> Session?)? = null
+
+    /**
+     * 确保有有效的会话
+     * 如果当前是本地临时会话，会先调用后端创建真实会话
+     */
     private suspend fun ensureSession(): Session? {
-        android.util.Log.d(TAG, "ensureSession() - currentSessionId: $currentSessionId")
+        android.util.Log.d(TAG, "ensureSession() - currentSessionId: $currentSessionId, isLocalOnlySession: $isLocalOnlySession")
+
+        // 如果当前是本地临时会话，需要先创建真实会话
+        if (isLocalOnlySession && currentSessionId != null) {
+            android.util.Log.d(TAG, "本地临时会话需要转换为真实会话: $currentSessionId")
+            val tempSessionId = currentSessionId!!
+
+            // 调用回调将本地临时会话转换为真实会话
+            val realSession = onConvertLocalSession?.invoke(tempSessionId)
+
+            if (realSession != null) {
+                // 更新当前会话ID为真实会话ID
+                currentSessionId = realSession.id
+                isLocalOnlySession = false
+                saveSessionToLocalStore(realSession.id)
+                android.util.Log.d(TAG, "本地临时会话已转换为真实会话: ${realSession.id}")
+                return realSession
+            } else {
+                android.util.Log.e(TAG, "转换本地临时会话失败")
+                return null
+            }
+        }
 
         return currentSessionId?.let { id ->
             android.util.Log.d(TAG, "复用现有会话: $id")
@@ -716,6 +760,7 @@ class ChatViewModel(
                 is CachedChatRepository.Result.Success -> {
                     val session = result.data
                     currentSessionId = session.id
+                    isLocalOnlySession = false
                     saveSessionToLocalStore(session.id)
                     android.util.Log.d(TAG, "新会话已创建并保存: ${session.id}")
                     session

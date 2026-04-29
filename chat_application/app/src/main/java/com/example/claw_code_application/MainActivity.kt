@@ -241,6 +241,13 @@ private fun ChatMainScreen(
         )
     )
 
+    // 设置本地临时会话转换回调
+    chatViewModel.onConvertLocalSession = { tempSessionId ->
+        // 调用后端创建真实会话
+        val result = sessionViewModel.createRealSession(tempSessionId)
+        result
+    }
+
     var selectedSessionId by remember { mutableStateOf<String?>(null) }
     var showSessionList by remember { mutableStateOf(true) }
     var showExitDialog by remember { mutableStateOf(false) }
@@ -304,15 +311,13 @@ private fun ChatMainScreen(
                                     showSessionList = false
                                 },
                                 onCreateNew = {
-                                    scope.launch {
-                                        val newSessionId = sessionViewModel.createNewSession()
-                                        if (newSessionId != null) {
-                                            chatViewModel.initNewSession(newSessionId)
-                                            selectedSessionId = newSessionId
-                                            isNewSession = true
-                                            showSessionList = false
-                                        }
-                                    }
+                                    // 懒创建会话：只在客户端生成临时会话，不立即调用后端
+                                    val newSessionId = sessionViewModel.createNewSession()
+                                    // 标记为本地临时会话
+                                    chatViewModel.initNewSession(newSessionId, isLocalOnly = true)
+                                    selectedSessionId = newSessionId
+                                    isNewSession = true
+                                    showSessionList = false
                                 },
                                 onDelete = { sessionId ->
                                     sessionViewModel.deleteSession(sessionId)

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 /**
  * 会话列表ViewModel
@@ -90,31 +91,123 @@ class SessionViewModel(
     }
 
     /**
-     * 创建新会话并返回其ID
-     * @return 新创建的会话ID，如果失败返回null
+     * 本地临时会话列表（尚未同步到后端的会话）
      */
-    suspend fun createNewSession(): String? {
-        Logger.d(TAG, "开始创建新会话...")
+    private val _localOnlySessions = mutableStateListOf<Session>()
+
+    /**
+     * 创建新会话（懒创建模式）
+     * 只在客户端生成临时会话ID，不立即调用后端API
+     * 当用户发送第一条消息时，才真正在后端创建会话
+     * @return 新创建的临时会话ID
+     */
+    fun createNewSession(): String {
+        Logger.d(TAG, "开始懒创建新会话（仅客户端）...")
+
+        // 生成临时会话ID
+        val tempSessionId = UUID.randomUUID().toString()
+        Logger.d(TAG, "生成临时会话ID: $tempSessionId")
+
+        // 创建本地临时会话对象
+        val now = System.currentTimeMillis()
+        val newSession = Session(
+            id = tempSessionId,
+            title = "新对话",
+            createdAt = now.toString(),
+            updatedAt = now.toString(),
+            model = "qwen-plus",
+            isLocalOnly = true  // 标记为仅本地存在
+        )
+
+        // 添加到本地会话列表
+        _localOnlySessions.add(newSession)
+        _sessions.add(0, newSession)
+        selectedSessionId = tempSessionId
+        _uiState.value = UiState.Success(_sessions.toList())
+
+        Logger.i(TAG, "懒创建会话成功（仅客户端）: id=$tempSessionId")
+        Logger.d(TAG, "当前选中会话: $selectedSessionId")
+
+        return tempSessionId
+    }
+
+    /**
+     * 将本地临时会话转换为真实会话（在后端创建后调用）
+     * @param tempSessionId 临时会话ID
+     * @param realSession 后端返回的真实会话
+     */
+    fun convertLocalSessionToReal(tempSessionId: String, realSession: Session) {
+        Logger.d(TAG, "转换本地会话为真实会话: temp=$tempSessionId, real=${realSession.id}")
+
+        // 从本地列表中移除
+        _localOnlySessions.removeAll { it.id == tempSessionId }
+
+        // 更新主会话列表
+        val index = _sessions.indexOfFirst { it.id == tempSessionId }
+        if (index != -1) {
+            _sessions[index] = realSession.copy(isLocalOnly = false)
+            Logger.d(TAG, "已更新会话列表中的临时会话为真实会话")
+        }
+
+        // 如果当前选中的是临时会话，更新为真实会话ID
+        if (selectedSessionId == tempSessionId) {
+            selectedSessionId = realSession.id
+            Logger.d(TAG, "已更新选中会话ID为: ${realSession.id}")
+        }
+
+        _uiState.value = UiState.Success(_sessions.toList())
+    }
+
+    /**
+     * 检查会话是否是仅本地存在的临时会话
+     * @param sessionId 会话ID
+     * @return 是否是临时会话
+     */
+    fun isLocalOnlySession(sessionId: String): Boolean {
+        return _localOnlySessions.any { it.id == sessionId }
+    }
+
+    /**
+     * 将本地临时会话转换为真实会话（在后端创建）
+     * 当用户向本地临时会话发送第一条消息时调用
+     * @param tempSessionId 临时会话ID
+     * @return 后端创建的真实会话，如果失败返回null
+     */
+    suspend fun createRealSession(tempSessionId: String): Session? {
+        Logger.d(TAG, "开始将本地临时会话转换为真实会话: temp=$tempSessionId")
+
+        // 检查是否是本地临时会话
+        val localSession = _localOnlySessions.find { it.id == tempSessionId }
+        if (localSession == null) {
+            Logger.w(TAG, "未找到本地临时会话: $tempSessionId")
+            return null
+        }
+
         return try {
-            val result = chatRepository.createSession(null, "qwen-plus")
+            // 调用后端API创建真实会话
+            val result = chatRepository.createSession(null, localSession.model)
+
             when (result) {
                 is CachedChatRepository.Result.Success -> {
-                    val newSession = result.data
-                    Logger.i(TAG, "创建会话成功: id=${newSession.id}")
-                    _sessions.add(0, newSession)
-                    selectedSessionId = newSession.id
-                    _uiState.value = UiState.Success(_sessions.toList())
-                    Logger.d(TAG, "当前选中会话: $selectedSessionId")
-                    newSession.id
+                    val realSession = result.data
+                    Logger.i(TAG, "后端创建会话成功: ${realSession.id}")
+
+                    // 转换本地临时会话为真实会话
+                    convertLocalSessionToReal(tempSessionId, realSession)
+
+                    realSession
                 }
                 is CachedChatRepository.Result.Error -> {
-                    Logger.e(TAG, "创建会话失败: ${result.message}")
+                    Logger.e(TAG, "后端创建会话失败: ${result.message}")
                     null
                 }
-                is CachedChatRepository.Result.Loading -> null
+                is CachedChatRepository.Result.Loading -> {
+                    Logger.w(TAG, "后端创建会话返回Loading状态")
+                    null
+                }
             }
         } catch (e: Exception) {
-            Logger.e(TAG, "创建会话异常", e)
+            Logger.e(TAG, "创建真实会话异常", e)
             null
         }
     }

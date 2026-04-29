@@ -23,6 +23,7 @@ import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.ast.findChildOfType
 import org.intellij.markdown.ast.getTextInNode
+import org.intellij.markdown.flavours.gfm.GFMElementTypes
 
 /**
  * 自定义 Markdown 表格组件
@@ -59,9 +60,8 @@ private fun CustomTable(
 ) {
     val colors = AppColor.current
 
-    // 查找表格节点
-    val tableNode = node.findChildOfType(MarkdownElementTypes.TABLE)
-        ?: node.findChildOfType(MarkdownElementTypes.GFM_TABLE)
+    // 查找表格节点 (GFM 表格)
+    val tableNode = node.findChildOfType(GFMElementTypes.TABLE)
 
     if (tableNode == null) {
         // 回退到默认文本渲染
@@ -74,12 +74,12 @@ private fun CustomTable(
     }
 
     // 解析表格结构
-    val headerRow = tableNode.findChildOfType(MarkdownElementTypes.TABLE_HEADER)
-    val allRows = tableNode.children.filter { it.type == MarkdownElementTypes.TABLE_ROW }
+    val headerRow = tableNode.findChildOfType(GFMElementTypes.HEADER)
+    val allRows = tableNode.children.filter { it.type == GFMElementTypes.ROW }
 
     if (headerRow == null) return
 
-    val headerCells = headerRow.children.filter { it.type == MarkdownElementTypes.TABLE_CELL }
+    val headerCells = headerRow.children.filter { it.type == GFMElementTypes.CELL }
     // 数据行（排除表头行）
     val dataRows = if (allRows.firstOrNull() == headerRow) {
         allRows.drop(1)
@@ -129,7 +129,7 @@ private fun CustomTable(
 
         // 数据行
         dataRows.forEachIndexed { rowIndex, row ->
-            val cells = row.children.filter { it.type == MarkdownElementTypes.TABLE_CELL }
+            val cells = row.children.filter { it.type == GFMElementTypes.CELL }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

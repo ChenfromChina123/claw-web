@@ -21,7 +21,14 @@ data class Session(
     @SerialName("lastMessage")
     val lastMessage: String? = null,
     @SerialName("isRunning")
-    val isRunning: Boolean = false
+    val isRunning: Boolean = false,
+    /**
+     * 标记是否是仅本地存在的临时会话
+     * 用于懒创建会话模式：用户点击新建会话时只在客户端创建，
+     * 发送第一条消息时才真正在后端创建
+     */
+    @SerialName("isLocalOnly")
+    val isLocalOnly: Boolean = false
 )
 
 @Serializable
