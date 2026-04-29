@@ -10,7 +10,7 @@ data class Message(
     val id: String,
     val role: String,
     val content: String,
-    @SerialName("createdAt")
+    @SerialName("timestamp")
     val timestamp: String,
     @SerialName("toolCalls")
     val toolCalls: List<ToolCall>? = null,
