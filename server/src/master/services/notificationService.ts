@@ -41,6 +41,7 @@ export enum NotificationType {
   AGENT_COMPLETED = 'agent_completed',
   AGENT_ERROR = 'agent_error',
   SYSTEM_MESSAGE = 'system_message',
+  AGENT_PUSH = 'agent_push',
 }
 
 /**
@@ -687,6 +688,46 @@ export class NotificationService extends EventEmitter {
         this.notifications.delete(notif.id)
       }
     }
+  }
+
+  /**
+   * 发送 Agent 推送消息
+   * 用于向用户推送隐私信息、凭证等敏感数据
+   *
+   * @param params 推送参数
+   * @returns 通知ID
+   */
+  async sendAgentPush(params: {
+    userId: string
+    sessionId: string
+    category: 'credential' | 'notification' | 'alert' | 'info'
+    title: string
+    content: string
+    sensitiveData?: Record<string, string>
+    priority?: 'low' | 'normal' | 'high' | 'urgent'
+    expiresInMinutes?: number
+  }): Promise<string> {
+    const data: Record<string, unknown> = {
+      category: params.category,
+      sessionId: params.sessionId,
+      userId: params.userId,
+    }
+
+    // 敏感数据只通过 WebSocket 发送，不包含在推送通知中
+    if (params.sensitiveData) {
+      data.hasSensitiveData = true
+      data.sensitiveKeys = Object.keys(params.sensitiveData)
+    }
+
+    return this.notify({
+      type: NotificationType.AGENT_PUSH,
+      title: params.title,
+      message: params.content,
+      data,
+      priority: params.priority || 'normal',
+      channels: [NotificationChannel.WEBSOCKET, NotificationChannel.PUSH],
+      recipientIds: [params.userId],
+    })
   }
 
   /**

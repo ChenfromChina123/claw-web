@@ -287,6 +287,20 @@ export class WebSocketManager {
     return this.connections
   }
 
+  /**
+   * 向指定连接发送消息
+   * @param connectionId 连接ID
+   * @param message 消息内容
+   * @returns 是否发送成功
+   */
+  sendToConnection(connectionId: string, message: WebSocketMessage): boolean {
+    const connection = this.connections.get(connectionId)
+    if (connection && connection.isConnected()) {
+      return connection.send(message)
+    }
+    return false
+  }
+
   getActiveSessions(): Set<string> {
     const sessions = new Set<string>()
     for (const [, conn] of this.connections) {

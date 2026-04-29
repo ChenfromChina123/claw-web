@@ -1,23 +1,21 @@
 /**
  * 项目部署 API 路由
- * 
+ *
  * 提供的端点：
- * - POST /api/deployments - 创建新项目部署
- * - GET /api/deployments - 获取用户所有项目
- * - GET /api/deployments/:projectId - 获取项目详情
- * - PUT /api/deployments/:projectId - 更新项目配置
- * - DELETE /api/deployments/:projectId - 删除项目
- * - POST /api/deployments/:projectId/start - 启动项目
- * - POST /api/deployments/:projectId/stop - 停止项目
- * - POST /api/deployments/:projectId/restart - 重启项目
- * - GET /api/deployments/:projectId/logs - 获取项目日志
- * - GET /api/deployments/:projectId/status - 获取项目状态
+ * - POST /api/deployments - 创建部署
+ * - GET /api/deployments - 列出租户部署
+ * - GET /api/deployments/:id - 获取部署详情
+ * - POST /api/deployments/:id/start - 启动项目
+ * - POST /api/deployments/:id/stop - 停止项目
+ * - DELETE /api/deployments/:id - 删除部署
+ * - GET /api/deployments/:id/logs - 获取日志
+ * - POST /api/deployments/:id/external-access - 开启外部访问
+ * - DELETE /api/deployments/:id/external-access - 关闭外部访问
  */
 
 import { Router, type Request, type Response } from 'express'
-import { getProjectDeploymentService, type DeploymentRequest } from '../services/projectDeploymentService'
+import { getProjectDeploymentService } from '../services/projectDeploymentService'
 import { verifyToken } from '../utils/auth'
-import { createSuccessResponse, createErrorResponse } from '../utils/response'
 
 const router = Router()
 
@@ -57,42 +55,51 @@ async function authMiddleware(req: Request, res: Response, next: Function) {
   }
 }
 
-// ==================== 路由定义 ====================
+// ==================== 部署管理路由 ====================
 
 /**
  * POST /api/deployments
- * 创建新项目部署
+ * 创建部署
  */
 router.post('/', authMiddleware, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user
-    const deploymentService = getProjectDeploymentService()
-
-    // 构建部署请求
-    const request: DeploymentRequest = {
-      userId: user.userId,
-      name: req.body.name,
-      type: req.body.type || 'nodejs',
-      sourceType: req.body.sourceType || 'upload',
-      sourceUrl: req.body.sourceUrl,
-      sourceCode: req.body.sourceCode,
-      buildCommand: req.body.buildCommand,
-      startCommand: req.body.startCommand,
-      envVars: req.body.envVars,
-      memoryLimit: req.body.memoryLimit,
-      autoRestart: req.body.autoRestart ?? true
-    }
+    const {
+      name,
+      type,
+      sourceType,
+      sourceUrl,
+      buildCommand,
+      startCommand,
+      envVars,
+      memoryLimit,
+      autoRestart,
+      enableExternalAccess
+    } = req.body
 
     // 验证必填字段
-    if (!request.name || !request.startCommand) {
+    if (!name || !type || !sourceType || !startCommand) {
       return res.status(400).json({
         success: false,
-        error: '缺少必填字段：name, startCommand'
+        error: '缺少必填字段：name, type, sourceType, startCommand'
       })
     }
 
-    // 创建部署
-    const deployment = await deploymentService.createProject(request)
+    const deploymentService = getProjectDeploymentService()
+
+    const deployment = await deploymentService.createProject({
+      userId: user.userId,
+      name,
+      type,
+      sourceType,
+      sourceUrl,
+      buildCommand,
+      startCommand,
+      envVars,
+      memoryLimit,
+      autoRestart,
+      enableExternalAccess
+    })
 
     res.json({
       success: true,
@@ -103,75 +110,74 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     console.error('[DeploymentRoutes] 创建部署失败:', error)
     res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : '创建部署失败'
+      error: error instanceof Error ? error.message : '部署失败'
     })
   }
 })
 
 /**
  * GET /api/deployments
- * 获取用户所有项目
+ * 列出租户部署
  */
 router.get('/', authMiddleware, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user
-    const deploymentService = getProjectDeploymentService()
 
-    const projects = await deploymentService.listUserProjects(user.userId)
+    const deploymentService = getProjectDeploymentService()
+    const deployments = await deploymentService.listUserProjects(user.userId)
 
     res.json({
       success: true,
       data: {
-        total: projects.length,
-        projects
+        total: deployments.length,
+        deployments
       }
     })
   } catch (error) {
-    console.error('[DeploymentRoutes] 获取项目列表失败:', error)
+    console.error('[DeploymentRoutes] 获取部署列表失败:', error)
     res.status(500).json({
       success: false,
-      error: '获取项目列表失败'
+      error: '获取部署列表失败'
     })
   }
 })
 
 /**
- * GET /api/deployments/:projectId
- * 获取项目详情
+ * GET /api/deployments/:id
+ * 获取部署详情
  */
-router.get('/:projectId', authMiddleware, async (req: Request, res: Response) => {
+router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user
-    const { projectId } = req.params
+    const { id } = req.params
 
-    // TODO: 从数据库获取项目详情
+    const deploymentService = getProjectDeploymentService()
+    const status = await deploymentService.getProjectStatus(id, user.userId)
+
     res.json({
       success: true,
-      data: {
-        projectId,
-        message: '功能开发中'
-      }
+      data: status
     })
   } catch (error) {
-    console.error('[DeploymentRoutes] 获取项目详情失败:', error)
+    console.error('[DeploymentRoutes] 获取部署详情失败:', error)
     res.status(500).json({
       success: false,
-      error: '获取项目详情失败'
+      error: error instanceof Error ? error.message : '获取部署详情失败'
     })
   }
 })
 
 /**
- * POST /api/deployments/:projectId/start
+ * POST /api/deployments/:id/start
  * 启动项目
  */
-router.post('/:projectId/start', authMiddleware, async (req: Request, res: Response) => {
+router.post('/:id/start', authMiddleware, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user
-    const { projectId } = req.params
-    const deploymentService = getProjectDeploymentService()
+    const { id } = req.params
 
-    await deploymentService.startProject(projectId, user.userId)
+    const deploymentService = getProjectDeploymentService()
+    await deploymentService.startProject(id, user.userId)
 
     res.json({
       success: true,
@@ -187,16 +193,16 @@ router.post('/:projectId/start', authMiddleware, async (req: Request, res: Respo
 })
 
 /**
- * POST /api/deployments/:projectId/stop
+ * POST /api/deployments/:id/stop
  * 停止项目
  */
-router.post('/:projectId/stop', authMiddleware, async (req: Request, res: Response) => {
+router.post('/:id/stop', authMiddleware, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user
-    const { projectId } = req.params
-    const deploymentService = getProjectDeploymentService()
+    const { id } = req.params
 
-    await deploymentService.stopProject(projectId, user.userId)
+    const deploymentService = getProjectDeploymentService()
+    await deploymentService.stopProject(id, user.userId)
 
     res.json({
       success: true,
@@ -212,68 +218,42 @@ router.post('/:projectId/stop', authMiddleware, async (req: Request, res: Respon
 })
 
 /**
- * POST /api/deployments/:projectId/restart
- * 重启项目
+ * DELETE /api/deployments/:id
+ * 删除部署
  */
-router.post('/:projectId/restart', authMiddleware, async (req: Request, res: Response) => {
+router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user
-    const { projectId } = req.params
-    const deploymentService = getProjectDeploymentService()
+    const { id } = req.params
 
-    await deploymentService.stopProject(projectId, user.userId)
-    await deploymentService.startProject(projectId, user.userId)
+    const deploymentService = getProjectDeploymentService()
+    await deploymentService.deleteProject(id, user.userId)
 
     res.json({
       success: true,
-      message: '项目已重启'
+      message: '部署已删除'
     })
   } catch (error) {
-    console.error('[DeploymentRoutes] 重启项目失败:', error)
+    console.error('[DeploymentRoutes] 删除部署失败:', error)
     res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : '重启项目失败'
+      error: error instanceof Error ? error.message : '删除部署失败'
     })
   }
 })
 
 /**
- * DELETE /api/deployments/:projectId
- * 删除项目
- */
-router.delete('/:projectId', authMiddleware, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user
-    const { projectId } = req.params
-    const deploymentService = getProjectDeploymentService()
-
-    await deploymentService.deleteProject(projectId, user.userId)
-
-    res.json({
-      success: true,
-      message: '项目已删除'
-    })
-  } catch (error) {
-    console.error('[DeploymentRoutes] 删除项目失败:', error)
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : '删除项目失败'
-    })
-  }
-})
-
-/**
- * GET /api/deployments/:projectId/logs
+ * GET /api/deployments/:id/logs
  * 获取项目日志
  */
-router.get('/:projectId/logs', authMiddleware, async (req: Request, res: Response) => {
+router.get('/:id/logs', authMiddleware, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user
-    const { projectId } = req.params
+    const { id } = req.params
     const lines = parseInt(req.query.lines as string) || 100
-    const deploymentService = getProjectDeploymentService()
 
-    const logs = await deploymentService.getProjectLogs(projectId, user.userId, lines)
+    const deploymentService = getProjectDeploymentService()
+    const logs = await deploymentService.getProjectLogs(id, user.userId, lines)
 
     res.json({
       success: true,
@@ -283,32 +263,60 @@ router.get('/:projectId/logs', authMiddleware, async (req: Request, res: Respons
     console.error('[DeploymentRoutes] 获取日志失败:', error)
     res.status(500).json({
       success: false,
-      error: '获取日志失败'
+      error: error instanceof Error ? error.message : '获取日志失败'
+    })
+  }
+})
+
+// ==================== 外部访问路由 ====================
+
+/**
+ * POST /api/deployments/:id/external-access
+ * 开启外部访问
+ */
+router.post('/:id/external-access', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user
+    const { id } = req.params
+
+    const deploymentService = getProjectDeploymentService()
+    const result = await deploymentService.enableExternalAccess(id, user.userId)
+
+    res.json({
+      success: true,
+      data: result,
+      message: '外部访问已开启'
+    })
+  } catch (error) {
+    console.error('[DeploymentRoutes] 开启外部访问失败:', error)
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : '开启外部访问失败'
     })
   }
 })
 
 /**
- * GET /api/deployments/:projectId/status
- * 获取项目状态
+ * DELETE /api/deployments/:id/external-access
+ * 关闭外部访问
  */
-router.get('/:projectId/status', authMiddleware, async (req: Request, res: Response) => {
+router.delete('/:id/external-access', authMiddleware, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user
-    const { projectId } = req.params
-    const deploymentService = getProjectDeploymentService()
+    const { id } = req.params
 
-    const status = await deploymentService.getProjectStatus(projectId, user.userId)
+    const deploymentService = getProjectDeploymentService()
+    await deploymentService.disableExternalAccess(id, user.userId)
 
     res.json({
       success: true,
-      data: status
+      message: '外部访问已关闭'
     })
   } catch (error) {
-    console.error('[DeploymentRoutes] 获取状态失败:', error)
+    console.error('[DeploymentRoutes] 关闭外部访问失败:', error)
     res.status(500).json({
       success: false,
-      error: '获取状态失败'
+      error: error instanceof Error ? error.message : '关闭外部访问失败'
     })
   }
 })

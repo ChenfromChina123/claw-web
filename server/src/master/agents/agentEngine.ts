@@ -12,9 +12,11 @@ import {
   type MultiAgentOrchestrationState,
   type TaskStep,
   type AgentExecutionContext,
-  type AgentExecutionResult
+  type AgentExecutionResult,
+  type AgentPushCallback
 } from './types'
 import { getBuiltInAgents } from './builtInAgents'
+import { getAgentPushService } from '../services/agentPushService'
 
 /**
  * Agent 管理器类
@@ -225,6 +227,32 @@ class AgentManager {
 const agentManager = new AgentManager()
 
 /**
+ * 创建 Agent 推送回调函数
+ * @param userId 用户ID
+ * @param sessionId 会话ID
+ * @returns 推送回调函数
+ */
+function createAgentPushCallback(
+  userId: string,
+  sessionId: string
+): AgentPushCallback {
+  const agentPushService = getAgentPushService()
+
+  return async (message) => {
+    return agentPushService.sendPush({
+      userId,
+      sessionId,
+      category: message.category,
+      title: message.title,
+      content: message.content,
+      sensitiveData: message.sensitiveData,
+      priority: message.priority || 'normal',
+      expiresInMinutes: message.expiresInMinutes,
+    })
+  }
+}
+
+/**
  * 执行 Agent 任务（支持中断）
  * @param context 执行上下文（包含可选的 abortSignal）
  * @param onProgress 进度回调
@@ -250,6 +278,17 @@ export async function executeAgent(
 
   // 如果外部提供了 abortSignal，则使用外部的；否则使用新创建的
   const signal = context.abortSignal || abortController.signal
+
+  // 创建推送回调（如果提供了 userId）
+  const pushCallback = context.userId
+    ? createAgentPushCallback(context.userId, context.sessionId)
+    : undefined
+
+  // 将推送回调注入到 context 中，供 Agent 使用
+  const enrichedContext = {
+    ...context,
+    onPush: pushCallback,
+  }
 
   // 模拟执行过程（实际应该调用 LLM）
   try {

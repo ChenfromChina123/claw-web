@@ -258,16 +258,34 @@ export interface MultiAgentOrchestrationState {
 }
 
 /**
+ * Agent 推送回调函数类型
+ */
+export type AgentPushCallback = (message: {
+  category: 'credential' | 'notification' | 'alert' | 'info'
+  title: string
+  content: string
+  sensitiveData?: Record<string, string>
+  priority?: 'low' | 'normal' | 'high' | 'urgent'
+  expiresInMinutes?: number
+}) => Promise<string>
+
+/**
  * Agent 执行上下文
  */
 export interface AgentExecutionContext {
   agentId: string
   sessionId: string
+  userId: string
   task: string
   prompt: string
   tools: string[]
   maxTurns?: number
   abortSignal?: AbortSignal
+  /**
+   * 推送回调函数，用于向用户发送推送消息
+   * Agent 可以通过此回调主动推送隐私信息、通知等
+   */
+  onPush?: AgentPushCallback
 }
 
 /**

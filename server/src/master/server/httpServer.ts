@@ -378,6 +378,52 @@ function startMasterHTTPServer(containerRole: string): void {
         }
       }
 
+      // 部署路由处理
+      if (path.startsWith('/api/deployments') && containerRole !== 'worker') {
+        const { deploymentRoutes } = await import('../routes')
+        // 创建模拟的请求和响应对象
+        const expressReq: any = {
+          ...req,
+          params: {},
+          query: Object.fromEntries(url.searchParams),
+          body: await req.json().catch(() => ({}))
+        }
+        
+        // 从路径中提取参数
+        const pathMatch = path.match(/\/api\/deployments\/(?:([^\/]+)(?:\/(\w+))?)?/)
+        if (pathMatch) {
+          expressReq.params.id = pathMatch[1]
+          expressReq.params.action = pathMatch[2]
+        }
+        
+        // 添加认证信息
+        const authHeader = req.headers.get('authorization')
+        if (authHeader) {
+          expressReq.headers = { authorization: authHeader }
+        }
+        
+        // 使用 Promise 包装 Express 路由处理
+        const result = await new Promise<Response>((resolve) => {
+          const expressRes: any = {
+            status: (code: number) => ({
+              json: (data: any) => resolve(new Response(JSON.stringify(data), {
+                status: code,
+                headers: { 'Content-Type': 'application/json' }
+              }))
+            }),
+            json: (data: any) => resolve(new Response(JSON.stringify(data), {
+              headers: { 'Content-Type': 'application/json' }
+            }))
+          }
+          
+          deploymentRoutes(expressReq, expressRes, () => {
+            resolve(createErrorResponse('NOT_FOUND', 'Deployment route not found', 404))
+          })
+        })
+        
+        return result
+      }
+
       // 容器路由逻辑
       if (containerRole !== 'worker') {
         const masterOnlyPaths = [
@@ -392,6 +438,7 @@ function startMasterHTTPServer(containerRole: string): void {
           '/api/prompt-templates',
           '/api/mcp',
           '/api/tools',
+          '/api/deployments',
         ]
         const isMasterOnlyPath = masterOnlyPaths.some(masterPath => path.startsWith(masterPath))
         const isAgentMessagePath = path.match(/^\/api\/agents\/[^\/]+\/message$/)

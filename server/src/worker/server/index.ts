@@ -9,6 +9,7 @@ import http from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
 import { workerPTYManager } from '../terminal/ptyManager'
 import { workerSandbox } from '../sandbox'
+import { getWorkerDeploymentManager } from '../deployment'
 import { validateMasterToken, generateRequestId } from '../../shared/utils'
 import type { InternalAPIRequest, InternalAPIResponse } from '../../shared/types'
 
@@ -298,6 +299,47 @@ export class WorkerInternalAPI {
             data: { result: result.result, output: result.output },
             error: result.error,
           }
+        }
+
+        case 'deploy': {
+          const { config } = payload as any
+          const deploymentManager = getWorkerDeploymentManager()
+          const result = await deploymentManager.deployProject(config)
+          return { requestId: req.requestId, success: result.success, data: result, error: result.error }
+        }
+
+        case 'deploy_stop': {
+          const { projectId, processManager } = payload as any
+          const deploymentManager = getWorkerDeploymentManager()
+          const success = await deploymentManager.stopProject(projectId, processManager)
+          return { requestId: req.requestId, success, data: { stopped: success } }
+        }
+
+        case 'deploy_restart': {
+          const { projectId, processManager } = payload as any
+          const deploymentManager = getWorkerDeploymentManager()
+          const success = await deploymentManager.restartProject(projectId, processManager)
+          return { requestId: req.requestId, success, data: { restarted: success } }
+        }
+
+        case 'deploy_status': {
+          const { projectId, processManager } = payload as any
+          const deploymentManager = getWorkerDeploymentManager()
+          const status = await deploymentManager.getProjectStatus(projectId, processManager)
+          return { requestId: req.requestId, success: true, data: status }
+        }
+
+        case 'deploy_logs': {
+          const { projectId, lines } = payload as any
+          const deploymentManager = getWorkerDeploymentManager()
+          const logs = await deploymentManager.getProjectLogs(projectId, lines)
+          return { requestId: req.requestId, success: true, data: logs }
+        }
+
+        case 'deploy_list': {
+          const deploymentManager = getWorkerDeploymentManager()
+          const projects = await deploymentManager.listProjects()
+          return { requestId: req.requestId, success: true, data: { projects } }
         }
 
         default:

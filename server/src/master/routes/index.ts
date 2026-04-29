@@ -49,6 +49,9 @@ export { default as snapshotRoutes, handleSnapshotRoutes } from './snapshot.rout
 // 管理员容器管理路由
 export { default as adminContainerRoutes, handleAdminContainerRoutes } from './adminContainer.routes'
 
+// 项目部署路由
+export { default as deploymentRoutes } from './deployment.routes'
+
 import type { Request, Response } from 'express'
 
 // 所有路由处理器列表（按优先级排序）

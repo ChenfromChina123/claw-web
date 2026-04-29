@@ -16,6 +16,7 @@ export * from './advancedTools'
 export * from './skillTool'
 export * from './sessionManagementTool'
 export * from './agentToolsProvider'
+export * from './deploymentTools'
 
 // 重新导出工具类型
 export type { AgentToolInput, AgentToolOutput } from './agentTool'

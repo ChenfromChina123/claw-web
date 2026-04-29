@@ -267,3 +267,49 @@ export interface ContainerRuntimeContext {
   userId?: string
   workspacePath?: string
 }
+
+/**
+ * Agent 推送消息类型 - 用于向用户推送隐私信息等
+ */
+export interface AgentPushMessage {
+  id: string
+  type: 'agent_push'
+  category: 'credential' | 'notification' | 'alert' | 'info'
+  title: string
+  content: string
+  sensitiveData?: {
+    username?: string
+    password?: string
+    token?: string
+    apiKey?: string
+    [key: string]: string | undefined
+  }
+  sessionId: string
+  userId: string
+  timestamp: Date
+  expiresAt?: Date
+  priority: 'low' | 'normal' | 'high' | 'urgent'
+}
+
+/**
+ * Agent 推送消息创建参数
+ */
+export interface AgentPushMessageParams {
+  userId: string
+  sessionId: string
+  category: 'credential' | 'notification' | 'alert' | 'info'
+  title: string
+  content: string
+  sensitiveData?: Record<string, string>
+  priority?: 'low' | 'normal' | 'high' | 'urgent'
+  expiresInMinutes?: number
+}
+
+/**
+ * WebSocket 事件类型扩展
+ */
+export type WebSocketEventType =
+  | 'message_start' | 'message_delta' | 'message_stop' | 'message_saved'
+  | 'tool_use' | 'tool_start' | 'tool_end' | 'tool_error' | 'tool_progress'
+  | 'conversation_end' | 'error'
+  | 'agent_push'

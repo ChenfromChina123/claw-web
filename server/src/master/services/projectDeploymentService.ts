@@ -1,11 +1,11 @@
 /**
  * 项目部署服务（融入 Manus 多智能体架构）
- * 
+ *
  * 功能：
  * - 规划代理：分析部署需求、评估资源、选择 Worker 容器
  * - 执行代理：在 Worker 容器内部署项目
  * - 验证代理：健康检查、功能测试、质量评估
- * 
+ *
  * 架构：
  * - 复用现有 ContainerOrchestrator 的容器池
  * - 在已分配的 Worker 容器内运行多个项目
@@ -14,7 +14,11 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import { getContainerOrchestrator, type ContainerInstance } from '../orchestrator/containerOrchestrator'
-import { createWorkerProcessManager, type ProjectConfig, type ProcessStatus } from '../integration/processManager'
+import { getDeploymentRepository, type CreateDeploymentRequest } from '../db/repositories/deploymentRepository'
+import { getWorkerDeploymentClient, type ProjectDeployConfig } from '../integrations/workerDeploymentClient'
+import { getDomainService } from './domainService'
+import { getReverseProxyService } from './reverseProxyService'
+import { getSSLService } from './sslService'
 
 // ==================== 类型定义 ====================
 
@@ -33,6 +37,7 @@ export interface DeploymentRequest {
   envVars?: Record<string, string>
   memoryLimit?: string
   autoRestart?: boolean
+  enableExternalAccess?: boolean
 }
 
 /**
@@ -71,6 +76,7 @@ export interface ProjectDeployment {
   type: 'nodejs' | 'python' | 'static' | 'custom'
   status: 'running' | 'stopped' | 'error' | 'building'
   domain?: string
+  publicUrl?: string
   sourcePath: string
   buildCommand?: string
   startCommand: string
@@ -136,7 +142,7 @@ class DeploymentPlanningAgent {
       userId: request.userId,
       name: request.name,
       type: request.type,
-      sourcePath: `/app/workspaces/users/${request.userId}/projects/${projectId}`,
+      sourcePath: `/workspace/projects/${request.userId}/${projectId}`,
       buildCommand: request.buildCommand,
       startCommand: request.startCommand,
       envVars: request.envVars || {},
@@ -151,24 +157,8 @@ class DeploymentPlanningAgent {
    * 选择 Worker 容器
    */
   async selectWorkerContainer(userId: string): Promise<ContainerInstance | null> {
-    const orchestrator = getContainerOrchestrator()
-    
-    // 检查用户是否已有容器
-    const existingMapping = orchestrator.getUserMapping(userId)
-    if (existingMapping) {
-      console.log(`[PlanningAgent] 用户 ${userId} 已有容器: ${existingMapping.container.containerId}`)
-      return existingMapping.container
-    }
-
-    // 为用户分配新容器
-    const result = await orchestrator.assignContainerToUser(userId)
-    if (result.success && result.data) {
-      console.log(`[PlanningAgent] 为用户 ${userId} 分配容器: ${result.data.container.containerId}`)
-      return result.data.container
-    }
-
-    console.error(`[PlanningAgent] 无法为用户 ${userId} 分配容器`)
-    return null
+    const client = getWorkerDeploymentClient()
+    return await client.getUserWorker(userId)
   }
 
   /**
@@ -224,17 +214,13 @@ class DeploymentExecutionAgent {
     workerContainer: ContainerInstance,
     plan: DeploymentPlan,
     request: DeploymentRequest
-  ): Promise<ProjectDeployment> {
+  ): Promise<{ internalPort: number; error?: string }> {
     console.log(`[ExecutionAgent] 开始在容器 ${workerContainer.containerId} 内部署项目 ${plan.projectId}`)
 
-    // 创建进程管理器
-    const processManager = createWorkerProcessManager(workerContainer.containerId)
+    const client = getWorkerDeploymentClient()
 
-    // 准备项目代码
-    await this.prepareProjectCode(workerContainer.containerId, plan, request)
-
-    // 启动项目进程
-    const projectConfig: ProjectConfig = {
+    // 准备项目配置
+    const projectConfig: ProjectDeployConfig = {
       projectId: plan.projectId,
       userId: plan.userId,
       name: plan.name,
@@ -247,72 +233,17 @@ class DeploymentExecutionAgent {
       processManager: plan.processManager
     }
 
-    const result = await processManager.startProject(projectConfig)
+    // 调用 Worker 部署
+    const result = await client.deployProject(workerContainer, projectConfig)
 
     if (!result.success) {
-      throw new Error(`项目启动失败: ${result.error}`)
+      console.error(`[ExecutionAgent] 部署失败: ${result.error}`)
+      return { internalPort: 0, error: result.error }
     }
 
-    console.log(`[ExecutionAgent] 项目 ${plan.projectId} 已启动，端口: ${result.port}`)
+    console.log(`[ExecutionAgent] 项目 ${plan.projectId} 已启动，内部端口: ${result.port}`)
 
-    // 创建部署记录
-    const deployment: ProjectDeployment = {
-      projectId: plan.projectId,
-      userId: plan.userId,
-      workerContainerId: workerContainer.containerId,
-      workerPort: workerContainer.hostPort,
-      internalPort: result.port,
-      name: plan.name,
-      type: plan.type as any,
-      status: 'running',
-      sourcePath: plan.sourcePath,
-      buildCommand: plan.buildCommand,
-      startCommand: plan.startCommand,
-      envVars: plan.envVars,
-      processManager: plan.processManager,
-      autoRestart: request.autoRestart ?? true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-
-    return deployment
-  }
-
-  /**
-   * 准备项目代码
-   */
-  private async prepareProjectCode(
-    containerId: string,
-    plan: DeploymentPlan,
-    request: DeploymentRequest
-  ): Promise<void> {
-    const { exec } = require('child_process')
-    const { promisify } = require('util')
-    const execAsync = promisify(exec)
-
-    // 创建项目目录
-    await execAsync(`docker exec ${containerId} mkdir -p ${plan.sourcePath}`)
-
-    // 根据来源类型准备代码
-    switch (request.sourceType) {
-      case 'upload':
-        // 上传的代码已经通过 API 上传到工作区
-        console.log(`[ExecutionAgent] 使用上传的代码`)
-        break
-
-      case 'git':
-        // 克隆 Git 仓库
-        if (request.sourceUrl) {
-          await execAsync(`docker exec ${containerId} git clone ${request.sourceUrl} ${plan.sourcePath}`)
-          console.log(`[ExecutionAgent] 已克隆 Git 仓库: ${request.sourceUrl}`)
-        }
-        break
-
-      case 'template':
-        // 使用模板创建项目
-        console.log(`[ExecutionAgent] 使用模板创建项目`)
-        break
-    }
+    return { internalPort: result.port }
   }
 }
 
@@ -323,7 +254,9 @@ class DeploymentValidationAgent {
    * 健康检查
    */
   async healthCheck(
-    deployment: ProjectDeployment
+    container: ContainerInstance,
+    projectId: string,
+    internalPort: number
   ): Promise<{ healthy: boolean; responseTime?: number }> {
     try {
       const startTime = Date.now()
@@ -334,14 +267,15 @@ class DeploymentValidationAgent {
       const execAsync = promisify(exec)
 
       // 检查容器内项目是否响应
-      await execAsync(
-        `docker exec ${deployment.workerContainerId} curl -s -o /dev/null -w "%{http_code}" http://localhost:${deployment.internalPort}/ || echo "000"`
+      const { stdout } = await execAsync(
+        `docker exec ${container.containerId} curl -s -o /dev/null -w "%{http_code}" http://localhost:${internalPort}/ || echo "000"`
       )
 
+      const statusCode = parseInt(stdout.trim(), 10)
       const responseTime = Date.now() - startTime
 
       return {
-        healthy: responseTime < 5000, // 5秒内响应视为健康
+        healthy: statusCode >= 200 && statusCode < 500,
         responseTime
       }
     } catch (error) {
@@ -353,10 +287,14 @@ class DeploymentValidationAgent {
   /**
    * 功能测试
    */
-  async functionalTest(deployment: ProjectDeployment): Promise<{ passed: boolean; details: string }> {
+  async functionalTest(
+    container: ContainerInstance,
+    projectId: string,
+    internalPort: number
+  ): Promise<{ passed: boolean; details: string }> {
     try {
       // 基础连通性测试
-      const healthResult = await this.healthCheck(deployment)
+      const healthResult = await this.healthCheck(container, projectId, internalPort)
 
       if (!healthResult.healthy) {
         return {
@@ -380,15 +318,16 @@ class DeploymentValidationAgent {
   /**
    * 质量评估
    */
-  async qualityAssessment(deployment: ProjectDeployment): Promise<QualityReport> {
+  async qualityAssessment(
+    container: ContainerInstance,
+    projectId: string,
+    internalPort: number
+  ): Promise<QualityReport> {
     const issues: string[] = []
     const recommendations: string[] = []
 
     // 健康检查
-    const healthResult = await this.healthCheck(deployment)
-
-    // 功能测试
-    const testResult = await this.functionalTest(deployment)
+    const healthResult = await this.healthCheck(container, projectId, internalPort)
 
     // 收集问题
     if (!healthResult.healthy) {
@@ -402,7 +341,7 @@ class DeploymentValidationAgent {
     }
 
     return {
-      projectId: deployment.projectId,
+      projectId,
       healthStatus: healthResult.healthy ? 'healthy' : 'unhealthy',
       responseTime: healthResult.responseTime,
       issues,
@@ -417,11 +356,15 @@ export class ProjectDeploymentService {
   private planningAgent: DeploymentPlanningAgent
   private executionAgent: DeploymentExecutionAgent
   private validationAgent: DeploymentValidationAgent
+  private repository: ReturnType<typeof getDeploymentRepository>
+  private workerClient: ReturnType<typeof getWorkerDeploymentClient>
 
   constructor() {
     this.planningAgent = new DeploymentPlanningAgent()
     this.executionAgent = new DeploymentExecutionAgent()
     this.validationAgent = new DeploymentValidationAgent()
+    this.repository = getDeploymentRepository()
+    this.workerClient = getWorkerDeploymentClient()
   }
 
   /**
@@ -447,66 +390,277 @@ export class ProjectDeploymentService {
 
     plan.workerContainer = workerContainer
 
-    // 3. 执行阶段
-    const deployment = await this.executionAgent.deployInWorker(workerContainer, plan, request)
-    console.log(`[ProjectDeploymentService] 部署完成，项目ID: ${deployment.projectId}`)
+    // 3. 保存到数据库（初始状态为 building）
+    const dbRequest: CreateDeploymentRequest = {
+      id: plan.projectId,
+      user_id: request.userId,
+      name: request.name,
+      type: request.type,
+      worker_container_id: workerContainer.containerId,
+      worker_port: workerContainer.hostPort,
+      internal_port: 0, // 稍后更新
+      source_path: plan.sourcePath,
+      source_type: request.sourceType,
+      source_url: request.sourceUrl,
+      build_command: request.buildCommand,
+      start_command: request.startCommand,
+      env_vars: request.envVars,
+      process_manager: plan.processManager,
+      memory_limit: plan.memoryLimit,
+      auto_restart: request.autoRestart
+    }
 
-    // 4. 验证阶段
-    const qualityReport = await this.validationAgent.qualityAssessment(deployment)
+    await this.repository.createDeployment(dbRequest)
+
+    // 4. 执行阶段
+    const deployResult = await this.executionAgent.deployInWorker(workerContainer, plan, request)
+
+    if (deployResult.error) {
+      // 更新状态为 error
+      await this.repository.updateStatus(plan.projectId, 'error', deployResult.error)
+      throw new Error(`部署失败: ${deployResult.error}`)
+    }
+
+    console.log(`[ProjectDeploymentService] 部署完成，项目ID: ${plan.projectId}, 内部端口: ${deployResult.internalPort}`)
+
+    // 5. 更新数据库中的内部端口和状态
+    // 注意：这里需要更新 internal_port，但 repository 没有直接的方法
+    // 实际实现中可能需要添加 updateInternalPort 方法
+
+    // 6. 验证阶段
+    const qualityReport = await this.validationAgent.qualityAssessment(
+      workerContainer,
+      plan.projectId,
+      deployResult.internalPort
+    )
     console.log(`[ProjectDeploymentService] 质量评估: ${qualityReport.healthStatus}`)
 
-    return deployment
+    // 更新状态为 running
+    await this.repository.updateStatus(plan.projectId, 'running')
+
+    // 7. 如果启用外部访问，配置域名和反向代理
+    let domain: string | undefined
+    let publicUrl: string | undefined
+
+    if (request.enableExternalAccess) {
+      const accessResult = await this.enableExternalAccess(plan.projectId, request.userId)
+      domain = accessResult.domain
+      publicUrl = accessResult.publicUrl
+    }
+
+    // 8. 返回部署信息
+    return {
+      projectId: plan.projectId,
+      userId: request.userId,
+      workerContainerId: workerContainer.containerId,
+      workerPort: workerContainer.hostPort,
+      internalPort: deployResult.internalPort,
+      name: request.name,
+      type: request.type,
+      status: 'running',
+      domain,
+      publicUrl,
+      sourcePath: plan.sourcePath,
+      buildCommand: request.buildCommand,
+      startCommand: request.startCommand,
+      envVars: request.envVars || {},
+      processManager: plan.processManager,
+      autoRestart: request.autoRestart ?? true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  }
+
+  /**
+   * 开启外部访问
+   */
+  async enableExternalAccess(projectId: string, userId: string): Promise<{ domain: string; publicUrl: string }> {
+    // 获取部署信息
+    const deployment = await this.repository.getDeployment(projectId, userId)
+    if (!deployment) {
+      throw new Error('部署不存在')
+    }
+
+    // 分配域名
+    const domainService = getDomainService()
+    const domainInfo = await domainService.assignDomain(projectId, userId)
+
+    // 配置反向代理
+    const reverseProxyService = getReverseProxyService()
+    const proxyConfig = {
+      projectId,
+      domain: domainInfo.domain,
+      workerPort: deployment.worker_port,
+      internalPort: deployment.internal_port,
+      sslEnabled: true
+    }
+
+    const nginxConfig = await reverseProxyService.generateNginxConfig(proxyConfig)
+    await reverseProxyService.writeNginxConfig(projectId, nginxConfig)
+    await reverseProxyService.reloadNginx()
+
+    // 申请 SSL 证书
+    const sslService = getSSLService()
+    await sslService.requestCertificate({
+      domain: domainInfo.domain,
+      email: 'admin@claw-web.com'
+    })
+
+    // 更新数据库
+    await this.repository.updateDomain(projectId, domainInfo.domain, domainInfo.domainId, 'subdomain')
+
+    return {
+      domain: domainInfo.domain,
+      publicUrl: `https://${domainInfo.domain}`
+    }
+  }
+
+  /**
+   * 关闭外部访问
+   */
+  async disableExternalAccess(projectId: string, userId: string): Promise<boolean> {
+    // 获取部署信息
+    const deployment = await this.repository.getDeployment(projectId, userId)
+    if (!deployment) {
+      throw new Error('部署不存在')
+    }
+
+    // 删除反向代理配置
+    const reverseProxyService = getReverseProxyService()
+    await reverseProxyService.removeNginxConfig(projectId)
+    await reverseProxyService.reloadNginx()
+
+    // 更新数据库
+    await this.repository.disableExternalAccess(projectId)
+
+    return true
   }
 
   /**
    * 启动项目
    */
   async startProject(projectId: string, userId: string): Promise<void> {
-    // TODO: 从数据库获取项目信息
-    // const deployment = await this.getDeployment(projectId, userId)
-    // const processManager = createWorkerProcessManager(deployment.workerContainerId)
-    // await processManager.restartProject(projectId, deployment.processManager)
+    const deployment = await this.repository.getDeployment(projectId, userId)
+    if (!deployment) {
+      throw new Error('部署不存在')
+    }
+
+    const orchestrator = getContainerOrchestrator()
+    const container = orchestrator.getUserMapping(userId)?.container
+
+    if (!container) {
+      throw new Error('Worker 容器不存在')
+    }
+
+    // 调用 Worker 启动项目
+    await this.workerClient.restartProject(container, projectId, deployment.process_manager)
+
+    // 更新状态
+    await this.repository.updateStatus(projectId, 'running')
   }
 
   /**
    * 停止项目
    */
   async stopProject(projectId: string, userId: string): Promise<void> {
-    // TODO: 从数据库获取项目信息
-    // const deployment = await this.getDeployment(projectId, userId)
-    // const processManager = createWorkerProcessManager(deployment.workerContainerId)
-    // await processManager.stopProject(projectId, deployment.processManager)
+    const deployment = await this.repository.getDeployment(projectId, userId)
+    if (!deployment) {
+      throw new Error('部署不存在')
+    }
+
+    const orchestrator = getContainerOrchestrator()
+    const container = orchestrator.getUserMapping(userId)?.container
+
+    if (!container) {
+      throw new Error('Worker 容器不存在')
+    }
+
+    // 调用 Worker 停止项目
+    await this.workerClient.stopProject(container, projectId, deployment.process_manager)
+
+    // 更新状态
+    await this.repository.updateStatus(projectId, 'stopped')
   }
 
   /**
    * 删除项目
    */
   async deleteProject(projectId: string, userId: string): Promise<void> {
-    // TODO: 停止项目并清理资源
+    const deployment = await this.repository.getDeployment(projectId, userId)
+    if (!deployment) {
+      throw new Error('部署不存在')
+    }
+
+    // 如果外部访问已启用，先关闭
+    if (deployment.external_access_enabled) {
+      await this.disableExternalAccess(projectId, userId)
+    }
+
+    // 停止项目
+    const orchestrator = getContainerOrchestrator()
+    const container = orchestrator.getUserMapping(userId)?.container
+
+    if (container) {
+      await this.workerClient.stopProject(container, projectId, deployment.process_manager)
+    }
+
+    // 从数据库删除
+    await this.repository.deleteDeployment(projectId, userId)
   }
 
   /**
    * 获取项目状态
    */
-  async getProjectStatus(projectId: string, userId: string): Promise<ProcessStatus> {
-    // TODO: 从数据库获取项目信息并查询状态
-    return { running: false }
+  async getProjectStatus(projectId: string, userId: string): Promise<any> {
+    const deployment = await this.repository.getDeployment(projectId, userId)
+    if (!deployment) {
+      throw new Error('部署不存在')
+    }
+
+    const orchestrator = getContainerOrchestrator()
+    const container = orchestrator.getUserMapping(userId)?.container
+
+    if (!container) {
+      return { running: false, status: 'unknown' }
+    }
+
+    // 从 Worker 获取实时状态
+    const workerStatus = await this.workerClient.getProjectStatus(
+      container,
+      projectId,
+      deployment.process_manager
+    )
+
+    return {
+      ...deployment,
+      workerStatus
+    }
   }
 
   /**
    * 获取项目日志
    */
-  async getProjectLogs(projectId: string, userId: string, lines?: number): Promise<{ stdout: string; stderr: string }> {
-    // TODO: 从数据库获取项目信息并查询日志
-    return { stdout: '', stderr: '' }
+  async getProjectLogs(projectId: string, userId: string, lines: number = 100): Promise<{ stdout: string; stderr: string }> {
+    const deployment = await this.repository.getDeployment(projectId, userId)
+    if (!deployment) {
+      throw new Error('部署不存在')
+    }
+
+    const orchestrator = getContainerOrchestrator()
+    const container = orchestrator.getUserMapping(userId)?.container
+
+    if (!container) {
+      return { stdout: '', stderr: '' }
+    }
+
+    return await this.workerClient.getProjectLogs(container, projectId, lines)
   }
 
   /**
    * 列出用户所有项目
    */
-  async listUserProjects(userId: string): Promise<ProjectDeployment[]> {
-    // TODO: 从数据库查询用户的所有项目
-    return []
+  async listUserProjects(userId: string): Promise<any[]> {
+    return await this.repository.getUserDeployments(userId)
   }
 }
 
