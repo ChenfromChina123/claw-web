@@ -312,23 +312,23 @@ object ToolParser {
         var metrics: OutputMetrics? = null
 
         when (output) {
-            is String -> {
-                summary = truncateString(output, 150)
+            is kotlinx.serialization.json.JsonPrimitive -> {
+                val content = output.content
+                summary = truncateString(content, 150)
                 val fileMatches = Regex("[\\w\\-.\\\\/]+\\.(ts|tsx|js|jsx|json|md|txt|py|html|css)", RegexOption.IGNORE_CASE)
-                    .findAll(output).toList()
+                    .findAll(content).toList()
                 if (fileMatches.isNotEmpty()) {
                     metrics = OutputMetrics(files = fileMatches.size)
                     details.add("涉及 ${fileMatches.size} 个文件")
                 }
-                val lineMatch = Regex("(\\d+) lines?").find(output)
+                val lineMatch = Regex("(\\d+) lines?").find(content)
                 if (lineMatch != null) {
                     metrics = metrics?.copy(lines = lineMatch.groupValues[1].toIntOrNull())
                         ?: OutputMetrics(lines = lineMatch.groupValues[1].toIntOrNull())
                 }
             }
-            is Map<*, *> -> {
-                @Suppress("UNCHECKED_CAST")
-                val outputMap = output as Map<String, Any>
+            is kotlinx.serialization.json.JsonObject -> {
+                val outputMap = output.toMap()
 
                 // Git/Shell 输出
                 val stdout = outputMap["stdout"]?.toString() ?: outputMap["output"]?.toString() ?: ""
@@ -380,6 +380,14 @@ object ToolParser {
 
                 if (summary.isEmpty()) {
                     summary = truncateString(outputMap.toString(), 100)
+                }
+            }
+            is kotlinx.serialization.json.JsonArray -> {
+                val list = output.toList()
+                summary = truncateString(list.toString(), 150)
+                if (list.isNotEmpty()) {
+                    metrics = OutputMetrics(files = list.size)
+                    details.add("共 ${list.size} 项结果")
                 }
             }
             else -> {

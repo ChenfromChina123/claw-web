@@ -3,6 +3,7 @@ package com.example.claw_code_application.data.api.models
 import androidx.compose.runtime.Immutable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 @Immutable
@@ -18,7 +19,7 @@ data class ToolCall(
     @SerialName("toolInput")
     val toolInput: JsonObject,
     @SerialName("toolOutput")
-    val toolOutput: String? = null,
+    val toolOutput: JsonElement? = null,
     val status: String,
     val error: String? = null,
     @SerialName("createdAt")

@@ -305,16 +305,9 @@ class ChatViewModel(
                 val index = _toolCalls.indexOfFirst { it.id == event.id }
                 if (index != -1) {
                     val oldTool = _toolCalls[index]
-                    val outputStr = event.result?.let {
-                        try {
-                            json.encodeToString(JsonElement.serializer(), it)
-                        } catch (e: Exception) {
-                            it.toString()
-                        }
-                    }
                     val updatedTool = oldTool.copy(
                         status = "completed",
-                        toolOutput = outputStr,
+                        toolOutput = event.result,
                         completedAt = System.currentTimeMillis().toString()
                     )
                     scheduleToolUpdate(event.id, updatedTool)
@@ -345,16 +338,9 @@ class ChatViewModel(
                 if (index != -1) {
                     val oldTool = _toolCalls[index]
                     val newStatus = if (event.error != null) "error" else "completed"
-                    val outputStr = event.output?.let {
-                        try {
-                            json.encodeToString(JsonElement.serializer(), it)
-                        } catch (e: Exception) {
-                            it.toString()
-                        }
-                    }
                     val updatedTool = oldTool.copy(
                         status = newStatus,
-                        toolOutput = outputStr ?: oldTool.toolOutput,
+                        toolOutput = event.output ?: oldTool.toolOutput,
                         error = event.error ?: oldTool.error,
                         completedAt = System.currentTimeMillis().toString()
                     )

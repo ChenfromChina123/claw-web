@@ -7,6 +7,7 @@ import com.example.claw_code_application.data.api.models.SessionDetail
 import com.example.claw_code_application.data.api.models.ToolCall
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -88,7 +89,7 @@ object EntityMappers {
             messageId = messageId,
             toolName = toolName,
             toolInputJson = json.encodeToString(toolInput),
-            toolOutputJson = toolOutput,
+            toolOutputJson = toolOutput?.let { json.encodeToString(JsonElement.serializer(), it) },
             status = status,
             error = error,
             createdAt = createdAt,
@@ -103,7 +104,7 @@ object EntityMappers {
             sessionId = sessionId,
             toolName = toolName,
             toolInput = deserializeToolInput(toolInputJson),
-            toolOutput = toolOutputJson,
+            toolOutput = toolOutputJson?.let { deserializeToolOutput(it) },
             status = status,
             error = error,
             createdAt = createdAt,
@@ -144,6 +145,14 @@ object EntityMappers {
             json.parseToJsonElement(jsonStr).jsonObject
         } catch (e: Exception) {
             JsonObject(emptyMap())
+        }
+    }
+
+    private fun deserializeToolOutput(jsonStr: String): JsonElement {
+        return try {
+            json.parseToJsonElement(jsonStr)
+        } catch (e: Exception) {
+            kotlinx.serialization.json.JsonPrimitive(jsonStr)
         }
     }
 

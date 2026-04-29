@@ -463,17 +463,23 @@ private fun formatToolInput(input: Map<String, Any>): String {
     }
 }
 
-private fun formatToolOutput(output: String?): String {
+private fun formatToolOutput(output: kotlinx.serialization.json.JsonElement?): String {
     if (output == null) return ""
     return try {
         val json = JsonPool.getJson()
-        val element = json.parseToJsonElement(output)
-        if (element is kotlinx.serialization.json.JsonObject) {
-            json.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), element)
-        } else {
-            output
+        when (output) {
+            is kotlinx.serialization.json.JsonObject -> {
+                json.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), output)
+            }
+            is kotlinx.serialization.json.JsonArray -> {
+                json.encodeToString(kotlinx.serialization.json.JsonArray.serializer(), output)
+            }
+            is kotlinx.serialization.json.JsonPrimitive -> {
+                output.content
+            }
+            else -> output.toString()
         }
     } catch (e: Exception) {
-        output
+        output.toString()
     }
 }
