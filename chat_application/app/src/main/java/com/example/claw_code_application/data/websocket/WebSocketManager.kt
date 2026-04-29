@@ -225,6 +225,11 @@ class WebSocketManager {
                     handleEvent(event, data)
                 }
 
+                "ping" -> {
+                    // 服务器心跳检测，无需处理
+                    Log.d(TAG, "Received ping from server")
+                }
+
                 "error" -> {
                     val errorMessage = jsonObject["message"]?.jsonPrimitive?.content ?: "Unknown error"
                     Log.e(TAG, "Server error: $errorMessage")
