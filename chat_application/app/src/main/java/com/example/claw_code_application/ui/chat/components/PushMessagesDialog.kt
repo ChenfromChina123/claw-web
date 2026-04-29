@@ -22,7 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-nimport androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogProperties
 import com.example.claw_code_application.data.api.models.PushCategory
 import com.example.claw_code_application.data.api.models.PushPriority
 import com.example.claw_code_application.data.local.PushMessageItem
