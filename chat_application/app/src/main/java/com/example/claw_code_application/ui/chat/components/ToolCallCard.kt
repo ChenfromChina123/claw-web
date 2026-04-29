@@ -348,6 +348,7 @@ private data class StatusConfig(
     val backgroundColor: Color
 )
 
+@Composable
 private fun getStatusConfig(status: String): StatusConfig {
     return when (status) {
         "pending" -> StatusConfig(

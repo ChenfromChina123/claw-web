@@ -15,16 +15,17 @@ import com.mikepenz.markdown.m3.markdownTypography
  * Manus 风格 Markdown 颜色配置
  * 使用 mikepenz 库的 markdownColor 工厂函数
  * 版本 0.27.0 支持的参数有限，仅使用基础颜色配置
+ * 支持主题切换
  */
 @Composable
 fun markdownColors() = markdownColor(
-    text = if (isSystemInDarkTheme()) AppColor.DarkTextPrimary else AppColor.TextPrimary,
-    codeText = if (isSystemInDarkTheme()) Color(0xFFE06C75) else Color(0xFFD63384),
-    codeBackground = if (isSystemInDarkTheme()) Color(0xFF1E1E1E) else Color(0xFFF5F5F7),
-    inlineCodeText = if (isSystemInDarkTheme()) Color(0xFFE06C75) else Color(0xFFD63384),
-    inlineCodeBackground = if (isSystemInDarkTheme()) Color(0xFF2D2D3A) else Color(0xFFE8E8ED),
-    dividerColor = if (isSystemInDarkTheme()) AppColor.DarkDivider else AppColor.Divider,
-    linkText = if (isSystemInDarkTheme()) Color(0xFF818CF8) else Color(0xFF007AFF),
+    text = AppColor.TextPrimary,
+    codeText = AppColor.PrimaryLight,
+    codeBackground = AppColor.CodeBackground,
+    inlineCodeText = AppColor.PrimaryLight,
+    inlineCodeBackground = AppColor.SurfaceVariant,
+    dividerColor = AppColor.Divider,
+    linkText = AppColor.PrimaryLight,
 )
 
 /**
