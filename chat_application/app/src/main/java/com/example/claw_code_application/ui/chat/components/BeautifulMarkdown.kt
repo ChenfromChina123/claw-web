@@ -11,8 +11,8 @@ import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.m3.Markdown
 
 /**
- * Markdown渲染组件 - 简化版
- * 使用默认样式避免版本兼容问题
+ * Manus 风格 Markdown 渲染组件
+ * 集成自定义颜色、字体排版和间距配置
  *
  * @param markdown Markdown文本内容
  * @param isStreaming 是否正在流式输出
@@ -24,6 +24,9 @@ fun BeautifulMarkdown(
     isStreaming: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val colors = markdownColors()
+    val typography = markdownTypography()
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -33,7 +36,11 @@ fun BeautifulMarkdown(
             content = markdown,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp)
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            colors = colors,
+            typography = typography,
+            disableFancyListBullets = false,
+            tightList = false
         )
     }
 }
