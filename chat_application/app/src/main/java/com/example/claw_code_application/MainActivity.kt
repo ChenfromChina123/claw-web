@@ -314,6 +314,12 @@ private fun ChatMainScreen(
                                 onDelete = { sessionId ->
                                     sessionViewModel.deleteSession(sessionId)
                                 },
+                                onPin = { sessionId, isPinned ->
+                                    sessionViewModel.pinSession(sessionId, isPinned)
+                                },
+                                onRename = { sessionId, newTitle ->
+                                    sessionViewModel.renameSession(sessionId, newTitle)
+                                },
                                 onAvatarClick = { showSettingsDrawer = true },
                                 modifier = Modifier.fillMaxSize()
                             )

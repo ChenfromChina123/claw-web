@@ -30,6 +30,18 @@ data class CreateSessionRequest(
     val model: String = "qwen-plus"
 )
 
+/**
+ * 更新会话请求
+ * 用于重命名、置顶/取消置顶等操作
+ */
+@Serializable
+data class UpdateSessionRequest(
+    val title: String? = null,
+    val model: String? = null,
+    @SerialName("isPinned")
+    val isPinned: Boolean? = null
+)
+
 @Serializable
 data class SessionDetail(
     val session: Session,

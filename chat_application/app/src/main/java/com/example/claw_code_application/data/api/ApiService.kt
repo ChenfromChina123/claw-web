@@ -84,6 +84,19 @@ interface ApiService {
         @Path("id") sessionId: String
     ): Response<ApiResponse<Unit>>
 
+    /**
+     * 更新会话信息（重命名、置顶等）
+     * Authorization 头由 AuthInterceptor 自动添加
+     * @param sessionId 会话ID
+     * @param request 更新请求（标题、置顶状态等）
+     * @return 更新后的会话信息
+     */
+    @PUT("/api/sessions/{id}")
+    suspend fun updateSession(
+        @Path("id") sessionId: String,
+        @Body request: UpdateSessionRequest
+    ): Response<ApiResponse<Session>>
+
     // ==================== Agent 执行 API ====================
 
     /**
@@ -125,4 +138,23 @@ interface ApiService {
     fun getImageUrl(imageId: String): String {
         return "${NetworkConfig.getBaseUrl()}api/chat/images/$imageId"
     }
+
+    // ==================== 文件上传 API (到 Worker 工作区) ====================
+
+    /**
+     * 上传文件到 Agent 工作目录
+     * 文件将被上传到用户的 Worker 容器工作区中
+     *
+     * @param files 要上传的文件列表 (MultipartBody.Part)
+     * @param sessionId 会话ID (用于确定工作区)
+     * @param directory 目标目录 (默认为 "uploads")
+     * @return 上传结果，包含成功和失败的文件列表
+     */
+    @Multipart
+    @POST("/api/agent/workdir/upload")
+    suspend fun uploadFilesToWorkdir(
+        @Part files: List<MultipartBody.Part>,
+        @Part("sessionId") sessionId: RequestBody,
+        @Part("directory") directory: RequestBody? = null
+    ): Response<ApiResponse<FileUploadResult>>
 }

@@ -36,9 +36,9 @@ coilCompose = "2.5.0"
 # Accompanist
 accompanistSystemUiController = "0.34.0"
 # Markdown渲染 - 使用 mikepenz multiplatform-markdown-renderer (Material3 + 代码高亮)
-# 升级到 0.39.2 以获得表格支持（从 0.30.0 开始支持表格）
-markdownRenderer = "0.39.2"
-markdownCode = "0.39.2"
+# 升级到 0.31.0 版本，与 Kotlin 2.0.21 兼容，支持表格
+markdownRenderer = "0.31.0"
+markdownCode = "0.31.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }

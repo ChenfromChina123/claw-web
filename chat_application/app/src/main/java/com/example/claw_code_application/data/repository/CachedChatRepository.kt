@@ -4,6 +4,7 @@ import com.example.claw_code_application.data.api.ApiService
 import com.example.claw_code_application.data.api.models.CreateSessionRequest
 import com.example.claw_code_application.data.api.models.ExecuteAgentRequest
 import com.example.claw_code_application.data.api.models.ExecuteAgentResponse
+import com.example.claw_code_application.data.api.models.FileUploadResult
 import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.data.api.models.Session
 import com.example.claw_code_application.data.api.models.SessionDetail
@@ -30,6 +31,9 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * 带本地缓存的聊天数据仓库
@@ -341,6 +345,42 @@ class CachedChatRepository(
         }
     }
 
+    /**
+     * 更新会话信息（重命名、置顶/取消置顶）
+     * @param sessionId 会话ID
+     * @param title 新标题（可选）
+     * @param isPinned 置顶状态（可选）
+     * @return 更新后的会话
+     */
+    suspend fun updateSession(
+        sessionId: String,
+        title: String? = null,
+        isPinned: Boolean? = null
+    ): Result<Session> = withContext(Dispatchers.IO) {
+        try {
+            val token = tokenManager.getTokenSync()
+            if (token.isNullOrBlank()) {
+                return@withContext Result.Error("未登录，请先登录")
+            }
+
+            val request = UpdateSessionRequest(title = title, isPinned = isPinned)
+            val response = apiService.updateSession(sessionId, request)
+
+            if (response.isSuccessful && response.body()?.data != null) {
+                val updatedSession = response.body()!!.data!!
+                // 更新本地缓存
+                sessionDao.insertSession(updatedSession.toEntity())
+                Logger.i(TAG, "更新会话成功并更新缓存: $sessionId")
+                Result.Success(updatedSession)
+            } else {
+                Result.Error("更新会话失败: ${response.code()}")
+            }
+        } catch (e: Exception) {
+            Logger.e(TAG, "更新会话失败", e)
+            Result.Error(e.message ?: "更新会话失败", e)
+        }
+    }
+
     // ==================== Agent执行 ====================
 
     /**
@@ -405,6 +445,98 @@ class CachedChatRepository(
         } catch (e: Exception) {
             Logger.e(TAG, "中断Agent异常", e)
             Result.Error(e.message ?: "中断Agent失败", e)
+        }
+    }
+
+    // ==================== 文件上传 ====================
+
+    /**
+     * 上传文件到 Worker 工作区
+     * 文件将被上传到用户的 Worker 容器工作区中，供 Agent 使用
+     *
+     * @param sessionId 会话ID (用于确定目标工作区)
+     * @param fileContents 文件内容列表 (文件名 to 字节数组)
+     * @param directory 目标目录 (默认为 "uploads")
+     * @return 上传结果
+     */
+    suspend fun uploadFilesToWorkdir(
+        sessionId: String,
+        fileContents: List<Pair<String, ByteArray>>,
+        directory: String = "uploads"
+    ): Result<FileUploadResult> = withContext(Dispatchers.IO) {
+        try {
+            val token = tokenManager.getTokenSync()
+            if (token.isNullOrBlank()) {
+                return@withContext Result.Error("未登录，请先登录")
+            }
+
+            Logger.d(TAG, "开始上传文件到工作区: sessionId=$sessionId, 文件数=${fileContents.size}")
+
+            // 构建 Multipart 请求体
+            val fileParts = fileContents.map { (fileName, content) ->
+                val mimeType = guessMimeType(fileName)
+                val requestBody = content.toRequestBody(mimeType.toMediaTypeOrNull())
+                MultipartBody.Part.createFormData(
+                    "files",
+                    fileName,
+                    requestBody
+                )
+            }
+
+            val sessionIdBody = sessionId.toRequestBody("text/plain".toMediaTypeOrNull())
+            val directoryBody = directory.toRequestBody("text/plain".toMediaTypeOrNull())
+
+            val response = apiService.uploadFilesToWorkdir(
+                files = fileParts,
+                sessionId = sessionIdBody,
+                directory = directoryBody
+            )
+
+            if (response.isSuccessful && response.body()?.data != null) {
+                val result = response.body()!!.data!!
+                Logger.i(TAG, "文件上传成功: ${result.message}")
+                Result.Success(result)
+            } else {
+                val errorBody = response.errorBody()?.string()
+                Logger.e(TAG, "文件上传失败: HTTP ${response.code()}, $errorBody")
+                Result.Error("文件上传失败: ${response.code()}")
+            }
+        } catch (e: Exception) {
+            Logger.e(TAG, "文件上传异常", e)
+            Result.Error(e.message ?: "文件上传失败", e)
+        }
+    }
+
+    /**
+     * 根据文件名猜测 MIME 类型
+     */
+    private fun guessMimeType(fileName: String): String {
+        return when {
+            fileName.endsWith(".jpg", ignoreCase = true) || fileName.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
+            fileName.endsWith(".png", ignoreCase = true) -> "image/png"
+            fileName.endsWith(".gif", ignoreCase = true) -> "image/gif"
+            fileName.endsWith(".webp", ignoreCase = true) -> "image/webp"
+            fileName.endsWith(".pdf", ignoreCase = true) -> "application/pdf"
+            fileName.endsWith(".txt", ignoreCase = true) -> "text/plain"
+            fileName.endsWith(".md", ignoreCase = true) -> "text/markdown"
+            fileName.endsWith(".json", ignoreCase = true) -> "application/json"
+            fileName.endsWith(".xml", ignoreCase = true) -> "application/xml"
+            fileName.endsWith(".html", ignoreCase = true) -> "text/html"
+            fileName.endsWith(".css", ignoreCase = true) -> "text/css"
+            fileName.endsWith(".js", ignoreCase = true) -> "application/javascript"
+            fileName.endsWith(".ts", ignoreCase = true) -> "application/typescript"
+            fileName.endsWith(".zip", ignoreCase = true) -> "application/zip"
+            fileName.endsWith(".tar", ignoreCase = true) -> "application/x-tar"
+            fileName.endsWith(".gz", ignoreCase = true) -> "application/gzip"
+            fileName.endsWith(".mp4", ignoreCase = true) -> "video/mp4"
+            fileName.endsWith(".mp3", ignoreCase = true) -> "audio/mpeg"
+            fileName.endsWith(".doc", ignoreCase = true) -> "application/msword"
+            fileName.endsWith(".docx", ignoreCase = true) -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            fileName.endsWith(".xls", ignoreCase = true) -> "application/vnd.ms-excel"
+            fileName.endsWith(".xlsx", ignoreCase = true) -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            fileName.endsWith(".ppt", ignoreCase = true) -> "application/vnd.ms-powerpoint"
+            fileName.endsWith(".pptx", ignoreCase = true) -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            else -> "application/octet-stream"
         }
     }
 

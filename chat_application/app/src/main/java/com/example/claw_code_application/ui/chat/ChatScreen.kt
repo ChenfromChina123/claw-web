@@ -52,6 +52,7 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     var showBottomSheet by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    var showFilePicker by remember { mutableStateOf(false) }
 
     val displayMessages = viewModel.displayMessages
 
@@ -83,7 +84,7 @@ fun ChatScreen(
             InputBar(
                 onSend = onSend,
                 enabled = uiState !is ChatViewModel.UiState.Loading,
-                onAddClick = { showBottomSheet = true }
+                onAddClick = { showFilePicker = true }
             )
         },
         containerColor = colors.Background
@@ -115,6 +116,35 @@ fun ChatScreen(
             ToolBottomSheet(
                 onDismiss = { showBottomSheet = false }
             )
+        }
+    }
+
+    // 文件选择器对话框
+    if (showFilePicker) {
+        val currentSessionId = viewModel.currentSessionId
+        if (currentSessionId != null) {
+            FilePickerDialog(
+                onDismiss = { showFilePicker = false },
+                onFilesSelected = { files ->
+                    showFilePicker = false
+                    // 上传文件到工作区
+                    viewModel.uploadFilesToWorkdir(
+                        files = files,
+                        directory = "uploads",
+                        onComplete = { successCount, failedCount, failedNames ->
+                            // 上传完成后的处理（可以显示 Toast 或 Snackbar）
+                            android.util.Log.i(
+                                "ChatScreen",
+                                "文件上传完成: 成功=$successCount, 失败=$failedCount"
+                            )
+                        }
+                    )
+                },
+                sessionId = currentSessionId
+            )
+        } else {
+            // 如果没有会话，先创建一个
+            showFilePicker = false
         }
     }
 }

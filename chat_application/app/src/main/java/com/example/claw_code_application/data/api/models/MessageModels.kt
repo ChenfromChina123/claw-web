@@ -33,3 +33,37 @@ data class ImageUploadResult(
     val url: String,
     val originalName: String? = null
 )
+
+/**
+ * 文件上传结果
+ */
+@Immutable
+@Serializable
+data class FileUploadResult(
+    val success: Boolean,
+    val uploaded: List<UploadedFileInfo>,
+    val failed: List<FailedFileInfo>,
+    val total: Int,
+    val message: String
+)
+
+/**
+ * 上传成功的文件信息
+ */
+@Immutable
+@Serializable
+data class UploadedFileInfo(
+    val path: String,
+    val name: String,
+    val size: Long
+)
+
+/**
+ * 上传失败的文件信息
+ */
+@Immutable
+@Serializable
+data class FailedFileInfo(
+    val name: String,
+    val reason: String
+)

@@ -16,6 +16,7 @@ import com.example.claw_code_application.data.repository.CachedChatRepository
 import com.example.claw_code_application.data.websocket.WebSocketManager
 import com.example.claw_code_application.service.NotificationManager
 import com.example.claw_code_application.ui.chat.components.shouldShowMessage
+import com.example.claw_code_application.util.FileInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -614,6 +615,81 @@ class ChatViewModel(
                 )
             } catch (e: Exception) {
                 // 忽略中断错误
+            }
+        }
+    }
+
+    // ==================== 文件上传 ====================
+
+    /**
+     * 上传文件到 Worker 工作区
+     *
+     * @param files 要上传的文件列表
+     * @param directory 目标目录 (默认为 "uploads")
+     * @param onProgress 进度回调 (当前索引, 总数, 当前文件名)
+     * @param onComplete 完成回调 (成功数量, 失败数量, 失败文件名列表)
+     */
+    fun uploadFilesToWorkdir(
+        files: List<FileInfo>,
+        directory: String = "uploads",
+        onProgress: ((Int, Int, String) -> Unit)? = null,
+        onComplete: (Int, Int, List<String>) -> Unit
+    ) {
+        viewModelScope.launch {
+            val sessionId = currentSessionId
+            if (sessionId == null) {
+                onComplete(0, files.size, files.map { it.name })
+                return@launch
+            }
+
+            if (files.isEmpty()) {
+                onComplete(0, 0, emptyList())
+                return@launch
+            }
+
+            android.util.Log.d(TAG, "开始上传文件到工作区: sessionId=$sessionId, 文件数=${files.size}")
+
+            // 转换文件列表
+            val fileContents = files.map { it.name to it.content }
+
+            // 调用 Repository 上传
+            val result = cachedChatRepository.uploadFilesToWorkdir(
+                sessionId = sessionId,
+                fileContents = fileContents,
+                directory = directory
+            )
+
+            when (result) {
+                is CachedChatRepository.Result.Success -> {
+                    val uploadResult = result.data
+                    val successCount = uploadResult.uploaded.size
+                    val failedCount = uploadResult.failed.size
+                    val failedNames = uploadResult.failed.map { it.name }
+
+                    android.util.Log.i(TAG, "文件上传完成: 成功=$successCount, 失败=$failedCount")
+
+                    // 发送系统消息通知用户文件已上传
+                    if (successCount > 0) {
+                        val fileNames = uploadResult.uploaded.joinToString(", ") { it.name }
+                        val systemMessage = Message(
+                            id = UUID.randomUUID().toString(),
+                            role = "system",
+                            content = "📎 已上传 $successCount 个文件到工作区: $fileNames",
+                            timestamp = System.currentTimeMillis().toString()
+                        )
+                        _messages.add(systemMessage)
+                        emitUiStateUpdate()
+                    }
+
+                    onComplete(successCount, failedCount, failedNames)
+                }
+                is CachedChatRepository.Result.Error -> {
+                    android.util.Log.e(TAG, "文件上传失败: ${result.message}")
+                    onComplete(0, files.size, files.map { it.name })
+                }
+                is CachedChatRepository.Result.Loading -> {
+                    // 忽略加载状态
+                }
             }
         }
     }

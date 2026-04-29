@@ -47,6 +47,7 @@ class SessionViewModel(
     /**
      * 加载会话列表
      * 使用缓存优先策略：先显示本地缓存，后台更新网络数据
+     * 加载后自动按置顶状态排序
      */
     fun loadSessions(forceRefresh: Boolean = false) {
         Logger.d(TAG, "开始加载会话列表... forceRefresh=$forceRefresh")
@@ -68,7 +69,12 @@ class SessionViewModel(
                             Logger.w(TAG, "发现重复会话，已去重: ${list.size - uniqueSessions.size} 个")
                         }
                         _sessions.clear()
-                        _sessions.addAll(uniqueSessions)
+                        // 按置顶状态排序后添加
+                        val sortedSessions = uniqueSessions.sortedWith(
+                            compareByDescending<Session> { it.isPinned }
+                                .thenByDescending { it.updatedAt }
+                        )
+                        _sessions.addAll(sortedSessions)
                         _uiState.value = UiState.Success(_sessions.toList())
                         Logger.d(TAG, "UI状态: Success, 会话数: ${_sessions.size}")
                     }
@@ -153,6 +159,84 @@ class SessionViewModel(
                 }
             }
         }
+    }
+
+    /**
+     * 置顶/取消置顶会话
+     * @param sessionId 会话ID
+     * @param isPinned 是否置顶
+     */
+    fun pinSession(sessionId: String, isPinned: Boolean) {
+        Logger.d(TAG, "开始${if (isPinned) "置顶" else "取消置顶"}会话: $sessionId")
+        viewModelScope.launch {
+            val result = chatRepository.updateSession(sessionId, isPinned = isPinned)
+            when (result) {
+                is CachedChatRepository.Result.Success -> {
+                    Logger.i(TAG, "${if (isPinned) "置顶" else "取消置顶"}会话成功: $sessionId")
+                    // 更新本地会话列表
+                    val index = _sessions.indexOfFirst { it.id == sessionId }
+                    if (index != -1) {
+                        val updatedSession = _sessions[index].copy(isPinned = isPinned)
+                        _sessions[index] = updatedSession
+                        // 重新排序：置顶的在前，按时间倒序
+                        sortSessions()
+                    }
+                    _uiState.value = UiState.Success(_sessions.toList())
+                }
+                is CachedChatRepository.Result.Error -> {
+                    val errorMsg = result.message
+                    Logger.e(TAG, "${if (isPinned) "置顶" else "取消置顶"}会话失败: $errorMsg")
+                    _uiState.value = UiState.Error(errorMsg)
+                }
+                is CachedChatRepository.Result.Loading -> {
+                    // 忽略
+                }
+            }
+        }
+    }
+
+    /**
+     * 重命名会话
+     * @param sessionId 会话ID
+     * @param newTitle 新标题
+     */
+    fun renameSession(sessionId: String, newTitle: String) {
+        Logger.d(TAG, "开始重命名会话: $sessionId -> $newTitle")
+        viewModelScope.launch {
+            val result = chatRepository.updateSession(sessionId, title = newTitle)
+            when (result) {
+                is CachedChatRepository.Result.Success -> {
+                    Logger.i(TAG, "重命名会话成功: $sessionId")
+                    // 更新本地会话列表
+                    val index = _sessions.indexOfFirst { it.id == sessionId }
+                    if (index != -1) {
+                        val updatedSession = _sessions[index].copy(title = newTitle)
+                        _sessions[index] = updatedSession
+                    }
+                    _uiState.value = UiState.Success(_sessions.toList())
+                }
+                is CachedChatRepository.Result.Error -> {
+                    val errorMsg = result.message
+                    Logger.e(TAG, "重命名会话失败: $errorMsg")
+                    _uiState.value = UiState.Error(errorMsg)
+                }
+                is CachedChatRepository.Result.Loading -> {
+                    // 忽略
+                }
+            }
+        }
+    }
+
+    /**
+     * 排序会话列表：置顶的在前，然后按更新时间倒序
+     */
+    private fun sortSessions() {
+        val sortedList = _sessions.sortedWith(
+            compareByDescending<Session> { it.isPinned }
+                .thenByDescending { it.updatedAt }
+        )
+        _sessions.clear()
+        _sessions.addAll(sortedList)
     }
 
     /**

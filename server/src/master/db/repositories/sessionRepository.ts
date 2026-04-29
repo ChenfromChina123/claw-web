@@ -112,6 +112,7 @@ export class SessionRepository {
     const pool = getPool() as Pool
     console.log(`[SessionRepo] findByUserId: userId=${userId}`)
     // 联表查询最后一条消息的预览内容（取前100个字符）
+    // 按置顶状态优先排序，置顶的在前，然后按更新时间倒序
     const [rows] = await pool.query(
       `SELECT s.*, 
         SUBSTRING(m.content, 1, 100) as last_message
@@ -128,7 +129,7 @@ export class SessionRepository {
          )
        ) m ON s.id = m.session_id
        WHERE s.user_id = ? 
-       ORDER BY s.updated_at DESC`,
+       ORDER BY s.is_pinned DESC, s.updated_at DESC`,
       [userId]
     ) as [any[], unknown]
     console.log(`[SessionRepo] findByUserId: found ${rows.length} sessions for user ${userId}`)

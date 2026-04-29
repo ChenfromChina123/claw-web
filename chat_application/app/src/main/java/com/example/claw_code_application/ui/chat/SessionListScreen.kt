@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -34,8 +35,11 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.InsertChart
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,8 +60,9 @@ import java.util.*
  * 会话列表界面 - Manus 风格设计
  * 集成搜索功能和滑动删除，支持暗色主题
  * 显示最新消息摘要和AI运行状态
+ * 支持长按菜单：置顶、重命名、删除
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SessionListScreen(
     sessions: List<Session>,
@@ -65,6 +70,8 @@ fun SessionListScreen(
     onSelect: (String) -> Unit,
     onCreateNew: () -> Unit,
     onDelete: (String) -> Unit,
+    onPin: (String, Boolean) -> Unit,
+    onRename: (String, String) -> Unit,
     onAvatarClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -74,7 +81,7 @@ fun SessionListScreen(
     val isDarkTheme = !isSystemInDarkTheme().not()
 
     val sessionDisplayData = remember(
-        sessions.map { it.id to it.updatedAt to it.lastMessage to it.isRunning }.hashCode()
+        sessions.map { it.id to it.updatedAt to it.lastMessage to it.isRunning to it.isPinned }.hashCode()
     ) {
         sessions.map { session ->
             SessionDisplayData(
@@ -84,7 +91,8 @@ fun SessionListScreen(
                 timeText = formatTime(session.updatedAt),
                 iconType = getIconType(session.title),
                 iconBgColor = getIconBgColor(session.title, isDarkTheme),
-                isRunning = session.isRunning
+                isRunning = session.isRunning,
+                isPinned = session.isPinned
             )
         }
     }
@@ -145,7 +153,9 @@ fun SessionListScreen(
                             item = item,
                             isSelected = item.id == currentSessionId,
                             onClick = { onSelect(item.id) },
-                            onDelete = { onDelete(item.id) }
+                            onDelete = { onDelete(item.id) },
+                            onPin = { onPin(item.id, !item.isPinned) },
+                            onRename = { onRename(item.id, item.title) }
                         )
                     }
                 }
@@ -182,7 +192,8 @@ private data class SessionDisplayData(
     val timeText: String,
     val iconType: IconType,
     val iconBgColor: Color,
-    val isRunning: Boolean = false
+    val isRunning: Boolean = false,
+    val isPinned: Boolean = false
 )
 
 /**
@@ -299,17 +310,24 @@ private fun TopAppBarWithSearch(
 /**
  * 滑动删除的会话列表项
  * 包含删除确认对话框，防止误删
+ * 支持长按弹出操作菜单（置顶、重命名、删除）
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun SwipeToDismissSessionItem(
     item: SessionDisplayData,
     isSelected: Boolean,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onPin: () -> Unit,
+    onRename: (String) -> Unit
 ) {
     // 删除确认对话框显示状态
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    // 重命名对话框显示状态
+    var showRenameDialog by remember { mutableStateOf(false) }
+    // 长按菜单显示状态
+    var showActionMenu by remember { mutableStateOf(false) }
     // 标记是否需要执行删除（用户已确认）
     var confirmedDelete by remember { mutableStateOf(false) }
 
@@ -358,6 +376,60 @@ private fun SwipeToDismissSessionItem(
         )
     }
 
+    // 重命名对话框
+    if (showRenameDialog) {
+        var newTitleValue by remember { mutableStateOf(TextFieldValue(item.title)) }
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("重命名会话") },
+            text = {
+                OutlinedTextField(
+                    value = newTitleValue,
+                    onValueChange = { newTitleValue = it },
+                    label = { Text("会话名称") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRenameDialog = false
+                        onRename(newTitleValue.text)
+                    },
+                    enabled = newTitleValue.text.isNotBlank()
+                ) {
+                    Text("确定")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    // 长按操作菜单
+    if (showActionMenu) {
+        SessionActionMenu(
+            isPinned = item.isPinned,
+            onDismiss = { showActionMenu = false },
+            onPin = {
+                showActionMenu = false
+                onPin()
+            },
+            onRename = {
+                showActionMenu = false
+                showRenameDialog = true
+            },
+            onDelete = {
+                showActionMenu = false
+                showDeleteConfirmDialog = true
+            }
+        )
+    }
+
     SwipeToDismissBox(
         state = dismissState,
         backgroundContent = {
@@ -386,24 +458,29 @@ private fun SwipeToDismissSessionItem(
         SessionItem(
             item = item,
             isSelected = isSelected,
-            onClick = onClick
+            onClick = onClick,
+            onLongClick = { showActionMenu = true }
         )
     }
 }
 
 /**
  * 会话列表项 - 显示标题、最新消息摘要和AI运行状态
+ * 支持长按操作，置顶会话显示深色背景
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SessionItem(
     item: SessionDisplayData,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
-    val itemBgColor = if (isSelected) {
-        MaterialTheme.colorScheme.surfaceVariant
-    } else {
-        MaterialTheme.colorScheme.surface
+    // 置顶会话使用更深的背景色
+    val itemBgColor = when {
+        isSelected -> MaterialTheme.colorScheme.surfaceVariant
+        item.isPinned -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+        else -> MaterialTheme.colorScheme.surface
     }
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -413,7 +490,12 @@ private fun SessionItem(
             .fillMaxWidth()
             .height(72.dp)
             .background(itemBgColor)
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -450,14 +532,29 @@ private fun SessionItem(
                 .fillMaxHeight(),
             verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = item.title,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = onSurfaceColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 置顶图标
+                if (item.isPinned) {
+                    Icon(
+                        imageVector = Icons.Default.PushPin,
+                        contentDescription = "已置顶",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .size(14.dp)
+                            .padding(end = 4.dp)
+                    )
+                }
+                Text(
+                    text = item.title,
+                    fontSize = 16.sp,
+                    fontWeight = if (item.isPinned) FontWeight.Bold else FontWeight.SemiBold,
+                    color = onSurfaceColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = item.previewText,
@@ -685,3 +782,68 @@ private fun SearchEmptyState() {
         }
     }
 }
+
+/**
+ * 会话长按操作菜单
+ * 提供置顶、重命名、删除选项
+ */
+@Composable
+private fun SessionActionMenu(
+    isPinned: Boolean,
+    onDismiss: () -> Unit,
+    onPin: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("会话操作") },
+        text = {
+            Column {
+                // 置顶/取消置顶选项
+                ListItem(
+                    headlineContent = { Text(if (isPinned) "取消置顶" else "置顶会话") },
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = null,
+                            tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    modifier = Modifier.clickable { onPin() }
+                )
+                // 重命名选项
+                ListItem(
+                    headlineContent = { Text("重命名") },
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = null
+                        )
+                    },
+                    modifier = Modifier.clickable { onRename() }
+                )
+                // 删除选项
+                ListItem(
+                    headlineContent = { Text("删除会话", color = MaterialTheme.colorScheme.error) },
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    },
+                    modifier = Modifier.clickable { onDelete() }
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
+}
+
+
