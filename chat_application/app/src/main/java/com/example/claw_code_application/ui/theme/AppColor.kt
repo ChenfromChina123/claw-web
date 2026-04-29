@@ -151,6 +151,153 @@ object AppColor {
         @Composable
         @ReadOnlyComposable
         get() = LocalAppColors.current
+
+    // 向后兼容的别名 - 这些直接委托给 current
+    val Primary: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.Primary
+    
+    val PrimaryLight: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.PrimaryLight
+    
+    val Background: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.Background
+    
+    val Surface: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.Surface
+    
+    val SurfaceVariant: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.SurfaceVariant
+    
+    val TextPrimary: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.TextPrimary
+    
+    val TextSecondary: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.TextSecondary
+    
+    val Border: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.Border
+    
+    val Divider: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.Divider
+    
+    val Success: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.Success
+    
+    val Error: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.Error
+    
+    val Warning: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.Warning
+    
+    val Info: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.Info
+    
+    val UserBubbleBackground: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.UserBubbleBackground
+    
+    val AssistantBubbleBackground: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.AssistantBubbleBackground
+    
+    val CodeBackground: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.CodeBackground
+    
+    val SuccessBackground: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.SuccessBackground
+    
+    val SuccessText: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.SuccessText
+    
+    val ErrorBackground: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.ErrorBackground
+    
+    val ErrorText: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.ErrorText
+    
+    val WarningBackground: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.WarningBackground
+    
+    val WarningText: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.WarningText
+    
+    val InfoBackground: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.InfoBackground
+    
+    val InfoText: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.InfoText
+    
+    val TaskCompleted: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.TaskCompleted
+    
+    val TaskIconBorder: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.TaskIconBorder
+    
+    // 向后兼容的旧颜色名
+    val SurfaceDark: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.Surface
+    
+    val BackgroundDark: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.Background
+    
+    val SurfaceLight: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = current.SurfaceVariant
 }
 
 /**

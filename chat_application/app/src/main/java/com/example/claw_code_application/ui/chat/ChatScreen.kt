@@ -38,6 +38,7 @@ import com.example.claw_code_application.viewmodel.ChatViewModel
  * - 极简、克制、专业
  * - 消息气泡逐行淡入显示
  * - 加载动效简洁流畅
+ * - 支持主题切换
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +47,7 @@ fun ChatScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colors = AppColor.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     var showBottomSheet by remember { mutableStateOf(false) }
@@ -84,7 +86,7 @@ fun ChatScreen(
                 onAddClick = { showBottomSheet = true }
             )
         },
-        containerColor = AppColor.BackgroundDark
+        containerColor = colors.Background
     ) { paddingValues ->
         Box(
             modifier = modifier
@@ -107,7 +109,7 @@ fun ChatScreen(
     if (showBottomSheet) {
         ModalBottomSheet(
             onDismissRequest = { showBottomSheet = false },
-            containerColor = Color.White,
+            containerColor = colors.Surface,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
         ) {
             ToolBottomSheet(
@@ -122,6 +124,7 @@ fun ChatScreen(
  */
 @Composable
 private fun ChatEmptyState() {
+    val colors = AppColor.current
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
@@ -131,13 +134,13 @@ private fun ChatEmptyState() {
                 text = "开始新对话",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = AppColor.TextPrimary
+                color = colors.TextPrimary
             )
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = "输入消息，让 Agent 为您工作",
                 fontSize = 14.sp,
-                color = AppColor.TextSecondary
+                color = colors.TextSecondary
             )
         }
     }
@@ -153,23 +156,24 @@ private fun ChatTopBar(
     showMoreMenu: Boolean,
     onMoreMenuChange: (Boolean) -> Unit
 ) {
+    val colors = AppColor.current
     TopAppBar(
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "收藏家",
-                    color = AppColor.TextPrimary,
+                    color = colors.TextPrimary,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 17.sp
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Surface(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
-                    color = Color(0xFFF5F5F7)
+                    color = colors.SurfaceVariant
                 ) {
                     Text(
                         text = "1.6 Lite",
-                        color = AppColor.TextSecondary,
+                        color = colors.TextSecondary,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
@@ -181,7 +185,7 @@ private fun ChatTopBar(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "返回",
-                    tint = AppColor.TextPrimary
+                    tint = colors.TextPrimary
                 )
             }
         },
@@ -189,13 +193,13 @@ private fun ChatTopBar(
             Icon(
                 imageVector = Icons.Default.Person,
                 contentDescription = "用户",
-                tint = AppColor.TextSecondary,
+                tint = colors.TextSecondary,
                 modifier = Modifier.padding(end = 8.dp)
             )
             Icon(
                 imageVector = Icons.Default.Link,
                 contentDescription = "链接",
-                tint = AppColor.TextSecondary,
+                tint = colors.TextSecondary,
                 modifier = Modifier.padding(end = 8.dp)
             )
             Box {
@@ -203,7 +207,7 @@ private fun ChatTopBar(
                     Icon(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = "更多",
-                        tint = AppColor.TextSecondary
+                        tint = colors.TextSecondary
                     )
                 }
                 DropdownMenu(
@@ -225,15 +229,15 @@ private fun ChatTopBar(
                     )
                     HorizontalDivider()
                     DropdownMenuItem(
-                        text = { Text("删除会话", color = AppColor.Error) },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AppColor.Error) },
+                        text = { Text("删除会话", color = colors.Error) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = colors.Error) },
                         onClick = { onMoreMenuChange(false) }
                     )
                 }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color.White
+            containerColor = colors.Surface
         )
     )
 }
@@ -253,6 +257,7 @@ private fun ChatMessageList(
     uiState: ChatViewModel.UiState,
     listState: androidx.compose.foundation.lazy.LazyListState
 ) {
+    val colors = AppColor.current
     LazyColumn(
         state = listState,
         reverseLayout = true,
@@ -308,7 +313,6 @@ private fun ChatMessageList(
                         .padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Manus风格的简洁加载动画
                     val infiniteTransition = rememberInfiniteTransition(label = "loading")
                     val alpha by infiniteTransition.animateFloat(
                         initialValue = 0.3f,
@@ -329,7 +333,7 @@ private fun ChatMessageList(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .background(
-                                        color = AppColor.PrimaryLight.copy(alpha = alpha),
+                                        color = colors.PrimaryLight.copy(alpha = alpha),
                                         shape = CircleShape
                                     )
                             )
@@ -340,7 +344,7 @@ private fun ChatMessageList(
 
                     Text(
                         text = "Agent 思考中...",
-                        color = AppColor.TextSecondary,
+                        color = colors.TextSecondary,
                         fontSize = 13.sp
                     )
                 }
@@ -354,8 +358,8 @@ private fun ChatMessageList(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                    color = AppColor.ErrorBackground,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, AppColor.Error.copy(alpha = 0.3f))
+                    color = colors.ErrorBackground,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, colors.Error.copy(alpha = 0.3f))
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
@@ -365,7 +369,7 @@ private fun ChatMessageList(
                         Text(text = "⚠️", fontSize = 18.sp)
                         Text(
                             text = (uiState as ChatViewModel.UiState.Error).message,
-                            color = AppColor.ErrorText,
+                            color = colors.ErrorText,
                             fontSize = 13.sp
                         )
                     }
