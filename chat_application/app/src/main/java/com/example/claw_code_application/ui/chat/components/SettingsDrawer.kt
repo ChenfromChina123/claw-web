@@ -80,19 +80,21 @@ fun SettingsDrawer(
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
                 ) {
-                    SettingsHeader(
-                        onClose = onDismiss,
-                        unreadCount = unreadCount,
-                        onNotificationClick = {
-                            showPushMessagesDialog = true
-                        }
-                    )
+                    SettingsHeader(onClose = onDismiss)
 
                     HorizontalDivider(color = colors.Divider, thickness = 1.dp)
 
                     AccountSection(
                         onLogout = onLogout,
                         onNavigateToLogin = onNavigateToLogin
+                    )
+
+                    HorizontalDivider(color = colors.Divider, thickness = 1.dp)
+
+                    // 消息通知设置项
+                    NotificationSettingsItem(
+                        unreadCount = unreadCount,
+                        onClick = { showPushMessagesDialog = true }
                     )
 
                     HorizontalDivider(color = colors.Divider, thickness = 1.dp)
@@ -125,14 +127,10 @@ fun SettingsDrawer(
 /**
  * 设置头部
  * @param onClose 关闭回调
- * @param unreadCount 未读消息数量
- * @param onNotificationClick 通知按钮点击回调
  */
 @Composable
 private fun SettingsHeader(
-    onClose: () -> Unit,
-    unreadCount: Int = 0,
-    onNotificationClick: () -> Unit = {}
+    onClose: () -> Unit
 ) {
     val colors = AppColor.current
 
@@ -161,45 +159,75 @@ private fun SettingsHeader(
             )
         }
 
+        IconButton(onClick = onClose) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "关闭",
+                tint = colors.TextSecondary
+            )
+        }
+    }
+}
+
+/**
+ * 消息通知设置项
+ * 显示在设置列表中，替代原来的顶部铃铛按钮
+ */
+@Composable
+private fun NotificationSettingsItem(
+    unreadCount: Int,
+    onClick: () -> Unit
+) {
+    val colors = AppColor.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 通知铃铛按钮
-            Box {
-                IconButton(onClick = onNotificationClick) {
-                    Icon(
-                        imageVector = if (unreadCount > 0) Icons.Default.NotificationsActive else Icons.Default.Notifications,
-                        contentDescription = "消息通知",
-                        tint = if (unreadCount > 0) colors.Primary else colors.TextSecondary,
-                        modifier = Modifier.size(24.dp)
+            Icon(
+                imageVector = if (unreadCount > 0) Icons.Default.NotificationsActive else Icons.Default.Notifications,
+                contentDescription = null,
+                tint = if (unreadCount > 0) colors.Primary else colors.TextSecondary,
+                modifier = Modifier.size(22.dp)
+            )
+            Text(
+                text = "消息通知",
+                fontSize = 15.sp,
+                color = colors.TextPrimary
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // 未读数量徽章
+            if (unreadCount > 0) {
+                Badge(
+                    containerColor = colors.Error
+                ) {
+                    Text(
+                        text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                        fontSize = 12.sp,
+                        color = Color.White
                     )
                 }
-
-                // 未读数量徽章
-                if (unreadCount > 0) {
-                    Badge(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 4.dp, end = 4.dp),
-                        containerColor = colors.Error
-                    ) {
-                        Text(
-                            text = if (unreadCount > 99) "99+" else unreadCount.toString(),
-                            fontSize = 10.sp,
-                            color = Color.White
-                        )
-                    }
-                }
             }
 
-            IconButton(onClick = onClose) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "关闭",
-                    tint = colors.TextSecondary
-                )
-            }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = colors.TextSecondary,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
