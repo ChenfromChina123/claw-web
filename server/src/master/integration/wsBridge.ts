@@ -40,6 +40,7 @@ import type { EventSender, Tool, ToolCall } from './webStore'
 import { toolExecutor } from './enhancedToolExecutor'
 import { WebMCPBridge, type MCPServerConfig, type MCPTool } from '../integrations/mcpBridge'
 import { ptyManager } from './ptyManager'
+import { wsPTYBridge } from './wsPTYBridge'
 
 // 创建 MCP Bridge 实例
 const mcpBridge = new WebMCPBridge()
@@ -566,10 +567,16 @@ export class WebSocketManager {
       params: { userId: { type: 'string', required: true } },
       execute: async (params, context) => {
         const connection = this.connections.get(context.getConnectionId())
+        const userId = params.userId as string
         if (connection) {
-          connection.userId = params.userId as string
+          connection.userId = userId
         }
-        return { authenticated: true, userId: params.userId }
+
+        // 用户认证成功后，确保 Worker 连接
+        // 这样即使用户没有 PTY 需求，Worker 也会保持连接，供 Agent 使用
+        await wsPTYBridge.onUserConnected(userId, context.getConnectionId())
+
+        return { authenticated: true, userId }
       },
     })
 

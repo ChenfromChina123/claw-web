@@ -6,11 +6,13 @@
  * - 转发用户输入到 Worker
  * - 转发 Worker 输出到用户
  * - 维护 sessionId -> workerConnection 映射
+ * - 用户在线时保持 Worker 连接（支持 Agent 操作）
  */
 
 import { WebSocket } from 'ws'
 import { validateMasterToken, getMasterInternalToken, getWorkerInternalPort, generateRequestId, DEFAULT_WORKER_PORT } from '../../shared'
 import type { InternalAPIRequest, InternalAPIResponse } from '../../shared/types'
+import { getContainerOrchestrator } from '../orchestrator/containerOrchestrator'
 
 /**
  * 获取Worker端口（从环境变量或默认值）
@@ -30,6 +32,12 @@ function getWorkerPort(): number {
 const HEARTBEAT_INTERVAL = parseInt(process.env.WORKER_HEARTBEAT_INTERVAL_MS || '30000', 10)  // 30秒心跳间隔
 const HEARTBEAT_TIMEOUT = parseInt(process.env.WORKER_HEARTBEAT_TIMEOUT_MS || '600000', 10)    // 10分钟超时（原60s太短）
 
+/**
+ * 用户活跃状态自动保持配置
+ */
+const USER_ACTIVE_TIMEOUT_MS = parseInt(process.env.USER_ACTIVE_TIMEOUT_MS || '300000', 10)  // 5分钟无活动视为离线
+const CONNECTION_KEEPALIVE_INTERVAL_MS = parseInt(process.env.CONNECTION_KEEPALIVE_INTERVAL_MS || '60000', 10)  // 1分钟检查一次连接
+
 export interface WorkerConnection {
   ws: WebSocket
   userId: string
@@ -42,15 +50,28 @@ export interface WorkerConnection {
   outputCallbacks: Map<string, (frontendSessionId: string, data: string) => void>
 }
 
+/**
+ * 用户活跃状态跟踪
+ */
+interface UserActivity {
+  userId: string
+  lastActiveAt: number
+  isOnline: boolean
+  keepAliveTimer: NodeJS.Timeout | null
+}
+
 export class WorkerForwarder {
   private connections: Map<string, WorkerConnection> = new Map()
   private userConnections: Map<string, string> = new Map()
+  private userActivities: Map<string, UserActivity> = new Map()
 
   async connectToWorker(userId: string, containerId: string, hostPort: number): Promise<WorkerConnection> {
     const connectionKey = `${userId}:${containerId}`
 
     const existing = this.connections.get(connectionKey)
     if (existing && existing.ws.readyState === WebSocket.OPEN) {
+      // 更新用户活跃状态
+      this.updateUserActivity(userId)
       return existing
     }
 
@@ -86,6 +107,11 @@ export class WorkerForwarder {
 
         // 启动心跳检测
         this.startHeartbeat(connectionKey)
+
+        // 更新用户活跃状态并启动保持连接
+        this.updateUserActivity(userId)
+        this.startUserKeepAlive(userId)
+
         resolve(connection)
       })
 
@@ -99,7 +125,7 @@ export class WorkerForwarder {
       ws.on('close', (code, reason) => {
         console.log(`[WorkerForwarder] Connection to Worker ${containerId} closed: ${code} ${reason}`)
         this.stopHeartbeat(connectionKey)
-        
+
         // 通知前端 Worker 已断开
         const connection = this.connections.get(connectionKey)
         if (connection?.frontendWs && connection.frontendWs.readyState === WebSocket.OPEN) {
@@ -110,11 +136,202 @@ export class WorkerForwarder {
             reason: reason.toString(),
           }))
         }
-        
+
         this.connections.delete(connectionKey)
         this.userConnections.delete(userId)
+
+        // 如果用户仍然在线，尝试自动重连
+        const activity = this.userActivities.get(userId)
+        if (activity?.isOnline) {
+          console.log(`[WorkerForwarder] 用户 ${userId} 仍然在线，尝试自动重连 Worker...`)
+          this.attemptReconnectForUser(userId)
+        }
       })
     })
+  }
+
+  /**
+   * 确保用户有活跃的 Worker 连接
+   * 在用户执行工具或发送消息前调用
+   */
+  async ensureUserWorkerConnection(userId: string): Promise<WorkerConnection | null> {
+    // 更新用户活跃状态
+    this.updateUserActivity(userId)
+
+    const connectionKey = this.userConnections.get(userId)
+    if (connectionKey) {
+      const existing = this.connections.get(connectionKey)
+      if (existing && existing.ws.readyState === WebSocket.OPEN) {
+        return existing
+      }
+    }
+
+    // 没有活跃连接，尝试建立
+    console.log(`[WorkerForwarder] 用户 ${userId} 没有活跃 Worker 连接，尝试建立...`)
+
+    try {
+      const orchestrator = getContainerOrchestrator()
+      let mapping = orchestrator.getUserMapping(userId)
+
+      if (!mapping) {
+        mapping = await orchestrator.getOrLoadUserMapping(userId)
+      }
+
+      if (!mapping) {
+        const assignResult = await orchestrator.assignContainerToUser(userId)
+        if (!assignResult.success || !assignResult.data) {
+          console.error(`[WorkerForwarder] 无法为用户 ${userId} 分配容器: ${assignResult.error}`)
+          return null
+        }
+        mapping = assignResult.data
+      }
+
+      // 如果容器处于暂停状态，恢复它
+      if (mapping.container.status === 'paused') {
+        console.log(`[WorkerForwarder] 用户 ${userId} 的容器处于暂停状态，正在恢复...`)
+        const assignResult = await orchestrator.assignContainerToUser(userId)
+        if (!assignResult.success || !assignResult.data) {
+          console.error(`[WorkerForwarder] 无法恢复用户 ${userId} 的容器: ${assignResult.error}`)
+          return null
+        }
+        mapping = assignResult.data
+      }
+
+      return await this.connectToWorker(
+        userId,
+        mapping.container.containerName,
+        mapping.container.hostPort
+      )
+    } catch (error) {
+      console.error(`[WorkerForwarder] 确保用户 ${userId} Worker 连接失败:`, error)
+      return null
+    }
+  }
+
+  /**
+   * 更新用户活跃状态
+   */
+  updateUserActivity(userId: string): void {
+    const now = Date.now()
+    const activity = this.userActivities.get(userId)
+
+    if (activity) {
+      activity.lastActiveAt = now
+      activity.isOnline = true
+    } else {
+      this.userActivities.set(userId, {
+        userId,
+        lastActiveAt: now,
+        isOnline: true,
+        keepAliveTimer: null,
+      })
+    }
+  }
+
+  /**
+   * 启动用户连接保持机制
+   * 定期检查用户是否在线，如果在线则保持 Worker 连接
+   */
+  private startUserKeepAlive(userId: string): void {
+    const activity = this.userActivities.get(userId)
+    if (!activity || activity.keepAliveTimer) return
+
+    activity.keepAliveTimer = setInterval(async () => {
+      const now = Date.now()
+      const timeSinceLastActivity = now - activity.lastActiveAt
+
+      // 检查用户是否已离线
+      if (timeSinceLastActivity > USER_ACTIVE_TIMEOUT_MS) {
+        console.log(`[WorkerForwarder] 用户 ${userId} 超过 ${Math.round(timeSinceLastActivity / 1000)}s 无活动，标记为离线`)
+        activity.isOnline = false
+
+        // 停止保持连接定时器
+        if (activity.keepAliveTimer) {
+          clearInterval(activity.keepAliveTimer)
+          activity.keepAliveTimer = null
+        }
+
+        // 断开 Worker 连接（让容器可以进入休眠）
+        this.disconnect(userId)
+        return
+      }
+
+      // 用户仍然在线，确保 Worker 连接
+      if (activity.isOnline) {
+        const connectionKey = this.userConnections.get(userId)
+        if (!connectionKey) {
+          console.log(`[WorkerForwarder] 用户 ${userId} 在线但无 Worker 连接，尝试自动连接...`)
+          await this.attemptReconnectForUser(userId)
+        } else {
+          const connection = this.connections.get(connectionKey)
+          if (!connection || connection.ws.readyState !== WebSocket.OPEN) {
+            console.log(`[WorkerForwarder] 用户 ${userId} 的 Worker 连接已断开，尝试自动重连...`)
+            await this.attemptReconnectForUser(userId)
+          }
+        }
+      }
+    }, CONNECTION_KEEPALIVE_INTERVAL_MS)
+
+    console.log(`[WorkerForwarder] 启动用户 ${userId} 的连接保持机制`)
+  }
+
+  /**
+   * 为用户尝试重连 Worker
+   */
+  private async attemptReconnectForUser(userId: string): Promise<void> {
+    try {
+      const orchestrator = getContainerOrchestrator()
+      let mapping = orchestrator.getUserMapping(userId)
+
+      if (!mapping) {
+        mapping = await orchestrator.getOrLoadUserMapping(userId)
+      }
+
+      if (!mapping) {
+        console.warn(`[WorkerForwarder] 无法为用户 ${userId} 找到容器映射，跳过重连`)
+        return
+      }
+
+      // 恢复容器（如果是暂停状态）
+      if (mapping.container.status === 'paused') {
+        console.log(`[WorkerForwarder] 重连前恢复用户 ${userId} 的暂停容器...`)
+        const assignResult = await orchestrator.assignContainerToUser(userId)
+        if (!assignResult.success || !assignResult.data) {
+          console.error(`[WorkerForwarder] 恢复容器失败: ${assignResult.error}`)
+          return
+        }
+        mapping = assignResult.data
+      }
+
+      await this.connectToWorker(
+        userId,
+        mapping.container.containerName,
+        mapping.container.hostPort
+      )
+
+      console.log(`[WorkerForwarder] 用户 ${userId} Worker 自动重连成功`)
+    } catch (error) {
+      console.error(`[WorkerForwarder] 用户 ${userId} Worker 自动重连失败:`, error)
+    }
+  }
+
+  /**
+   * 设置用户离线状态
+   * 当用户主动断开或超时时调用
+   */
+  setUserOffline(userId: string): void {
+    const activity = this.userActivities.get(userId)
+    if (activity) {
+      activity.isOnline = false
+      if (activity.keepAliveTimer) {
+        clearInterval(activity.keepAliveTimer)
+        activity.keepAliveTimer = null
+      }
+    }
+
+    // 断开 Worker 连接
+    this.disconnect(userId)
+    console.log(`[WorkerForwarder] 用户 ${userId} 已设置为离线，Worker 连接已断开`)
   }
 
   async createPTY(userId: string, containerId: string, hostPort: number, options: { cols: number; rows: number; cwd?: string }): Promise<{ frontendSessionId: string; workerSessionId: string }> {

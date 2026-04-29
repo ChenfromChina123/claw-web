@@ -5,14 +5,17 @@
  * - 将危险工具调用（Bash、FileWrite、FileEdit 等）转发到 Worker 容器执行
  * - 维护用户到 Worker 容器的连接
  * - 确保所有文件/命令操作都在 Worker 沙箱中执行
+ * - 用户在线时自动保持 Worker 连接
  *
  * 架构原则：
  * - Master 不直接执行任何用户命令或文件操作
  * - 所有工具执行必须通过 Worker 容器
  * - 路径安全由 Worker 端的 isPathSafe 保证
+ * - 用户在线期间保持 Worker 连接，确保 Agent 可以持续操作
  */
 
 import { getContainerOrchestrator } from '../orchestrator/containerOrchestrator'
+import { workerForwarder } from '../websocket/workerForwarder'
 import { getMasterInternalToken, generateRequestId } from '../../shared/utils'
 import type { WorkerToolExecRequest, WorkerToolExecResponse } from '../../shared/types'
 
@@ -68,6 +71,9 @@ export class WorkerToolExecutor {
   ): Promise<WorkerToolResult> {
     const orchestrator = getContainerOrchestrator()
 
+    // 更新用户活跃状态并确保 Worker 连接
+    workerForwarder.updateUserActivity(userId)
+
     // 获取用户的 Worker 容器映射
     let mapping = orchestrator.getUserMapping(userId)
 
@@ -87,6 +93,22 @@ export class WorkerToolExecutor {
       }
       mapping = assignResult.data
     }
+
+    // 如果容器处于暂停状态，恢复它
+    if (mapping.container.status === 'paused') {
+      console.log(`[WorkerToolExecutor] 用户 ${userId} 的容器处于暂停状态，正在恢复...`)
+      const assignResult = await orchestrator.assignContainerToUser(userId)
+      if (!assignResult.success || !assignResult.data) {
+        return {
+          success: false,
+          error: `无法恢复用户 ${userId} 的容器: ${assignResult.error}`,
+        }
+      }
+      mapping = assignResult.data
+    }
+
+    // 确保 WebSocket 连接（用于 PTY 和持续操作）
+    await workerForwarder.ensureUserWorkerConnection(userId)
 
     const { container } = mapping
     const workerUrl = `http://localhost:${container.hostPort}/internal/exec`

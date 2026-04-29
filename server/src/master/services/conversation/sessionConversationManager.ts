@@ -22,6 +22,7 @@ import { buildCompleteSystemPrompt } from '../../prompts/contextBuilder'
 import { getToolRegistry } from '../../integrations/toolRegistry'
 import { shouldExecuteOnWorker } from '../../integrations/workerToolExecutor'
 import { imageStorageService } from '../imageStorageService'
+import { workerForwarder } from '../../websocket/workerForwarder'
 import type { ToolCall } from '../../models/types'
 import type { EventSender } from '../../types'
 import type { MessageContent, ImageContentBlock, ImageAttachment } from '../../models/imageTypes'
@@ -202,6 +203,17 @@ export class SessionConversationManager {
     const userId = sessionDataTemp?.session.userId
 
     console.log(`[SessionConversationManager] processMessage called: sessionId=${sessionId}, userId=${userId}, isolationManager=${!!this.isolationManager}`)
+
+    // 0. 确保用户有活跃的 Worker 连接（关键：用户在线时保持 Worker 连接）
+    if (userId) {
+      console.log(`[SessionConversationManager] 确保用户 ${userId} 的 Worker 连接...`)
+      const workerConnection = await workerForwarder.ensureUserWorkerConnection(userId)
+      if (workerConnection) {
+        console.log(`[SessionConversationManager] 用户 ${userId} Worker 连接已就绪`)
+      } else {
+        console.warn(`[SessionConversationManager] 用户 ${userId} Worker 连接建立失败，工具执行可能会受影响`)
+      }
+    }
 
     // 1. 初始化隔离上下文
     if (userId && !this.isolationManager) {

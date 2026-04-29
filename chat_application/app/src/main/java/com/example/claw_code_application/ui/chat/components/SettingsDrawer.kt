@@ -48,7 +48,11 @@ fun SettingsDrawer(
     modifier: Modifier = Modifier
 ) {
     val colors = AppColor.current
-    
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val pushMessageStore = remember { com.example.claw_code_application.data.local.PushMessageStore.getInstance(context) }
+    val unreadCount by pushMessageStore.unreadCount.collectAsState()
+    var showPushMessagesDialog by remember { mutableStateOf(false) }
+
     AnimatedVisibility(
         visible = isVisible,
         enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
@@ -76,7 +80,13 @@ fun SettingsDrawer(
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
                 ) {
-                    SettingsHeader(onClose = onDismiss)
+                    SettingsHeader(
+                        onClose = onDismiss,
+                        unreadCount = unreadCount,
+                        onNotificationClick = {
+                            showPushMessagesDialog = true
+                        }
+                    )
 
                     HorizontalDivider(color = colors.Divider, thickness = 1.dp)
 
@@ -102,6 +112,13 @@ fun SettingsDrawer(
                 }
             }
         }
+    }
+
+    // 显示消息列表弹窗
+    if (showPushMessagesDialog) {
+        PushMessagesDialog(
+            onDismiss = { showPushMessagesDialog = false }
+        )
     }
 }
 

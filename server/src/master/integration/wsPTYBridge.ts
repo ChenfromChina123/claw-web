@@ -596,6 +596,35 @@ export class WebSocketPTYBridge {
         `(connection=${connectionId}, userId=${userId})`
       )
     }
+
+    // 注意：不在此处断开 Worker 连接，由 WorkerForwarder 的用户活跃状态管理决定
+    // 这样即使用户没有 PTY 会话，只要还在发送消息，Worker 连接就会保持
+  }
+
+  /**
+   * 用户 WebSocket 连接建立时调用
+   * 确保用户有活跃的 Worker 连接，即使没有 PTY 需求
+   *
+   * @param userId 用户 ID
+   * @param connectionId 连接 ID
+   */
+  async onUserConnected(userId: string, connectionId: string): Promise<void> {
+    console.log(`[PTY Bridge] 用户 ${userId} WebSocket 连接建立，确保 Worker 连接...`)
+
+    try {
+      // 更新用户活跃状态
+      workerForwarder.updateUserActivity(userId)
+
+      // 确保 Worker 连接
+      const connection = await workerForwarder.ensureUserWorkerConnection(userId)
+      if (connection) {
+        console.log(`[PTY Bridge] 用户 ${userId} Worker 连接已就绪`)
+      } else {
+        console.warn(`[PTY Bridge] 用户 ${userId} Worker 连接建立失败`)
+      }
+    } catch (error) {
+      console.error(`[PTY Bridge] 用户 ${userId} 连接处理失败:`, error)
+    }
   }
 
   /**
