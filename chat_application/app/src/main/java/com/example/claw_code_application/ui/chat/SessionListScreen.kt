@@ -40,6 +40,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -328,6 +331,8 @@ private fun SwipeToDismissSessionItem(
     var showRenameDialog by remember { mutableStateOf(false) }
     // 长按菜单显示状态
     var showActionMenu by remember { mutableStateOf(false) }
+    // 菜单显示位置
+    var menuOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     // 标记是否需要执行删除（用户已确认）
     var confirmedDelete by remember { mutableStateOf(false) }
 
@@ -410,71 +415,75 @@ private fun SwipeToDismissSessionItem(
         )
     }
 
-    // 长按操作菜单
-    if (showActionMenu) {
-        SessionActionMenu(
-            isPinned = item.isPinned,
-            onDismiss = { showActionMenu = false },
-            onPin = {
-                showActionMenu = false
-                onPin()
-            },
-            onRename = {
-                showActionMenu = false
-                showRenameDialog = true
-            },
-            onDelete = {
-                showActionMenu = false
-                showDeleteConfirmDialog = true
-            }
-        )
-    }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        SwipeToDismissBox(
+            state = dismissState,
+            backgroundContent = {
+                val color = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    Color.Transparent
+                }
 
-    SwipeToDismissBox(
-        state = dismissState,
-        backgroundContent = {
-            val color = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) {
-                MaterialTheme.colorScheme.error
-            } else {
-                Color.Transparent
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(color)
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "删除",
-                    tint = Color.White
-                )
-            }
-        },
-        enableDismissFromStartToEnd = false
-    ) {
-        SessionItem(
-            item = item,
-            isSelected = isSelected,
-            onClick = onClick,
-            onLongClick = { showActionMenu = true }
-        )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(color)
+                        .padding(horizontal = 20.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "删除",
+                        tint = Color.White
+                    )
+                }
+            },
+            enableDismissFromStartToEnd = false
+        ) {
+            SessionItemWithMenu(
+                item = item,
+                isSelected = isSelected,
+                onClick = onClick,
+                showMenu = showActionMenu,
+                onShowMenu = { offset ->
+                    menuOffset = offset
+                    showActionMenu = true
+                },
+                onDismissMenu = { showActionMenu = false },
+                onPin = {
+                    showActionMenu = false
+                    onPin()
+                },
+                onRename = {
+                    showActionMenu = false
+                    showRenameDialog = true
+                },
+                onDelete = {
+                    showActionMenu = false
+                    showDeleteConfirmDialog = true
+                }
+            )
+        }
     }
 }
 
 /**
- * 会话列表项 - 显示标题、最新消息摘要和AI运行状态
- * 支持长按操作，置顶会话显示深色背景
+ * 会话列表项（带悬浮菜单）- 显示标题、最新消息摘要和AI运行状态
+ * 支持长按弹出操作菜单，置顶会话显示深色背景
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SessionItem(
+private fun SessionItemWithMenu(
     item: SessionDisplayData,
     isSelected: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    showMenu: Boolean,
+    onShowMenu: (androidx.compose.ui.geometry.Offset) -> Unit,
+    onDismissMenu: () -> Unit,
+    onPin: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit
 ) {
     // 置顶会话使用更深的背景色
     val itemBgColor = when {
@@ -485,91 +494,106 @@ private fun SessionItem(
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(72.dp)
-            .background(itemBgColor)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 左侧图标（带运行状态指示器）
-        Box(
-            contentAlignment = Alignment.Center
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(72.dp)
+                .background(itemBgColor)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = {
+                        // 长按显示菜单，位置在列表项中间偏上
+                        onShowMenu(androidx.compose.ui.geometry.Offset(100f, 0f))
+                    },
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                )
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            // 左侧图标（带运行状态指示器）
             Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(item.iconBgColor),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = getIconForType(item.iconType),
-                    contentDescription = null,
-                    tint = onSurfaceVariantColor,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            // AI运行状态转圈动画
-            if (item.isRunning) {
-                RunningIndicator()
-            }
-        }
-
-        // 中间内容区域
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 12.dp)
-                .fillMaxHeight(),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 置顶图标
-                if (item.isPinned) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(item.iconBgColor),
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
-                        imageVector = Icons.Default.PushPin,
-                        contentDescription = "已置顶",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .size(14.dp)
-                            .padding(end = 4.dp)
+                        imageVector = getIconForType(item.iconType),
+                        contentDescription = null,
+                        tint = onSurfaceVariantColor,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
+
+                // AI运行状态转圈动画
+                if (item.isRunning) {
+                    RunningIndicator()
+                }
+            }
+
+            // 中间内容区域
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+                    .fillMaxHeight(),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 置顶图标
+                    if (item.isPinned) {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = "已置顶",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(14.dp)
+                                .padding(end = 4.dp)
+                        )
+                    }
+                    Text(
+                        text = item.title,
+                        fontSize = 16.sp,
+                        fontWeight = if (item.isPinned) FontWeight.Bold else FontWeight.SemiBold,
+                        color = onSurfaceColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = item.title,
-                    fontSize = 16.sp,
-                    fontWeight = if (item.isPinned) FontWeight.Bold else FontWeight.SemiBold,
-                    color = onSurfaceColor,
+                    text = item.previewText,
+                    fontSize = 13.sp,
+                    color = onSurfaceVariantColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Spacer(modifier = Modifier.height(2.dp))
+
+            // 右侧时间
             Text(
-                text = item.previewText,
-                fontSize = 13.sp,
-                color = onSurfaceVariantColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                text = item.timeText,
+                fontSize = 12.sp,
+                color = onSurfaceVariantColor
             )
         }
 
-        // 右侧时间
-        Text(
-            text = item.timeText,
-            fontSize = 12.sp,
-            color = onSurfaceVariantColor
+        // 悬浮操作菜单 - 显示在列表项上方
+        SessionActionMenu(
+            isPinned = item.isPinned,
+            expanded = showMenu,
+            onDismiss = onDismissMenu,
+            onPin = onPin,
+            onRename = onRename,
+            onDelete = onDelete
         )
     }
 }
@@ -784,66 +808,115 @@ private fun SearchEmptyState() {
 }
 
 /**
- * 会话长按操作菜单
+ * 会话长按操作菜单 - 悬浮在列表项上方
  * 提供置顶、重命名、删除选项
  */
 @Composable
 private fun SessionActionMenu(
     isPinned: Boolean,
+    expanded: Boolean,
     onDismiss: () -> Unit,
     onPin: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("会话操作") },
-        text = {
-            Column {
-                // 置顶/取消置顶选项
-                ListItem(
-                    headlineContent = { Text(if (isPinned) "取消置顶" else "置顶会话") },
-                    leadingContent = {
-                        Icon(
-                            imageVector = Icons.Default.PushPin,
-                            contentDescription = null,
-                            tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        )
-                    },
-                    modifier = Modifier.clickable { onPin() }
-                )
-                // 重命名选项
-                ListItem(
-                    headlineContent = { Text("重命名") },
-                    leadingContent = {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = null
-                        )
-                    },
-                    modifier = Modifier.clickable { onRename() }
-                )
-                // 删除选项
-                ListItem(
-                    headlineContent = { Text("删除会话", color = MaterialTheme.colorScheme.error) },
-                    leadingContent = {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    },
-                    modifier = Modifier.clickable { onDelete() }
-                )
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
+    // 使用 Box 作为锚点，让菜单显示在列表项上方
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = onDismiss,
+            modifier = Modifier
+                .width(180.dp)
+                .background(
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+                    RoundedCornerShape(12.dp)
+                ),
+            properties = PopupProperties(
+                focusable = true,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true
+            ),
+            offset = androidx.compose.ui.unit.DpOffset(0.dp, 0.dp)
+        ) {
+            // 置顶/取消置顶选项
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = if (isPinned) "取消置顶" else "置顶会话",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                onClick = onPin,
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.PushPin,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            )
+            
+            // 分隔线
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+            )
+            
+            // 重命名选项
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "重命名",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                onClick = onRename,
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            )
+            
+            // 分隔线
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+            )
+            
+            // 删除选项
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "删除",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                },
+                onClick = onDelete,
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            )
         }
-    )
+    }
 }
 
 
