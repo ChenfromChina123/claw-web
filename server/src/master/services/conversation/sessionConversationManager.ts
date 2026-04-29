@@ -540,6 +540,20 @@ export class SessionConversationManager {
       }
     })
 
+    // 调试日志：打印实际传递给 LLM 的消息
+    console.log(`[${sessionId}] === 传递给 LLM 的消息 (Anthropic) ===`)
+    for (let i = 0; i < anthropicMessages.length; i++) {
+      const msg = anthropicMessages[i]
+      if (msg.role === 'user') {
+        const contentStr = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+        console.log(`[${sessionId}]   [${i}] USER: "${contentStr.substring(0, 100)}${contentStr.length > 100 ? '...' : ''}"`)
+      } else if (msg.role === 'assistant') {
+        const contentStr = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+        console.log(`[${sessionId}]   [${i}] ASSISTANT: "${contentStr.substring(0, 100)}${contentStr.length > 100 ? '...' : ''}"`)
+      }
+    }
+    console.log(`[${sessionId}] === 共 ${anthropicMessages.length} 条消息 ===`)
+
     const streamParams = {
       model,
       max_tokens: 4096,
