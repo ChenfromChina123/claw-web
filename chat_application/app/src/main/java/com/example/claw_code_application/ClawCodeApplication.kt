@@ -4,7 +4,9 @@ import android.app.Application
 import com.example.claw_code_application.data.api.ApiService
 import com.example.claw_code_application.data.api.AuthInterceptor
 import com.example.claw_code_application.data.local.TokenManager
+import com.example.claw_code_application.data.local.UserManager
 import com.example.claw_code_application.data.local.SessionLocalStore
+import com.example.claw_code_application.data.local.ThemePreferencesStore
 import com.example.claw_code_application.data.local.db.AppDatabase
 import com.example.claw_code_application.data.repository.AuthRepository
 import com.example.claw_code_application.data.repository.ChatRepository
@@ -41,6 +43,9 @@ class ClawCodeApplication : Application() {
         lateinit var tokenManager: TokenManager
             private set
 
+        lateinit var userManager: UserManager
+            private set
+
         lateinit var authRepository: AuthRepository
             private set
 
@@ -48,6 +53,9 @@ class ClawCodeApplication : Application() {
             private set
 
         lateinit var sessionLocalStore: SessionLocalStore
+            private set
+
+        lateinit var themePreferencesStore: ThemePreferencesStore
             private set
 
         val webSocketManager = WebSocketManager()
@@ -71,14 +79,20 @@ class ClawCodeApplication : Application() {
         tokenManager = TokenManager.getInstance(this)
         Logger.d(TAG, "TokenManager初始化完成")
 
+        userManager = UserManager.getInstance(this)
+        Logger.d(TAG, "UserManager初始化完成")
+
         apiService = createApiService()
         Logger.d(TAG, "ApiService初始化完成")
 
-        authRepository = AuthRepository(apiService, tokenManager)
+        authRepository = AuthRepository(apiService, tokenManager, userManager)
         chatRepository = ChatRepository(apiService, tokenManager)
 
         sessionLocalStore = SessionLocalStore.getInstance(this)
         Logger.d(TAG, "SessionLocalStore初始化完成")
+
+        themePreferencesStore = ThemePreferencesStore.getInstance(this)
+        Logger.d(TAG, "ThemePreferencesStore初始化完成")
 
         appDatabase = AppDatabase.getInstance(this)
         Logger.d(TAG, "AppDatabase初始化完成")

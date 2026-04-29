@@ -3,6 +3,7 @@ package com.example.claw_code_application.data.repository
 import com.example.claw_code_application.data.api.ApiService
 import com.example.claw_code_application.data.api.models.*
 import com.example.claw_code_application.data.local.TokenManager
+import com.example.claw_code_application.data.local.UserManager
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -11,7 +12,8 @@ import kotlinx.coroutines.runBlocking
  */
 class AuthRepository(
     private val apiService: ApiService,
-    private val tokenManager: TokenManager
+    private val tokenManager: TokenManager,
+    private val userManager: UserManager
 ) {
     /**
      * 用户登录
@@ -35,16 +37,25 @@ class AuthRepository(
                     android.util.Log.d("AuthRepo", "=== 准备保存 Token ===")
                     android.util.Log.d("AuthRepo", "Token from server length: ${token.length}")
                     android.util.Log.d("AuthRepo", "Token from server: ${token}")
-                    
+
                     // 保存Token到本地
                     tokenManager.saveToken(token)
-                    
+
+                    // 保存用户信息到本地
+                    val userInfo = UserInfo(
+                        id = body.data.userId,
+                        email = body.data.email,
+                        username = body.data.username,
+                        avatar = body.data.avatar
+                    )
+                    userManager.saveUserInfo(userInfo)
+
                     // 再次读取验证
                     val verifyToken = runBlocking { tokenManager.getTokenSync() }
                     android.util.Log.d("AuthRepo", "=== 验证保存后 ===")
                     android.util.Log.d("AuthRepo", "Token after save length: ${verifyToken?.length}")
                     android.util.Log.d("AuthRepo", "Token match: ${token == verifyToken}")
-                    
+
                     Result.success(body.data)
                 } else {
                     Result.failure(Exception(body.error?.message ?: "登录失败"))
@@ -81,6 +92,16 @@ class AuthRepository(
                 if (body.success && body.data != null) {
                     // 注册成功后自动保存Token
                     tokenManager.saveToken(body.data.token)
+
+                    // 保存用户信息到本地
+                    val userInfo = UserInfo(
+                        id = body.data.userId,
+                        email = body.data.email,
+                        username = body.data.username,
+                        avatar = body.data.avatar
+                    )
+                    userManager.saveUserInfo(userInfo)
+
                     Result.success(body.data)
                 } else {
                     Result.failure(Exception(body.error?.message ?: "注册失败"))
@@ -120,10 +141,11 @@ class AuthRepository(
     }
 
     /**
-     * 登出（清除本地Token）
+     * 登出（清除本地Token和用户信息）
      */
     suspend fun logout() {
         tokenManager.clearToken()
+        userManager.clearUserInfo()
     }
 
     /**

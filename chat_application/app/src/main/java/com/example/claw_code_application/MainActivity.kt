@@ -50,7 +50,21 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            ClawCodeApplicationTheme {
+            val themePreferencesStore = ClawCodeApplication.themePreferencesStore
+            val scope = rememberCoroutineScope()
+            
+            var currentTheme by remember { mutableStateOf(ThemeMode.SYSTEM) }
+            
+            LaunchedEffect(Unit) {
+                val savedTheme = themePreferencesStore.getThemeModeSync()
+                currentTheme = when (savedTheme) {
+                    "LIGHT" -> ThemeMode.LIGHT
+                    "DARK" -> ThemeMode.DARK
+                    else -> ThemeMode.SYSTEM
+                }
+            }
+            
+            ClawCodeApplicationTheme(themeMode = currentTheme) {
                 val navController = rememberNavController()
 
                 NavHost(
@@ -108,9 +122,26 @@ class MainActivity : ComponentActivity() {
 
                     composable("chat") {
                         ChatMainScreen(
+                            currentTheme = currentTheme,
+                            onThemeChange = { newTheme ->
+                                currentTheme = newTheme
+                                scope.launch {
+                                    val themeString = when (newTheme) {
+                                        ThemeMode.LIGHT -> "LIGHT"
+                                        ThemeMode.DARK -> "DARK"
+                                        ThemeMode.SYSTEM -> "SYSTEM"
+                                    }
+                                    themePreferencesStore.saveThemeMode(themeString)
+                                }
+                            },
                             onLogout = {
-                                navController.navigate("login") {
-                                    popUpTo(0) { inclusive = true }
+                                scope.launch {
+                                    // 清除登录状态
+                                    ClawCodeApplication.authRepository.logout()
+                                    // 导航到登录页面
+                                    navController.navigate("login") {
+                                        popUpTo(0) { inclusive = true }
+                                    }
                                 }
                             }
                         )
@@ -159,10 +190,16 @@ private fun AuthCheckScreen(
 /**
  * 聊天主界面
  * 使用viewModel()确保ViewModel生命周期正确管理，避免重组时重复创建
+ * 
+ * @param currentTheme 当前主题模式
+ * @param onThemeChange 主题变更回调
+ * @param onLogout 登出回调
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatMainScreen(
+    currentTheme: ThemeMode,
+    onThemeChange: (ThemeMode) -> Unit,
     onLogout: () -> Unit
 ) {
     val sessionViewModel: SessionViewModel = viewModel(
@@ -185,7 +222,6 @@ private fun ChatMainScreen(
     var showExitDialog by remember { mutableStateOf(false) }
     var isNewSession by remember { mutableStateOf(false) }
     var showSettingsDrawer by remember { mutableStateOf(false) }
-    var currentTheme by remember { mutableStateOf(ThemeMode.SYSTEM) }
 
     val sessionUiState by sessionViewModel.uiState.collectAsStateWithLifecycle()
 
@@ -328,10 +364,9 @@ private fun ChatMainScreen(
         SettingsDrawer(
             isVisible = showSettingsDrawer,
             onDismiss = { showSettingsDrawer = false },
-            onThemeChange = { theme ->
-                currentTheme = theme
-            },
-            currentTheme = currentTheme
+            onThemeChange = onThemeChange,
+            currentTheme = currentTheme,
+            onLogout = onLogout
         )
     }
 
