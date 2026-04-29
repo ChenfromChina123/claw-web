@@ -22,8 +22,8 @@ object EntityMappers {
     fun Session.toEntity(): SessionEntity {
         return SessionEntity(
             id = id,
-            title = title,
-            model = model,
+            title = title ?: "新对话",
+            model = model ?: "qwen-plus",
             userId = userId,
             isPinned = isPinned,
             createdAt = createdAt,

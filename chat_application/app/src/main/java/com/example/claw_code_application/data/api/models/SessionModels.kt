@@ -8,8 +8,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class Session(
     val id: String,
-    val title: String,
-    val model: String = "qwen-plus",
+    val title: String? = null,
+    val model: String? = "qwen-plus",
     @SerialName("userId")
     val userId: String? = null,
     @SerialName("isPinned")
@@ -29,7 +29,17 @@ data class Session(
      */
     @SerialName("isLocalOnly")
     val isLocalOnly: Boolean = false
-)
+) {
+    /**
+     * 获取非空标题，如果为null则返回默认值
+     */
+    fun getTitleOrDefault(): String = title ?: "新对话"
+
+    /**
+     * 获取非空模型，如果为null则返回默认值
+     */
+    fun getModelOrDefault(): String = model ?: "qwen-plus"
+}
 
 @Serializable
 data class CreateSessionRequest(

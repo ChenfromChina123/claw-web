@@ -87,13 +87,14 @@ fun SessionListScreen(
         sessions.map { it.id to it.updatedAt to it.lastMessage to it.isRunning to it.isPinned }.hashCode()
     ) {
         sessions.map { session ->
+            val title = session.getTitleOrDefault()
             SessionDisplayData(
                 id = session.id,
-                title = session.title.ifEmpty { "新对话" },
-                previewText = session.lastMessage?.takeIf { it.isNotBlank() } ?: generatePreview(session.title),
+                title = title,
+                previewText = session.lastMessage?.takeIf { it.isNotBlank() } ?: generatePreview(title),
                 timeText = formatTime(session.updatedAt),
-                iconType = getIconType(session.title),
-                iconBgColor = getIconBgColor(session.title, isDarkTheme),
+                iconType = getIconType(title),
+                iconBgColor = getIconBgColor(title, isDarkTheme),
                 isRunning = session.isRunning,
                 isPinned = session.isPinned
             )
