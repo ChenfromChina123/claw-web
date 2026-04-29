@@ -481,11 +481,12 @@ private fun FileContentViewer(
     lineCount: Int,
     modifier: Modifier = Modifier
 ) {
+    val colors = AppColor.current
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = Color(0xFFF5F5F7),
-        border = BorderStroke(1.dp, Color(0xFFE8E8ED))
+        color = colors.SurfaceVariant,
+        border = BorderStroke(1.dp, colors.Border)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -500,19 +501,19 @@ private fun FileContentViewer(
                         text = path,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        color = AppColor.PrimaryLight
+                        color = colors.PrimaryLight
                     )
                 }
                 Text(
                     text = "($lineCount 行)",
                     fontSize = 11.sp,
-                    color = AppColor.TextSecondary
+                    color = colors.TextSecondary
                 )
             }
 
             if (content.isNotBlank()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = Color(0xFFE8E8ED), thickness = 1.dp)
+                HorizontalDivider(color = colors.Border, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(12.dp))
 
                 val displayContent = if (content.length > 500) {
@@ -525,7 +526,7 @@ private fun FileContentViewer(
                     text = displayContent,
                     fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = AppColor.TextPrimary,
+                    color = colors.TextPrimary,
                     lineHeight = 18.sp
                 )
             }

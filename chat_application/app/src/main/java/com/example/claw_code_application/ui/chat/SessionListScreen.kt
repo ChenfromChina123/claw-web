@@ -300,6 +300,7 @@ private fun TopAppBarWithSearch(
 
 /**
  * 滑动删除的会话列表项
+ * 包含删除确认对话框，防止误删
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -309,17 +310,55 @@ private fun SwipeToDismissSessionItem(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
+    // 删除确认对话框显示状态
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    // 标记是否需要执行删除（用户已确认）
+    var confirmedDelete by remember { mutableStateOf(false) }
+
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
             if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
-                onDelete()
-                true
+                // 滑动时显示确认对话框，而不是直接删除
+                showDeleteConfirmDialog = true
+                false // 暂时不执行删除，等待用户确认
             } else {
                 false
             }
         },
         positionalThreshold = { totalDistance -> totalDistance * 0.4f }
     )
+
+    // 用户确认删除后执行删除操作
+    LaunchedEffect(confirmedDelete) {
+        if (confirmedDelete) {
+            onDelete()
+            confirmedDelete = false
+        }
+    }
+
+    // 删除确认对话框
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text("删除会话") },
+            text = { Text("确定要删除会话"${item.title}"吗？此操作不可撤销。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        confirmedDelete = true
+                    }
+                ) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
 
     SwipeToDismissBox(
         state = dismissState,
