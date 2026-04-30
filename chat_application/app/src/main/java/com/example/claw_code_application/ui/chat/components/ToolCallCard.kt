@@ -492,3 +492,324 @@ private fun formatToolOutput(output: kotlinx.serialization.json.JsonElement?): S
         output.toString()
     }
 }
+
+/**
+ * 紧凑版工具调用卡片 - 更小的尺寸，适合在聊天界面中显示
+ */
+@Composable
+fun CompactToolCallCard(
+    toolCall: ToolCall,
+    modifier: Modifier = Modifier,
+    expanded: Boolean = false,
+    onExpandedChange: (Boolean) -> Unit = {},
+    onRetry: () -> Unit = {}
+) {
+    val statusConfig = getStatusConfig(toolCall.status)
+
+    val summary by remember(toolCall.id, toolCall.toolInput) {
+        derivedStateOf { getToolSummary(toolCall) }
+    }
+
+    val parsedInput by remember(toolCall.id, toolCall.toolInput) {
+        derivedStateOf {
+            val inputMap = parseToolInput(toolCall.toolInput)
+            val formattedInput = if (inputMap.isNotEmpty()) formatToolInput(inputMap) else ""
+            Pair(inputMap, formattedInput)
+        }
+    }
+
+    val formattedOutput by remember(toolCall.id, toolCall.toolOutput, toolCall.status) {
+        derivedStateOf {
+            if (toolCall.toolOutput != null &&
+                (toolCall.status == "completed" || toolCall.status == "error")) {
+                formatToolOutput(toolCall.toolOutput)
+            } else {
+                ""
+            }
+        }
+    }
+
+    val borderColor = when (toolCall.status) {
+        "completed" -> AppColor.Success
+        "error" -> AppColor.Error
+        "executing" -> AppColor.Warning
+        else -> Color(0xFFE8E8ED)
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse_compact")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_alpha_compact"
+    )
+
+    val statusDotColor = if (toolCall.status == "executing") {
+        statusConfig.color.copy(alpha = pulseAlpha)
+    } else {
+        statusConfig.color
+    }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFF5F5F7),
+            contentColor = AppColor.TextPrimary
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(0.5.dp, borderColor.copy(alpha = 0.3f))
+    ) {
+        Column {
+            // 紧凑标题栏
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandedChange(!expanded) }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = getToolIcon(toolCall.toolName),
+                        fontSize = 12.sp
+                    )
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = toolCall.toolName,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppColor.TextPrimary,
+                                fontFamily = FontFamily.Monospace
+                            )
+
+                            // 紧凑状态标签
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = statusConfig.backgroundColor
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Surface(
+                                        modifier = Modifier.size(4.dp),
+                                        shape = RoundedCornerShape(50),
+                                        color = statusDotColor
+                                    ) {}
+
+                                    Text(
+                                        text = statusConfig.label,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = statusConfig.color
+                                    )
+                                }
+                            }
+                        }
+
+                        if (summary.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = summary,
+                                fontSize = 10.sp,
+                                color = AppColor.TextSecondary,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                Icon(
+                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (expanded) "收起详情" else "展开详情",
+                    tint = AppColor.TextSecondary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            // 展开内容
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(
+                    animationSpec = tween(250, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(200)),
+                exit = shrinkVertically(
+                    animationSpec = tween(200, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(150))
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    HorizontalDivider(
+                        color = Color(0xFFE8E8ED),
+                        thickness = 0.5.dp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    val (inputMap, formattedInput) = parsedInput
+                    if (inputMap.isNotEmpty()) {
+                        CompactResultSection(
+                            title = "输入参数",
+                            titleIcon = "📥",
+                            content = formattedInput,
+                            contentColor = AppColor.TextSecondary,
+                            metaText = "${inputMap.size} 个参数"
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    if (formattedOutput.isNotEmpty()) {
+                        val outputColor = if (toolCall.status == "error") {
+                            AppColor.Error
+                        } else {
+                            AppColor.Success
+                        }
+                        CompactResultSection(
+                            title = "执行结果",
+                            titleIcon = "📤",
+                            content = formattedOutput,
+                            contentColor = outputColor,
+                            metaText = "${formattedOutput.length} 字符"
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    if (toolCall.error != null && toolCall.status == "error") {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(6.dp),
+                            color = AppColor.ErrorBackground,
+                            border = BorderStroke(0.5.dp, AppColor.Error.copy(alpha = 0.3f))
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(text = "⚠️", fontSize = 12.sp)
+                                    Text(
+                                        text = "工具执行失败",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 11.sp,
+                                        color = AppColor.ErrorText
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(3.dp),
+                                        color = AppColor.Error.copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = "ERROR",
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AppColor.ErrorText,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Text(
+                                    text = toolCall.error!!,
+                                    fontSize = 10.sp,
+                                    color = AppColor.ErrorText.copy(alpha = 0.9f),
+                                    fontFamily = FontFamily.Monospace,
+                                    lineHeight = 14.sp
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = onRetry,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = AppColor.Error
+                                    ),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "重试",
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactResultSection(
+    title: String,
+    titleIcon: String,
+    content: String,
+    contentColor: Color,
+    metaText: String
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = titleIcon, fontSize = 11.sp)
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp,
+                    color = AppColor.TextPrimary
+                )
+            }
+            Text(
+                text = metaText,
+                fontSize = 9.sp,
+                color = AppColor.TextSecondary
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(6.dp),
+            color = Color(0xFFF5F5F7)
+        ) {
+            Text(
+                text = content,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp,
+                color = contentColor,
+                modifier = Modifier.padding(10.dp),
+                lineHeight = 14.sp
+            )
+        }
+    }
+}

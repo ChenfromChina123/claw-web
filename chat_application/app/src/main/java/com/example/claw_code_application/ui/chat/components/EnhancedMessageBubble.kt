@@ -70,22 +70,22 @@ fun EnhancedMessageBubble(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
             modifier = Modifier.fillMaxWidth(if (isUser) 0.85f else 0.95f)
         ) {
-            // 消息内容卡片 - Manus 1.6 Lite 风格
-            Surface(
-                modifier = bubbleElevation,
-                shape = bubbleShape,
-                color = if (isUser) colors.UserBubbleBackground else colors.AssistantBubbleBackground,
-                shadowElevation = if (isUser) 0.dp else 1.dp,
-                border = if (isUser) null else BorderStroke(1.dp, colors.Border)
-            ) {
-                Column(
-                    modifier = Modifier.padding(
-                        horizontal = 16.dp,
-                        vertical = 12.dp
-                    )
+            // 用户消息显示气泡，AI消息不显示气泡（只显示工具调用）
+            if (isUser) {
+                // 消息内容卡片 - Manus 1.6 Lite 风格
+                Surface(
+                    modifier = bubbleElevation,
+                    shape = bubbleShape,
+                    color = colors.UserBubbleBackground,
+                    shadowElevation = 0.dp,
+                    border = null
                 ) {
-                    // 动态组件渲染
-                    if (isUser) {
+                    Column(
+                        modifier = Modifier.padding(
+                            horizontal = 16.dp,
+                            vertical = 12.dp
+                        )
+                    ) {
                         val filteredContent = remember(message.content) {
                             getSafeAssistantContent(message.content)
                         }
@@ -101,21 +101,31 @@ fun EnhancedMessageBubble(
                                 )
                             )
                         }
-                    } else {
-                        // AI消息使用动态组件渲染
-                        DynamicMessageContent(
-                            content = message.content,
-                            isStreaming = message.isStreaming
-                        )
                     }
+                }
+            } else {
+                // AI消息：不显示气泡，直接渲染内容（如果有非工具内容）
+                val hasNonToolContent = remember(message.content) {
+                    val trimmed = message.content.trim()
+                    // 检查内容是否只包含工具调用，不包含普通文本
+                    !(trimmed.startsWith("[") &&
+                      (trimmed.contains("\"type\":\"tool_use\"") ||
+                       trimmed.contains("\"type\":\"tool_result\"")))
+                }
 
-                    // 流式输出动画已移除
+                if (hasNonToolContent) {
+                    DynamicMessageContent(
+                        content = message.content,
+                        isStreaming = message.isStreaming
+                    )
                 }
             }
 
-            // 工具调用显示 - 统一使用 ToolCallCard 显示
+            // 工具调用显示 - 统一使用 ToolCallCard 显示（紧凑模式）
             if (toolCalls.isNotEmpty() && !isUser) {
-                Spacer(modifier = Modifier.height(8.dp))
+                if (!isUser) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -123,7 +133,7 @@ fun EnhancedMessageBubble(
                     toolCalls.forEachIndexed { index, toolCall ->
                         key(toolCall.id) {
                             var expanded by remember { mutableStateOf(false) }
-                            ToolCallCard(
+                            CompactToolCallCard(
                                 toolCall = toolCall,
                                 expanded = expanded,
                                 onExpandedChange = { expanded = it }
