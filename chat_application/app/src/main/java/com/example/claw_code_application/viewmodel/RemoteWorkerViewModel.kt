@@ -3,7 +3,7 @@ package com.example.claw_code_application.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.claw_code_application.data.api.RetrofitClient
+import com.example.claw_code_application.ClawCodeApplication
 import com.example.claw_code_application.data.api.models.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,7 +32,7 @@ class RemoteWorkerViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    private val apiService = RetrofitClient.apiService
+    private val apiService = ClawCodeApplication.apiService
 
     /**
      * 获取远程 Worker 列表

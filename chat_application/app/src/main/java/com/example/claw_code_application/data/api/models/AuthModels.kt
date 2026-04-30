@@ -53,5 +53,6 @@ data class UserInfo(
     val id: String,
     val email: String,
     val username: String,
-    val avatar: String?
+    val avatar: String?,
+    val isAdmin: Boolean = false
 )

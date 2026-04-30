@@ -69,6 +69,11 @@ fun SettingsDrawer(
     var showAddWorkerDialog by remember { mutableStateOf(false) }
     var selectedWorker by remember { mutableStateOf<RemoteWorker?>(null) }
 
+    // 从 UserManager 获取管理员状态
+    val userManager = remember { UserManager.getInstance(context) }
+    val userInfo by userManager.getUserInfo().collectAsState(initial = null)
+    val isAdmin = userInfo?.isAdmin ?: false
+
     // 首次加载远程 Worker 数据
     LaunchedEffect(Unit) {
         remoteWorkerViewModel.fetchRemoteWorkers()

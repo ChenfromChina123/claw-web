@@ -1,6 +1,7 @@
 package com.example.claw_code_application
 
 import android.app.Application
+import android.content.Context
 import androidx.room.Room
 import com.example.claw_code_application.data.api.ApiService
 import com.example.claw_code_application.data.api.AuthInterceptor
