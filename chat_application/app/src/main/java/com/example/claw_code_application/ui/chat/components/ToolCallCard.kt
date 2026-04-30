@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.ui.theme.AppColor
+import com.example.claw_code_application.ui.theme.AppColors
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -528,11 +529,13 @@ fun CompactToolCallCard(
         }
     }
 
+    val colors = AppColor.current
+
     val statusColor = when (toolCall.status) {
-        "completed" -> AppColor.Success
-        "error" -> AppColor.Error
-        "executing" -> AppColor.Warning
-        else -> AppColor.TextSecondary
+        "completed" -> colors.Success
+        "error" -> colors.Error
+        "executing" -> colors.Warning
+        else -> colors.TextSecondary
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse_compact")
@@ -552,19 +555,19 @@ fun CompactToolCallCard(
         statusColor
     }
 
-    // 极简风格：灰色圆角背景，单行显示，屏幕宽度
+    // 极简风格：使用主题表面色，单行显示，屏幕宽度
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp)
+            .padding(vertical = 1.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = { onExpandedChange(!expanded) }
             ),
-        shape = RoundedCornerShape(16.dp),
-        color = Color(0xFFF0F0F0),
-        border = null
+        shape = RoundedCornerShape(12.dp),
+        color = colors.SurfaceVariant,
+        border = BorderStroke(0.5.dp, colors.Border)
     ) {
         Column {
             // 极简单行标题栏：Bash • 完成 ▼
@@ -617,7 +620,7 @@ fun CompactToolCallCard(
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = if (expanded) "收起" else "展开",
-                    tint = AppColor.TextSecondary,
+                    tint = colors.TextSecondary,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -633,12 +636,12 @@ fun CompactToolCallCard(
                 ) + fadeOut(animationSpec = tween(150))
             ) {
                 Column(
-                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 10.dp)
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
                 ) {
                     HorizontalDivider(
-                        color = Color(0xFFE0E0E0),
+                        color = colors.Divider,
                         thickness = 0.5.dp,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        modifier = Modifier.padding(bottom = 6.dp)
                     )
 
                     val (inputMap, formattedInput) = parsedInput
@@ -646,27 +649,30 @@ fun CompactToolCallCard(
                         MinimalResultSection(
                             title = "输入",
                             content = formattedInput,
-                            isError = false
+                            isError = false,
+                            colors = colors
                         )
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                     }
 
                     if (formattedOutput.isNotEmpty()) {
                         MinimalResultSection(
                             title = "输出",
                             content = formattedOutput,
-                            isError = toolCall.status == "error"
+                            isError = toolCall.status == "error",
+                            colors = colors
                         )
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                     }
 
                     if (toolCall.error != null && toolCall.status == "error") {
                         MinimalResultSection(
                             title = "错误",
                             content = toolCall.error,
-                            isError = true
+                            isError = true,
+                            colors = colors
                         )
                     }
                 }
@@ -679,13 +685,14 @@ fun CompactToolCallCard(
 private fun MinimalResultSection(
     title: String,
     content: String,
-    isError: Boolean
+    isError: Boolean,
+    colors: AppColors
 ) {
     Column {
         Text(
             text = title,
             fontSize = 11.sp,
-            color = AppColor.TextSecondary,
+            color = colors.TextSecondary,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(bottom = 4.dp)
         )
@@ -693,13 +700,13 @@ private fun MinimalResultSection(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(6.dp),
-            color = if (isError) AppColor.ErrorBackground.copy(alpha = 0.5f) else Color(0xFFE8E8E8)
+            color = if (isError) colors.ErrorBackground.copy(alpha = 0.5f) else colors.Surface
         ) {
             Text(
                 text = content,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 10.sp,
-                color = if (isError) AppColor.Error else AppColor.TextPrimary,
+                color = if (isError) colors.Error else colors.TextPrimary,
                 modifier = Modifier.padding(8.dp),
                 lineHeight = 14.sp
             )

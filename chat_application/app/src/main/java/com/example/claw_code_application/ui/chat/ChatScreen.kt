@@ -337,7 +337,7 @@ private fun ChatMessageList(
                 toolCalls = remember(message.id, viewModel.toolCalls) {
                     viewModel.getToolCallsForMessage(message.id)
                 },
-                modifier = Modifier.padding(vertical = 8.dp)
+                modifier = Modifier.padding(vertical = 4.dp)
             )
         }
 
