@@ -17,6 +17,8 @@ data class RemoteWorker(
     val labels: Map<String, String>? = null,
     val dockerVersion: String? = null,
     val systemInfo: SystemInfo? = null,
+    val sshUsername: String? = null,
+    val sshPort: Int? = null,
     @SerialName("lastHeartbeatAt")
     val lastHeartbeatAt: String? = null,
     @SerialName("createdAt")
