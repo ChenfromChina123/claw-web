@@ -570,7 +570,7 @@ fun CompactToolCallCard(
             ),
         shape = RoundedCornerShape(12.dp),
         color = colors.SurfaceVariant,
-        border = BorderStroke(0.5.dp, colors.Border)
+        border = BorderStroke(0.5.dp, colors.Divider)
     ) {
         Column {
             // 极简单行标题栏：Bash • 完成 ▼
@@ -590,14 +590,14 @@ fun CompactToolCallCard(
                         text = toolCall.toolName,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        color = AppColor.TextPrimary
+                        color = colors.TextPrimary
                     )
 
                     // 中间圆点分隔符
                     Text(
                         text = "•",
                         fontSize = 13.sp,
-                        color = AppColor.TextSecondary
+                        color = colors.TextSecondary
                     )
 
                     // 状态（带颜色圆点）
