@@ -103,10 +103,10 @@ fun RemoteWorkerDetailDialog(
                 // 标签
                 if (!worker.labels.isNullOrEmpty()) {
                     InfoSection(title = "标签") {
-                        FlowRow(
+                        FlowRowLayout(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalGap = 8.dp,
+                            verticalGap = 8.dp
                         ) {
                             worker.labels.forEach { (key, value) ->
                                 LabelChip("$key: $value")
@@ -302,18 +302,18 @@ private fun LabelChip(text: String) {
  * FlowRow 布局（简化版）
  */
 @Composable
-private fun FlowRow(
+private fun FlowRowLayout(
     modifier: Modifier = Modifier,
-    horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
-    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    horizontalGap: androidx.compose.ui.unit.Dp = 8.dp,
+    verticalGap: androidx.compose.ui.unit.Dp = 8.dp,
     content: @Composable () -> Unit
 ) {
     Layout(
         content = content,
         modifier = modifier
     ) { measurables, constraints ->
-        val hGapPx = 8.dp.roundToPx()
-        val vGapPx = 8.dp.roundToPx()
+        val hGapPx = horizontalGap.roundToPx()
+        val vGapPx = verticalGap.roundToPx()
 
         val rows = mutableListOf<List<androidx.compose.ui.layout.Placeable>>()
         val rowWidths = mutableListOf<Int>()
@@ -348,17 +348,12 @@ private fun FlowRow(
         }
 
         val width = constraints.maxWidth
-        val height = rowHeights.sum() + (rowHeights.size - 1).coerceAtLeast(0) * vGapPx
+        val height = rowHeights.sum() + kotlin.math.max(0, rowHeights.size - 1) * vGapPx
 
         layout(width, height) {
             var y = 0
             rows.forEachIndexed { rowIndex, row ->
-                var x = when (horizontalArrangement) {
-                    Arrangement.Start -> 0
-                    Arrangement.End -> width - rowWidths[rowIndex]
-                    Arrangement.Center -> (width - rowWidths[rowIndex]) / 2
-                    else -> 0
-                }
+                var x = 0
 
                 row.forEach { placeable ->
                     placeable.placeRelative(x, y)
