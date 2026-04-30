@@ -10,11 +10,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -56,7 +51,6 @@ fun ChatScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     var showBottomSheet by remember { mutableStateOf(false) }
-    var showMoreMenu by remember { mutableStateOf(false) }
     var showFilePicker by remember { mutableStateOf(false) }
 
     val displayMessages = viewModel.displayMessages
@@ -90,8 +84,6 @@ fun ChatScreen(
         // 顶部导航栏 - 添加状态栏内边距适配动态岛/刘海屏
         ChatTopBar(
             onBack = onBack,
-            showMoreMenu = showMoreMenu,
-            onMoreMenuChange = { showMoreMenu = it },
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .windowInsetsPadding(WindowInsets.statusBars)
@@ -208,8 +200,6 @@ private fun ChatEmptyState() {
 @Composable
 private fun ChatTopBar(
     onBack: () -> Unit,
-    showMoreMenu: Boolean,
-    onMoreMenuChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = AppColor.current
@@ -223,18 +213,6 @@ private fun ChatTopBar(
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 17.sp
                 )
-                Spacer(modifier = Modifier.width(10.dp))
-                Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
-                    color = colors.SurfaceVariant
-                ) {
-                    Text(
-                        text = "1.6 Lite",
-                        color = colors.TextSecondary,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
-                }
             }
         },
         navigationIcon = {
@@ -247,51 +225,6 @@ private fun ChatTopBar(
             }
         },
         actions = {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "用户",
-                tint = colors.TextSecondary,
-                modifier = Modifier.padding(end = 8.dp)
-            )
-            Icon(
-                imageVector = Icons.Default.Link,
-                contentDescription = "链接",
-                tint = colors.TextSecondary,
-                modifier = Modifier.padding(end = 8.dp)
-            )
-            Box {
-                IconButton(onClick = { onMoreMenuChange(true) }) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "更多",
-                        tint = colors.TextSecondary
-                    )
-                }
-                DropdownMenu(
-                    expanded = showMoreMenu,
-                    onDismissRequest = { onMoreMenuChange(false) }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("重命名会话") },
-                        onClick = { onMoreMenuChange(false) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("分享对话") },
-                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                        onClick = { onMoreMenuChange(false) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("清空对话") },
-                        onClick = { onMoreMenuChange(false) }
-                    )
-                    HorizontalDivider()
-                    DropdownMenuItem(
-                        text = { Text("删除会话", color = colors.Error) },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = colors.Error) },
-                        onClick = { onMoreMenuChange(false) }
-                    )
-                }
-            }
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = colors.Surface
