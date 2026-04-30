@@ -30,6 +30,10 @@ services:
     environment:
       NODE_ENV: development
       LOG_LEVEL: debug
+      # Worker源代码挂载路径（开发模式热更新）
+      # Master容器内 /app/src/worker 包含Worker源代码
+      WORKER_SRC_MOUNT: /app/src/worker
+      WORKER_SHARED_MOUNT: /app/shared
     
     deploy:
       resources:
