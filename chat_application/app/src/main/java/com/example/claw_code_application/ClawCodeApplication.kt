@@ -9,6 +9,7 @@ import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.local.UserManager
 import com.example.claw_code_application.data.local.SessionLocalStore
 import com.example.claw_code_application.data.local.ThemePreferencesStore
+import com.example.claw_code_application.data.local.MMKVManager
 import com.example.claw_code_application.data.local.db.AppDatabase
 import com.example.claw_code_application.data.repository.AuthRepository
 import com.example.claw_code_application.data.repository.ChatRepository
@@ -123,11 +124,15 @@ class ClawCodeApplication : Application() {
 
         Logger.i(TAG, "应用启动...")
 
-        // 初始化网络配置（轻量级操作）
+        // 1. 优先初始化MMKV（高性能KV存储）- 微信架构：核心存储优先初始化
+        MMKVManager.initialize(this)
+        Logger.i(TAG, "MMKV高性能存储初始化完成")
+
+        // 2. 初始化网络配置（轻量级操作）
         NetworkConfig.init(this)
         Logger.i(TAG, "网络配置初始化完成: ${NetworkConfig.getBaseUrl()}")
 
-        // 异步初始化非关键组件
+        // 3. 异步初始化非关键组件
         applicationScope.launch {
             // 预初始化通知渠道
             try {

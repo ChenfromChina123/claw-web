@@ -1,17 +1,16 @@
 package com.example.claw_code_application.data.local
 
 import android.content.Context
-import android.content.SharedPreferences
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * 主题偏好设置存储管理器
- * 使用 EncryptedSharedPreferences 持久化用户选择的主题模式
- * 
+ * 主题偏好设置存储管理器（MMKV优化版）
+ * 使用腾讯MMKV替代EncryptedSharedPreferences，读写性能提升10~100倍
+ *
+ * 微信架构思想：高频读取的配置使用高性能存储，避免启动时IO阻塞
+ *
  * 支持的主题模式：
  * - LIGHT: 浅色模式
  * - DARK: 深色模式
@@ -19,78 +18,72 @@ import kotlinx.coroutines.flow.callbackFlow
  */
 class ThemePreferencesStore(private val context: Context) {
 
-    /** EncryptedSharedPreferences 实例 */
-    private val encryptedPrefs: SharedPreferences by lazy {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
+    /** MMKV存储Key */
+    private companion object {
+        const val KEY_THEME_MODE = "theme_mode"
+        const val DEFAULT_THEME_MODE = "SYSTEM"
+        const val TAG = "ThemePreferencesStore"
+    }
 
-        EncryptedSharedPreferences.create(
-            context,
-            PREFS_NAME,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+    /** 主题状态流，用于响应式UI更新 */
+    private val _themeFlow = MutableStateFlow(DEFAULT_THEME_MODE)
+    val themeFlow: Flow<String> = _themeFlow.asStateFlow()
+
+    init {
+        // 初始化时从MMKV读取主题设置
+        _themeFlow.value = getThemeModeSync()
     }
 
     /**
-     * 保存主题模式到本地加密存储
-     * 
+     * 保存主题模式到MMKV存储
+     * 同步写入，立即返回，性能极快
+     *
      * @param themeMode 主题模式字符串（LIGHT, DARK, SYSTEM）
      */
     suspend fun saveThemeMode(themeMode: String) {
-        encryptedPrefs.edit().putString(KEY_THEME_MODE, themeMode).apply()
+        // 使用MMKV默认实例存储非敏感配置
+        val success = MMKVManager.putString(KEY_THEME_MODE, themeMode)
+
+        // 同步到状态流
+        _themeFlow.value = themeMode
+
+        android.util.Log.d(TAG, "主题保存: $themeMode, 结果: $success")
     }
 
     /**
-     * 获取存储的主题模式（Flow 响应式版本）
-     * 
+     * 获取存储的主题模式（Flow响应式版本）
+     *
      * @return 主题模式 Flow，如果不存在则返回默认值 SYSTEM
      */
     fun getThemeMode(): Flow<String> {
-        return callbackFlow {
-            val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-                if (key == KEY_THEME_MODE) {
-                    trySend(encryptedPrefs.getString(KEY_THEME_MODE, DEFAULT_THEME_MODE) ?: DEFAULT_THEME_MODE)
-                }
-            }
-            encryptedPrefs.registerOnSharedPreferenceChangeListener(listener)
-            send(encryptedPrefs.getString(KEY_THEME_MODE, DEFAULT_THEME_MODE) ?: DEFAULT_THEME_MODE)
-            awaitClose {
-                encryptedPrefs.unregisterOnSharedPreferenceChangeListener(listener)
-            }
-        }
+        return themeFlow
     }
 
     /**
      * 同步获取存储的主题模式
-     * 
+     * 直接从MMKV读取，无阻塞，性能极快
+     *
      * @return 主题模式字符串，如果不存在则返回默认值 SYSTEM
      */
     suspend fun getThemeModeSync(): String {
-        return encryptedPrefs.getString(KEY_THEME_MODE, DEFAULT_THEME_MODE) ?: DEFAULT_THEME_MODE
+        return MMKVManager.getString(KEY_THEME_MODE, DEFAULT_THEME_MODE) ?: DEFAULT_THEME_MODE
     }
 
     /**
      * 清除存储的主题设置（恢复为默认跟随系统）
      */
     suspend fun clearThemeMode() {
-        encryptedPrefs.edit().remove(KEY_THEME_MODE).apply()
+        MMKVManager.remove(KEY_THEME_MODE)
+        _themeFlow.value = DEFAULT_THEME_MODE
     }
 
     companion object {
-        private const val TAG = "ThemePreferencesStore"
-        private const val PREFS_NAME = "claw_secure_prefs"
-        private const val KEY_THEME_MODE = "theme_mode"
-        private const val DEFAULT_THEME_MODE = "SYSTEM"
-        
         @Volatile
         private var INSTANCE: ThemePreferencesStore? = null
 
         /**
          * 获取 ThemePreferencesStore 单例
-         * 
+         *
          * @param context 应用上下文
          * @return ThemePreferencesStore 实例
          */

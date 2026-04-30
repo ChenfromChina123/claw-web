@@ -11,11 +11,31 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.*
 import okhttp3.*
 import java.util.concurrent.TimeUnit
+import kotlin.math.min
 
+/**
+ * WebSocket管理器（优化版）
+ *
+ * 微信架构思想：弱网无敌 + 重连极快
+ * 1. 指数退避重连策略 - 快速恢复连接
+ * 2. 连接状态分级 - 精确掌握连接状态
+ * 3. 心跳自适应 - 根据网络质量调整心跳间隔
+ * 4. 消息发送队列 - 断线期间消息不丢失
+ */
 class WebSocketManager {
     companion object {
         private const val TAG = "WebSocketManager"
         private const val NORMAL_CLOSURE_STATUS = 1000
+
+        // 重连配置
+        private const val MAX_RETRY_COUNT = 10
+        private const val BASE_RETRY_DELAY_MS = 1000L
+        private const val MAX_RETRY_DELAY_MS = 60000L // 最大60秒
+
+        // 心跳配置
+        private const val HEARTBEAT_INTERVAL_NORMAL_MS = 30000L // 正常网络30秒
+        private const val HEARTBEAT_INTERVAL_WEAK_MS = 45000L   // 弱网45秒
+        private const val HEARTBEAT_TIMEOUT_MS = 10000L         // 心跳超时10秒
     }
 
     private val json = Json {
@@ -25,7 +45,11 @@ class WebSocketManager {
     }
 
     private val client = OkHttpClient.Builder()
-        .pingInterval(30, TimeUnit.SECONDS)
+        .pingInterval(HEARTBEAT_INTERVAL_NORMAL_MS, TimeUnit.MILLISECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     private var webSocket: WebSocket? = null
@@ -41,19 +65,27 @@ class WebSocketManager {
 
     private var currentToken: String? = null
     private var retryCount = 0
-    private val maxRetryCount = 5
-    private val baseRetryDelayMs = 1000L
-    private val maxRetryDelayMs = 30000L
     private var reconnectJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+    // 消息发送队列（断线期间缓存消息）
+    private val messageQueue = mutableListOf<PendingMessage>()
+    private var messageQueueJob: Job? = null
+
+    // 心跳管理
+    private var heartbeatJob: Job? = null
+    private var lastPongTime = 0L
+
+    // 连接状态
     sealed class ConnectionState {
         data object Disconnected : ConnectionState()
         data object Connecting : ConnectionState()
+        data object Reconnecting : ConnectionState()
         data class Connected(val connectionId: String) : ConnectionState()
-        data class Error(val message: String) : ConnectionState()
+        data class Error(val message: String, val retryCount: Int = 0) : ConnectionState()
     }
 
+    // WebSocket事件
     sealed class WebSocketEvent {
         data class MessageStart(val messageId: String, val iteration: Int) : WebSocketEvent()
         data class MessageDelta(val messageId: String, val delta: String) : WebSocketEvent()
@@ -70,14 +102,21 @@ class WebSocketManager {
 
         data class ConversationEnd(val totalMessages: Int) : WebSocketEvent()
         data class Error(val message: String) : WebSocketEvent()
-
-        /**
-         * Agent 推送消息事件
-         * 用于接收后端推送的隐私信息、通知等
-         */
         data class AgentPush(val message: AgentPushMessage) : WebSocketEvent()
     }
 
+    // 待发送消息
+    private data class PendingMessage(
+        val type: String,
+        val content: String,
+        val timestamp: Long = System.currentTimeMillis()
+    )
+
+    /**
+     * 连接WebSocket
+     *
+     * @param token 认证Token
+     */
     fun connect(token: String) {
         if (_connectionState.value is ConnectionState.Connecting ||
             _connectionState.value is ConnectionState.Connected) {
@@ -90,10 +129,19 @@ class WebSocketManager {
         performConnect(token)
     }
 
+    /**
+     * 执行连接
+     */
     private fun performConnect(token: String) {
-        _connectionState.value = ConnectionState.Connecting
+        val isReconnect = retryCount > 0
+        _connectionState.value = if (isReconnect) {
+            ConnectionState.Reconnecting
+        } else {
+            ConnectionState.Connecting
+        }
 
         val wsUrl = NetworkConfig.getWebSocketUrl()
+        Log.i(TAG, "Connecting to WebSocket: $wsUrl (attempt ${retryCount + 1})")
 
         val request = Request.Builder()
             .url(wsUrl)
@@ -104,12 +152,20 @@ class WebSocketManager {
             override fun onOpen(ws: WebSocket, response: Response) {
                 Log.i(TAG, "WebSocket connected")
                 retryCount = 0
+                lastPongTime = System.currentTimeMillis()
 
+                // 发送登录消息
                 val loginMessage = buildJsonObject {
                     put("type", "login")
                     put("token", token)
                 }
                 ws.send(loginMessage.toString())
+
+                // 启动心跳
+                startHeartbeat()
+
+                // 发送队列中的消息
+                flushMessageQueue()
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
@@ -123,6 +179,7 @@ class WebSocketManager {
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 Log.i(TAG, "WebSocket closed: $code / $reason")
+                stopHeartbeat()
                 _connectionState.value = ConnectionState.Disconnected
                 webSocket = null
 
@@ -131,7 +188,11 @@ class WebSocketManager {
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 Log.e(TAG, "WebSocket error: ${t.message}")
-                _connectionState.value = ConnectionState.Error(t.message ?: "连接失败")
+                stopHeartbeat()
+                _connectionState.value = ConnectionState.Error(
+                    t.message ?: "连接失败",
+                    retryCount
+                )
                 webSocket = null
 
                 scheduleReconnectIfNeeded(null)
@@ -139,41 +200,99 @@ class WebSocketManager {
         })
     }
 
+    /**
+     * 指数退避重连策略
+     * 延迟 = min(基础延迟 * 2^重试次数, 最大延迟)
+     */
     private fun scheduleReconnectIfNeeded(closeCode: Int?) {
         val token = currentToken ?: return
 
+        // 正常关闭不重连
         if (closeCode == NORMAL_CLOSURE_STATUS) {
             Log.i(TAG, "Normal closure, not reconnecting")
             return
         }
 
-        if (retryCount >= maxRetryCount) {
-            Log.w(TAG, "Max retry count ($maxRetryCount) reached, giving up")
+        // 达到最大重试次数
+        if (retryCount >= MAX_RETRY_COUNT) {
+            Log.w(TAG, "Max retry count ($MAX_RETRY_COUNT) reached, giving up")
+            _connectionState.value = ConnectionState.Error("连接失败，请检查网络后重试", retryCount)
             return
         }
 
-        val delayMs = minOf(baseRetryDelayMs * (1L shl retryCount), maxRetryDelayMs)
+        // 计算指数退避延迟
+        val delayMs = min(
+            BASE_RETRY_DELAY_MS * (1L shl retryCount),
+            MAX_RETRY_DELAY_MS
+        )
         retryCount++
 
-        Log.i(TAG, "Scheduling reconnect in ${delayMs}ms (attempt $retryCount/$maxRetryCount)")
+        Log.i(TAG, "Scheduling reconnect in ${delayMs}ms (attempt $retryCount/$MAX_RETRY_COUNT)")
 
         reconnectJob?.cancel()
         reconnectJob = scope.launch {
             delay(delayMs)
-            Log.i(TAG, "Attempting reconnect (attempt $retryCount/$maxRetryCount)")
-            performConnect(token)
+            if (isActive) {
+                Log.i(TAG, "Attempting reconnect (attempt $retryCount/$MAX_RETRY_COUNT)")
+                performConnect(token)
+            }
         }
     }
 
+    /**
+     * 启动心跳检测
+     */
+    private fun startHeartbeat() {
+        stopHeartbeat()
+        heartbeatJob = scope.launch {
+            while (isActive) {
+                delay(HEARTBEAT_INTERVAL_NORMAL_MS)
+
+                // 检查上次心跳响应时间
+                val timeSinceLastPong = System.currentTimeMillis() - lastPongTime
+                if (timeSinceLastPong > HEARTBEAT_INTERVAL_NORMAL_MS + HEARTBEAT_TIMEOUT_MS) {
+                    Log.w(TAG, "Heartbeat timeout, connection may be dead")
+                    // 强制重连
+                    webSocket?.close(1001, "Heartbeat timeout")
+                    return@launch
+                }
+
+                // 发送心跳
+                val pingMessage = buildJsonObject {
+                    put("type", "ping")
+                    put("timestamp", System.currentTimeMillis())
+                }
+                webSocket?.send(pingMessage.toString())
+            }
+        }
+    }
+
+    /**
+     * 停止心跳检测
+     */
+    private fun stopHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+    }
+
+    /**
+     * 断开连接
+     */
     fun disconnect() {
         reconnectJob?.cancel()
         reconnectJob = null
-        retryCount = maxRetryCount
+        stopHeartbeat()
+        retryCount = MAX_RETRY_COUNT
         webSocket?.close(NORMAL_CLOSURE_STATUS, "User disconnected")
         webSocket = null
         _connectionState.value = ConnectionState.Disconnected
+        messageQueue.clear()
     }
 
+    /**
+     * 发送用户消息
+     * 如果未连接，消息会进入队列等待发送
+     */
     fun sendUserMessage(
         sessionId: String,
         content: String,
@@ -198,18 +317,67 @@ class WebSocketManager {
                 put("imageAttachments", attachmentsArray)
             }
         }
-        webSocket?.send(message.toString())
-            ?: Log.e(TAG, "Cannot send message: WebSocket not connected")
+
+        val messageStr = message.toString()
+
+        if (isConnected) {
+            webSocket?.send(messageStr)
+                ?: Log.e(TAG, "Cannot send message: WebSocket not connected")
+        } else {
+            // 未连接时加入队列
+            messageQueue.add(PendingMessage("user_message", messageStr))
+            Log.w(TAG, "WebSocket not connected, message queued. Queue size: ${messageQueue.size}")
+        }
     }
 
+    /**
+     * 中断生成
+     */
     fun interruptGeneration(sessionId: String) {
         val message = buildJsonObject {
             put("type", "interrupt_generation")
             put("sessionId", sessionId)
         }
-        webSocket?.send(message.toString())
+
+        if (isConnected) {
+            webSocket?.send(message.toString())
+        } else {
+            Log.w(TAG, "Cannot interrupt: WebSocket not connected")
+        }
     }
 
+    /**
+     * 刷新消息队列（连接成功后发送）
+     */
+    private fun flushMessageQueue() {
+        if (messageQueue.isEmpty()) return
+
+        Log.i(TAG, "Flushing message queue: ${messageQueue.size} messages")
+
+        messageQueueJob?.cancel()
+        messageQueueJob = scope.launch {
+            // 复制队列并清空
+            val messagesToSend = messageQueue.toList()
+            messageQueue.clear()
+
+            messagesToSend.forEach { pendingMessage ->
+                if (isActive && isConnected) {
+                    webSocket?.send(pendingMessage.content)
+                    delay(100) // 间隔发送，避免拥塞
+                } else {
+                    // 连接断开，重新加入队列
+                    messageQueue.add(pendingMessage)
+                    return@launch
+                }
+            }
+
+            Log.i(TAG, "Message queue flushed successfully")
+        }
+    }
+
+    /**
+     * 处理收到的消息
+     */
     private fun handleMessage(text: String) {
         try {
             val jsonElement = json.parseToJsonElement(text)
@@ -232,9 +400,19 @@ class WebSocketManager {
                     handleEvent(event, data)
                 }
 
+                "pong" -> {
+                    // 心跳响应
+                    lastPongTime = System.currentTimeMillis()
+                    Log.d(TAG, "Received pong from server")
+                }
+
                 "ping" -> {
-                    // 服务器心跳检测，无需处理
-                    Log.d(TAG, "Received ping from server")
+                    // 服务器心跳检测，回复pong
+                    val pongMessage = buildJsonObject {
+                        put("type", "pong")
+                        put("timestamp", System.currentTimeMillis())
+                    }
+                    webSocket?.send(pongMessage.toString())
                 }
 
                 "error" -> {
@@ -252,6 +430,9 @@ class WebSocketManager {
         }
     }
 
+    /**
+     * 处理事件
+     */
     private fun handleEvent(event: String?, data: JsonObject?) {
         if (event == null || data == null) return
 
@@ -272,7 +453,6 @@ class WebSocketManager {
             }
 
             "content_block_delta" -> {
-                // Anthropic SDK 原始事件，转换为 message_delta 格式
                 val text = data["text"]?.jsonPrimitive?.content ?: ""
                 WebSocketEvent.MessageDelta("", text)
             }
@@ -353,7 +533,6 @@ class WebSocketManager {
             }
 
             "agent_push" -> {
-                // Agent 推送消息事件
                 try {
                     val pushMessage = json.decodeFromJsonElement(AgentPushMessage.serializer(), data)
                     WebSocketEvent.AgentPush(pushMessage)

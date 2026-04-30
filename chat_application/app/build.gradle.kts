@@ -109,6 +109,9 @@ dependencies {
     implementation(libs.markdown.renderer)
     implementation(libs.markdown.code)
 
+    // MMKV - 腾讯高性能KV存储（比SharedPreferences快10~100倍）
+    implementation(libs.mmkv)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
