@@ -36,16 +36,17 @@ fun StepProgress(
     onExpandedChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val colors = AppColor.current
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFF5F5F7)
+            containerColor = colors.SurfaceVariant
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE8E8ED))
+        border = androidx.compose.foundation.BorderStroke(1.dp, colors.Border)
     ) {
         Column {
             // 头部（可点击展开/收起）
@@ -106,7 +107,7 @@ fun StepProgress(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     HorizontalDivider(
-                        color = Color(0xFFE8E8ED),
+                        color = colors.Divider,
                         thickness = 1.dp,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
@@ -143,11 +144,12 @@ private fun StepProgressIndicator(
         modifier = Modifier.size(44.dp),
         contentAlignment = Alignment.Center
     ) {
+        val colors = AppColor.current
         // 背景圆环
         CircularProgressIndicator(
             progress = { 1f },
             modifier = Modifier.fillMaxSize(),
-            color = Color(0xFFE8E8ED),
+            color = colors.Divider,
             strokeWidth = 3.dp,
             trackColor = Color.Transparent
         )
@@ -190,14 +192,15 @@ private fun StepItem(
             StepStatusIcon(status = step.status)
 
             if (!isLast) {
+                val colors = AppColor.current
                 Box(
                     modifier = Modifier
                         .width(2.dp)
                         .height(28.dp)
                         .background(
                             color = when (step.status) {
-                                StepStatus.COMPLETED -> AppColor.Success.copy(alpha = 0.3f)
-                                else -> Color(0xFFE8E8ED)
+                                StepStatus.COMPLETED -> colors.Success.copy(alpha = 0.3f)
+                                else -> colors.Divider
                             }
                         )
                 )
@@ -290,11 +293,12 @@ private fun StepStatusIcon(status: StepStatus) {
             )
         }
         StepStatus.PENDING -> {
+            val colors = AppColor.current
             Box(
                 modifier = Modifier
                     .size(20.dp)
                     .background(
-                        color = Color(0xFFE8E8ED),
+                        color = colors.Divider,
                         shape = CircleShape
                     )
             )

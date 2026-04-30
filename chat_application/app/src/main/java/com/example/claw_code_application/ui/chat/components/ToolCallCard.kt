@@ -71,11 +71,12 @@ fun ToolCallCard(
         }
     }
 
+    val colors = AppColor.current
     val borderColor = when (toolCall.status) {
-        "completed" -> AppColor.Success
-        "error" -> AppColor.Error
-        "executing" -> AppColor.Warning
-        else -> Color(0xFFE8E8ED)
+        "completed" -> colors.Success
+        "error" -> colors.Error
+        "executing" -> colors.Warning
+        else -> colors.Border
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -101,8 +102,8 @@ fun ToolCallCard(
             .padding(vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFF5F5F7),
-            contentColor = AppColor.TextPrimary
+            containerColor = colors.SurfaceVariant,
+            contentColor = colors.TextPrimary
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         border = BorderStroke(1.dp, borderColor.copy(alpha = 0.3f))
@@ -199,10 +200,10 @@ fun ToolCallCard(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
                     HorizontalDivider(
-                        color = Color(0xFFE8E8ED),
-                        thickness = 1.dp,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
+                    color = colors.Divider,
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
 
                     val (inputMap, formattedInput) = parsedInput
                     if (inputMap.isNotEmpty()) {
@@ -337,10 +338,11 @@ private fun ResultSection(
 
         Spacer(modifier = Modifier.height(10.dp))
 
+        val colors = AppColor.current
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(10.dp),
-            color = Color(0xFFF5F5F7)
+            color = colors.Surface
         ) {
             Text(
                 text = content,
@@ -362,31 +364,32 @@ private data class StatusConfig(
 
 @Composable
 private fun getStatusConfig(status: String): StatusConfig {
+    val colors = AppColor.current
     return when (status) {
         "pending" -> StatusConfig(
             label = "等待",
-            color = Color(0xFF6B7280),
-            backgroundColor = Color(0xFFF3F4F6)
+            color = colors.TextSecondary,
+            backgroundColor = colors.Surface
         )
         "executing" -> StatusConfig(
             label = "执行中",
-            color = AppColor.Warning,
-            backgroundColor = Color(0xFFFFF7ED)
+            color = colors.Warning,
+            backgroundColor = colors.WarningBackground.copy(alpha = 0.5f)
         )
         "completed" -> StatusConfig(
             label = "完成",
-            color = AppColor.Success,
-            backgroundColor = Color(0xFFECFDF5)
+            color = colors.Success,
+            backgroundColor = colors.SuccessBackground.copy(alpha = 0.5f)
         )
         "error" -> StatusConfig(
             label = "错误",
-            color = AppColor.Error,
-            backgroundColor = Color(0xFFFEE2E2)
+            color = colors.Error,
+            backgroundColor = colors.ErrorBackground.copy(alpha = 0.5f)
         )
         else -> StatusConfig(
             label = "未知",
-            color = AppColor.TextSecondary,
-            backgroundColor = Color(0xFFF3F4F6)
+            color = colors.TextSecondary,
+            backgroundColor = colors.Surface
         )
     }
 }
@@ -749,10 +752,11 @@ private fun CompactResultSection(
 
         Spacer(modifier = Modifier.height(6.dp))
 
+        val colors = AppColor.current
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(6.dp),
-            color = Color(0xFFF5F5F7)
+            color = colors.Surface
         ) {
             Text(
                 text = content,
@@ -801,10 +805,11 @@ private fun UltraCompactResultSection(
 
         Spacer(modifier = Modifier.height(4.dp))
 
+        val colors = AppColor.current
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(4.dp),
-            color = Color(0xFFF5F5F7)
+            color = colors.Surface
         ) {
             Text(
                 text = content,

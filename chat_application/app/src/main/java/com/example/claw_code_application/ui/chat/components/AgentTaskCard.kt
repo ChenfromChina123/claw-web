@@ -60,14 +60,15 @@ fun AgentTaskCard(
     onDashboardClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val colors = AppColor.current
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFF5F5F7)
+            containerColor = colors.SurfaceVariant
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = BorderStroke(1.dp, Color(0xFFE8E8ED))
+        border = BorderStroke(1.dp, colors.Border)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -204,6 +205,7 @@ private fun AgentStepItem(
         }
 
         if (showConnector) {
+            val colors = AppColor.current
             Box(
                 modifier = Modifier
                     .padding(start = 7.dp)
@@ -211,8 +213,8 @@ private fun AgentStepItem(
                     .height(12.dp)
                     .background(
                         color = when (step.status) {
-                            AgentStepStatus.COMPLETED -> AppColor.TaskCompleted.copy(alpha = 0.3f)
-                            else -> Color(0xFFE8E8ED)
+                            AgentStepStatus.COMPLETED -> colors.TaskCompleted.copy(alpha = 0.3f)
+                            else -> colors.Divider
                         }
                     )
             )
@@ -228,11 +230,12 @@ private fun AgentStepItem(
 private fun StepIcon(status: AgentStepStatus) {
     when (status) {
         AgentStepStatus.COMPLETED -> {
+            val colors = AppColor.current
             Box(
                 modifier = Modifier
                     .size(16.dp)
                     .background(
-                        color = Color(0xFFF3F4F6),
+                        color = colors.Surface,
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
@@ -240,7 +243,7 @@ private fun StepIcon(status: AgentStepStatus) {
                 Text(
                     text = "✓",
                     fontSize = 10.sp,
-                    color = AppColor.TaskCompleted
+                    color = colors.TaskCompleted
                 )
             }
         }

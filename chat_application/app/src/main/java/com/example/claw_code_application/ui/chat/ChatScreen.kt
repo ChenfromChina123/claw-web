@@ -25,6 +25,7 @@ import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.ui.chat.components.*
 import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.viewmodel.ChatViewModel
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
