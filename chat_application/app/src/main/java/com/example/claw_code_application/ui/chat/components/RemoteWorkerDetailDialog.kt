@@ -78,8 +78,8 @@ fun RemoteWorkerDetailDialog(
                     InfoItem("Worker ID", worker.workerId)
                     InfoItem("主机地址", worker.host)
                     InfoItem("端口", worker.port.toString())
-                    InfoItem("SSH 用户", worker.sshUsername)
-                    InfoItem("SSH 端口", worker.sshPort.toString())
+                    InfoItem("SSH 用户", worker.sshUsername ?: "未设置")
+                    InfoItem("SSH 端口", worker.sshPort?.toString() ?: "未设置")
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
