@@ -15,8 +15,8 @@ import androidx.room.RoomDatabase
         MessageEntity::class,
         ToolCallEntity::class
     ],
-    version = 2,
-    exportSchema = true
+    version = 3,  // 升级版本号：添加了索引优化
+    exportSchema = false  // 禁用schema导出，简化构建
 )
 abstract class AppDatabase : RoomDatabase() {
 

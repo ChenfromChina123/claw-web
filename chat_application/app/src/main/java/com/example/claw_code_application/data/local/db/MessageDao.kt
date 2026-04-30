@@ -128,11 +128,11 @@ interface MessageDao {
      */
     @Transaction
     suspend fun updateMessagesBatch(messages: List<MessageEntity>) {
-        messages.forEach { updateMessageInternal(it) }
+        messages.forEach { updateMessageInternal(it.id, it.content, it.isStreaming) }
     }
 
     @Query("UPDATE messages SET content = :content, isStreaming = :isStreaming WHERE id = :messageId")
-    suspend fun updateMessageInternal(message: MessageEntity)
+    suspend fun updateMessageInternal(messageId: String, content: String, isStreaming: Boolean)
 
     /**
      * 删除指定会话的所有消息

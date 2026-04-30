@@ -18,12 +18,6 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class TokenManager(private val context: Context) {
 
-    /** MMKV存储Key */
-    private companion object {
-        const val KEY_AUTH_TOKEN = "auth_token"
-        const val TAG = "TokenManager"
-    }
-
     /** Token状态流，用于响应式UI更新 */
     private val _tokenFlow = MutableStateFlow<String?>(null)
     val tokenFlow: Flow<String?> = _tokenFlow.asStateFlow()
@@ -73,7 +67,7 @@ class TokenManager(private val context: Context) {
      *
      * @return Token字符串，如果不存在则返回null
      */
-    suspend fun getTokenSync(): String? {
+    fun getTokenSync(): String? {
         val token = MMKVManager.getEncryptedString(KEY_AUTH_TOKEN)
         android.util.Log.d(TAG, "=== getTokenSync ===")
         android.util.Log.d(TAG, "Token: ${if (token != null) "存在(${token.length}字符)" else "null"}")
@@ -93,6 +87,9 @@ class TokenManager(private val context: Context) {
     }
 
     companion object {
+        private const val KEY_AUTH_TOKEN = "auth_token"
+        private const val TAG = "TokenManager"
+
         @Volatile
         private var INSTANCE: TokenManager? = null
 

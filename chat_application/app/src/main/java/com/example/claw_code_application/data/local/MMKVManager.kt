@@ -1,5 +1,6 @@
 package com.example.claw_code_application.data.local
 
+import android.annotation.SuppressLint
 import android.content.Context
 import com.tencent.mmkv.MMKV
 
@@ -198,6 +199,3 @@ object MMKVManager {
         encrypted().sync()
     }
 }
-
-// 添加SuppressLint导入
-import android.annotation.SuppressLint

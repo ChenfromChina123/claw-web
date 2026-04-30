@@ -1,5 +1,7 @@
 package com.example.claw_code_application.util
 
+import android.os.Handler
+import android.os.Looper
 import kotlinx.coroutines.*
 import java.util.concurrent.Executors
 import kotlin.coroutines.CoroutineContext
@@ -242,7 +244,3 @@ object MainThreadProtector {
         }
     }
 }
-
-// 导入需要的类
-import android.os.Handler
-import android.os.Looper

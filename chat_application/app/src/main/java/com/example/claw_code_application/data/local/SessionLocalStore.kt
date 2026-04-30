@@ -15,12 +15,6 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class SessionLocalStore(private val context: Context) {
 
-    /** MMKV存储Key */
-    private companion object {
-        const val KEY_CURRENT_SESSION_ID = "current_session_id"
-        const val TAG = "SessionLocalStore"
-    }
-
     /** 会话ID状态流，用于响应式UI更新 */
     private val _sessionFlow = MutableStateFlow<String?>(null)
     val sessionFlow: Flow<String?> = _sessionFlow.asStateFlow()
@@ -61,7 +55,7 @@ class SessionLocalStore(private val context: Context) {
      *
      * @return 会话ID字符串，如果不存在则返回null
      */
-    suspend fun getSessionIdSync(): String? {
+    fun getSessionIdSync(): String? {
         return MMKVManager.getString(KEY_CURRENT_SESSION_ID)
     }
 
@@ -75,6 +69,9 @@ class SessionLocalStore(private val context: Context) {
     }
 
     companion object {
+        private const val KEY_CURRENT_SESSION_ID = "current_session_id"
+        private const val TAG = "SessionLocalStore"
+
         @Volatile
         private var INSTANCE: SessionLocalStore? = null
 

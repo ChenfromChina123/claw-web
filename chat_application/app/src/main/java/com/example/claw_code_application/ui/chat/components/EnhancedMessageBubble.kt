@@ -43,7 +43,13 @@ fun EnhancedMessageBubble(
 ) {
     val colors = AppColor.current
     val isUser = message.role == "user"
-    
+
+    // 检查消息内容中是否已经包含工具调用组件
+    val hasToolComponentsInContent = remember(message.content) {
+        message.content.contains("\"type\":\"tool_use\"") ||
+        message.content.contains("\"type\":\"tool_result\"")
+    }
+
     // Manus 1.6 Lite 气泡配置
     val bubbleShape = RoundedCornerShape(
         topStart = if (isUser) 20.dp else 12.dp,
@@ -51,7 +57,7 @@ fun EnhancedMessageBubble(
         bottomStart = 18.dp,
         bottomEnd = 18.dp
     )
-    
+
     // AI消息使用极淡阴影
     val bubbleElevation = if (isUser) Modifier else Modifier.shadow(
         elevation = 2.dp,
@@ -89,7 +95,7 @@ fun EnhancedMessageBubble(
                         val filteredContent = remember(message.content) {
                             getSafeAssistantContent(message.content)
                         }
-                        
+
                         if (filteredContent.isNotBlank()) {
                             // 用户消息：使用主题表面色（深色主题下为深色文字）
                             Text(
@@ -113,8 +119,9 @@ fun EnhancedMessageBubble(
                 }
             }
 
-            // 工具调用显示 - 使用增强版可折叠卡片
-            if (toolCalls.isNotEmpty() && !isUser) {
+            // 工具调用显示 - 仅在消息内容中不包含工具组件时显示
+            // 避免二次加载时重复显示工具调用UI
+            if (toolCalls.isNotEmpty() && !isUser && !hasToolComponentsInContent) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Column(
                     modifier = Modifier.fillMaxWidth(),

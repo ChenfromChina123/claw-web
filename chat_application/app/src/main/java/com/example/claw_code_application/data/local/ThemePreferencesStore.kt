@@ -18,13 +18,6 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class ThemePreferencesStore(private val context: Context) {
 
-    /** MMKV存储Key */
-    private companion object {
-        const val KEY_THEME_MODE = "theme_mode"
-        const val DEFAULT_THEME_MODE = "SYSTEM"
-        const val TAG = "ThemePreferencesStore"
-    }
-
     /** 主题状态流，用于响应式UI更新 */
     private val _themeFlow = MutableStateFlow(DEFAULT_THEME_MODE)
     val themeFlow: Flow<String> = _themeFlow.asStateFlow()
@@ -65,7 +58,7 @@ class ThemePreferencesStore(private val context: Context) {
      *
      * @return 主题模式字符串，如果不存在则返回默认值 SYSTEM
      */
-    suspend fun getThemeModeSync(): String {
+    fun getThemeModeSync(): String {
         return MMKVManager.getString(KEY_THEME_MODE, DEFAULT_THEME_MODE) ?: DEFAULT_THEME_MODE
     }
 
@@ -78,6 +71,10 @@ class ThemePreferencesStore(private val context: Context) {
     }
 
     companion object {
+        private const val KEY_THEME_MODE = "theme_mode"
+        private const val DEFAULT_THEME_MODE = "SYSTEM"
+        private const val TAG = "ThemePreferencesStore"
+
         @Volatile
         private var INSTANCE: ThemePreferencesStore? = null
 
