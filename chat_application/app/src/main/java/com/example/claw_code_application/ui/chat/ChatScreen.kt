@@ -84,6 +84,15 @@ fun ChatScreen(
         }
     }
 
+    // 会话加载完成后滚动到最新消息
+    LaunchedEffect(uiState) {
+        if (uiState is ChatViewModel.UiState.Success && displayMessages.isNotEmpty()) {
+            // 延迟一点确保列表已渲染
+            delay(100L)
+            listState.animateScrollToItem(0)
+        }
+    }
+
     val onSend: (String) -> Unit = remember(viewModel) {
         { content: String -> viewModel.sendMessage(content) }
     }
