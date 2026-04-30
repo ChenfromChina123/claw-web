@@ -628,7 +628,7 @@ fun CompactToolCallCard(
                 ) + fadeOut(animationSpec = tween(150))
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 12.dp, bottom = 10.dp)
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 10.dp)
                 ) {
                     HorizontalDivider(
                         color = Color(0xFFE0E0E0),

@@ -66,3 +66,5 @@ docker-compose build --no-cache master
    - 前端使用 Vite 开发服务器
 
 当前开发项目为web：claw-web/web，手机app：claw-web/chat_application，后端：claw-web/server
+测试账号；3301767269@qq.com
+测试密码；123456
