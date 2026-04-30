@@ -139,19 +139,20 @@ export class WebAgentRunner {
         
         // 执行工具调用
         for (const toolCall of result.toolCalls) {
-          sendEvent('tool_call', { name: toolCall.name, input: toolCall.input })
-          
+          sendEvent('tool_call', { id: toolCall.id, name: toolCall.name, input: toolCall.input })
+
           try {
             const toolResult = await toolExecutor.executeTool(
               toolCall.name,
               toolCall.input,
               sendEvent
             )
-            
+
             toolCall.output = toolResult.result
             toolCall.status = toolResult.success ? 'completed' : 'error'
-            
+
             sendEvent('tool_result', {
+              id: toolCall.id,
               name: toolCall.name,
               success: toolResult.success,
               result: toolResult.result,
@@ -346,18 +347,19 @@ export class WebAgentRunner {
           
           // 执行工具
           for (const toolCall of result.toolCalls) {
-            sendEvent('tool_call', { name: toolCall.name, input: toolCall.input })
-            
+            sendEvent('tool_call', { id: toolCall.id, name: toolCall.name, input: toolCall.input })
+
             const toolResult = await toolExecutor.executeTool(
               toolCall.name,
               toolCall.input,
               sendEvent
             )
-            
+
             toolCall.output = toolResult.success ? toolResult.result : toolResult.error
             toolCall.status = toolResult.success ? 'completed' : 'error'
-            
+
             sendEvent('tool_result', {
+              id: toolCall.id,
               name: toolCall.name,
               success: toolResult.success,
               result: toolResult.result,

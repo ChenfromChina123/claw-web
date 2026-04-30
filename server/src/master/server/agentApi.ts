@@ -219,7 +219,8 @@ async function saveEventAsync(sessionId: string, event: SSEParsedEvent): Promise
  */
 async function saveToolResultAsync(sessionId: string, toolResult: any): Promise<void> {
   try {
-    if (toolResult && toolResult.toolUseId) {
+    // 使用 id 字段标识工具调用（agentRunner 发送的事件中包含 id）
+    if (toolResult && toolResult.id) {
       // 更新工具调用结果
       sessionManager.updateToolCall(
         sessionId,
@@ -227,6 +228,9 @@ async function saveToolResultAsync(sessionId: string, toolResult: any): Promise<
         toolResult.result || {},
         toolResult.error ? 'error' : 'completed'
       )
+      console.log(`[AgentAPI] 工具结果已保存: ${toolResult.id}, status=${toolResult.error ? 'error' : 'completed'}`)
+    } else {
+      console.warn('[AgentAPI] 无法保存工具结果: 缺少 id 字段', toolResult)
     }
   } catch (error) {
     console.error('[AgentAPI] 保存工具结果失败:', error)
