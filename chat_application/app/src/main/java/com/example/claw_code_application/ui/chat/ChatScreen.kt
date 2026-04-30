@@ -319,24 +319,25 @@ private fun ChatMessageList(
         state = listState,
         reverseLayout = true,
         contentPadding = PaddingValues(vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxSize()
     ) {
         items(
-            count = displayMessages.size,
-            key = { index -> "${displayMessages[index].id}_$index" },
-            contentType = { index ->
-                when (displayMessages[index].role) {
+            items = displayMessages,
+            key = { message -> message.id },
+            contentType = { message ->
+                when (message.role) {
                     "user" -> "user_message"
                     "assistant" -> "assistant_message"
                     else -> "system_message"
                 }
             }
-        ) { index ->
-            val message = displayMessages[index]
+        ) { message ->
             EnhancedMessageBubble(
                 message = message,
-                toolCalls = viewModel.getToolCallsForMessage(message.id)
+                toolCalls = remember(message.id, viewModel.toolCalls) {
+                    viewModel.getToolCallsForMessage(message.id)
+                },
+                modifier = Modifier.padding(vertical = 8.dp)
             )
         }
 
