@@ -301,16 +301,11 @@ private fun ChatTopBar(
 
 /**
  * 聊天消息列表 - Manus 1.6 Lite 风格
- *
+ * 
  * 特点：
  * - 消息间距统一
  * - 加载状态简洁
  * - 错误提示清晰
- *
- * 性能优化：
- * - 使用 remember 缓存工具调用查询结果
- * - 添加 contentType 优化列表项复用
- * - 使用 key 避免不必要的重组
  */
 @Composable
 private fun ChatMessageList(
@@ -320,19 +315,10 @@ private fun ChatMessageList(
     listState: androidx.compose.foundation.lazy.LazyListState
 ) {
     val colors = AppColor.current
-
-    // 缓存每条消息的工具调用，避免每次滚动都重新查询
-    val messageToolCalls = remember(displayMessages, viewModel.toolCalls) {
-        displayMessages.associate { message ->
-            message.id to viewModel.getToolCallsForMessage(message.id)
-        }
-    }
-
     LazyColumn(
         state = listState,
         reverseLayout = true,
         contentPadding = PaddingValues(vertical = 16.dp),
-        // 关键性能优化：限制可见项数量，超出部分不渲染
         modifier = Modifier.fillMaxSize()
     ) {
         items(
@@ -346,19 +332,13 @@ private fun ChatMessageList(
                 }
             }
         ) { message ->
-            // 使用缓存的工具调用数据
-            val toolCalls = messageToolCalls[message.id] ?: emptyList()
-            // 关键优化：使用 remember 缓存消息气泡，避免不必要的重组
-            key(message.id) {
-                EnhancedMessageBubble(
-                    message = message,
-                    toolCalls = toolCalls,
-                    modifier = Modifier
-                        .padding(vertical = 8.dp)
-                        // 关键优化：为每个列表项设置稳定的布局约束
-                        .animateItem(fadeInSpec = null, fadeOutSpec = null)
-                )
-            }
+            EnhancedMessageBubble(
+                message = message,
+                toolCalls = remember(message.id, viewModel.toolCalls) {
+                    viewModel.getToolCallsForMessage(message.id)
+                },
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
         }
 
         // 使用 key 来避免不必要的重组

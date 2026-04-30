@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -29,54 +28,21 @@ import java.util.*
 
 /**
  * 增强版消息气泡组件 - Manus 1.6 Lite 风格
- *
+ * 
  * 设计理念：
  * - 轻、透、统一，没有多余的装饰
  * - AI消息：浅灰背景(#F5F5F7)，极淡阴影，圆角18dp
  * - 用户消息：纯黑背景，白色文字，圆角20dp
  * - 最大宽度：屏幕的85%，避免单行文字过长
- *
- * 性能优化：
- * - 使用 remember 缓存解析结果，避免重复解析
- * - 工具调用列表使用 key 优化重组
- * - 长文本截断避免过度渲染
- */
-/**
- * 增强版消息气泡组件 - Manus 1.6 Lite 风格
- *
- * 设计理念：
- * - 轻、透、统一，没有多余的装饰
- * - AI消息：浅灰背景(#F5F5F7)，极淡阴影，圆角18dp
- * - 用户消息：纯黑背景，白色文字，圆角20dp
- * - 最大宽度：屏幕的85%，避免单行文字过长
- *
- * 性能优化：
- * - 使用 remember 缓存解析结果，避免重复解析
- * - 工具调用列表使用 key 优化重组
- * - 长文本截断避免过度渲染
- * - 使用 stability 优化避免不必要的重组
  */
 @Composable
 fun EnhancedMessageBubble(
     message: Message,
-    toolCalls: List<ToolCall>,
+    toolCalls: List<ToolCall> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val colors = AppColor.current
     val isUser = message.role == "user"
-
-    // 关键优化：使用 derivedStateOf 减少重组频率
-    // 只在 content 真正变化时才重新解析
-    val components by remember(message.id, message.content) {
-        derivedStateOf { MessageContentParser.parse(message.content) }
-    }
-
-    // 缓存工具调用展开状态，避免重组时状态丢失
-    val toolCallExpandedStates = remember(message.id, toolCalls.size) {
-        mutableStateListOf<Boolean>().apply {
-            repeat(toolCalls.size) { add(false) }
-        }
-    }
 
     // Manus 1.6 Lite 气泡配置
     val bubbleShape = RoundedCornerShape(
@@ -149,7 +115,7 @@ fun EnhancedMessageBubble(
 
                 if (hasNonToolContent) {
                     DynamicMessageContent(
-                        components = components,
+                        content = message.content,
                         isStreaming = message.isStreaming
                     )
                 }
@@ -157,21 +123,20 @@ fun EnhancedMessageBubble(
 
             // 工具调用显示 - 统一使用 ToolCallCard 显示（紧凑模式）
             if (toolCalls.isNotEmpty() && !isUser) {
-                Spacer(modifier = Modifier.height(8.dp))
+                if (!isUser) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     toolCalls.forEachIndexed { index, toolCall ->
                         key(toolCall.id) {
+                            var expanded by remember { mutableStateOf(false) }
                             CompactToolCallCard(
                                 toolCall = toolCall,
-                                expanded = toolCallExpandedStates.getOrElse(index) { false },
-                                onExpandedChange = { newValue ->
-                                    if (index < toolCallExpandedStates.size) {
-                                        toolCallExpandedStates[index] = newValue
-                                    }
-                                }
+                                expanded = expanded,
+                                onExpandedChange = { expanded = it }
                             )
                         }
                     }
@@ -192,122 +157,120 @@ fun EnhancedMessageBubble(
 /**
  * 动态消息内容渲染 - Manus 1.6 Lite 风格
  * 根据内容类型渲染不同组件
- *
+ * 
  * Manus 风格特点：
  * - 标题：H1 20sp加粗，H2 18sp加粗，H3 16sp加粗
  * - 文本：行高1.55倍，段落间距18sp
  * - 代码/关键词：浅灰背景(#E8E8ED)，圆角6dp
  * - 链接：iOS系统蓝(#007AFF)，无下划线
- *
- * 性能优化：
- * - 组件列表通过参数传入，避免重复解析
- * - 使用 key 优化列表项重组
- */
-/**
- * 动态消息内容渲染 - Manus 1.6 Lite 风格
- * 根据内容类型渲染不同组件
- *
- * 性能优化：
- * - 移除不必要的 key(index)，避免强制重新创建组件
- * - 使用 remember 缓存内容截断结果
- * - 延迟加载复杂组件（如 CodeDiff）
  */
 @Composable
 private fun DynamicMessageContent(
-    components: List<MessageComponent>,
+    content: String,
     isStreaming: Boolean
 ) {
-    Column {
-        components.forEachIndexed { index, component ->
-            when (component) {
-                is MessageComponent.Text -> {
-                    // 关键优化：使用 OptimizedMarkdown 替代 BeautifulMarkdown
-                    // 基于最新研究成果：异步解析 + 智能截断 + 渐进式渲染
-                    OptimizedMarkdown(
-                        markdown = component.content,
-                        isStreaming = isStreaming
-                    )
+    val components = remember(content) {
+        MessageContentParser.parse(content)
+    }
+
+    components.forEach { component ->
+        when (component) {
+            is MessageComponent.Text -> {
+                val displayContent = remember(component.content) {
+                    if (component.content.length > 5000) {
+                        component.content.take(5000) + "\n... (内容过长，已截断)"
+                    } else {
+                        component.content
+                    }
                 }
 
-                is MessageComponent.ToolUse -> {
-                    // 工具调用现在统一通过 ToolCallCard 显示
-                }
-
-                is MessageComponent.ToolResult -> {
-                    // 工具结果现在统一通过 ToolCallCard 显示
-                }
-
-                is MessageComponent.FileListResult -> {
-                    FileListViewer(
-                        path = component.path,
-                        count = component.count,
-                        files = component.files
-                    )
-                }
-
-                is MessageComponent.SearchResult -> {
-                    SearchResultViewer(
-                        summary = component.summary,
-                        matchCount = component.matchCount,
-                        matchedFiles = component.matchedFiles
-                    )
-                }
-
-                is MessageComponent.FileContentResult -> {
-                    FileContentViewer(
-                        path = component.path,
-                        content = component.content,
-                        lineCount = component.lineCount
-                    )
-                }
-
-                is MessageComponent.ErrorResult -> {
-                    ErrorResultViewer(
-                        error = component.error,
-                        errorType = component.errorType
-                    )
-                }
-
-                is MessageComponent.StepProgress -> {
-                    // 使用 rememberSaveable 保持展开状态
-                    var expanded by rememberSaveable { mutableStateOf(true) }
-                    StepProgress(
-                        title = component.title,
-                        currentStep = component.currentStep,
-                        totalSteps = component.totalSteps,
-                        steps = component.steps,
-                        isExpanded = expanded,
-                        onExpandedChange = { expanded = it }
-                    )
-                }
-
-                is MessageComponent.CodeDiff -> {
-                    // 关键优化：CodeDiff 可能很大，延迟加载
-                    CodeDiffEditor(
-                        fileName = component.fileName,
-                        originalCode = component.originalCode.take(5000),
-                        modifiedCode = component.modifiedCode.take(5000),
-                        language = component.language
-                    )
-                }
-
-                is MessageComponent.Image -> {
-                    AsyncImage(
-                        model = component.imageUrl,
-                        contentDescription = component.originalName ?: "图片",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 200.dp)
-                            .padding(vertical = 4.dp),
-                        contentScale = ContentScale.Fit
-                    )
-                }
+                // 使用超美Markdown渲染组件（Material3 + 代码高亮）
+                BeautifulMarkdown(
+                    markdown = displayContent,
+                    isStreaming = isStreaming
+                )
             }
 
-            // 组件之间添加间距
-            if (index < components.size - 1) {
-                Spacer(modifier = Modifier.height(16.dp))
+            is MessageComponent.ToolUse -> {
+                // 工具调用现在统一通过 ToolCallCard 显示
+                // 不在消息内容中渲染，避免与 ToolCallCard 重复
+                // 保留此分支以防止解析错误，但不渲染任何内容
             }
+
+            is MessageComponent.ToolResult -> {
+                // 工具结果现在统一通过 ToolCallCard 显示
+                // 不在消息内容中渲染，避免与 ToolCallCard 重复
+                // 保留此分支以防止解析错误，但不渲染任何内容
+            }
+
+            is MessageComponent.FileListResult -> {
+                FileListViewer(
+                    path = component.path,
+                    count = component.count,
+                    files = component.files
+                )
+            }
+
+            is MessageComponent.SearchResult -> {
+                SearchResultViewer(
+                    summary = component.summary,
+                    matchCount = component.matchCount,
+                    matchedFiles = component.matchedFiles
+                )
+            }
+
+            is MessageComponent.FileContentResult -> {
+                FileContentViewer(
+                    path = component.path,
+                    content = component.content,
+                    lineCount = component.lineCount
+                )
+            }
+
+            is MessageComponent.ErrorResult -> {
+                ErrorResultViewer(
+                    error = component.error,
+                    errorType = component.errorType
+                )
+            }
+
+            is MessageComponent.StepProgress -> {
+                var expanded by remember { mutableStateOf(true) }
+                StepProgress(
+                    title = component.title,
+                    currentStep = component.currentStep,
+                    totalSteps = component.totalSteps,
+                    steps = component.steps,
+                    isExpanded = expanded,
+                    onExpandedChange = { expanded = it }
+                )
+            }
+
+            is MessageComponent.CodeDiff -> {
+                CodeDiffEditor(
+                    fileName = component.fileName,
+                    originalCode = component.originalCode,
+                    modifiedCode = component.modifiedCode,
+                    language = component.language
+                )
+            }
+
+            is MessageComponent.Image -> {
+                AsyncImage(
+                    model = component.imageUrl,
+                    contentDescription = component.originalName ?: "图片",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 200.dp)
+                        .padding(vertical = 4.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+        }
+
+        // 组件之间添加间距 - Manus标准：16dp
+        if (component !== components.lastOrNull()) {
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

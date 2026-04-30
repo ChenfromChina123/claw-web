@@ -22,12 +22,6 @@ import com.mikepenz.markdown.m3.markdownTypography
  * 集成自定义颜色、字体排版和间距配置
  * 支持表格渲染（需要 mikepenz markdown renderer 0.30.0+）
  *
- * 性能优化：
- * - 长文本截断避免过度渲染
- * - 使用 remember 缓存截断结果
- * - 流式输出时降低更新频率
- * - 限制最大渲染高度
- *
  * @param markdown Markdown文本内容
  * @param isStreaming 是否正在流式输出
  * @param modifier Compose修饰符
@@ -40,18 +34,7 @@ fun BeautifulMarkdown(
 ) {
     val colors = AppColor.current
 
-    // 关键性能优化：长文本截断 + 流式输出优化
-    // 流式输出时更激进的截断，减少渲染开销
-    val displayMarkdown = remember(markdown, isStreaming) {
-        val maxLength = if (isStreaming) 3000 else 5000
-        if (markdown.length > maxLength) {
-            markdown.take(maxLength) + "\n\n... (内容过长，已截断显示)"
-        } else {
-            markdown
-        }
-    }
-
-    // 直接调用 markdownColor 和 markdownTypography，它们是 @Composable 函数
+    // 自定义 Markdown 颜色配置（markdownColor是Composable函数，不能直接缓存）
     val markdownColors = markdownColor(
         text = colors.TextPrimary,
         codeText = colors.PrimaryLight,
@@ -62,7 +45,7 @@ fun BeautifulMarkdown(
         linkText = colors.PrimaryLight
     )
 
-    // 直接调用 markdownTypography
+    // 自定义 Markdown 排版配置（markdownTypography是Composable函数，不能直接缓存）
     val markdownTypography = markdownTypography(
         h1 = TextStyle(
             fontSize = 20.sp,
@@ -156,17 +139,16 @@ fun BeautifulMarkdown(
         )
     )
 
-    // 直接调用 createComponents，因为它内部使用了 remember
-    val components = MarkdownTable.createComponents()
+    // 使用 remember 缓存组件配置（createComponents不是Composable）
+    val components = remember { MarkdownTable.createComponents() }
 
-    // 关键优化：限制最大高度，避免超长内容影响滑动性能
     Box(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
     ) {
         Markdown(
-            content = displayMarkdown,
+            content = markdown,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp, vertical = 4.dp),

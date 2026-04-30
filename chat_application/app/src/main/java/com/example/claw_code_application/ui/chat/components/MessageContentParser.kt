@@ -34,29 +34,32 @@ object MessageContentParser {
     private fun parseInternal(content: String): List<MessageComponent> {
         val trimmedContent = content.trim()
 
-        // 只在 DEBUG 模式下且内容较复杂时才打印日志
-        if (content.length > 1000 || trimmedContent.startsWith("[")) {
-            android.util.Log.d("MessageParser", "解析内容长度: ${content.length}")
-        }
+        android.util.Log.d("MessageParser", "=== parse() 开始 ===")
+        android.util.Log.d("MessageParser", "内容长度: ${content.length}")
+        android.util.Log.d("MessageParser", "内容前100字符: ${content.take(100)}")
 
         val components = mutableListOf<MessageComponent>()
 
         if (trimmedContent.startsWith("[") && trimmedContent.endsWith("]")) {
+            android.util.Log.d("MessageParser", "检测到JSON数组格式")
             try {
                 val jsonArray = json.parseToJsonElement(content).jsonArray
+                android.util.Log.d("MessageParser", "数组元素数量: ${jsonArray.size}")
                 for ((index, element) in jsonArray.withIndex()) {
                     if (element is JsonObject) {
                         val component = parseContentBlock(element)
                         if (component != null) {
                             components.add(component)
+                            android.util.Log.d("MessageParser", "[$index] → ${component.javaClass.simpleName}")
                         }
                     }
                 }
                 if (components.isNotEmpty()) {
+                    android.util.Log.d("MessageParser", "解析完成: ${components.size} 个组件")
                     return components
                 }
             } catch (e: Exception) {
-                android.util.Log.e("MessageParser", "JSON数组解析失败: ${e.message}")
+                android.util.Log.e("MessageParser", "JSON数组解析失败: ${e.message}", e)
             }
         }
 
