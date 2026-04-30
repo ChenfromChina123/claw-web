@@ -341,13 +341,12 @@ private fun ChatMessageList(
             )
         }
 
-        val activeToolCalls = remember(viewModel.toolCalls) {
-            viewModel.toolCalls.filter {
+        // 使用 key 来避免不必要的重组
+        item(key = "active_agent_task_${viewModel.toolCalls.hashCode()}") {
+            val activeToolCalls = viewModel.toolCalls.filter {
                 it.status == "executing" || it.status == "pending"
             }
-        }
-        if (activeToolCalls.isNotEmpty()) {
-            item(key = "active_agent_task") {
+            if (activeToolCalls.isNotEmpty()) {
                 val steps = remember(activeToolCalls) {
                     activeToolCalls.mapIndexed { index, toolCall ->
                         AgentStep(
