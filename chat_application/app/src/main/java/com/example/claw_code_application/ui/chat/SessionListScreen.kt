@@ -148,13 +148,15 @@ fun SessionListScreen(
                 }
             } else {
                 val listState = rememberLazyListState()
+                // 确保没有重复的key，使用索引作为后备
+                val uniqueItems = filteredData.distinctBy { it.id }
                 LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
                     items(
-                        items = filteredData,
-                        key = { item -> item.id },
+                        items = uniqueItems,
+                        key = { item -> item.id + item.updatedAt }, // 使用id+updatedAt组合确保唯一性
                         contentType = { "session_item" }
                     ) { item ->
                         SwipeToDismissSessionItem(
