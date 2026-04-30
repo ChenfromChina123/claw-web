@@ -54,16 +54,16 @@ docker-compose build --no-cache master
 ```
 ### ⚠️ 构建优化注意事项
 1. **不要滥用 `--no-cache`**
-   - 日常开发使用缓存
-   - 仅在基础镜像更新或系统依赖变更时使用 `--no-cache`
+    日常开发使用缓存
+    仅在基础镜像更新或系统依赖变更时使用 `--no-cache`
 2. **Dockerfile 缓存优化**
-   - 先复制依赖文件（package.json）
-   - 再安装依赖（利用缓存）
-   - 最后复制源代码（代码变化不影响依赖层）
+   先复制依赖文件（package.json）
+   再安装依赖（利用缓存）
+   最后复制源代码（代码变化不影响依赖层）
 3. **开发环境使用专用配置**
-   - `docker-compose.dev.yml` 提供 Bind Mount 热更新
-   - 使用 `--watch` 模式自动重载
-   - 前端使用 Vite 开发服务器
+   `docker-compose.dev.yml` 提供 Bind Mount 热更新
+    使用 `--watch` 模式自动重载
+    前端使用 Vite 开发服务器
 
 当前开发项目为web：claw-web/web，手机app：claw-web/chat_application，后端：claw-web/server
 测试账号；3301767269@qq.com
