@@ -57,7 +57,9 @@ fun ToolCallCard(
 
     val formattedOutput by remember(toolCall.id, toolCall.toolOutput, toolCall.status) {
         derivedStateOf {
-            if (toolCall.toolOutput != null && toolCall.status == "completed") {
+            // 在 completed 或 error 状态下都显示执行结果
+            if (toolCall.toolOutput != null &&
+                (toolCall.status == "completed" || toolCall.status == "error")) {
                 formatToolOutput(toolCall.toolOutput)
             } else {
                 ""
@@ -212,11 +214,17 @@ fun ToolCallCard(
                     }
 
                     if (formattedOutput.isNotEmpty()) {
+                        // 根据状态决定执行结果的颜色
+                        val outputColor = if (toolCall.status == "error") {
+                            AppColor.Error
+                        } else {
+                            AppColor.Success
+                        }
                         ResultSection(
                             title = "执行结果",
                             titleIcon = "📤",
                             content = formattedOutput,
-                            contentColor = AppColor.Success,
+                            contentColor = outputColor,
                             metaText = "${formattedOutput.length} 字符"
                         )
 
