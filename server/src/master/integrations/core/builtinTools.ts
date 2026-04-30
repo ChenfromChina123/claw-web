@@ -97,7 +97,7 @@ export class BuiltinToolRegistrar {
    * 获取内置工具数量统计
    */
   static getToolCount(): number {
-    return 120 // 当前内置工具总数 (增加了很多新工具)
+    return 123 // 当前内置工具总数 (增加了 TaskCreate, TaskList, TaskUpdate)
   }
 }
 
@@ -407,10 +407,10 @@ function registerTaskTools(registerFn: (config: ToolRegistrationConfig) => void)
           items: {
             type: 'object',
             properties: {
-              status: { 
+              status: {
                 type: 'string',
                 enum: ['in_progress', 'pending', 'completed', 'cancelled'],
-                description: '任务状态' 
+                description: '任务状态'
               },
               content: { type: 'string', description: '任务内容' },
               activeForm: { type: 'string', description: '当前执行动作' },
@@ -455,6 +455,113 @@ function registerTaskTools(registerFn: (config: ToolRegistrationConfig) => void)
     isReadOnly: false,
     isConcurrencySafe: false,
     aliases: ['todos_clear', 'clear_todos'],
+  })
+
+  // ========== Agent 自主任务管理工具 ==========
+
+  registerFn({
+    name: 'TaskCreate',
+    displayName: '创建任务',
+    description: '创建一个新任务到后台任务列表。Agent 可以使用此工具在执行过程中自主创建任务来跟踪工作进度。',
+    category: TOOL_CATEGORIES.TASK.id,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        subject: {
+          type: 'string',
+          description: '任务的简短标题（3-10个字）',
+        },
+        description: {
+          type: 'string',
+          description: '任务的详细描述，说明需要完成什么',
+        },
+        priority: {
+          type: 'string',
+          description: '任务优先级',
+          enum: ['low', 'normal', 'high', 'critical'],
+          default: 'normal',
+        },
+        parentTaskId: {
+          type: 'string',
+          description: '父任务ID（可选），用于建立任务层级关系',
+        },
+        metadata: {
+          type: 'object',
+          description: '附加到任务的元数据（可选）',
+        },
+      },
+      required: ['subject', 'description'],
+    },
+    isReadOnly: false,
+    isConcurrencySafe: true,
+    aliases: ['create_task', 'new_task'],
+  })
+
+  registerFn({
+    name: 'TaskList',
+    displayName: '任务列表',
+    description: '查看后台任务列表。Agent 可以使用此工具查看当前所有任务的状态和进度。',
+    category: TOOL_CATEGORIES.TASK.id,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          description: '按状态筛选任务',
+          enum: ['all', 'pending', 'running', 'completed', 'failed', 'cancelled'],
+          default: 'all',
+        },
+        limit: {
+          type: 'number',
+          description: '返回的最大任务数量（1-100）',
+          default: 50,
+          minimum: 1,
+          maximum: 100,
+        },
+      },
+    },
+    isReadOnly: true,
+    isConcurrencySafe: true,
+    aliases: ['list_tasks', 'get_tasks'],
+  })
+
+  registerFn({
+    name: 'TaskUpdate',
+    displayName: '更新任务',
+    description: '更新任务状态。Agent 可以使用此工具更新任务的执行状态、进度或结果。',
+    category: TOOL_CATEGORIES.TASK.id,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: {
+          type: 'string',
+          description: '任务ID',
+        },
+        status: {
+          type: 'string',
+          description: '新状态',
+          enum: ['in_progress', 'completed', 'failed', 'cancelled'],
+        },
+        progress: {
+          type: 'number',
+          description: '进度百分比（0-100）',
+          minimum: 0,
+          maximum: 100,
+        },
+        result: {
+          type: 'object',
+          description: '任务结果（当状态为 completed 时）',
+        },
+        error: {
+          type: 'string',
+          description: '错误信息（当状态为 failed 时）',
+        },
+      },
+      required: ['taskId'],
+    },
+    isReadOnly: false,
+    isConcurrencySafe: true,
+    aliases: ['update_task', 'set_task_status'],
   })
 }
 

@@ -31,6 +31,7 @@ import {
 } from './types/toolTypes'
 import { createFileTools } from './tools/fileTools'
 import { createShellTools } from './tools/shellTools'
+import { createTaskTools } from './tools/taskTools'
 
 // ==================== 全局实例 ====================
 
@@ -153,6 +154,10 @@ export class EnhancedToolExecutor {
     // Shell 执行工具
     const shellTools = createShellTools()
     shellTools.forEach(tool => this.registerTool(tool))
+
+    // 任务管理工具
+    const taskTools = createTaskTools()
+    taskTools.forEach(tool => this.registerTool(tool))
   }
 
   // ==================== 工具执行核心逻辑 ====================
