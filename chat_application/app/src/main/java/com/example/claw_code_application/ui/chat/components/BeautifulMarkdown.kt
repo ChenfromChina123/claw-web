@@ -139,8 +139,8 @@ fun BeautifulMarkdown(
         )
     )
 
-    // 使用 remember 缓存组件配置（createComponents不是Composable）
-    val components = remember { MarkdownTable.createComponents() }
+    // 使用自定义表格组件（createComponents是Composable函数，不能直接缓存）
+    val components = MarkdownTable.createComponents()
 
     Box(
         modifier = modifier
