@@ -223,10 +223,31 @@ class SessionViewModel(
 
     /**
      * 删除会话
+     * 如果是本地临时会话，直接从本地列表删除，不调用后端API
      * @param sessionId 会话ID
      */
     fun deleteSession(sessionId: String) {
         Logger.d(TAG, "开始删除会话: $sessionId")
+
+        // 检查是否是本地临时会话
+        if (isLocalOnlySession(sessionId)) {
+            Logger.d(TAG, "删除本地临时会话（仅本地）: $sessionId")
+
+            // 从本地列表中移除
+            _localOnlySessions.removeAll { it.id == sessionId }
+            _sessions.removeAll { it.id == sessionId }
+
+            if (selectedSessionId == sessionId) {
+                Logger.d(TAG, "删除的是当前选中会话，清空选择")
+                selectedSessionId = null
+            }
+
+            _uiState.value = UiState.Success(_sessions.toList())
+            Logger.i(TAG, "本地临时会话删除成功: $sessionId, 剩余会话数: ${_sessions.size}")
+            return
+        }
+
+        // 非本地临时会话，调用后端API删除
         viewModelScope.launch {
             val result = chatRepository.deleteSession(sessionId)
             when (result) {
