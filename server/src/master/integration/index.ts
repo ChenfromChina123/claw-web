@@ -82,7 +82,7 @@ export const SERVER_CAPABILITIES: ServerCapabilities = {
   version: '1.0.0',
   name: 'Claude Code HAHA - Deep React Integration Server',
   features: {
-    tools: 15, // Bash, FileRead, FileWrite, FileEdit, FileDelete, FileRename, FileList, Glob, Grep, WebSearch, WebFetch, TodoWrite, TaskCreate, TaskList, Config, AskUserQuestion
+    tools: 18, // Bash, FileRead, FileWrite, FileEdit, FileDelete, FileRename, FileList, Glob, Grep, WebSearch, WebFetch, TodoWrite, TodoList, TodoClear, TaskCreate, TaskList, TaskUpdate, Config, AskUserQuestion
     models: 5,  // qwen-plus, qwen-turbo, qwen-max, claude-3-5-sonnet, claude-3-opus
     websocket: true,
     mcp: true,
