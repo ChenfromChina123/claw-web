@@ -49,8 +49,9 @@ fun BeautifulMarkdown(
     }
 
     // 使用 remember 缓存配置，避免每次重组都重新创建
+    // 注意：markdownColor 和 markdownTypography 是普通函数，不是 @Composable
     val markdownColors = remember(colors) {
-        markdownColor(
+        com.mikepenz.markdown.m3.markdownColor(
             text = colors.TextPrimary,
             codeText = colors.PrimaryLight,
             codeBackground = colors.CodeBackground,
@@ -63,7 +64,7 @@ fun BeautifulMarkdown(
 
     // 使用 remember 缓存排版配置
     val markdownTypography = remember(colors) {
-        markdownTypography(
+        com.mikepenz.markdown.m3.markdownTypography(
             h1 = TextStyle(
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -157,8 +158,8 @@ fun BeautifulMarkdown(
         )
     }
 
-    // 使用 remember 缓存组件配置
-    val components = remember { MarkdownTable.createComponents() }
+    // 直接调用 createComponents，因为它内部使用了 remember
+    val components = MarkdownTable.createComponents()
 
     Box(
         modifier = modifier
