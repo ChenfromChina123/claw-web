@@ -7,8 +7,8 @@ export class SessionRepository {
   /**
    * 查找或创建空会话（原子操作）
    * 使用数据库事务确保在高并发场景下不会创建多个空会话
-   * 优先使用 is_empty 字段，fallback 到 LEFT JOIN 查询
-   * 
+   * 使用 LEFT JOIN 查询验证会话确实没有消息，避免 is_empty 标记与数据不一致的问题
+   *
    * @param userId 用户ID
    * @param title 会话标题
    * @param model 使用的模型
@@ -17,46 +17,30 @@ export class SessionRepository {
   async findOrCreateEmptySession(userId: string, title: string = '新对话', model: string = 'qwen-plus'): Promise<Session> {
     const pool = getPool() as Pool
     const connection = await pool.getConnection()
-    
+
     try {
       await connection.beginTransaction()
-      
-      // 1. 先查找是否已有空会话（FOR UPDATE 锁防止并发插入）
-      // 优先使用 is_empty 字段（更快）
-      let rows: any[] = []
-      try {
-        const [result] = await connection.query(
-          `SELECT * FROM sessions 
-           WHERE user_id = ? AND is_empty = TRUE 
-           ORDER BY updated_at DESC 
-           LIMIT 1
-           FOR UPDATE`,
-          [userId]
-        )
-        rows = result as any[]
-      } catch (error) {
-        // 如果 is_empty 字段不存在，fallback 到 LEFT JOIN 查询
-        console.warn('[SessionRepo] findOrCreateEmptySession: is_empty 字段不存在，使用 LEFT JOIN')
-        const [result] = await connection.query(
-          `SELECT s.* FROM sessions s 
-           LEFT JOIN messages m ON s.id = m.session_id 
-           WHERE s.user_id = ? AND m.id IS NULL 
-           ORDER BY s.updated_at DESC 
-           LIMIT 1
-           FOR UPDATE`,
-          [userId]
-        )
-        rows = result as any[]
-      }
+
+      // 1. 使用 LEFT JOIN 查询真正的空会话（没有关联消息的会话）
+      // 这样可以确保返回的会话确实没有消息，避免 is_empty 标记不准确的问题
+      const [result] = await connection.query(
+        `SELECT s.* FROM sessions s
+         LEFT JOIN messages m ON s.id = m.session_id
+         WHERE s.user_id = ? AND m.id IS NULL
+         ORDER BY s.updated_at DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [userId]
+      )
+      const rows = result as any[]
 
       if (rows.length > 0) {
-        // 找到空会话，提交事务并返回
         await connection.commit()
-        console.log(`[SessionRepo] findOrCreateEmptySession: 找到已有空会话 ${rows[0].id}`)
+        console.log(`[SessionRepo] findOrCreateEmptySession: 找到真正空的会话 ${rows[0].id}`)
         return this.mapToSession(rows[0])
       }
 
-      // 2. 没有空会话，创建新的
+      // 2. 没有真正空的会话，创建新的
       const id = uuidv4()
       await connection.query(
         'INSERT INTO sessions (id, user_id, title, model, is_empty) VALUES (?, ?, ?, ?, TRUE)',
