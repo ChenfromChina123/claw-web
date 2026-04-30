@@ -55,12 +55,28 @@ fun ChatScreen(
 
     val displayMessages = viewModel.displayMessages
 
-    val canAutoScroll by remember {
-        derivedStateOf {
-            listState.firstVisibleItemIndex <= 1
+    // 用户手动滑动时暂停自动滚动
+    var userScrolling by remember { mutableStateOf(false) }
+
+    // 检测用户是否正在滑动
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress) {
+            userScrolling = true
+        } else {
+            // 滑动停止后，延迟恢复自动滚动
+            delay(1000L)
+            userScrolling = false
         }
     }
 
+    // 判断是否允许自动滚动：在顶部附近且用户没有主动滑动
+    val canAutoScroll by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex <= 1 && !userScrolling
+        }
+    }
+
+    // 消息变化时自动滚动到底部（最新消息）
     LaunchedEffect(displayMessages.size) {
         if (displayMessages.isNotEmpty() && canAutoScroll) {
             listState.animateScrollToItem(0)
