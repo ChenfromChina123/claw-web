@@ -74,9 +74,7 @@ class ChatViewModel(
     val displayMessages: List<Message> = _displayMessages
 
     // 关键优化：限制最大显示消息数量，避免长对话卡顿
-    companion object {
-        private const val MAX_DISPLAY_MESSAGES = 50  // 最多显示50条消息
-    }
+    private val MAX_DISPLAY_MESSAGES = 50  // 最多显示50条消息
 
     /**
      * 更新显示消息列表
