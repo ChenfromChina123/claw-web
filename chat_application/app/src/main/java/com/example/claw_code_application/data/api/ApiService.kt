@@ -157,4 +157,53 @@ interface ApiService {
         @Part("sessionId") sessionId: RequestBody,
         @Part("directory") directory: RequestBody? = null
     ): Response<ApiResponse<FileUploadResult>>
+
+    // ==================== 远程 Worker 管理 API ====================
+
+    /**
+     * 环境预检查
+     * 检查远程服务器是否满足 Worker 部署条件
+     */
+    @POST("/api/admin/remote-workers/precheck")
+    suspend fun precheckRemoteWorker(
+        @Body request: PrecheckRequest
+    ): Response<ApiResponse<EnvironmentCheckResponse>>
+
+    /**
+     * 部署远程 Worker
+     */
+    @POST("/api/admin/remote-workers/deploy")
+    suspend fun deployRemoteWorker(
+        @Body request: DeployRemoteWorkerRequest
+    ): Response<ApiResponse<DeployRemoteWorkerResponse>>
+
+    /**
+     * 获取所有远程 Worker 列表
+     */
+    @GET("/api/admin/remote-workers")
+    suspend fun getRemoteWorkers(): Response<ApiResponse<RemoteWorkerListResponse>>
+
+    /**
+     * 获取远程 Worker 详情
+     */
+    @GET("/api/admin/remote-workers/{id}")
+    suspend fun getRemoteWorkerDetail(
+        @Path("id") workerId: String
+    ): Response<ApiResponse<RemoteWorker>>
+
+    /**
+     * 获取远程 Worker 部署状态
+     */
+    @GET("/api/admin/remote-workers/{id}/status")
+    suspend fun getRemoteWorkerStatus(
+        @Path("id") workerId: String
+    ): Response<ApiResponse<RemoteWorkerStatusResponse>>
+
+    /**
+     * 移除远程 Worker
+     */
+    @DELETE("/api/admin/remote-workers/{id}")
+    suspend fun removeRemoteWorker(
+        @Path("id") workerId: String
+    ): Response<ApiResponse<Unit>>
 }

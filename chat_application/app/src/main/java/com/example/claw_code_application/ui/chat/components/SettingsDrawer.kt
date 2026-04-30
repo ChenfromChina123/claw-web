@@ -20,9 +20,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.claw_code_application.data.api.models.RemoteWorker
 import com.example.claw_code_application.data.local.UserManager
 import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.util.NetworkConfig
+import com.example.claw_code_application.viewmodel.RemoteWorkerViewModel
+import kotlinx.coroutines.launch
 
 /**
  * 设置侧栏组件
@@ -52,6 +57,22 @@ fun SettingsDrawer(
     val pushMessageStore = remember { com.example.claw_code_application.data.local.PushMessageStore.getInstance(context) }
     val unreadCount by pushMessageStore.unreadCount.collectAsState()
     var showPushMessagesDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    // 远程 Worker ViewModel
+    val remoteWorkerViewModel: RemoteWorkerViewModel = viewModel(
+        factory = RemoteWorkerViewModel.provideFactory()
+    )
+    val remoteWorkerState by remoteWorkerViewModel.uiState.collectAsStateWithLifecycle()
+
+    // 对话框状态
+    var showAddWorkerDialog by remember { mutableStateOf(false) }
+    var selectedWorker by remember { mutableStateOf<RemoteWorker?>(null) }
+
+    // 首次加载远程 Worker 数据
+    LaunchedEffect(Unit) {
+        remoteWorkerViewModel.fetchRemoteWorkers()
+    }
 
     AnimatedVisibility(
         visible = isVisible,
@@ -110,6 +131,21 @@ fun SettingsDrawer(
 
                     HorizontalDivider(color = colors.Divider, thickness = 1.dp)
 
+                    // 远程 Worker 管理区域（仅管理员可见）
+                    if (isAdmin) {
+                        RemoteWorkerSection(
+                            workers = remoteWorkerState.workers,
+                            stats = remoteWorkerState.stats,
+                            isLoading = remoteWorkerState.isLoading,
+                            isAdmin = isAdmin,
+                            onRefresh = { remoteWorkerViewModel.fetchRemoteWorkers() },
+                            onAddWorker = { showAddWorkerDialog = true },
+                            onWorkerClick = { worker -> selectedWorker = worker }
+                        )
+
+                        HorizontalDivider(color = colors.Divider, thickness = 1.dp)
+                    }
+
                     AboutSection()
                 }
             }
@@ -120,6 +156,57 @@ fun SettingsDrawer(
     if (showPushMessagesDialog) {
         PushMessagesDialog(
             onDismiss = { showPushMessagesDialog = false }
+        )
+    }
+
+    // 添加远程 Worker 对话框
+    if (showAddWorkerDialog) {
+        AddRemoteWorkerDialog(
+            onDismiss = {
+                showAddWorkerDialog = false
+                remoteWorkerViewModel.resetDeployState()
+            },
+            onPrecheck = { host, port, username, password, workerPort ->
+                remoteWorkerViewModel.precheckRemoteWorker(host, port, username, password, workerPort)
+            },
+            onDeploy = { host, port, username, password, workerPort ->
+                remoteWorkerViewModel.deployRemoteWorker(host, port, username, password, workerPort)
+            },
+            precheckResult = remoteWorkerState.precheckResult,
+            isPrechecking = remoteWorkerState.isPrechecking,
+            isDeploying = remoteWorkerState.isDeploying,
+            precheckPassed = remoteWorkerState.precheckPassed
+        )
+    }
+
+    // 显示错误提示
+    if (remoteWorkerState.error != null) {
+        LaunchedEffect(remoteWorkerState.error) {
+            scope.launch {
+                // 可以在这里显示 Snackbar 提示
+                remoteWorkerViewModel.clearError()
+            }
+        }
+    }
+
+    // 部署成功提示
+    if (remoteWorkerState.deploySuccess) {
+        LaunchedEffect(remoteWorkerState.deploySuccess) {
+            showAddWorkerDialog = false
+            remoteWorkerViewModel.resetDeployState()
+        }
+    }
+
+    // Worker 详情对话框
+    selectedWorker?.let { worker ->
+        RemoteWorkerDetailDialog(
+            worker = worker,
+            onDismiss = { selectedWorker = null },
+            onRemove = { workerId ->
+                remoteWorkerViewModel.removeRemoteWorker(workerId)
+                selectedWorker = null
+            },
+            isAdmin = isAdmin
         )
     }
 }
