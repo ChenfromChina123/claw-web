@@ -101,7 +101,8 @@ fun SessionListScreen(
                 iconType = getIconType(title),
                 iconBgColor = getIconBgColor(title, isDarkTheme),
                 isRunning = session.isRunning,
-                isPinned = session.isPinned
+                isPinned = session.isPinned,
+                updatedAt = session.updatedAt
             )
         }
     }
@@ -203,7 +204,8 @@ private data class SessionDisplayData(
     val iconType: IconType,
     val iconBgColor: Color,
     val isRunning: Boolean = false,
-    val isPinned: Boolean = false
+    val isPinned: Boolean = false,
+    val updatedAt: String = "" // 用于生成唯一的key
 )
 
 /**

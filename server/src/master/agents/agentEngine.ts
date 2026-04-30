@@ -17,6 +17,7 @@ import {
 } from './types'
 import { getBuiltInAgents } from './builtInAgents'
 import { getAgentPushService } from '../services/agentPushService'
+import { parseAndPushMessages } from './pushMessageParser'
 
 /**
  * Agent 管理器类
@@ -330,10 +331,28 @@ export async function executeAgent(
     agentManager.updateAgentStatus(agent.agentId, AgentStatus.COMPLETED, undefined, 100)
     agentManager.cleanupAgent(agent.agentId)
 
+    // 生成响应内容（实际应该来自 LLM）
+    let responseContent = `Agent ${agentDef.agentType} 已完成任务: ${context.task}`
+
+    // 解析并推送消息（如果响应中包含 push_message 代码块）
+    if (context.userId && context.sessionId) {
+      const pushResult = await parseAndPushMessages(
+        responseContent,
+        context.userId,
+        context.sessionId
+      )
+
+      if (pushResult.messageIds.length > 0) {
+        console.log(`[AgentEngine] Pushed ${pushResult.messageIds.length} messages to user ${context.userId}`)
+        // 使用处理后的内容（移除了 push_message 代码块）
+        responseContent = pushResult.processedContent
+      }
+    }
+
     const result: AgentExecutionResult = {
       agentId: agent.agentId,
       status: 'completed' as const,
-      content: `Agent ${agentDef.agentType} 已完成任务: ${context.task}`,
+      content: responseContent,
       durationMs: Date.now() - startTime
     }
 

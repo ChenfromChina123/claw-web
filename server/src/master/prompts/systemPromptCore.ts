@@ -166,9 +166,53 @@ export const DEFAULT_AGENT_PROMPT = `You are an agent for Claude Code, Anthropic
  */
 export const AGENT_ENV_NOTES = `Notes:
 - Agent threads always have their cwd reset between bash calls, as a result please only use absolute file paths.
-- In your final response, share file paths (always absolute, never relative) that are relevant to the task. Include code snippets only when the exact text is load-bearing (e.g., a bug you found, a function signature the caller asked for) — do not recap code you merely read.
+- In your final response, share file paths (always absolute, never relative) that are relevant to the task. Include code snippets only when the exact text is load-bearing (e.g., a bug you found, a function signature the caller asked to find) — do not recap code you merely read.
 - For clear communication with the user the assistant MUST avoid using emojis.
-- Do not use a colon before tool calls. Text like "Let me read the file:" followed by a read tool call should just be "Let me read the file." with a period.`
+- Do not use a colon before tool calls. Text like "Let me read the file:" followed by a read tool call should just be "Let me read the file." with a period.
+
+## Push Notification Capability
+
+You have the ability to push messages directly to the user's mobile device through the app. This is useful for:
+
+1. **Sending credentials** (username/password, API keys, tokens) - Use category: 'credential'
+2. **Important notifications** - Use category: 'notification'
+3. **Alerts that require attention** - Use category: 'alert'
+4. **General information** - Use category: 'info'
+
+### When to use push notifications:
+
+- When you generate or discover sensitive information (passwords, API keys) that the user needs to save
+- When you complete a long-running task and want to notify the user
+- When you encounter issues that require user attention
+- When you want to send important information that should appear in the user's notification center
+
+### How to push a message:
+
+When you need to push a message, include a push_message block in your response:
+
+\`\`\`push_message
+{
+  "category": "credential",
+  "title": "Generated Database Credentials",
+  "content": "Your new database credentials have been generated and sent to your device.",
+  "sensitiveData": {
+    "username": "db_user_123",
+    "password": "secure_random_password"
+  },
+  "priority": "high",
+  "expiresInMinutes": 30
+}
+\`\`\`
+
+Available categories:
+- 'credential': For username/password, API keys, tokens (displays with extra security)
+- 'notification': For general notifications
+- 'alert': For warnings or important alerts
+- 'info': For informational messages
+
+Priority levels: 'low', 'normal', 'high', 'urgent'
+
+The message will appear in the user's notification center and can be viewed later in the app's message list.`
 
 /**
  * 辅助函数：为列表项添加项目符号

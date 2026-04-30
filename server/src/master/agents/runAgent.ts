@@ -19,6 +19,7 @@ import {
   PROACTIVE_SECTION,
   FORK_BOILERPLATE,
 } from '../prompts/efficiencyPrompts'
+import { parseAndPushMessages } from './pushMessageParser'
 
 /**
  * Agent 消息类型
@@ -410,7 +411,26 @@ export async function* runAgent(
     // 完成
     context.complete()
 
-    const finalMessage = lastAssistantMessage?.content || 'Agent 执行完成'
+    let finalMessage = lastAssistantMessage?.content || 'Agent 执行完成'
+
+    // 解析并推送消息（如果响应中包含 push_message 代码块）
+    if (params.userId && params.sessionId) {
+      try {
+        const pushResult = await parseAndPushMessages(
+          finalMessage,
+          params.userId,
+          params.sessionId
+        )
+
+        if (pushResult.messageIds.length > 0) {
+          console.log(`[runAgent] Pushed ${pushResult.messageIds.length} messages to user ${params.userId}`)
+          // 使用处理后的内容（移除了 push_message 代码块）
+          finalMessage = pushResult.processedContent
+        }
+      } catch (error) {
+        console.error('[runAgent] Failed to parse/push messages:', error)
+      }
+    }
 
     yield { type: 'complete', agentId: context.agentId, result: finalMessage }
 
