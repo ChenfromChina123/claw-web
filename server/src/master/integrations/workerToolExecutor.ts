@@ -123,22 +123,11 @@ export class WorkerToolExecutor {
 
     const { container } = mapping
     
-    // Master和Worker在同一个Docker网络中，优先使用容器IP直接访问
-    // 这样更高效，不经过宿主机端口映射
-    const containerIp = await orchestrator.getContainerIp(container.containerId)
-    const workerPort = getWorkerInternalPort()
-    
-    let workerUrl: string
-    if (containerIp) {
-      // 使用Docker网络直接访问Worker容器
-      workerUrl = `http://${containerIp}:${workerPort}/internal/exec`
-      console.log(`[WorkerToolExecutor] 使用Docker网络直接访问Worker (userId=${userId}, containerIp=${containerIp}, port=${workerPort})`)
-    } else {
-      // 回退到使用宿主机端口映射
-      const workerHost = process.env.WORKER_HOST || 'host.docker.internal'
-      workerUrl = `http://${workerHost}:${container.hostPort}/internal/exec`
-      console.log(`[WorkerToolExecutor] 使用宿主机端口映射访问Worker (userId=${userId}, host=${workerHost}, port=${container.hostPort})`)
-    }
+    // Master和Worker容器在不同的Docker网络中（claude-network vs worker-network）
+    // 无法直接通过容器IP访问，必须使用宿主机端口映射
+    const workerHost = process.env.WORKER_HOST || 'host.docker.internal'
+    const workerUrl = `http://${workerHost}:${container.hostPort}/internal/exec`
+    console.log(`[WorkerToolExecutor] 使用宿主机端口映射访问Worker (userId=${userId}, host=${workerHost}, port=${container.hostPort})`)
 
     console.log(`[WorkerToolExecutor] 转发工具 ${toolName} 到 Worker 容器 (userId=${userId}, url=${workerUrl})`)
 

@@ -1,12 +1,11 @@
 # Worker镜像补丁 - 添加tool_exec支持
 FROM claw-web-backend-worker:latest
 
-# 复制新的Worker代码
-COPY server/src/worker/server/index.ts /app/src/server/index.ts
-COPY server/src/worker/sandbox/index.ts /app/src/sandbox/index.ts
+# 复制整个Worker源代码目录
+COPY server/src/worker/ /app/src/
 
 # 确保权限正确
-RUN chmod +r /app/src/server/index.ts /app/src/sandbox/index.ts
+RUN chmod -R +r /app/src/
 
 # 保持原有的ENTRYPOINT
 ENTRYPOINT ["node"]

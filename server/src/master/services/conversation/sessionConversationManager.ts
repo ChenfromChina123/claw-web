@@ -981,12 +981,15 @@ export class SessionConversationManager {
         if (shouldExecuteOnWorker(tool.name) && currentUserId) {
           console.log(`[${sessionId}] 危险工具 ${tool.name} 通过 Worker 容器执行 (userId=${currentUserId})`)
           const toolRegistry = getToolRegistry()
-          const registryResult = await toolRegistry.executeTool({
-            toolName: tool.name,
-            toolInput: tool.input,
-            sessionId,
-            userId: currentUserId,
-          })
+          const registryResult = await Promise.race([
+            toolRegistry.executeTool({
+              toolName: tool.name,
+              toolInput: tool.input,
+              sessionId,
+              userId: currentUserId,
+            }),
+            timeoutPromise
+          ]) as { success: boolean; result?: unknown; error?: string; output?: string }
           result = {
             success: registryResult.success,
             result: registryResult.result ?? registryResult.output,
