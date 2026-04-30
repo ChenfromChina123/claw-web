@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 设置侧栏组件
- * 从右侧滑入显示，提供应用设置功能
+ * 从左侧滑入显示，提供应用设置功能
  *
  * @param isVisible 是否显示侧栏
  * @param onDismiss 关闭侧栏回调
@@ -81,8 +81,8 @@ fun SettingsDrawer(
 
     AnimatedVisibility(
         visible = isVisible,
-        enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
-        exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+        enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
+        exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
         modifier = modifier
     ) {
         Box(
@@ -95,10 +95,10 @@ fun SettingsDrawer(
                 modifier = Modifier
                     .width(300.dp)
                     .fillMaxHeight()
-                    .align(Alignment.CenterEnd)
-                    .shadow(16.dp, RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
+                    .align(Alignment.CenterStart)
+                    .shadow(16.dp, RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp))
                     .clickable(enabled = false) { },
-                shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
                 color = colors.Surface
             ) {
                 Column(
