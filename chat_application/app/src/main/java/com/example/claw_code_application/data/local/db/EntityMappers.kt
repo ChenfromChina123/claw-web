@@ -60,7 +60,7 @@ object EntityMappers {
             id = id,
             sessionId = sessionId,
             role = role,
-            content = content,
+            content = com.example.claw_code_application.util.ContentLimiter.truncateMessageContent(content) ?: content,
             timestamp = timestamp,
             isStreaming = isStreaming,
             attachmentsJson = attachments?.let { serializeAttachments(it) }
@@ -87,13 +87,20 @@ object EntityMappers {
     }
 
     fun ToolCall.toEntity(sessionId: String, messageId: String?): ToolCallEntity {
+        // 截断工具输出，防止过大的输出导致数据库性能问题
+        val truncatedOutput = toolOutput?.let {
+            val outputStr = json.encodeToString(JsonElement.serializer(), it)
+            com.example.claw_code_application.util.ContentLimiter.truncateToolOutput(outputStr)?.let { truncated ->
+                json.parseToJsonElement(truncated)
+            } ?: it
+        }
         return ToolCallEntity(
             id = id,
             sessionId = sessionId,
             messageId = messageId,
             toolName = toolName,
             toolInputJson = json.encodeToString(toolInput),
-            toolOutputJson = toolOutput?.let { json.encodeToString(JsonElement.serializer(), it) },
+            toolOutputJson = truncatedOutput?.let { json.encodeToString(JsonElement.serializer(), it) },
             status = status,
             error = error,
             createdAt = createdAt,
