@@ -44,12 +44,6 @@ fun EnhancedMessageBubble(
     val colors = AppColor.current
     val isUser = message.role == "user"
 
-    // 检查消息内容中是否已经包含工具调用组件
-    val hasToolComponentsInContent = remember(message.content) {
-        message.content.contains("\"type\":\"tool_use\"") ||
-        message.content.contains("\"type\":\"tool_result\"")
-    }
-
     // Manus 1.6 Lite 气泡配置
     val bubbleShape = RoundedCornerShape(
         topStart = if (isUser) 20.dp else 12.dp,
@@ -119,9 +113,8 @@ fun EnhancedMessageBubble(
                 }
             }
 
-            // 工具调用显示 - 仅在消息内容中不包含工具组件时显示
-            // 避免二次加载时重复显示工具调用UI
-            if (toolCalls.isNotEmpty() && !isUser && !hasToolComponentsInContent) {
+            // 工具调用显示 - 统一使用 ToolCallCard 显示
+            if (toolCalls.isNotEmpty() && !isUser) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -189,20 +182,15 @@ private fun DynamicMessageContent(
             }
 
             is MessageComponent.ToolUse -> {
-                ToolUseComponent(
-                    toolUse = component,
-                    isExecuting = isStreaming
-                )
+                // 工具调用现在统一通过 ToolCallCard 显示
+                // 不在消息内容中渲染，避免与 ToolCallCard 重复
+                // 保留此分支以防止解析错误，但不渲染任何内容
             }
 
             is MessageComponent.ToolResult -> {
-                TerminalViewer(
-                    command = component.stdout.lines().firstOrNull() ?: "",
-                    stdout = component.stdout,
-                    stderr = component.stderr,
-                    exitCode = component.exitCode,
-                    isExecuting = false
-                )
+                // 工具结果现在统一通过 ToolCallCard 显示
+                // 不在消息内容中渲染，避免与 ToolCallCard 重复
+                // 保留此分支以防止解析错误，但不渲染任何内容
             }
 
             is MessageComponent.FileListResult -> {

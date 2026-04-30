@@ -371,15 +371,24 @@ export class ContainerOperations {
    */
   async checkContainerHealthViaExec(containerId: string): Promise<boolean> {
     try {
-      const { stdout: healthOutput } = await execAsync(
-        `docker exec ${containerId} curl -s -o /dev/null -w "%{http_code}" http://localhost:${getWorkerInternalPort()}/internal/health || echo "000"`
-      )
+      const workerPort = getWorkerInternalPort()
+      const healthUrl = `http://localhost:${workerPort}/internal/health`
+      const cmd = `docker exec ${containerId} curl -s -o /dev/null -w "%{http_code}" ${healthUrl} || echo "000"`
+
+      const { stdout: healthOutput } = await execAsync(cmd)
       const statusCode = parseInt(healthOutput.trim(), 10)
+
       // 只要HTTP服务器能够响应（状态码小于500），就认为容器健康
-      return statusCode > 0 && statusCode < 500
+      const isHealthy = statusCode > 0 && statusCode < 500
+
+      if (!isHealthy) {
+        console.warn(`[ContainerOperations] 容器 ${containerId} 健康检查失败: statusCode=${statusCode}, url=${healthUrl}`)
+      }
+
+      return isHealthy
     } catch (execError) {
       // Docker exec失败，容器可能还在启动中
-      console.warn(`[ContainerOperations] 容器 ${containerId} 健康检查Docker exec失败`)
+      console.warn(`[ContainerOperations] 容器 ${containerId} 健康检查Docker exec失败:`, execError)
       return false
     }
   }

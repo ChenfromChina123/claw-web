@@ -126,6 +126,7 @@ export class ContainerLifecycle {
 
       const { stdout } = await execAsync(dockerCmd)
       const containerId = stdout.trim()
+      console.log(`[ContainerLifecycle] 容器创建成功, containerId=${containerId}, port=${port}`)
 
       const instance: ContainerInstance = {
         containerId,
@@ -142,12 +143,17 @@ export class ContainerLifecycle {
       const retryIntervalMs = 3000
       const startTime = Date.now()
       let healthy = false
+      let checkCount = 0
+
+      console.log(`[ContainerLifecycle] 开始等待容器健康检查, containerId=${containerId}`)
 
       while (Date.now() - startTime < maxWaitMs) {
+        checkCount++
         // 检查容器是否还存在
         try {
           await this.containerOps.inspectContainer(containerId)
         } catch {
+          console.error(`[ContainerLifecycle] 容器在启动过程中消失, containerId=${containerId}`)
           instance.status = 'error'
           return {
             success: false,
@@ -160,7 +166,12 @@ export class ContainerLifecycle {
         healthy = await this.checkContainerHealth(containerId)
         if (healthy) {
           instance.status = 'running'
+          console.log(`[ContainerLifecycle] 容器健康检查通过, containerId=${containerId}, 检查次数=${checkCount}, 耗时=${Date.now() - startTime}ms`)
           break
+        }
+
+        if (checkCount % 5 === 0) {
+          console.log(`[ContainerLifecycle] 容器健康检查进行中... containerId=${containerId}, 检查次数=${checkCount}, 耗时=${Date.now() - startTime}ms`)
         }
 
         // 等待后重试
@@ -168,6 +179,7 @@ export class ContainerLifecycle {
       }
 
       if (!healthy) {
+        console.error(`[ContainerLifecycle] 容器健康检查超时, containerId=${containerId}, 总检查次数=${checkCount}, 耗时=${Date.now() - startTime}ms`)
         instance.status = 'error'
         return {
           success: false,
@@ -176,6 +188,7 @@ export class ContainerLifecycle {
         }
       }
 
+      console.log(`[ContainerLifecycle] 容器创建完成, containerId=${containerId}, hostPort=${instance.hostPort}, status=${instance.status}`)
       return { success: true, data: instance }
 
     } catch (error) {

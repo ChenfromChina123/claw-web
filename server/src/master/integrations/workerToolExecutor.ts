@@ -71,20 +71,27 @@ export class WorkerToolExecutor {
   ): Promise<WorkerToolResult> {
     const orchestrator = getContainerOrchestrator()
 
+    console.log(`[WorkerToolExecutor] 开始执行工具: ${toolName}, userId=${userId}`)
+
     // 更新用户活跃状态并确保 Worker 连接
     workerForwarder.updateUserActivity(userId)
 
     // 获取用户的 Worker 容器映射
     let mapping = orchestrator.getUserMapping(userId)
+    console.log(`[WorkerToolExecutor] 内存中的用户映射: ${mapping ? '存在' : '不存在'}`)
 
     if (!mapping) {
       // 尝试从数据库恢复映射
+      console.log(`[WorkerToolExecutor] 尝试从数据库恢复用户 ${userId} 的映射...`)
       mapping = await orchestrator.getOrLoadUserMapping(userId)
+      console.log(`[WorkerToolExecutor] 数据库恢复结果: ${mapping ? '成功' : '失败'}`)
     }
 
     if (!mapping) {
       // 分配新容器
+      console.log(`[WorkerToolExecutor] 为用户 ${userId} 分配新容器...`)
       const assignResult = await orchestrator.assignContainerToUser(userId)
+      console.log(`[WorkerToolExecutor] 容器分配结果: success=${assignResult.success}, error=${assignResult.error || '无'}`)
       if (!assignResult.success || !assignResult.data) {
         return {
           success: false,
@@ -107,13 +114,17 @@ export class WorkerToolExecutor {
       mapping = assignResult.data
     }
 
+    console.log(`[WorkerToolExecutor] 容器状态: containerId=${mapping.container.containerId}, status=${mapping.container.status}, hostPort=${mapping.container.hostPort}`)
+
     // 确保 WebSocket 连接（用于 PTY 和持续操作）
-    await workerForwarder.ensureUserWorkerConnection(userId)
+    console.log(`[WorkerToolExecutor] 确保 WebSocket 连接...`)
+    const wsConnection = await workerForwarder.ensureUserWorkerConnection(userId)
+    console.log(`[WorkerToolExecutor] WebSocket 连接状态: ${wsConnection ? '已连接' : '未连接'}`)
 
     const { container } = mapping
     const workerUrl = `http://localhost:${container.hostPort}/internal/exec`
 
-    console.log(`[WorkerToolExecutor] 转发工具 ${toolName} 到 Worker 容器 (userId=${userId}, port=${container.hostPort})`)
+    console.log(`[WorkerToolExecutor] 转发工具 ${toolName} 到 Worker 容器 (userId=${userId}, port=${container.hostPort}, url=${workerUrl})`)
 
     const requestBody: WorkerToolExecRequest = {
       requestId: generateRequestId(),
@@ -128,6 +139,7 @@ export class WorkerToolExecutor {
     }
 
     try {
+      console.log(`[WorkerToolExecutor] 发送 HTTP 请求到 Worker...`)
       const response = await fetch(workerUrl, {
         method: 'POST',
         headers: {
@@ -138,8 +150,11 @@ export class WorkerToolExecutor {
         body: JSON.stringify(requestBody),
       })
 
+      console.log(`[WorkerToolExecutor] Worker 响应状态: ${response.status}`)
+
       if (!response.ok) {
         const errorText = await response.text()
+        console.error(`[WorkerToolExecutor] Worker HTTP 错误: ${response.status}, ${errorText}`)
         return {
           success: false,
           error: `Worker HTTP ${response.status}: ${errorText}`,
@@ -147,6 +162,7 @@ export class WorkerToolExecutor {
       }
 
       const result = (await response.json()) as WorkerToolExecResponse
+      console.log(`[WorkerToolExecutor] Worker 执行结果: success=${result.success}`)
 
       if (!result.success) {
         return {
@@ -161,9 +177,11 @@ export class WorkerToolExecutor {
         output: result.data?.output,
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`[WorkerToolExecutor] Worker 请求异常:`, errorMessage)
       return {
         success: false,
-        error: `Worker 请求失败: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Worker 请求失败: ${errorMessage}`,
       }
     }
   }
