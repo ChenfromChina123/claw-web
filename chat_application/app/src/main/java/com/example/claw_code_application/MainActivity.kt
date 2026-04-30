@@ -5,8 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.*
@@ -307,8 +305,8 @@ private fun ChatMainScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         AnimatedVisibility(
             visible = showSessionList || selectedSessionId == null,
-            enter = fadeIn() + slideInHorizontally { -it },
-            exit = fadeOut() + slideOutHorizontally { -it }
+            enter = slideInHorizontally { -it },
+            exit = slideOutHorizontally { -it }
         ) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
@@ -398,8 +396,8 @@ private fun ChatMainScreen(
 
         AnimatedVisibility(
             visible = selectedSessionId != null && !showSessionList,
-            enter = fadeIn() + slideInHorizontally { it },
-            exit = fadeOut() + slideOutHorizontally { it }
+            enter = slideInHorizontally { it },
+            exit = slideOutHorizontally { it }
         ) {
             val currentSessionId = selectedSessionId
             if (currentSessionId != null) {
