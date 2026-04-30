@@ -718,18 +718,23 @@ export async function executeAgent(
   let finalResult = ''
   let error: string | undefined
 
-  for await (const event of runAgent(params)) {
-    switch (event.type) {
-      case 'complete':
-        finalResult = event.result
-        break
-      case 'error':
-        error = event.error
-        break
-      case 'cancelled':
-        error = 'Agent 执行被取消'
-        break
+  try {
+    for await (const event of runAgent(params)) {
+      switch (event.type) {
+        case 'complete':
+          finalResult = event.result
+          break
+        case 'error':
+          error = event.error
+          break
+        case 'cancelled':
+          error = 'Agent 执行被取消'
+          break
+      }
     }
+  } catch (e) {
+    // 捕获 runAgent 抛出的异常
+    error = e instanceof Error ? e.message : String(e)
   }
 
   return {
