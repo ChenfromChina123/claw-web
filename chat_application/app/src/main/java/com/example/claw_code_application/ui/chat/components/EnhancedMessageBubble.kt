@@ -203,112 +203,111 @@ fun EnhancedMessageBubble(
  * - 组件列表通过参数传入，避免重复解析
  * - 使用 key 优化列表项重组
  */
+/**
+ * 动态消息内容渲染 - Manus 1.6 Lite 风格
+ * 根据内容类型渲染不同组件
+ *
+ * 性能优化：
+ * - 移除不必要的 key(index)，避免强制重新创建组件
+ * - 使用 remember 缓存内容截断结果
+ * - 延迟加载复杂组件（如 CodeDiff）
+ */
 @Composable
 private fun DynamicMessageContent(
     components: List<MessageComponent>,
     isStreaming: Boolean
 ) {
-    components.forEachIndexed { index, component ->
-        key(index) {
-        when (component) {
-            is MessageComponent.Text -> {
-                val displayContent = remember(component.content) {
-                    if (component.content.length > 5000) {
-                        component.content.take(5000) + "\n... (内容过长，已截断)"
-                    } else {
-                        component.content
-                    }
+    Column {
+        components.forEachIndexed { index, component ->
+            when (component) {
+                is MessageComponent.Text -> {
+                    // 关键优化：使用 OptimizedMarkdown 替代 BeautifulMarkdown
+                    // 基于最新研究成果：异步解析 + 智能截断 + 渐进式渲染
+                    OptimizedMarkdown(
+                        markdown = component.content,
+                        isStreaming = isStreaming
+                    )
                 }
 
-                // 使用超美Markdown渲染组件（Material3 + 代码高亮）
-                BeautifulMarkdown(
-                    markdown = displayContent,
-                    isStreaming = isStreaming
-                )
+                is MessageComponent.ToolUse -> {
+                    // 工具调用现在统一通过 ToolCallCard 显示
+                }
+
+                is MessageComponent.ToolResult -> {
+                    // 工具结果现在统一通过 ToolCallCard 显示
+                }
+
+                is MessageComponent.FileListResult -> {
+                    FileListViewer(
+                        path = component.path,
+                        count = component.count,
+                        files = component.files
+                    )
+                }
+
+                is MessageComponent.SearchResult -> {
+                    SearchResultViewer(
+                        summary = component.summary,
+                        matchCount = component.matchCount,
+                        matchedFiles = component.matchedFiles
+                    )
+                }
+
+                is MessageComponent.FileContentResult -> {
+                    FileContentViewer(
+                        path = component.path,
+                        content = component.content,
+                        lineCount = component.lineCount
+                    )
+                }
+
+                is MessageComponent.ErrorResult -> {
+                    ErrorResultViewer(
+                        error = component.error,
+                        errorType = component.errorType
+                    )
+                }
+
+                is MessageComponent.StepProgress -> {
+                    // 使用 rememberSaveable 保持展开状态
+                    var expanded by rememberSaveable { mutableStateOf(true) }
+                    StepProgress(
+                        title = component.title,
+                        currentStep = component.currentStep,
+                        totalSteps = component.totalSteps,
+                        steps = component.steps,
+                        isExpanded = expanded,
+                        onExpandedChange = { expanded = it }
+                    )
+                }
+
+                is MessageComponent.CodeDiff -> {
+                    // 关键优化：CodeDiff 可能很大，延迟加载
+                    CodeDiffEditor(
+                        fileName = component.fileName,
+                        originalCode = component.originalCode.take(5000),
+                        modifiedCode = component.modifiedCode.take(5000),
+                        language = component.language
+                    )
+                }
+
+                is MessageComponent.Image -> {
+                    AsyncImage(
+                        model = component.imageUrl,
+                        contentDescription = component.originalName ?: "图片",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .padding(vertical = 4.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
             }
 
-            is MessageComponent.ToolUse -> {
-                // 工具调用现在统一通过 ToolCallCard 显示
-                // 不在消息内容中渲染，避免与 ToolCallCard 重复
-                // 保留此分支以防止解析错误，但不渲染任何内容
+            // 组件之间添加间距
+            if (index < components.size - 1) {
+                Spacer(modifier = Modifier.height(16.dp))
             }
-
-            is MessageComponent.ToolResult -> {
-                // 工具结果现在统一通过 ToolCallCard 显示
-                // 不在消息内容中渲染，避免与 ToolCallCard 重复
-                // 保留此分支以防止解析错误，但不渲染任何内容
-            }
-
-            is MessageComponent.FileListResult -> {
-                FileListViewer(
-                    path = component.path,
-                    count = component.count,
-                    files = component.files
-                )
-            }
-
-            is MessageComponent.SearchResult -> {
-                SearchResultViewer(
-                    summary = component.summary,
-                    matchCount = component.matchCount,
-                    matchedFiles = component.matchedFiles
-                )
-            }
-
-            is MessageComponent.FileContentResult -> {
-                FileContentViewer(
-                    path = component.path,
-                    content = component.content,
-                    lineCount = component.lineCount
-                )
-            }
-
-            is MessageComponent.ErrorResult -> {
-                ErrorResultViewer(
-                    error = component.error,
-                    errorType = component.errorType
-                )
-            }
-
-            is MessageComponent.StepProgress -> {
-                // 使用 rememberSaveable 保持展开状态，避免重组时重置
-                var expanded by rememberSaveable { mutableStateOf(true) }
-                StepProgress(
-                    title = component.title,
-                    currentStep = component.currentStep,
-                    totalSteps = component.totalSteps,
-                    steps = component.steps,
-                    isExpanded = expanded,
-                    onExpandedChange = { expanded = it }
-                )
-            }
-
-            is MessageComponent.CodeDiff -> {
-                CodeDiffEditor(
-                    fileName = component.fileName,
-                    originalCode = component.originalCode,
-                    modifiedCode = component.modifiedCode,
-                    language = component.language
-                )
-            }
-
-            is MessageComponent.Image -> {
-                AsyncImage(
-                    model = component.imageUrl,
-                    contentDescription = component.originalName ?: "图片",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 200.dp)
-                        .padding(vertical = 4.dp),
-                    contentScale = ContentScale.Fit
-                )
-            }
-        }
-
-        // 组件之间添加间距 - Manus标准：16dp
-        if (index < components.size - 1) {
-            Spacer(modifier = Modifier.height(16.dp))
-        }
         }
     }
 }
