@@ -373,16 +373,17 @@ export class ContainerOperations {
     try {
       const workerPort = getWorkerInternalPort()
       const healthUrl = `http://localhost:${workerPort}/internal/health`
-      const cmd = `docker exec ${containerId} curl -s -o /dev/null -w "%{http_code}" ${healthUrl} || echo "000"`
+      // 使用 --connect-timeout 和 --max-time 避免curl挂起
+      const cmd = `docker exec ${containerId} curl -s --connect-timeout 3 --max-time 5 -o /dev/null -w "%{http_code}" ${healthUrl} 2>/dev/null || echo "000"`
 
-      const { stdout: healthOutput } = await execAsync(cmd)
+      const { stdout: healthOutput, stderr: healthError } = await execAsync(cmd)
       const statusCode = parseInt(healthOutput.trim(), 10)
 
       // 只要HTTP服务器能够响应（状态码小于500），就认为容器健康
       const isHealthy = statusCode > 0 && statusCode < 500
 
       if (!isHealthy) {
-        console.warn(`[ContainerOperations] 容器 ${containerId} 健康检查失败: statusCode=${statusCode}, url=${healthUrl}`)
+        console.warn(`[ContainerOperations] 容器 ${containerId} 健康检查失败: statusCode=${statusCode}, url=${healthUrl}, stderr=${healthError || '无'}`)
       }
 
       return isHealthy

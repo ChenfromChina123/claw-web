@@ -20,6 +20,7 @@ import {
   FORK_BOILERPLATE,
 } from '../prompts/efficiencyPrompts'
 import { parseAndPushMessages } from './pushMessageParser'
+import { getBackgroundTaskManager, TaskPriority, type BackgroundTask } from '../services/backgroundTaskManager'
 
 /**
  * Agent 消息类型
@@ -97,6 +98,10 @@ export interface RunAgentParams {
   remote?: RemoteConfig
   /** 隔离上下文 ID (如果已存在) */
   isolationContextId?: string
+  /** 任务优先级 */
+  taskPriority?: TaskPriority
+  /** 父任务ID */
+  parentTaskId?: string
 }
 
 /**
