@@ -99,10 +99,21 @@ class SessionViewModel(
      * 创建新会话（懒创建模式）
      * 只在客户端生成临时会话ID，不立即调用后端API
      * 当用户发送第一条消息时，才真正在后端创建会话
-     * @return 新创建的临时会话ID
+     * 
+     * 如果已经存在本地临时会话（未发送消息），则复用该会话而不是创建新的
+     * @return 新创建或复用的临时会话ID
      */
     fun createNewSession(): String {
         Logger.d(TAG, "开始懒创建新会话（仅客户端）...")
+
+        // 检查是否已有本地临时会话（未发送消息的空会话）
+        val existingLocalSession = _localOnlySessions.firstOrNull()
+        if (existingLocalSession != null) {
+            Logger.d(TAG, "发现已有本地临时会话，复用该会话: ${existingLocalSession.id}")
+            selectedSessionId = existingLocalSession.id
+            _uiState.value = UiState.Success(_sessions.toList())
+            return existingLocalSession.id
+        }
 
         // 生成临时会话ID
         val tempSessionId = UUID.randomUUID().toString()
