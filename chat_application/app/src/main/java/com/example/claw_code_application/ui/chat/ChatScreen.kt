@@ -333,9 +333,7 @@ private fun ChatMessageList(
         reverseLayout = true,
         contentPadding = PaddingValues(vertical = 16.dp),
         // 关键性能优化：限制可见项数量，超出部分不渲染
-        modifier = Modifier.fillMaxSize(),
-        // 启用预加载优化
-        beyondBoundsItemCount = 3
+        modifier = Modifier.fillMaxSize()
     ) {
         items(
             items = displayMessages,
