@@ -38,6 +38,7 @@ import type { ToolCall } from '../integration/webStore'
 import { executeAgent, type AgentMessage, type RunAgentParams } from '../agents/runAgent'
 import { v4 as uuidv4 } from 'uuid'
 import { WebSocket } from 'ws'
+import { TaskPriority } from '../services/backgroundTaskManager'
 
 /** WebSocket 连接映射 */
 const wsConnections = new Map<string, Set<WebSocket>>()

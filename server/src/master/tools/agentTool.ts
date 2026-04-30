@@ -19,6 +19,7 @@ import { getBuiltInAgentByType, getBuiltInAgents } from '../agents/builtInAgents
 import type { AgentDefinition, AgentExecutionResult } from '../agents/types'
 import { getWorkflowEventService } from '../services/workflowEventService'
 import { runAgent, executeAgent, type AgentMessage, type RunAgentParams } from '../agents/runAgent'
+import { TaskPriority } from '../services/backgroundTaskManager'
 
 export interface AgentToolInput {
   prompt: string
@@ -219,6 +220,8 @@ export async function executeAgentTool(
       parentAgentId: parentAgentId,
       // 从上下文获取 abortSignal，支持中断 Agent 执行
       abortSignal: context.abortSignal,
+      // 设置任务优先级为 HIGH，确保子 Agent 任务优先执行
+      taskPriority: TaskPriority.HIGH,
       onProgress: (progress) => {
         console.log(`[AgentTool] 进度更新: ${JSON.stringify(progress)}`)
         if (progress.message) {

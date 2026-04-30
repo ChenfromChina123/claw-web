@@ -494,7 +494,7 @@ private fun formatToolOutput(output: kotlinx.serialization.json.JsonElement?): S
 }
 
 /**
- * 紧凑版工具调用卡片 - 更小的尺寸，适合在聊天界面中显示
+ * 极简版工具调用卡片 - 单行显示，类似图2风格
  */
 @Composable
 fun CompactToolCallCard(
@@ -505,10 +505,6 @@ fun CompactToolCallCard(
     onRetry: () -> Unit = {}
 ) {
     val statusConfig = getStatusConfig(toolCall.status)
-
-    val summary by remember(toolCall.id, toolCall.toolInput) {
-        derivedStateOf { getToolSummary(toolCall) }
-    }
 
     val parsedInput by remember(toolCall.id, toolCall.toolInput) {
         derivedStateOf {
@@ -529,11 +525,11 @@ fun CompactToolCallCard(
         }
     }
 
-    val borderColor = when (toolCall.status) {
+    val statusColor = when (toolCall.status) {
         "completed" -> AppColor.Success
         "error" -> AppColor.Error
         "executing" -> AppColor.Warning
-        else -> Color(0xFFE8E8ED)
+        else -> AppColor.TextSecondary
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse_compact")
@@ -548,51 +544,160 @@ fun CompactToolCallCard(
     )
 
     val statusDotColor = if (toolCall.status == "executing") {
-        statusConfig.color.copy(alpha = pulseAlpha)
+        statusColor.copy(alpha = pulseAlpha)
     } else {
-        statusConfig.color
+        statusColor
     }
 
-    Card(
+    // 极简风格：灰色圆角背景，单行显示，固定宽度
+    Surface(
         modifier = modifier
-            .fillMaxWidth(0.85f)
-            .padding(vertical = 1.dp),
-        shape = RoundedCornerShape(6.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFF5F5F7),
-            contentColor = AppColor.TextPrimary
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = BorderStroke(0.5.dp, borderColor.copy(alpha = 0.2f))
+            .widthIn(max = 280.dp)
+            .padding(vertical = 2.dp)
+            .clickable { onExpandedChange(!expanded) },
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFFF0F0F0),
+        border = null
     ) {
         Column {
-            // 超紧凑标题栏
+            // 极简单行标题栏：Bash • 完成 ▼
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onExpandedChange(!expanded) }
-                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.weight(1f)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    // 工具名称
                     Text(
-                        text = getToolIcon(toolCall.toolName),
-                        fontSize = 10.sp
+                        text = toolCall.toolName,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = AppColor.TextPrimary
                     )
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = toolCall.toolName,
-                                fontSize = 10.sp,
+                    // 中间圆点分隔符
+                    Text(
+                        text = "•",
+                        fontSize = 13.sp,
+                        color = AppColor.TextSecondary
+                    )
+
+                    // 状态（带颜色圆点）
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .background(statusDotColor, shape = CircleShape)
+                        )
+                        Text(
+                            text = statusConfig.label,
+                            fontSize = 12.sp,
+                            color = statusColor,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                // 下拉箭头
+                Icon(
+                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (expanded) "收起" else "展开",
+                    tint = AppColor.TextSecondary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            // 展开内容（极简风格）
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(
+                    animationSpec = tween(200, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(150)),
+                exit = shrinkVertically(
+                    animationSpec = tween(200, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(150))
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, bottom = 10.dp)
+                ) {
+                    HorizontalDivider(
+                        color = Color(0xFFE0E0E0),
+                        thickness = 0.5.dp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    val (inputMap, formattedInput) = parsedInput
+                    if (inputMap.isNotEmpty()) {
+                        MinimalResultSection(
+                            title = "输入",
+                            content = formattedInput,
+                            isError = false
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+
+                    if (formattedOutput.isNotEmpty()) {
+                        MinimalResultSection(
+                            title = "输出",
+                            content = formattedOutput,
+                            isError = toolCall.status == "error"
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+
+                    if (toolCall.error != null && toolCall.status == "error") {
+                        MinimalResultSection(
+                            title = "错误",
+                            content = toolCall.error,
+                            isError = true
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MinimalResultSection(
+    title: String,
+    content: String,
+    isError: Boolean
+) {
+    Column {
+        Text(
+            text = title,
+            fontSize = 11.sp,
+            color = AppColor.TextSecondary,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(6.dp),
+            color = if (isError) AppColor.ErrorBackground.copy(alpha = 0.5f) else Color(0xFFE8E8E8)
+        ) {
+            Text(
+                text = content,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp,
+                color = if (isError) AppColor.Error else AppColor.TextPrimary,
+                modifier = Modifier.padding(8.dp),
+                lineHeight = 14.sp
+            )
+        }
+    }
                                 fontWeight = FontWeight.SemiBold,
                                 color = AppColor.TextPrimary,
                                 fontFamily = FontFamily.Monospace

@@ -136,6 +136,25 @@ export async function* runAgent(
 ): AsyncGenerator<RunAgentEvent> {
   const startTime = Date.now()
 
+  // 首先创建后台任务记录
+  const taskManager = getBackgroundTaskManager()
+  const promptContent = params.promptMessages[0]?.content || 'Agent任务'
+  const task = taskManager.createTask({
+    name: `Agent: ${params.agentDefinition.agentType}`,
+    description: typeof promptContent === 'string' ? promptContent.substring(0, 200) : 'Agent执行',
+    priority: params.taskPriority ?? TaskPriority.NORMAL,
+    parentTaskId: params.parentTaskId,
+    agentId: params.agentDefinition.agentType,
+    metadata: {
+      sessionId: params.sessionId,
+      userId: params.userId,
+      model: params.model,
+      maxTurns: params.maxTurns || 100,
+    },
+  })
+
+  console.log(`[runAgent] 创建任务: ${task.id}, Agent: ${params.agentDefinition.agentType}`)
+
   // 初始化隔离上下文
   let isolationContextId = params.isolationContextId
   let worktreePath: string | undefined
@@ -188,7 +207,7 @@ export async function* runAgent(
   // 添加资源清理钩子
   context.addCleanupHook(async () => {
     console.log(`[runAgent] Cleanup: closing resources for ${context.agentId}`)
-    
+
     // 清理隔离上下文（如果是新创建的）
     if (isolationContextId && !params.isolationContextId) {
       try {
@@ -203,6 +222,9 @@ export async function* runAgent(
   })
 
   try {
+    // 启动任务
+    taskManager.startTask(task.id)
+
     // 初始化阶段
     context.start()
     yield { type: 'start', agentId: context.agentId }
@@ -265,6 +287,9 @@ export async function* runAgent(
       // 检查是否已取消
       if (params.abortSignal?.aborted || context.getAbortSignal().aborted) {
         context.cancel()
+        // 取消任务
+        taskManager.cancelTask(task.id)
+        console.log(`[runAgent] 任务已取消: ${task.id}`)
         yield { type: 'cancelled', agentId: context.agentId }
         return
       }
@@ -437,6 +462,10 @@ export async function* runAgent(
       }
     }
 
+    // 完成任务
+    taskManager.completeTask(task.id, { result: finalMessage, agentId: context.agentId })
+    console.log(`[runAgent] 完成任务: ${task.id}`)
+
     yield { type: 'complete', agentId: context.agentId, result: finalMessage }
 
     params.onProgress?.({
@@ -447,6 +476,12 @@ export async function* runAgent(
       message: '执行完成',
     })
 
+  } catch (error) {
+    // 任务失败
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    taskManager.failTask(task.id, errorMessage)
+    console.error(`[runAgent] 任务失败: ${task.id}, 错误: ${errorMessage}`)
+    throw error
   } finally {
     // 资源清理
     await context.cleanup()
