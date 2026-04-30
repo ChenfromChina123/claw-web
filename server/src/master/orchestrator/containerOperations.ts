@@ -111,14 +111,9 @@ export class ContainerOperations {
       bindMounts.push(`-v ${workspacePath}:/workspace`)
     }
 
-    // 开发模式：挂载源代码实现热更新
-    // 注意：生产环境应该移除这些挂载
-    if (process.env.NODE_ENV === 'development') {
-      const workerSrcMount = process.env.WORKER_SRC_MOUNT || '/app/src/worker'
-      const workerSharedMount = process.env.WORKER_SHARED_MOUNT || '/app/shared'
-      bindMounts.push(`-v ${workerSrcMount}:/app/src:ro`)
-      bindMounts.push(`-v ${workerSharedMount}:/app/shared:ro`)
-    }
+    // 开发模式说明：
+    // 代码修改后需要重新构建镜像：docker-compose build worker
+    // Bind Mount 在 Windows Docker Desktop 上不稳定，暂不使用
 
     // 构建完整命令
     const dockerCmd = [

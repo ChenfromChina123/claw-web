@@ -341,14 +341,15 @@ private fun ChatMessageList(
             )
         }
 
-        val activeToolCalls = viewModel.toolCalls.filter {
-            it.status == "executing" || it.status == "pending"
+        val activeToolCalls = remember(viewModel.toolCalls) {
+            viewModel.toolCalls.filter {
+                it.status == "executing" || it.status == "pending"
+            }
         }
         if (activeToolCalls.isNotEmpty()) {
             item(key = "active_agent_task") {
-                AgentTaskCard(
-                    taskTitle = "正在执行任务",
-                    steps = activeToolCalls.mapIndexed { index, toolCall ->
+                val steps = remember(activeToolCalls) {
+                    activeToolCalls.mapIndexed { index, toolCall ->
                         AgentStep(
                             title = getToolStepTitle(toolCall),
                             status = when (toolCall.status) {
@@ -357,7 +358,11 @@ private fun ChatMessageList(
                                 else -> AgentStepStatus.PENDING
                             }
                         )
-                    },
+                    }
+                }
+                AgentTaskCard(
+                    taskTitle = "正在执行任务",
+                    steps = steps,
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
