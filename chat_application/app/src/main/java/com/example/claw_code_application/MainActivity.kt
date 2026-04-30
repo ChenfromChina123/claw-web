@@ -252,13 +252,16 @@ private fun ChatMainScreen(
         )
     )
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val pushMessageStore = remember { PushMessageStore.getInstance(context) }
+    
     val chatViewModel: ChatViewModel = viewModel(
         factory = ChatViewModel.provideFactory(
             cachedChatRepository = ClawCodeApplication.cachedChatRepository,
             tokenManager = ClawCodeApplication.tokenManager,
             sessionLocalStore = ClawCodeApplication.sessionLocalStore,
             notificationManager = ClawCodeApplication.notificationManager,
-            pushMessageStore = remember { PushMessageStore.getInstance(androidx.compose.ui.platform.LocalContext.current) }
+            pushMessageStore = pushMessageStore
         )
     )
 

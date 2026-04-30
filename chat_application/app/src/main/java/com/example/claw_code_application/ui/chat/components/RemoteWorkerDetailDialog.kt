@@ -12,11 +12,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.example.claw_code_application.data.api.models.RemoteWorker
 import com.example.claw_code_application.data.api.models.SystemInfo
+import kotlin.math.max
 
 /**
  * 远程 Worker 详情对话框
@@ -336,7 +338,7 @@ private fun FlowRow(
 
             currentRow.add(placeable)
             currentRowWidth += if (currentRow.size == 1) placeable.width else hGapPx + placeable.width
-            currentRowHeight = maxOf(currentRowHeight, placeable.height)
+            currentRowHeight = kotlin.math.max(currentRowHeight, placeable.height)
         }
 
         if (currentRow.isNotEmpty()) {
