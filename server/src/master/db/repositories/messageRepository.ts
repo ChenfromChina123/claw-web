@@ -3,6 +3,29 @@ import { getPool } from '../mysql'
 import type { Message } from '../../models/types'
 import type { MessageContent, ImageAttachment } from '../../models/imageTypes'
 
+/**
+ * 消息内容最大长度限制 (4MB)
+ * 防止过大的内容导致数据库性能问题
+ * LONGTEXT 最大支持 4GB，但设置合理限制以保护数据库
+ */
+const MAX_MESSAGE_CONTENT_LENGTH = 4 * 1024 * 1024 // 4MB
+
+/**
+ * 截断消息内容，确保不超过数据库限制
+ * @param content 原始内容
+ * @returns 截断后的内容
+ */
+function truncateMessageContent(content: string): string {
+  if (content.length <= MAX_MESSAGE_CONTENT_LENGTH) {
+    return content
+  }
+
+  // 截断并添加提示
+  const truncated = content.slice(0, MAX_MESSAGE_CONTENT_LENGTH - 100)
+  const truncationNotice = '\n\n[内容已截断] 原始内容过大，仅显示前 4MB。建议使用文件工具分块读取大文件。'
+  return truncated + truncationNotice
+}
+
 export class MessageRepository {
   /**
    * 获取下一个消息序号
@@ -25,9 +48,9 @@ export class MessageRepository {
 
     let contentForDb: string
     if (typeof content === 'string') {
-      contentForDb = content
+      contentForDb = truncateMessageContent(content)
     } else {
-      contentForDb = JSON.stringify(content)
+      contentForDb = truncateMessageContent(JSON.stringify(content))
     }
 
     const attachmentsJson = attachments && attachments.length > 0
@@ -112,9 +135,9 @@ export class MessageRepository {
 
     let contentForDb: string
     if (typeof content === 'string') {
-      contentForDb = content
+      contentForDb = truncateMessageContent(content)
     } else {
-      contentForDb = JSON.stringify(content)
+      contentForDb = truncateMessageContent(JSON.stringify(content))
     }
 
     console.log(`[MessageRepository] Updating message content: id=${id}`)

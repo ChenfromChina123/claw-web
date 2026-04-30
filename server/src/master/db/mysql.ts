@@ -276,8 +276,8 @@ export async function initDatabase(): Promise<void> {
         user_id VARCHAR(36),
         category_id VARCHAR(36),
         title VARCHAR(255) NOT NULL,
-        content TEXT NOT NULL,
-        description TEXT,
+        content LONGTEXT NOT NULL,
+        description LONGTEXT,
         is_builtin BOOLEAN DEFAULT FALSE,
         is_favorite BOOLEAN DEFAULT FALSE,
         use_count INT DEFAULT 0,
@@ -424,6 +424,47 @@ export async function initDatabase(): Promise<void> {
       ALTER TABLE tool_calls 
       ADD COLUMN error TEXT AFTER status
     `).catch(() => {})
+
+    // 修复 content 字段大小限制 - 将 TEXT 改为 LONGTEXT 以支持大文件内容
+    // 修复 agent_messages 表的 content 字段
+    await tempPool.query(`
+      ALTER TABLE agent_messages 
+      MODIFY COLUMN content LONGTEXT NOT NULL
+    `).catch((err: any) => {
+      if (err.code !== 'ER_BAD_FIELD_ERROR') {
+        console.log('[DB Migration] agent_messages.content already modified or error:', err.message)
+      }
+    })
+
+    // 修复 agent_mailbox_messages 表的 content 字段
+    await tempPool.query(`
+      ALTER TABLE agent_mailbox_messages 
+      MODIFY COLUMN content LONGTEXT NOT NULL
+    `).catch((err: any) => {
+      if (err.code !== 'ER_BAD_FIELD_ERROR') {
+        console.log('[DB Migration] agent_mailbox_messages.content already modified or error:', err.message)
+      }
+    })
+
+    // 修复 prompt_templates 表的 content 字段
+    await tempPool.query(`
+      ALTER TABLE prompt_templates 
+      MODIFY COLUMN content LONGTEXT NOT NULL
+    `).catch((err: any) => {
+      if (err.code !== 'ER_BAD_FIELD_ERROR') {
+        console.log('[DB Migration] prompt_templates.content already modified or error:', err.message)
+      }
+    })
+
+    // 修复 agent_instances 表的 result 字段
+    await tempPool.query(`
+      ALTER TABLE agent_instances 
+      MODIFY COLUMN result LONGTEXT
+    `).catch((err: any) => {
+      if (err.code !== 'ER_BAD_FIELD_ERROR') {
+        console.log('[DB Migration] agent_instances.result already modified or error:', err.message)
+      }
+    })
 
     console.log('Database schema initialized')
   } finally {
