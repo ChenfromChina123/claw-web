@@ -48,115 +48,110 @@ fun BeautifulMarkdown(
         }
     }
 
-    // 使用 remember 缓存配置，避免每次重组都重新创建
-    // 注意：markdownColor 和 markdownTypography 是普通函数，不是 @Composable
-    val markdownColors = remember(colors) {
-        com.mikepenz.markdown.m3.markdownColor(
-            text = colors.TextPrimary,
-            codeText = colors.PrimaryLight,
-            codeBackground = colors.CodeBackground,
-            inlineCodeText = colors.PrimaryLight,
-            inlineCodeBackground = colors.SurfaceVariant,
-            dividerColor = colors.Border,
-            linkText = colors.PrimaryLight
-        )
-    }
+    // 直接调用 markdownColor 和 markdownTypography，它们是 @Composable 函数
+    val markdownColors = markdownColor(
+        text = colors.TextPrimary,
+        codeText = colors.PrimaryLight,
+        codeBackground = colors.CodeBackground,
+        inlineCodeText = colors.PrimaryLight,
+        inlineCodeBackground = colors.SurfaceVariant,
+        dividerColor = colors.Border,
+        linkText = colors.PrimaryLight
+    )
 
-    // 使用 remember 缓存排版配置
-    val markdownTypography = remember(colors) {
-        com.mikepenz.markdown.m3.markdownTypography(
-            h1 = TextStyle(
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-                lineHeight = 28.sp,
-                color = colors.TextPrimary
-            ),
-            h2 = TextStyle(
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                lineHeight = 26.sp,
-                color = colors.TextPrimary
-            ),
-            h3 = TextStyle(
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                lineHeight = 24.sp,
-                color = colors.TextPrimary
-            ),
-            h4 = TextStyle(
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                lineHeight = 22.sp,
-                color = colors.TextPrimary
-            ),
-            h5 = TextStyle(
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                lineHeight = 20.sp,
-                color = colors.TextPrimary
-            ),
-            h6 = TextStyle(
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                lineHeight = 18.sp,
-                color = colors.TextPrimary
-            ),
-            text = TextStyle(
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Normal,
-                lineHeight = 23.sp,
-                color = colors.TextPrimary
-            ),
-            code = TextStyle(
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Normal,
-                lineHeight = 19.sp,
-                color = colors.PrimaryLight
-            ),
-            inlineCode = TextStyle(
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Normal,
-                lineHeight = 18.sp,
-                color = colors.PrimaryLight
-            ),
-            quote = TextStyle(
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Normal,
-                lineHeight = 20.sp,
-                color = colors.TextSecondary
-            ),
-            paragraph = TextStyle(
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Normal,
-                lineHeight = 23.sp,
-                color = colors.TextPrimary
-            ),
-            link = TextStyle(
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Normal,
-                lineHeight = 23.sp,
-                color = colors.PrimaryLight
-            ),
-            list = TextStyle(
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Normal,
-                lineHeight = 23.sp,
-                color = colors.TextPrimary
-            ),
-            ordered = TextStyle(
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Normal,
-                lineHeight = 23.sp,
-                color = colors.TextPrimary
-            ),
-            bullet = TextStyle(
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Normal,
-                lineHeight = 23.sp,
-                color = colors.TextPrimary
-            )
+    // 直接调用 markdownTypography
+    val markdownTypography = markdownTypography(
+        h1 = TextStyle(
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 28.sp,
+            color = colors.TextPrimary
+        ),
+        h2 = TextStyle(
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 26.sp,
+            color = colors.TextPrimary
+        ),
+        h3 = TextStyle(
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            lineHeight = 24.sp,
+            color = colors.TextPrimary
+        ),
+        h4 = TextStyle(
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            lineHeight = 22.sp,
+            color = colors.TextPrimary
+        ),
+        h5 = TextStyle(
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            lineHeight = 20.sp,
+            color = colors.TextPrimary
+        ),
+        h6 = TextStyle(
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            lineHeight = 18.sp,
+            color = colors.TextPrimary
+        ),
+        text = TextStyle(
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Normal,
+            lineHeight = 23.sp,
+            color = colors.TextPrimary
+        ),
+        code = TextStyle(
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Normal,
+            lineHeight = 19.sp,
+            color = colors.PrimaryLight
+        ),
+        inlineCode = TextStyle(
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Normal,
+            lineHeight = 18.sp,
+            color = colors.PrimaryLight
+        ),
+        quote = TextStyle(
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Normal,
+            lineHeight = 20.sp,
+            color = colors.TextSecondary
+        ),
+        paragraph = TextStyle(
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Normal,
+            lineHeight = 23.sp,
+            color = colors.TextPrimary
+        ),
+        link = TextStyle(
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Normal,
+            lineHeight = 23.sp,
+            color = colors.PrimaryLight
+        ),
+        list = TextStyle(
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Normal,
+            lineHeight = 23.sp,
+            color = colors.TextPrimary
+        ),
+        ordered = TextStyle(
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Normal,
+            lineHeight = 23.sp,
+            color = colors.TextPrimary
+        ),
+        bullet = TextStyle(
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Normal,
+            lineHeight = 23.sp,
+            color = colors.TextPrimary
         )
-    }
+    )
 
     // 直接调用 createComponents，因为它内部使用了 remember
     val components = MarkdownTable.createComponents()
