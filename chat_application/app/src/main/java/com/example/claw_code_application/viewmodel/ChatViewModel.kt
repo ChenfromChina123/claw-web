@@ -69,8 +69,17 @@ class ChatViewModel(
     private val _messages = mutableStateListOf<Message>()
     val messages: List<Message> = _messages
 
-    val displayMessages: List<Message> by derivedStateOf {
-        _messages.reversed().filter { shouldShowMessage(it) }
+    // 使用 SnapshotStateList 直接存储过滤后的消息，避免每次访问都重新计算
+    private val _displayMessages = mutableStateListOf<Message>()
+    val displayMessages: List<Message> = _displayMessages
+
+    /**
+     * 更新显示消息列表
+     * 在消息变化时一次性计算，避免重复过滤和反转
+     */
+    private fun updateDisplayMessages() {
+        _displayMessages.clear()
+        _displayMessages.addAll(_messages.reversed().filter { shouldShowMessage(it) })
     }
 
     private val _toolCalls = mutableStateListOf<ToolCall>()
@@ -202,6 +211,7 @@ class ChatViewModel(
                     isStreaming = true
                 )
                 _messages.add(assistantMessage)
+                updateDisplayMessages()
                 _uiState.value = UiState.Success(
                     messages = _messages.toList(),
                     toolCalls = _toolCalls.toList(),
@@ -231,6 +241,10 @@ class ChatViewModel(
                             _messages[index] = oldMessage.copy(
                                 content = oldMessage.content + deltaToApply
                             )
+                            // 流式更新时延迟更新显示列表，避免频繁重组
+                            if (deltaToApply.length > 100 || deltaToApply.contains("\n")) {
+                                updateDisplayMessages()
+                            }
                         }
                     }
                 }
@@ -253,6 +267,7 @@ class ChatViewModel(
                     }
                 }
                 streamingMessageId = null
+                updateDisplayMessages()
 
                 _uiState.value = UiState.Success(
                     messages = _messages.toList(),
@@ -427,6 +442,7 @@ class ChatViewModel(
                     }
                 )
                 _messages.add(userMessage)
+                updateDisplayMessages()
 
                 _uiState.value = UiState.Loading
 
@@ -452,6 +468,7 @@ class ChatViewModel(
                                     _messages.add(msg)
                                 }
                             }
+                            updateDisplayMessages()
                             _toolCalls.clear()
                             _toolCalls.addAll(response.toolCalls)
                             _uiState.value = UiState.Success(
@@ -486,6 +503,7 @@ class ChatViewModel(
         saveSessionToLocalStore(sessionId)
 
         _messages.clear()
+        _displayMessages.clear()
         _toolCalls.clear()
         messageToToolCalls.clear()
         unassociatedToolCallIds.clear()
@@ -524,6 +542,8 @@ class ChatViewModel(
                             _messages.clear()
                             // 加载历史消息时，强制将 isStreaming 设置为 false，避免显示闪烁动画
                             _messages.addAll(detail.messages.map { it.copy(isStreaming = false) })
+                            // 批量更新显示消息列表
+                            updateDisplayMessages()
 
                             _toolCalls.clear()
                             _toolCalls.addAll(detail.toolCalls)
@@ -713,6 +733,7 @@ class ChatViewModel(
                             timestamp = System.currentTimeMillis().toString()
                         )
                         _messages.add(systemMessage)
+                        updateDisplayMessages()
                         emitUiStateUpdate()
                     }
 
@@ -791,6 +812,7 @@ class ChatViewModel(
         android.util.Log.d(TAG, "clearSession() - 清空当前会话")
         currentSessionId = null
         _messages.clear()
+        _displayMessages.clear()
         _toolCalls.clear()
         _uiState.value = UiState.Idle
 

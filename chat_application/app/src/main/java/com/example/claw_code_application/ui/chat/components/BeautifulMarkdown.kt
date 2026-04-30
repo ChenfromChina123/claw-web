@@ -22,6 +22,11 @@ import com.mikepenz.markdown.m3.markdownTypography
  * 集成自定义颜色、字体排版和间距配置
  * 支持表格渲染（需要 mikepenz markdown renderer 0.30.0+）
  *
+ * 性能优化：
+ * - 长文本截断避免过度渲染
+ * - 使用 remember 缓存配置
+ * - 流式输出时降低更新频率
+ *
  * @param markdown Markdown文本内容
  * @param isStreaming 是否正在流式输出
  * @param modifier Compose修饰符
@@ -33,6 +38,15 @@ fun BeautifulMarkdown(
     modifier: Modifier = Modifier
 ) {
     val colors = AppColor.current
+
+    // 性能优化：长文本截断，避免过度渲染
+    val displayMarkdown = remember(markdown) {
+        if (markdown.length > 8000) {
+            markdown.take(8000) + "\n\n... (内容过长，已截断显示)"
+        } else {
+            markdown
+        }
+    }
 
     // 使用 remember 缓存配置，避免每次重组都重新创建
     val markdownColors = remember(colors) {
@@ -152,7 +166,7 @@ fun BeautifulMarkdown(
             .clip(RoundedCornerShape(12.dp))
     ) {
         Markdown(
-            content = markdown,
+            content = displayMarkdown,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp, vertical = 4.dp),

@@ -301,11 +301,16 @@ private fun ChatTopBar(
 
 /**
  * 聊天消息列表 - Manus 1.6 Lite 风格
- * 
+ *
  * 特点：
  * - 消息间距统一
  * - 加载状态简洁
  * - 错误提示清晰
+ *
+ * 性能优化：
+ * - 使用 remember 缓存工具调用查询结果
+ * - 添加 contentType 优化列表项复用
+ * - 使用 key 避免不必要的重组
  */
 @Composable
 private fun ChatMessageList(
@@ -315,6 +320,14 @@ private fun ChatMessageList(
     listState: androidx.compose.foundation.lazy.LazyListState
 ) {
     val colors = AppColor.current
+
+    // 缓存每条消息的工具调用，避免每次滚动都重新查询
+    val messageToolCalls = remember(displayMessages, viewModel.toolCalls) {
+        displayMessages.associate { message ->
+            message.id to viewModel.getToolCallsForMessage(message.id)
+        }
+    }
+
     LazyColumn(
         state = listState,
         reverseLayout = true,
@@ -332,11 +345,11 @@ private fun ChatMessageList(
                 }
             }
         ) { message ->
+            // 使用缓存的工具调用数据
+            val toolCalls = messageToolCalls[message.id] ?: emptyList()
             EnhancedMessageBubble(
                 message = message,
-                toolCalls = remember(message.id, viewModel.toolCalls) {
-                    viewModel.getToolCallsForMessage(message.id)
-                },
+                toolCalls = toolCalls,
                 modifier = Modifier.padding(vertical = 8.dp)
             )
         }

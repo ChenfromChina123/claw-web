@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -28,12 +29,17 @@ import java.util.*
 
 /**
  * 增强版消息气泡组件 - Manus 1.6 Lite 风格
- * 
+ *
  * 设计理念：
  * - 轻、透、统一，没有多余的装饰
  * - AI消息：浅灰背景(#F5F5F7)，极淡阴影，圆角18dp
  * - 用户消息：纯黑背景，白色文字，圆角20dp
  * - 最大宽度：屏幕的85%，避免单行文字过长
+ *
+ * 性能优化：
+ * - 使用 remember 缓存解析结果，避免重复解析
+ * - 工具调用列表使用 key 优化重组
+ * - 长文本截断避免过度渲染
  */
 @Composable
 fun EnhancedMessageBubble(
@@ -43,6 +49,18 @@ fun EnhancedMessageBubble(
 ) {
     val colors = AppColor.current
     val isUser = message.role == "user"
+
+    // 缓存消息内容解析结果，避免每次重组都重新解析
+    val components by remember(message.content) {
+        mutableStateOf(MessageContentParser.parse(message.content))
+    }
+
+    // 缓存工具调用展开状态，避免重组时状态丢失
+    val toolCallExpandedStates = remember(toolCalls.size) {
+        mutableStateListOf<Boolean>().apply {
+            repeat(toolCalls.size) { add(false) }
+        }
+    }
 
     // Manus 1.6 Lite 气泡配置
     val bubbleShape = RoundedCornerShape(
@@ -115,7 +133,7 @@ fun EnhancedMessageBubble(
 
                 if (hasNonToolContent) {
                     DynamicMessageContent(
-                        content = message.content,
+                        components = components,
                         isStreaming = message.isStreaming
                     )
                 }
@@ -123,20 +141,21 @@ fun EnhancedMessageBubble(
 
             // 工具调用显示 - 统一使用 ToolCallCard 显示（紧凑模式）
             if (toolCalls.isNotEmpty() && !isUser) {
-                if (!isUser) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
+                Spacer(modifier = Modifier.height(8.dp))
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     toolCalls.forEachIndexed { index, toolCall ->
                         key(toolCall.id) {
-                            var expanded by remember { mutableStateOf(false) }
                             CompactToolCallCard(
                                 toolCall = toolCall,
-                                expanded = expanded,
-                                onExpandedChange = { expanded = it }
+                                expanded = toolCallExpandedStates.getOrElse(index) { false },
+                                onExpandedChange = { newValue ->
+                                    if (index < toolCallExpandedStates.size) {
+                                        toolCallExpandedStates[index] = newValue
+                                    }
+                                }
                             )
                         }
                     }
@@ -157,23 +176,24 @@ fun EnhancedMessageBubble(
 /**
  * 动态消息内容渲染 - Manus 1.6 Lite 风格
  * 根据内容类型渲染不同组件
- * 
+ *
  * Manus 风格特点：
  * - 标题：H1 20sp加粗，H2 18sp加粗，H3 16sp加粗
  * - 文本：行高1.55倍，段落间距18sp
  * - 代码/关键词：浅灰背景(#E8E8ED)，圆角6dp
  * - 链接：iOS系统蓝(#007AFF)，无下划线
+ *
+ * 性能优化：
+ * - 组件列表通过参数传入，避免重复解析
+ * - 使用 key 优化列表项重组
  */
 @Composable
 private fun DynamicMessageContent(
-    content: String,
+    components: List<MessageComponent>,
     isStreaming: Boolean
 ) {
-    val components = remember(content) {
-        MessageContentParser.parse(content)
-    }
-
-    components.forEach { component ->
+    components.forEachIndexed { index, component ->
+        key(index) {
         when (component) {
             is MessageComponent.Text -> {
                 val displayContent = remember(component.content) {
@@ -235,7 +255,8 @@ private fun DynamicMessageContent(
             }
 
             is MessageComponent.StepProgress -> {
-                var expanded by remember { mutableStateOf(true) }
+                // 使用 rememberSaveable 保持展开状态，避免重组时重置
+                var expanded by rememberSaveable { mutableStateOf(true) }
                 StepProgress(
                     title = component.title,
                     currentStep = component.currentStep,
@@ -269,8 +290,9 @@ private fun DynamicMessageContent(
         }
 
         // 组件之间添加间距 - Manus标准：16dp
-        if (component !== components.lastOrNull()) {
+        if (index < components.size - 1) {
             Spacer(modifier = Modifier.height(16.dp))
+        }
         }
     }
 }
