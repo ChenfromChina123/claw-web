@@ -419,4 +419,19 @@ export class ContainerOperations {
       return false
     }
   }
+
+  /**
+   * 获取容器的IP地址（在Docker网络中）
+   */
+  async getContainerIp(containerId: string, networkName: string = 'claw-web_worker-network'): Promise<string | null> {
+    try {
+      const { stdout } = await execAsync(
+        `docker inspect --format='{{range .NetworkSettings.Networks}}{{if eq "${networkName}" .NetworkID}}{{.IPAddress}}{{end}}{{end}}' ${containerId}`
+      )
+      const ip = stdout.trim()
+      return ip || null
+    } catch {
+      return null
+    }
+  }
 }

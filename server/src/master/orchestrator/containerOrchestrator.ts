@@ -374,6 +374,15 @@ export class ContainerOrchestrator {
   }
 
   /**
+   * 获取容器的IP地址（在Docker网络中）
+   * @param containerId 容器ID
+   * @returns 容器IP地址，如果获取失败则返回 null
+   */
+  async getContainerIp(containerId: string): Promise<string | null> {
+    return await this.containerOps.getContainerIp(containerId)
+  }
+
+  /**
    * 获取所有活跃的用户容器映射
    * @returns 映射列表
    */

@@ -16,7 +16,7 @@
 
 import { getContainerOrchestrator } from '../orchestrator/containerOrchestrator'
 import { workerForwarder } from '../websocket/workerForwarder'
-import { getMasterInternalToken, generateRequestId } from '../../shared/utils'
+import { getMasterInternalToken, generateRequestId, getWorkerInternalPort } from '../../shared/utils'
 import type { WorkerToolExecRequest, WorkerToolExecResponse } from '../../shared/types'
 
 /**
@@ -122,9 +122,25 @@ export class WorkerToolExecutor {
     console.log(`[WorkerToolExecutor] WebSocket 连接状态: ${wsConnection ? '已连接' : '未连接'}`)
 
     const { container } = mapping
-    const workerUrl = `http://localhost:${container.hostPort}/internal/exec`
+    
+    // Master和Worker在同一个Docker网络中，优先使用容器IP直接访问
+    // 这样更高效，不经过宿主机端口映射
+    const containerIp = await orchestrator.getContainerIp(container.containerId)
+    const workerPort = getWorkerInternalPort()
+    
+    let workerUrl: string
+    if (containerIp) {
+      // 使用Docker网络直接访问Worker容器
+      workerUrl = `http://${containerIp}:${workerPort}/internal/exec`
+      console.log(`[WorkerToolExecutor] 使用Docker网络直接访问Worker (userId=${userId}, containerIp=${containerIp}, port=${workerPort})`)
+    } else {
+      // 回退到使用宿主机端口映射
+      const workerHost = process.env.WORKER_HOST || 'host.docker.internal'
+      workerUrl = `http://${workerHost}:${container.hostPort}/internal/exec`
+      console.log(`[WorkerToolExecutor] 使用宿主机端口映射访问Worker (userId=${userId}, host=${workerHost}, port=${container.hostPort})`)
+    }
 
-    console.log(`[WorkerToolExecutor] 转发工具 ${toolName} 到 Worker 容器 (userId=${userId}, port=${container.hostPort}, url=${workerUrl})`)
+    console.log(`[WorkerToolExecutor] 转发工具 ${toolName} 到 Worker 容器 (userId=${userId}, url=${workerUrl})`)
 
     const requestBody: WorkerToolExecRequest = {
       requestId: generateRequestId(),

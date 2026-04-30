@@ -551,12 +551,16 @@ fun CompactToolCallCard(
         statusColor
     }
 
-    // 极简风格：灰色圆角背景，单行显示，固定宽度
+    // 极简风格：灰色圆角背景，单行显示，屏幕宽度
     Surface(
         modifier = modifier
-            .widthIn(max = 280.dp)
+            .fillMaxWidth()
             .padding(vertical = 2.dp)
-            .clickable { onExpandedChange(!expanded) },
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { onExpandedChange(!expanded) }
+            ),
         shape = RoundedCornerShape(16.dp),
         color = Color(0xFFF0F0F0),
         border = null
