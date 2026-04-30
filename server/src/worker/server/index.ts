@@ -131,10 +131,10 @@ export class WorkerInternalAPI {
       })
     })
 
-    // 启动监听
+    // 启动监听 - 绑定到 0.0.0.0 以允许外部访问（Master通过localhost:hostPort访问）
     return new Promise((resolve) => {
-      this.server!.listen(port, () => {
-        console.log(`[Worker] Internal API listening on port ${port}`)
+      this.server!.listen(port, '0.0.0.0', () => {
+        console.log(`[Worker] Internal API listening on 0.0.0.0:${port}`)
         resolve(undefined)
       })
     })
