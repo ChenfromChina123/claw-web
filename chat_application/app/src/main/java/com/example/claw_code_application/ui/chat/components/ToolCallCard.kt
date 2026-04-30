@@ -555,68 +555,68 @@ fun CompactToolCallCard(
 
     Card(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        shape = RoundedCornerShape(8.dp),
+            .fillMaxWidth(0.85f)
+            .padding(vertical = 1.dp),
+        shape = RoundedCornerShape(6.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFFF5F5F7),
             contentColor = AppColor.TextPrimary
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = BorderStroke(0.5.dp, borderColor.copy(alpha = 0.3f))
+        border = BorderStroke(0.5.dp, borderColor.copy(alpha = 0.2f))
     ) {
         Column {
-            // 紧凑标题栏
+            // 超紧凑标题栏
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onExpandedChange(!expanded) }
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
                         text = getToolIcon(toolCall.toolName),
-                        fontSize = 12.sp
+                        fontSize = 10.sp
                     )
 
                     Column(modifier = Modifier.weight(1f)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
                                 text = toolCall.toolName,
-                                fontSize = 12.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = AppColor.TextPrimary,
                                 fontFamily = FontFamily.Monospace
                             )
 
-                            // 紧凑状态标签
+                            // 超紧凑状态标签
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(4.dp),
                                 color = statusConfig.backgroundColor
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
                                     Surface(
-                                        modifier = Modifier.size(4.dp),
+                                        modifier = Modifier.size(3.dp),
                                         shape = RoundedCornerShape(50),
                                         color = statusDotColor
                                     ) {}
 
                                     Text(
                                         text = statusConfig.label,
-                                        fontSize = 9.sp,
+                                        fontSize = 8.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = statusConfig.color
                                     )
@@ -625,10 +625,10 @@ fun CompactToolCallCard(
                         }
 
                         if (summary.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(1.dp))
                             Text(
                                 text = summary,
-                                fontSize = 10.sp,
+                                fontSize = 8.sp,
                                 color = AppColor.TextSecondary,
                                 fontFamily = FontFamily.Monospace,
                                 maxLines = 1,
@@ -642,7 +642,7 @@ fun CompactToolCallCard(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = if (expanded) "收起详情" else "展开详情",
                     tint = AppColor.TextSecondary,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(14.dp)
                 )
             }
 
@@ -657,17 +657,17 @@ fun CompactToolCallCard(
                 ) + fadeOut(animationSpec = tween(150))
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                 ) {
                     HorizontalDivider(
                         color = Color(0xFFE8E8ED),
                         thickness = 0.5.dp,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        modifier = Modifier.padding(bottom = 6.dp)
                     )
 
                     val (inputMap, formattedInput) = parsedInput
                     if (inputMap.isNotEmpty()) {
-                        CompactResultSection(
+                        UltraCompactResultSection(
                             title = "输入参数",
                             titleIcon = "📥",
                             content = formattedInput,
@@ -675,7 +675,7 @@ fun CompactToolCallCard(
                             metaText = "${inputMap.size} 个参数"
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                     }
 
                     if (formattedOutput.isNotEmpty()) {
@@ -684,7 +684,7 @@ fun CompactToolCallCard(
                         } else {
                             AppColor.Success
                         }
-                        CompactResultSection(
+                        UltraCompactResultSection(
                             title = "执行结果",
                             titleIcon = "📤",
                             content = formattedOutput,
@@ -692,65 +692,65 @@ fun CompactToolCallCard(
                             metaText = "${formattedOutput.length} 字符"
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                     }
 
                     if (toolCall.error != null && toolCall.status == "error") {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(6.dp),
+                            shape = RoundedCornerShape(4.dp),
                             color = AppColor.ErrorBackground,
                             border = BorderStroke(0.5.dp, AppColor.Error.copy(alpha = 0.3f))
                         ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
+                            Column(modifier = Modifier.padding(8.dp)) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Text(text = "⚠️", fontSize = 12.sp)
+                                    Text(text = "⚠️", fontSize = 10.sp)
                                     Text(
                                         text = "工具执行失败",
                                         fontWeight = FontWeight.SemiBold,
-                                        fontSize = 11.sp,
+                                        fontSize = 9.sp,
                                         color = AppColor.ErrorText
                                     )
                                     Surface(
-                                        shape = RoundedCornerShape(3.dp),
+                                        shape = RoundedCornerShape(2.dp),
                                         color = AppColor.Error.copy(alpha = 0.15f)
                                     ) {
                                         Text(
                                             text = "ERROR",
-                                            fontSize = 8.sp,
+                                            fontSize = 7.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = AppColor.ErrorText,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
                                         )
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(6.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
 
                                 Text(
                                     text = toolCall.error!!,
-                                    fontSize = 10.sp,
+                                    fontSize = 8.sp,
                                     color = AppColor.ErrorText.copy(alpha = 0.9f),
                                     fontFamily = FontFamily.Monospace,
-                                    lineHeight = 14.sp
+                                    lineHeight = 12.sp
                                 )
 
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Button(
                                     onClick = onRetry,
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = AppColor.Error
                                     ),
-                                    shape = RoundedCornerShape(6.dp),
+                                    shape = RoundedCornerShape(4.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
                                         text = "重试",
                                         fontWeight = FontWeight.Medium,
-                                        fontSize = 11.sp
+                                        fontSize = 9.sp
                                     )
                                 }
                             }
@@ -809,6 +809,58 @@ private fun CompactResultSection(
                 color = contentColor,
                 modifier = Modifier.padding(10.dp),
                 lineHeight = 14.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun UltraCompactResultSection(
+    title: String,
+    titleIcon: String,
+    content: String,
+    contentColor: Color,
+    metaText: String
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = titleIcon, fontSize = 9.sp)
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 9.sp,
+                    color = AppColor.TextPrimary
+                )
+            }
+            Text(
+                text = metaText,
+                fontSize = 8.sp,
+                color = AppColor.TextSecondary
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(4.dp),
+            color = Color(0xFFF5F5F7)
+        ) {
+            Text(
+                text = content,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 8.sp,
+                color = contentColor,
+                modifier = Modifier.padding(8.dp),
+                lineHeight = 12.sp
             )
         }
     }

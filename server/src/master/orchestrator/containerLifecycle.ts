@@ -367,17 +367,20 @@ export class ContainerLifecycle {
       // 先检查容器运行状态
       const isRunning = await this.containerOps.checkContainerRunning(containerId)
       if (!isRunning) {
+        console.warn(`[ContainerLifecycle] 容器 ${containerId} 未在运行状态`)
         return false
       }
 
       // 获取容器映射的端口
       const container = this.containerOps.findContainerById(containerId, this.userMappings)
       if (!container) {
+        console.warn(`[ContainerLifecycle] 未找到容器 ${containerId} 的映射信息`)
         return false
       }
 
       // 使用Docker exec在容器内部执行健康检查
       // 这样可以避免网络映射问题
+      console.log(`[ContainerLifecycle] 执行健康检查: containerId=${containerId}, hostPort=${container.hostPort}`)
       return await this.containerOps.checkContainerHealthViaExec(containerId)
 
     } catch (error) {
