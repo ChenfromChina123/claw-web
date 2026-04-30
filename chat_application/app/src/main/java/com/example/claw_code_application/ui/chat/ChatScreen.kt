@@ -30,6 +30,8 @@ import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.ui.chat.components.*
 import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.viewmodel.ChatViewModel
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 
 /**
  * 聊天详情界面 - Manus 1.6 Lite 风格
@@ -72,27 +74,29 @@ fun ChatScreen(
         { content: String -> viewModel.sendMessage(content) }
     }
 
-    Scaffold(
-        topBar = {
-            ChatTopBar(
-                onBack = onBack,
-                showMoreMenu = showMoreMenu,
-                onMoreMenuChange = { showMoreMenu = it }
-            )
-        },
-        bottomBar = {
-            InputBar(
-                onSend = onSend,
-                enabled = uiState !is ChatViewModel.UiState.Loading,
-                onAddClick = { showFilePicker = true }
-            )
-        },
-        containerColor = colors.Background
-    ) { paddingValues ->
+    /**
+     * 使用Box布局实现悬浮输入框
+     * - 输入框悬浮在底部，使用imePadding()随键盘自动上移
+     * - 避免使用Scaffold的bottomBar，防止键盘弹出时的黑屏闪烁
+     */
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(colors.Background)
+    ) {
+        // 顶部导航栏
+        ChatTopBar(
+            onBack = onBack,
+            showMoreMenu = showMoreMenu,
+            onMoreMenuChange = { showMoreMenu = it },
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
+
+        // 消息列表区域
         Box(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(top = 64.dp, bottom = 76.dp)
         ) {
             if (displayMessages.isEmpty() && uiState !is ChatViewModel.UiState.Loading) {
                 ChatEmptyState()
@@ -104,6 +108,21 @@ fun ChatScreen(
                     listState = listState
                 )
             }
+        }
+
+        // 悬浮输入框 - 固定在底部，随键盘自动上移
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .imePadding()
+                .navigationBarsPadding()
+        ) {
+            InputBar(
+                onSend = onSend,
+                enabled = uiState !is ChatViewModel.UiState.Loading,
+                onAddClick = { showFilePicker = true }
+            )
         }
     }
 
@@ -184,10 +203,12 @@ private fun ChatEmptyState() {
 private fun ChatTopBar(
     onBack: () -> Unit,
     showMoreMenu: Boolean,
-    onMoreMenuChange: (Boolean) -> Unit
+    onMoreMenuChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val colors = AppColor.current
     TopAppBar(
+        modifier = modifier,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
