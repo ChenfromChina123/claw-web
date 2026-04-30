@@ -132,15 +132,28 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * 初始化块 - 优化启动性能
+     * 延迟初始化WebSocket连接和会话恢复，避免阻塞主线程
+     */
     init {
+        // 延迟初始化WebSocket和会话恢复，避免启动时阻塞
         viewModelScope.launch {
-            webSocketManager.incomingMessages.collect { event ->
-                event?.let { handleWebSocketEvent(it) }
+            // 先收集消息，再建立连接
+            launch {
+                webSocketManager.incomingMessages.collect { event ->
+                    event?.let { handleWebSocketEvent(it) }
+                }
             }
-        }
 
-        connectWebSocket()
-        restoreSessionFromLocalStore()
+            // 延迟连接WebSocket，避免启动时立即连接
+            delay(500L)
+            connectWebSocket()
+
+            // 延迟恢复会话，让UI先完成渲染
+            delay(300L)
+            restoreSessionFromLocalStore()
+        }
     }
 
     private fun restoreSessionFromLocalStore() {

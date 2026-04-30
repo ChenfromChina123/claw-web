@@ -350,12 +350,131 @@ ALTER TABLE messages ADD FOREIGN KEY (branch_id) REFERENCES session_branches(id)
 3. **并发处理**: 分支切换要考虑并发情况，使用事务保证数据一致性
 4. **向后兼容**: 确保前端未更新时，现有API仍能正常工作（默认使用主分支）
 
-## 9. 文件变更清单
+## 9. WebSocket消息链路修改
+
+### 9.1 新增WebSocket消息类型
+在 `server/src/master/types/websocket.ts` 中添加：
+
+```typescript
+// 分支相关WebSocket消息类型
+export type BranchWebSocketMessageType =
+  | 'create_branch'
+  | 'branch_created'
+  | 'list_branches'
+  | 'branches_list'
+  | 'switch_branch'
+  | 'branch_switched'
+  | 'delete_branch'
+  | 'branch_deleted'
+  | 'rename_branch'
+  | 'branch_renamed'
+
+// 创建分支请求
+export interface CreateBranchMessage {
+  type: 'create_branch'
+  sessionId: string
+  parentMessageId?: string
+  name?: string
+  description?: string
+}
+
+// 分支创建成功响应
+export interface BranchCreatedMessage {
+  type: 'branch_created'
+  branch: Branch
+  sessionId: string
+}
+
+// 获取分支列表请求
+export interface ListBranchesMessage {
+  type: 'list_branches'
+  sessionId: string
+}
+
+// 分支列表响应
+export interface BranchesListMessage {
+  type: 'branches_list'
+  branches: Branch[]
+  activeBranchId: string
+  sessionId: string
+}
+
+// 切换分支请求
+export interface SwitchBranchMessage {
+  type: 'switch_branch'
+  sessionId: string
+  branchId: string
+}
+
+// 分支切换成功响应
+export interface BranchSwitchedMessage {
+  type: 'branch_switched'
+  branchId: string
+  sessionId: string
+  messages: Message[]  // 切换后加载该分支的消息历史
+}
+```
+
+### 9.2 修改现有WebSocket消息处理
+在 `server/src/master/websocket/wsMessageRouter.ts` 中添加分支相关消息处理器：
+
+```typescript
+// 在 handleWebSocketMessage 的 switch 语句中添加：
+case 'create_branch':
+  await handleCreateBranch(ws, wsData, message, sendEvent)
+  break
+
+case 'list_branches':
+  await handleListBranches(ws, wsData, message, sendEvent)
+  break
+
+case 'switch_branch':
+  await handleSwitchBranch(ws, wsData, message, sendEvent)
+  break
+
+case 'delete_branch':
+  await handleDeleteBranch(ws, wsData, message, sendEvent)
+  break
+
+case 'rename_branch':
+  await handleRenameBranch(ws, wsData, message, sendEvent)
+  break
+```
+
+### 9.3 修改user_message处理
+在 `handleUserMessage` 函数中：
+- 接收 `branchId` 参数（可选）
+- 如果没有提供 `branchId`，使用当前会话的激活分支
+- 保存消息时关联到正确的分支
+
+```typescript
+async function handleUserMessage(ws: any, wsData: WebSocketData, message: any, sendEvent: EventSender) {
+  const sessionId = message.sessionId as string || wsData.sessionId
+  const branchId = message.branchId as string  // 新增：分支ID
+  // ... 其余逻辑
+  
+  // 在调用 processMessage 时传入 branchId
+  sessionConversationManager.processMessage(
+    sessionId,
+    content,
+    model,
+    sessionManager,
+    sendEvent,
+    {
+      branchId,  // 新增参数
+      ...agentOptions,
+      imageAttachments,
+    }
+  )
+}
+```
+
+## 10. 文件变更清单
 
 ### 新增文件
 1. `server/src/master/db/migrations/add_session_branches.sql` - 数据库迁移
 2. `server/src/master/db/repositories/branchRepository.ts` - 分支数据访问
-3. `server/src/master/routes/branches.routes.ts` - 分支路由
+3. `server/src/master/routes/branches.routes.ts` - 分支路由 (HTTP API)
 
 ### 修改文件
 1. `server/src/master/db/schema.sql` - 更新完整schema
@@ -365,3 +484,6 @@ ALTER TABLE messages ADD FOREIGN KEY (branch_id) REFERENCES session_branches(id)
 5. `server/src/master/routes/sessions.routes.ts` - 添加分支相关接口
 6. `server/src/master/routes/index.ts` - 注册分支路由
 7. `server/src/master/services/sessionManager.ts` - 管理分支状态
+8. `server/src/master/types/websocket.ts` - 添加WebSocket消息类型
+9. `server/src/master/websocket/wsMessageRouter.ts` - 添加分支消息处理器
+10. `server/src/master/services/conversation/sessionConversationManager.ts` - 支持分支的消息处理

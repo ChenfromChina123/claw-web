@@ -1,6 +1,7 @@
 package com.example.claw_code_application
 
 import android.app.Application
+import androidx.room.Room
 import com.example.claw_code_application.data.api.ApiService
 import com.example.claw_code_application.data.api.AuthInterceptor
 import com.example.claw_code_application.data.local.TokenManager
@@ -17,6 +18,10 @@ import com.example.claw_code_application.util.Constants
 import com.example.claw_code_application.util.NetworkConfig
 import com.example.claw_code_application.util.Logger
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -24,6 +29,11 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import java.util.concurrent.TimeUnit
 
+/**
+ * 应用入口类
+ * 采用延迟初始化策略，减轻主线程启动压力
+ * 关键组件按需加载，非关键组件异步初始化
+ */
 class ClawCodeApplication : Application() {
 
     companion object {
@@ -34,92 +44,107 @@ class ClawCodeApplication : Application() {
 
         fun getInstance(): ClawCodeApplication {
             return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: ClawCodeApplication().also { INSTANCE = it }
+                INSTANCE ?: throw IllegalStateException("Application not initialized")
             }
         }
 
-        lateinit var apiService: ApiService
-            private set
+        // 核心组件 - 延迟初始化，首次使用时才创建
+        val apiService: ApiService by lazy {
+            INSTANCE!!.createApiService()
+        }
 
-        lateinit var tokenManager: TokenManager
-            private set
+        val tokenManager: TokenManager by lazy {
+            TokenManager.getInstance(INSTANCE!!)
+        }
 
-        lateinit var userManager: UserManager
-            private set
+        val userManager: UserManager by lazy {
+            UserManager.getInstance(INSTANCE!!)
+        }
 
-        lateinit var authRepository: AuthRepository
-            private set
+        val authRepository: AuthRepository by lazy {
+            AuthRepository(apiService, tokenManager, userManager)
+        }
 
-        lateinit var chatRepository: ChatRepository
-            private set
+        val chatRepository: ChatRepository by lazy {
+            ChatRepository(apiService, tokenManager)
+        }
 
-        lateinit var sessionLocalStore: SessionLocalStore
-            private set
+        val sessionLocalStore: SessionLocalStore by lazy {
+            SessionLocalStore.getInstance(INSTANCE!!)
+        }
 
-        lateinit var themePreferencesStore: ThemePreferencesStore
-            private set
+        val themePreferencesStore: ThemePreferencesStore by lazy {
+            ThemePreferencesStore.getInstance(INSTANCE!!)
+        }
 
         val webSocketManager = WebSocketManager()
 
-        lateinit var appDatabase: AppDatabase
-            private set
+        // 数据库和缓存Repository - 延迟初始化
+        val appDatabase: AppDatabase by lazy {
+            buildDatabase(INSTANCE!!)
+        }
 
-        lateinit var cachedChatRepository: CachedChatRepository
-            private set
+        val cachedChatRepository: CachedChatRepository by lazy {
+            CachedChatRepository(
+                apiService = apiService,
+                tokenManager = tokenManager,
+                sessionDao = appDatabase.sessionDao(),
+                messageDao = appDatabase.messageDao(),
+                toolCallDao = appDatabase.toolCallDao()
+            )
+        }
 
-        lateinit var notificationManager: NotificationManager
-            private set
+        val notificationManager: NotificationManager by lazy {
+            NotificationManager(INSTANCE!!)
+        }
+
+        /**
+         * 构建数据库实例
+         * 使用后台线程初始化，避免阻塞主线程
+         */
+        private fun buildDatabase(context: Context): AppDatabase {
+            return Room.databaseBuilder(
+                context.applicationContext,
+                AppDatabase::class.java,
+                "claw_chat_database"
+            )
+                .fallbackToDestructiveMigration()
+                .build()
+        }
     }
+
+    // 应用级协程作用域，用于后台初始化任务
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
         super.onCreate()
         INSTANCE = this
 
-        // 初始化通知渠道（Android 8.0+ 必需）
-        notificationManager = NotificationManager(this)
-        notificationManager.createNotificationChannels()
-        Logger.i(TAG, "通知渠道初始化完成")
+        Logger.i(TAG, "应用启动...")
 
+        // 初始化网络配置（轻量级操作）
         NetworkConfig.init(this)
         Logger.i(TAG, "网络配置初始化完成: ${NetworkConfig.getBaseUrl()}")
 
-        Logger.i(TAG, "应用启动...")
+        // 异步初始化非关键组件
+        applicationScope.launch {
+            // 预初始化通知渠道
+            try {
+                notificationManager.createNotificationChannels()
+                Logger.i(TAG, "通知渠道初始化完成")
+            } catch (e: Exception) {
+                Logger.e(TAG, "通知渠道初始化失败", e)
+            }
+        }
 
-        tokenManager = TokenManager.getInstance(this)
-        Logger.d(TAG, "TokenManager初始化完成")
-
-        userManager = UserManager.getInstance(this)
-        Logger.d(TAG, "UserManager初始化完成")
-
-        apiService = createApiService()
-        Logger.d(TAG, "ApiService初始化完成")
-
-        authRepository = AuthRepository(apiService, tokenManager, userManager)
-        chatRepository = ChatRepository(apiService, tokenManager)
-
-        sessionLocalStore = SessionLocalStore.getInstance(this)
-        Logger.d(TAG, "SessionLocalStore初始化完成")
-
-        themePreferencesStore = ThemePreferencesStore.getInstance(this)
-        Logger.d(TAG, "ThemePreferencesStore初始化完成")
-
-        appDatabase = AppDatabase.getInstance(this)
-        Logger.d(TAG, "AppDatabase初始化完成")
-
-        cachedChatRepository = CachedChatRepository(
-            apiService = apiService,
-            tokenManager = tokenManager,
-            sessionDao = appDatabase.sessionDao(),
-            messageDao = appDatabase.messageDao(),
-            toolCallDao = appDatabase.toolCallDao()
-        )
-        Logger.d(TAG, "CachedChatRepository初始化完成")
-
-        Logger.d(TAG, "Repository初始化完成")
-
-        Logger.i(TAG, "应用初始化完成")
+        // 延迟初始化日志
+        Logger.d(TAG, "应用初始化完成，组件将按需加载")
     }
 
+    /**
+     * 创建ApiService实例
+     * 延迟初始化，避免启动时创建不必要的网络组件
+     */
     private fun createApiService(): ApiService {
         val baseUrl = NetworkConfig.getBaseUrl()
         Logger.d(TAG, "创建 ApiService, BaseURL: $baseUrl")

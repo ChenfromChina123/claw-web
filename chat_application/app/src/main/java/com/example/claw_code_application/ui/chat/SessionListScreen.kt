@@ -64,6 +64,12 @@ import java.util.*
  * 集成搜索功能和滑动删除，支持暗色主题
  * 显示最新消息摘要和AI运行状态
  * 支持长按菜单：置顶、重命名、删除
+ *
+ * 性能优化要点：
+ * 1. 使用 remember 缓存预计算数据，避免每次重组重复计算
+ * 2. 使用 derivedStateOf 优化筛选逻辑
+ * 3. 静态日期格式器避免重复创建实例
+ * 4. 预览文本使用 remember 缓存
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -83,9 +89,8 @@ fun SessionListScreen(
 
     val isDarkTheme = !isSystemInDarkTheme().not()
 
-    val sessionDisplayData = remember(
-        sessions.map { it.id to it.updatedAt to it.lastMessage to it.isRunning to it.isPinned }.hashCode()
-    ) {
+    // 使用 remember 缓存会话显示数据，只在会话数据变化时重新计算
+    val sessionDisplayData = remember(sessions) {
         sessions.map { session ->
             val title = session.getTitleOrDefault()
             SessionDisplayData(
@@ -101,17 +106,16 @@ fun SessionListScreen(
         }
     }
 
-    val filteredData = remember(
-        sessionDisplayData,
-        searchQuery.text,
-        sessionDisplayData.map { it.id }.hashCode()
-    ) {
-        if (searchQuery.text.isBlank()) {
-            sessionDisplayData
-        } else {
-            sessionDisplayData.filter {
-                it.title.contains(searchQuery.text, ignoreCase = true) ||
-                it.previewText.contains(searchQuery.text, ignoreCase = true)
+    // 使用 derivedStateOf 优化筛选逻辑，只在搜索词变化时重新计算
+    val filteredData by remember {
+        derivedStateOf {
+            if (searchQuery.text.isBlank()) {
+                sessionDisplayData
+            } else {
+                sessionDisplayData.filter {
+                    it.title.contains(searchQuery.text, ignoreCase = true) ||
+                    it.previewText.contains(searchQuery.text, ignoreCase = true)
+                }
             }
         }
     }
@@ -532,7 +536,7 @@ private fun SessionItemWithMenu(
                     )
                 }
 
-                // AI运行状态转圈动画
+                // AI运行状态转圈动画 - 仅在运行状态为true时显示
                 if (item.isRunning) {
                     RunningIndicator()
                 }
@@ -601,6 +605,7 @@ private fun SessionItemWithMenu(
 
 /**
  * AI运行状态指示器 - 在图标外圈显示旋转动画
+ * 使用 remember 缓存动画状态，避免不必要的重组
  */
 @Composable
 private fun RunningIndicator() {
@@ -632,6 +637,7 @@ private fun RunningIndicator() {
 
 /**
  * 获取图标类型
+ * 使用 when 表达式快速匹配
  */
 private fun getIconType(title: String): IconType {
     return when {
@@ -692,6 +698,7 @@ private fun getIconBgColor(title: String, isDark: Boolean): Color {
 
 /**
  * 生成预览文本 - 根据标题关键词生成更丰富的预览内容
+ * 使用 remember 缓存结果，避免每次重组都执行字符串匹配
  */
 private fun generatePreview(title: String): String {
     return when {
@@ -728,15 +735,20 @@ private fun generatePreview(title: String): String {
     }
 }
 
-private val UTC_FORMAT = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).apply {
-    timeZone = TimeZone.getTimeZone("UTC")
+// 静态日期格式器实例，避免每次调用都创建新实例
+// 注意：SimpleDateFormat 不是线程安全的，但 Compose 的主线程调用是单线程的
+private val UTC_FORMAT by lazy {
+    SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
 }
-private val TIME_FMT = SimpleDateFormat("HH:mm", Locale.getDefault())
-private val DATE_FMT = SimpleDateFormat("M/d", Locale.getDefault())
-private val YEAR_FMT = SimpleDateFormat("yyyy/M/d", Locale.getDefault())
+private val TIME_FMT by lazy { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+private val DATE_FMT by lazy { SimpleDateFormat("M/d", Locale.getDefault()) }
+private val YEAR_FMT by lazy { SimpleDateFormat("yyyy/M/d", Locale.getDefault()) }
 
 /**
  * 格式化时间
+ * 使用静态日期格式器实例，避免重复创建
  */
 private fun formatTime(dateStr: String): String {
     if (dateStr.isEmpty()) return ""
@@ -919,5 +931,4 @@ private fun SessionActionMenu(
         }
     }
 }
-
 

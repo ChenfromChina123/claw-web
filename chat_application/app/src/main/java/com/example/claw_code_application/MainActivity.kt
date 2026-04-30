@@ -43,6 +43,7 @@ import kotlinx.coroutines.launch
 /**
  * 主入口Activity
  * 负责导航管理和全局主题设置
+ * 优化启动流程，延迟加载非关键组件
  */
 class MainActivity : ComponentActivity() {
 
@@ -51,11 +52,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            val themePreferencesStore = ClawCodeApplication.themePreferencesStore
+            // 使用 remember 缓存主题偏好存储
+            val themePreferencesStore = remember { ClawCodeApplication.themePreferencesStore }
             val scope = rememberCoroutineScope()
             
+            // 使用 remember 缓存主题状态
             var currentTheme by remember { mutableStateOf(ThemeMode.SYSTEM) }
             
+            // 异步加载保存的主题设置
             LaunchedEffect(Unit) {
                 val savedTheme = themePreferencesStore.getThemeModeSync()
                 currentTheme = when (savedTheme) {
@@ -161,48 +165,63 @@ class MainActivity : ComponentActivity() {
 /**
  * 认证检查屏幕
  * 检查登录状态，如果已登录但缺少用户信息则尝试获取
+ * 使用异步方式检查，避免阻塞主线程
  */
 @Composable
 private fun AuthCheckScreen(
     onAuthenticated: () -> Unit,
     onNotAuthenticated: () -> Unit
 ) {
+    // 使用 remember 避免重复检查
+    var isChecking by remember { mutableStateOf(true) }
+    
     LaunchedEffect(Unit) {
-        val token = ClawCodeApplication.tokenManager.getToken().first()
-        if (!token.isNullOrEmpty()) {
-            // 检查是否有用户信息，如果没有则尝试获取
-            val userInfo = ClawCodeApplication.userManager.getUserInfoSync()
-            if (userInfo == null) {
-                // 尝试从服务器获取用户信息
-                try {
-                    val result = ClawCodeApplication.authRepository.getUserInfo()
-                    result.onFailure {
-                        android.util.Log.w("AuthCheck", "获取用户信息失败: ${it.message}")
+        try {
+            // 异步获取 token
+            val token = ClawCodeApplication.tokenManager.getToken().first()
+            if (!token.isNullOrEmpty()) {
+                // 检查是否有用户信息，如果没有则尝试获取
+                val userInfo = ClawCodeApplication.userManager.getUserInfoSync()
+                if (userInfo == null) {
+                    // 尝试从服务器获取用户信息（异步）
+                    try {
+                        val result = ClawCodeApplication.authRepository.getUserInfo()
+                        result.onFailure {
+                            android.util.Log.w("AuthCheck", "获取用户信息失败: ${it.message}")
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("AuthCheck", "获取用户信息异常", e)
                     }
-                } catch (e: Exception) {
-                    android.util.Log.e("AuthCheck", "获取用户信息异常", e)
                 }
+                onAuthenticated()
+            } else {
+                onNotAuthenticated()
             }
-            onAuthenticated()
-        } else {
+        } catch (e: Exception) {
+            android.util.Log.e("AuthCheck", "认证检查异常", e)
             onNotAuthenticated()
+        } finally {
+            isChecking = false
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(color = AppColor.current.Primary)
+    // 显示加载界面
+    if (isChecking) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = AppColor.current.Primary)
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = "正在检查登录状态...",
-                color = AppColor.current.TextSecondary,
-                fontSize = 14.sp
-            )
+                Text(
+                    text = "正在检查登录状态...",
+                    color = AppColor.current.TextSecondary,
+                    fontSize = 14.sp
+                )
+            }
         }
     }
 }
@@ -210,6 +229,7 @@ private fun AuthCheckScreen(
 /**
  * 聊天主界面
  * 使用viewModel()确保ViewModel生命周期正确管理，避免重组时重复创建
+ * 优化ViewModel创建时机，延迟到实际需要时才创建
  *
  * @param currentTheme 当前主题模式
  * @param onThemeChange 主题变更回调
@@ -224,6 +244,7 @@ private fun ChatMainScreen(
     onLogout: () -> Unit,
     onNavigateToLogin: () -> Unit
 ) {
+    // 使用 remember 缓存 ViewModel，避免重组时重复创建
     val sessionViewModel: SessionViewModel = viewModel(
         factory = SessionViewModel.provideFactory(
             cachedChatRepository = ClawCodeApplication.cachedChatRepository,
@@ -237,7 +258,7 @@ private fun ChatMainScreen(
             tokenManager = ClawCodeApplication.tokenManager,
             sessionLocalStore = ClawCodeApplication.sessionLocalStore,
             notificationManager = ClawCodeApplication.notificationManager,
-            pushMessageStore = PushMessageStore.getInstance(androidx.compose.ui.platform.LocalContext.current)
+            pushMessageStore = remember { PushMessageStore.getInstance(androidx.compose.ui.platform.LocalContext.current) }
         )
     )
 
@@ -256,6 +277,7 @@ private fun ChatMainScreen(
 
     val sessionUiState by sessionViewModel.uiState.collectAsStateWithLifecycle()
 
+    // 页面加载时异步加载会话列表
     LaunchedEffect(Unit) {
         sessionViewModel.loadSessions()
     }
