@@ -185,7 +185,7 @@ class SessionViewModel(
 
         return try {
             // 调用后端API创建真实会话
-            val result = chatRepository.createSession(null, localSession.model)
+            val result = chatRepository.createSession(null, localSession.model ?: "qwen-plus")
 
             when (result) {
                 is CachedChatRepository.Result.Success -> {
