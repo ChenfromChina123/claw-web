@@ -32,6 +32,9 @@ import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.viewmodel.ChatViewModel
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 
 /**
  * 聊天详情界面 - Manus 1.6 Lite 风格
@@ -84,18 +87,21 @@ fun ChatScreen(
             .fillMaxSize()
             .background(colors.Background)
     ) {
-        // 顶部导航栏
+        // 顶部导航栏 - 添加状态栏内边距适配动态岛/刘海屏
         ChatTopBar(
             onBack = onBack,
             showMoreMenu = showMoreMenu,
             onMoreMenuChange = { showMoreMenu = it },
-            modifier = Modifier.align(Alignment.TopCenter)
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.statusBars)
         )
 
-        // 消息列表区域
+        // 消息列表区域 - 使用 WindowInsets 动态计算顶部空间
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(top = 64.dp, bottom = 76.dp)
         ) {
             if (displayMessages.isEmpty() && uiState !is ChatViewModel.UiState.Loading) {
