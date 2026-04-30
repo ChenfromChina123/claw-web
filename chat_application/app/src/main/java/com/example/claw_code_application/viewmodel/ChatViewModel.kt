@@ -73,13 +73,27 @@ class ChatViewModel(
     private val _displayMessages = mutableStateListOf<Message>()
     val displayMessages: List<Message> = _displayMessages
 
+    // 关键优化：限制最大显示消息数量，避免长对话卡顿
+    companion object {
+        private const val MAX_DISPLAY_MESSAGES = 50  // 最多显示50条消息
+    }
+
     /**
      * 更新显示消息列表
      * 在消息变化时一次性计算，避免重复过滤和反转
+     * 关键优化：限制显示数量，保持滑动流畅
      */
     private fun updateDisplayMessages() {
         _displayMessages.clear()
-        _displayMessages.addAll(_messages.reversed().filter { shouldShowMessage(it) })
+        val filtered = _messages.reversed().filter { shouldShowMessage(it) }
+        // 如果消息过多，只显示最新的 MAX_DISPLAY_MESSAGES 条
+        _displayMessages.addAll(
+            if (filtered.size > MAX_DISPLAY_MESSAGES) {
+                filtered.take(MAX_DISPLAY_MESSAGES)
+            } else {
+                filtered
+            }
+        )
     }
 
     private val _toolCalls = mutableStateListOf<ToolCall>()
@@ -241,8 +255,13 @@ class ChatViewModel(
                             _messages[index] = oldMessage.copy(
                                 content = oldMessage.content + deltaToApply
                             )
-                            // 流式更新时延迟更新显示列表，避免频繁重组
-                            if (deltaToApply.length > 100 || deltaToApply.contains("\n")) {
+                            // 关键优化：流式输出时，只有累积足够内容才更新显示列表
+                            // 减少 UI 重组频率，提升滑动流畅度
+                            val currentContent = _messages[index].content
+                            val shouldUpdate = deltaToApply.length > 200 ||
+                                             deltaToApply.contains("\n\n") ||
+                                             currentContent.length % 500 < 50 // 每约500字符更新一次
+                            if (shouldUpdate) {
                                 updateDisplayMessages()
                             }
                         }

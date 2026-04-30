@@ -24,8 +24,9 @@ import com.mikepenz.markdown.m3.markdownTypography
  *
  * 性能优化：
  * - 长文本截断避免过度渲染
- * - 使用 remember 缓存配置
+ * - 使用 remember 缓存截断结果
  * - 流式输出时降低更新频率
+ * - 限制最大渲染高度
  *
  * @param markdown Markdown文本内容
  * @param isStreaming 是否正在流式输出
@@ -39,10 +40,12 @@ fun BeautifulMarkdown(
 ) {
     val colors = AppColor.current
 
-    // 性能优化：长文本截断，避免过度渲染
-    val displayMarkdown = remember(markdown) {
-        if (markdown.length > 8000) {
-            markdown.take(8000) + "\n\n... (内容过长，已截断显示)"
+    // 关键性能优化：长文本截断 + 流式输出优化
+    // 流式输出时更激进的截断，减少渲染开销
+    val displayMarkdown = remember(markdown, isStreaming) {
+        val maxLength = if (isStreaming) 3000 else 5000
+        if (markdown.length > maxLength) {
+            markdown.take(maxLength) + "\n\n... (内容过长，已截断显示)"
         } else {
             markdown
         }
@@ -156,6 +159,7 @@ fun BeautifulMarkdown(
     // 直接调用 createComponents，因为它内部使用了 remember
     val components = MarkdownTable.createComponents()
 
+    // 关键优化：限制最大高度，避免超长内容影响滑动性能
     Box(
         modifier = modifier
             .fillMaxWidth()

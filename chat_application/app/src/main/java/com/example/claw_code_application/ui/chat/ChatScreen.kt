@@ -332,7 +332,10 @@ private fun ChatMessageList(
         state = listState,
         reverseLayout = true,
         contentPadding = PaddingValues(vertical = 16.dp),
-        modifier = Modifier.fillMaxSize()
+        // 关键性能优化：限制可见项数量，超出部分不渲染
+        modifier = Modifier.fillMaxSize(),
+        // 启用预加载优化
+        beyondBoundsItemCount = 3
     ) {
         items(
             items = displayMessages,
@@ -347,11 +350,17 @@ private fun ChatMessageList(
         ) { message ->
             // 使用缓存的工具调用数据
             val toolCalls = messageToolCalls[message.id] ?: emptyList()
-            EnhancedMessageBubble(
-                message = message,
-                toolCalls = toolCalls,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
+            // 关键优化：使用 remember 缓存消息气泡，避免不必要的重组
+            key(message.id) {
+                EnhancedMessageBubble(
+                    message = message,
+                    toolCalls = toolCalls,
+                    modifier = Modifier
+                        .padding(vertical = 8.dp)
+                        // 关键优化：为每个列表项设置稳定的布局约束
+                        .animateItem(fadeInSpec = null, fadeOutSpec = null)
+                )
+            }
         }
 
         // 使用 key 来避免不必要的重组

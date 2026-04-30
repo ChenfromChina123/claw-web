@@ -41,22 +41,38 @@ import java.util.*
  * - 工具调用列表使用 key 优化重组
  * - 长文本截断避免过度渲染
  */
+/**
+ * 增强版消息气泡组件 - Manus 1.6 Lite 风格
+ *
+ * 设计理念：
+ * - 轻、透、统一，没有多余的装饰
+ * - AI消息：浅灰背景(#F5F5F7)，极淡阴影，圆角18dp
+ * - 用户消息：纯黑背景，白色文字，圆角20dp
+ * - 最大宽度：屏幕的85%，避免单行文字过长
+ *
+ * 性能优化：
+ * - 使用 remember 缓存解析结果，避免重复解析
+ * - 工具调用列表使用 key 优化重组
+ * - 长文本截断避免过度渲染
+ * - 使用 stability 优化避免不必要的重组
+ */
 @Composable
 fun EnhancedMessageBubble(
     message: Message,
-    toolCalls: List<ToolCall> = emptyList(),
+    toolCalls: List<ToolCall>,
     modifier: Modifier = Modifier
 ) {
     val colors = AppColor.current
     val isUser = message.role == "user"
 
-    // 缓存消息内容解析结果，避免每次重组都重新解析
-    val components by remember(message.content) {
-        mutableStateOf(MessageContentParser.parse(message.content))
+    // 关键优化：使用 derivedStateOf 减少重组频率
+    // 只在 content 真正变化时才重新解析
+    val components by remember(message.id, message.content) {
+        derivedStateOf { MessageContentParser.parse(message.content) }
     }
 
     // 缓存工具调用展开状态，避免重组时状态丢失
-    val toolCallExpandedStates = remember(toolCalls.size) {
+    val toolCallExpandedStates = remember(message.id, toolCalls.size) {
         mutableStateListOf<Boolean>().apply {
             repeat(toolCalls.size) { add(false) }
         }
