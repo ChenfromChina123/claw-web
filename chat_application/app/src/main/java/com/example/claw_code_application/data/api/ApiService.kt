@@ -242,4 +242,38 @@ interface ApiService {
         @Path("id") id: String,
         @Body body: Map<String, Boolean>
     ): Response<ApiResponse<SkillDefinition>>
+
+    // ==================== 推送消息 API ====================
+
+    /**
+     * 获取未读推送消息
+     */
+    @GET("/api/push/messages")
+    suspend fun getPushMessages(
+        @Query("category") category: String? = null,
+        @Query("unreadOnly") unreadOnly: Boolean = true,
+        @Query("limit") limit: Int = 50
+    ): Response<ApiResponse<List<AgentPushMessage>>>
+
+    /**
+     * 标记推送消息为已读
+     */
+    @POST("/api/push/messages/{id}/read")
+    suspend fun markPushMessageRead(
+        @Path("id") id: String
+    ): Response<ApiResponse<Boolean>>
+
+    /**
+     * 删除推送消息
+     */
+    @DELETE("/api/push/messages/{id}")
+    suspend fun deletePushMessage(
+        @Path("id") id: String
+    ): Response<ApiResponse<Boolean>>
+
+    /**
+     * 获取未读推送消息数量
+     */
+    @GET("/api/push/messages/unread-count")
+    suspend fun getUnreadPushCount(): Response<ApiResponse<Int>>
 }

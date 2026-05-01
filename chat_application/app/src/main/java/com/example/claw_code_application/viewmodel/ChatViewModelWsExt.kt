@@ -17,12 +17,15 @@ internal fun ChatViewModel.handleWebSocketEvent(event: WebSocketManager.WebSocke
         is WebSocketManager.WebSocketEvent.MessageDelta -> handleMessageDelta(event)
         is WebSocketManager.WebSocketEvent.MessageStop -> handleMessageStop(event)
         is WebSocketManager.WebSocketEvent.MessageSaved -> handleMessageSaved(event)
+        is WebSocketManager.WebSocketEvent.ContentBlockStart -> handleContentBlockStart(event)
+        is WebSocketManager.WebSocketEvent.ContentBlockDelta -> handleContentBlockDelta(event)
+        is WebSocketManager.WebSocketEvent.ContentBlockStop -> {}
         is WebSocketManager.WebSocketEvent.ToolUse -> handleToolUse(event)
         is WebSocketManager.WebSocketEvent.ToolInputDelta -> handleToolInputDelta(event)
         is WebSocketManager.WebSocketEvent.ToolStart -> handleToolStart(event)
         is WebSocketManager.WebSocketEvent.ToolEnd -> handleToolEnd(event)
         is WebSocketManager.WebSocketEvent.ToolError -> handleToolError(event)
-        is WebSocketManager.WebSocketEvent.ToolProgress -> {}
+        is WebSocketManager.WebSocketEvent.ToolProgress -> handleToolProgress(event)
         is WebSocketManager.WebSocketEvent.ToolUseEnd -> handleToolUseEnd(event)
         is WebSocketManager.WebSocketEvent.ConversationEnd -> handleConversationEnd()
         is WebSocketManager.WebSocketEvent.Error -> handleErrorEvent(event)
@@ -33,6 +36,8 @@ internal fun ChatViewModel.handleWebSocketEvent(event: WebSocketManager.WebSocke
 
 private fun ChatViewModel.handleMessageStart(event: WebSocketManager.WebSocketEvent.MessageStart) {
     streamingMessageId = event.messageId
+    currentThinkingBlockIndex = -1
+    _thinkingContent = ""
 
     if (unassociatedToolCallIds.isNotEmpty()) {
         val toolCallList = messageToToolCalls.getOrPut(event.messageId) { mutableListOf() }
@@ -104,6 +109,23 @@ private fun ChatViewModel.handleMessageSaved(event: WebSocketManager.WebSocketEv
     }
 }
 
+private fun ChatViewModel.handleContentBlockStart(event: WebSocketManager.WebSocketEvent.ContentBlockStart) {
+    if (event.blockType == "thinking") {
+        currentThinkingBlockIndex = event.index
+    }
+}
+
+private fun ChatViewModel.handleContentBlockDelta(event: WebSocketManager.WebSocketEvent.ContentBlockDelta) {
+    if (event.deltaType == "thinking_delta" && event.thinking != null) {
+        val existing = _thinkingContent
+        _thinkingContent = if (existing.isNotEmpty()) {
+            "$existing${event.thinking}"
+        } else {
+            event.thinking
+        }
+    }
+}
+
 private fun ChatViewModel.handleToolUse(event: WebSocketManager.WebSocketEvent.ToolUse) {
     _toolCalls.add(ToolCall(
         id = event.id, toolName = event.name, toolInput = JsonObject(emptyMap()),
@@ -170,6 +192,24 @@ private fun ChatViewModel.handleToolUseEnd(event: WebSocketManager.WebSocketEven
         scheduleToolUpdate(event.id, oldTool.copy(
             status = newStatus, toolOutput = event.output ?: oldTool.toolOutput,
             error = event.error ?: oldTool.error, completedAt = System.currentTimeMillis().toString()
+        ))
+    }
+}
+
+private fun ChatViewModel.handleToolProgress(event: WebSocketManager.WebSocketEvent.ToolProgress) {
+    val index = _toolCalls.indexOfFirst { it.id == event.id }
+    if (index != -1) {
+        val oldTool = _toolCalls[index]
+        val existingOutput = oldTool.progressOutput ?: ""
+        val newOutput = if (event.output != null) {
+            val separator = if (existingOutput.isNotEmpty()) "\n" else ""
+            "$existingOutput$separator${event.output}"
+        } else {
+            existingOutput
+        }
+        scheduleToolUpdate(event.id, oldTool.copy(
+            status = "executing",
+            progressOutput = newOutput
         ))
     }
 }

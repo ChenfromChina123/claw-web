@@ -439,6 +439,7 @@ function startMasterHTTPServer(containerRole: string): void {
           '/api/mcp',
           '/api/tools',
           '/api/deployments',
+          '/api/push',
         ]
         const isMasterOnlyPath = masterOnlyPaths.some(masterPath => path.startsWith(masterPath))
         const isAgentMessagePath = path.match(/^\/api\/agents\/[^\/]+\/message$/)

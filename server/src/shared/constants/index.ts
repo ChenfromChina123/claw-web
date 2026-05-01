@@ -38,6 +38,25 @@ export const WS_MESSAGE_TYPES = {
   TASK_STATUS_CHANGED: 'task_status_changed',
 } as const
 
+export const ANTHROPIC_EVENT_TYPES = {
+  MESSAGE_START: 'message_start',
+  MESSAGE_DELTA: 'message_delta',
+  MESSAGE_STOP: 'message_stop',
+  CONTENT_BLOCK_START: 'content_block_start',
+  CONTENT_BLOCK_DELTA: 'content_block_delta',
+  CONTENT_BLOCK_STOP: 'content_block_stop',
+  TOOL_USE: 'tool_use',
+  TOOL_INPUT_DELTA: 'tool_input_delta',
+  TOOL_START: 'tool_start',
+  TOOL_END: 'tool_end',
+  TOOL_ERROR: 'tool_error',
+  TOOL_PROGRESS: 'tool_progress',
+  CONVERSATION_END: 'conversation_end',
+  MESSAGE_SAVED: 'message_saved',
+  AGENT_PUSH: 'agent_push',
+  ERROR: 'error',
+} as const
+
 export const ERROR_CODES = {
   CONTAINER_UNAVAILABLE: 'CONTAINER_UNAVAILABLE',
   EXECUTION_TIMEOUT: 'EXECUTION_TIMEOUT',

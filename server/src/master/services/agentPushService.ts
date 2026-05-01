@@ -7,16 +7,16 @@
  * - notification: 普通通知
  * - alert: 警告信息
  * - info: 一般信息
+ *
+ * 持久化：推送消息同时写入数据库，支持离线消息补发
  */
 
 import { randomUUID } from 'crypto'
 import type { AgentPushMessage, AgentPushMessageParams } from '../../shared/types'
 import { getNotificationService, NotificationType, NotificationChannel } from './notificationService'
 import { wsManager } from '../integration/wsBridge'
+import { getPushMessageRepository } from '../db/repositories/pushMessageRepository'
 
-/**
- * Agent 推送服务类
- */
 export class AgentPushService {
   private notifications: Map<string, AgentPushMessage> = new Map()
 
@@ -48,26 +48,32 @@ export class AgentPushService {
       priority: params.priority || 'normal',
     }
 
-    // 存储消息
     this.notifications.set(id, pushMessage)
 
-    // 通过 WebSocket 推送给指定用户
+    this.persistAsync(pushMessage)
+
     await this.pushToUser(params.userId, pushMessage)
 
-    // 记录日志
     console.log(`[AgentPushService] Push sent: ${id} to user ${params.userId}, category: ${params.category}`)
 
     return id
   }
 
   /**
+   * 异步持久化推送消息到数据库
+   */
+  private persistAsync(message: AgentPushMessage): void {
+    const repo = getPushMessageRepository()
+    repo.create({
+      ...message,
+      isRead: false,
+    }).catch(err => {
+      console.error(`[AgentPushService] Failed to persist push message ${message.id}:`, err)
+    })
+  }
+
+  /**
    * 推送凭证信息给用户
-   * 用于发送账号密码等敏感信息
-   *
-   * @param userId 用户ID
-   * @param sessionId 会话ID
-   * @param credentials 凭证信息
-   * @returns 消息ID
    */
   async pushCredentials(
     userId: string,
@@ -96,17 +102,12 @@ export class AgentPushService {
         password: credentials.password,
       },
       priority: 'high',
-      expiresInMinutes: 30, // 凭证信息30分钟后过期
+      expiresInMinutes: 30,
     })
   }
 
   /**
    * 推送一般通知
-   *
-   * @param userId 用户ID
-   * @param sessionId 会话ID
-   * @param notification 通知内容
-   * @returns 消息ID
    */
   async pushNotification(
     userId: string,
@@ -129,11 +130,6 @@ export class AgentPushService {
 
   /**
    * 推送警告信息
-   *
-   * @param userId 用户ID
-   * @param sessionId 会话ID
-   * @param alert 警告内容
-   * @returns 消息ID
    */
   async pushAlert(
     userId: string,
@@ -156,11 +152,6 @@ export class AgentPushService {
 
   /**
    * 推送一般信息
-   *
-   * @param userId 用户ID
-   * @param sessionId 会话ID
-   * @param info 信息内容
-   * @returns 消息ID
    */
   async pushInfo(
     userId: string,
@@ -182,18 +173,13 @@ export class AgentPushService {
 
   /**
    * 通过 WebSocket 推送给指定用户
-   *
-   * @param userId 用户ID
-   * @param message 推送消息
    */
   private async pushToUser(userId: string, message: AgentPushMessage): Promise<void> {
-    // 获取用户的所有连接
     const connections = wsManager.getAllConnections()
     let sent = false
 
     for (const [connectionId, wsData] of connections) {
       if (wsData.userId === userId) {
-        // 发送 agent_push 事件
         wsManager.sendToConnection(connectionId, {
           type: 'event',
           event: 'agent_push',
@@ -216,11 +202,9 @@ export class AgentPushService {
     }
 
     if (!sent) {
-      console.warn(`[AgentPushService] User ${userId} is not online, push queued`)
-      // TODO: 可以实现离线消息队列
+      console.log(`[AgentPushService] User ${userId} is offline, push persisted for later delivery`)
     }
 
-    // 同时通过 NotificationService 发送（支持推送通知到移动端）
     const notificationService = getNotificationService()
     await notificationService.notify({
       type: NotificationType.SYSTEM_MESSAGE,
@@ -239,16 +223,53 @@ export class AgentPushService {
   }
 
   /**
+   * 用户上线时补发未读推送消息
+   */
+  async deliverOfflineMessages(userId: string): Promise<number> {
+    const repo = getPushMessageRepository()
+    const unreadMessages = await repo.findByUserId(userId, { unreadOnly: true, limit: 50 })
+
+    let delivered = 0
+    for (const message of unreadMessages) {
+      const connections = wsManager.getAllConnections()
+      for (const [connectionId, wsData] of connections) {
+        if (wsData.userId === userId) {
+          wsManager.sendToConnection(connectionId, {
+            type: 'event',
+            event: 'agent_push',
+            data: {
+              id: message.id,
+              type: message.type,
+              category: message.category,
+              title: message.title,
+              content: message.content,
+              sensitiveData: message.sensitiveData,
+              sessionId: message.sessionId,
+              timestamp: new Date(message.timestamp).toISOString(),
+              expiresAt: message.expiresAt ? new Date(message.expiresAt).toISOString() : undefined,
+              priority: message.priority,
+            },
+            timestamp: Date.now(),
+          })
+        }
+      }
+      delivered++
+    }
+
+    if (delivered > 0) {
+      console.log(`[AgentPushService] Delivered ${delivered} offline messages to user ${userId}`)
+    }
+
+    return delivered
+  }
+
+  /**
    * 获取推送消息
-   *
-   * @param id 消息ID
-   * @returns 推送消息或 undefined
    */
   getPushMessage(id: string): AgentPushMessage | undefined {
     const message = this.notifications.get(id)
     if (!message) return undefined
 
-    // 检查是否过期
     if (message.expiresAt && new Date() > message.expiresAt) {
       this.notifications.delete(id)
       return undefined
@@ -258,13 +279,28 @@ export class AgentPushService {
   }
 
   /**
-   * 获取用户的所有推送消息
-   *
-   * @param userId 用户ID
-   * @param options 查询选项
-   * @returns 推送消息列表
+   * 获取用户的所有推送消息（优先从数据库查询）
    */
-  getUserPushMessages(
+  async getUserPushMessages(
+    userId: string,
+    options?: {
+      category?: 'credential' | 'notification' | 'alert' | 'info'
+      unreadOnly?: boolean
+      limit?: number
+    }
+  ): Promise<AgentPushMessage[]> {
+    try {
+      const repo = getPushMessageRepository()
+      return await repo.findByUserId(userId, options)
+    } catch {
+      return this.getUserPushMessagesFromMemory(userId, options)
+    }
+  }
+
+  /**
+   * 从内存获取推送消息（降级方案）
+   */
+  private getUserPushMessagesFromMemory(
     userId: string,
     options?: {
       category?: 'credential' | 'notification' | 'alert' | 'info'
@@ -275,19 +311,15 @@ export class AgentPushService {
     let messages = Array.from(this.notifications.values())
       .filter(msg => msg.userId === userId)
 
-    // 过滤过期消息
     const now = new Date()
     messages = messages.filter(msg => !msg.expiresAt || msg.expiresAt > now)
 
-    // 按类别过滤
     if (options?.category) {
       messages = messages.filter(msg => msg.category === options.category)
     }
 
-    // 按时间倒序
     messages.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
 
-    // 限制数量
     if (options?.limit) {
       messages = messages.slice(0, options.limit)
     }
@@ -296,36 +328,59 @@ export class AgentPushService {
   }
 
   /**
-   * 删除推送消息
-   *
-   * @param id 消息ID
-   * @returns 是否成功删除
+   * 标记推送消息为已读
    */
-  deletePushMessage(id: string): boolean {
-    return this.notifications.delete(id)
+  async markAsRead(id: string): Promise<boolean> {
+    try {
+      const repo = getPushMessageRepository()
+      return await repo.markAsRead(id)
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * 删除推送消息
+   */
+  async deletePushMessage(id: string): Promise<boolean> {
+    this.notifications.delete(id)
+    try {
+      const repo = getPushMessageRepository()
+      return await repo.deleteById(id)
+    } catch {
+      return false
+    }
   }
 
   /**
    * 清理过期消息
    */
-  cleanup(): void {
+  async cleanup(): Promise<void> {
     const now = new Date()
-    let count = 0
+    let memCount = 0
 
     for (const [id, message] of this.notifications) {
       if (message.expiresAt && message.expiresAt < now) {
         this.notifications.delete(id)
-        count++
+        memCount++
       }
     }
 
-    if (count > 0) {
-      console.log(`[AgentPushService] Cleaned up ${count} expired messages`)
+    let dbCount = 0
+    try {
+      const repo = getPushMessageRepository()
+      dbCount = await repo.cleanupExpired()
+    } catch {
+      // 数据库清理失败不影响内存清理
+    }
+
+    const total = memCount + dbCount
+    if (total > 0) {
+      console.log(`[AgentPushService] Cleaned up ${memCount} memory + ${dbCount} DB expired messages`)
     }
   }
 }
 
-// 导出单例
 let instance: AgentPushService | null = null
 
 export function getAgentPushService(): AgentPushService {

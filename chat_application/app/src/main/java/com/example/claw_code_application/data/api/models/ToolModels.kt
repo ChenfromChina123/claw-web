@@ -22,6 +22,8 @@ data class ToolCall(
     val toolOutput: JsonElement? = null,
     val status: String,
     val error: String? = null,
+    @SerialName("progressOutput")
+    val progressOutput: String? = null,
     @SerialName("createdAt")
     val createdAt: String,
     @SerialName("completedAt")

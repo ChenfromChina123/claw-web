@@ -92,6 +92,9 @@ class ChatViewModel(
     internal val messageToToolCalls = mutableMapOf<String, MutableList<String>>()
     internal val unassociatedToolCallIds = mutableListOf<String>()
     internal var uiStateUpdateJob: Job? = null
+    internal var currentThinkingBlockIndex: Int = -1
+    internal var _thinkingContent: String = ""
+    val thinkingContent: String get() = _thinkingContent
 
     /** 获取指定消息关联的工具调用 */
     fun getToolCallsForMessage(messageId: String): List<ToolCall> {

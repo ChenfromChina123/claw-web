@@ -310,6 +310,7 @@ export interface AgentPushMessageParams {
  */
 export type WebSocketEventType =
   | 'message_start' | 'message_delta' | 'message_stop' | 'message_saved'
+  | 'content_block_start' | 'content_block_delta' | 'content_block_stop'
   | 'tool_use' | 'tool_start' | 'tool_end' | 'tool_error' | 'tool_progress'
   | 'conversation_end' | 'error'
   | 'agent_push'

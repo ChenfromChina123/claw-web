@@ -280,3 +280,22 @@ CREATE TABLE IF NOT EXISTS chat_images (
   INDEX idx_chat_images_message_id (message_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS agent_push_messages (
+  id VARCHAR(64) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  session_id VARCHAR(36),
+  category VARCHAR(20) NOT NULL COMMENT 'credential, notification, alert, info',
+  title VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  sensitive_data JSON COMMENT '敏感数据（凭证等）',
+  priority VARCHAR(10) DEFAULT 'normal' COMMENT 'low, normal, high, urgent',
+  is_read BOOLEAN DEFAULT FALSE,
+  expires_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_push_user_id (user_id),
+  INDEX idx_push_category (category),
+  INDEX idx_push_is_read (is_read),
+  INDEX idx_push_expires_at (expires_at),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

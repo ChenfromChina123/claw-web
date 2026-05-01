@@ -93,6 +93,10 @@ class WebSocketManager {
         data class MessageStop(val messageId: String, val stopReason: String, val iteration: Int) : WebSocketEvent()
         data class MessageSaved(val sessionId: String, val messageId: String, val role: String) : WebSocketEvent()
 
+        data class ContentBlockStart(val index: Int, val blockType: String) : WebSocketEvent()
+        data class ContentBlockDelta(val index: Int, val deltaType: String, val text: String?, val thinking: String?) : WebSocketEvent()
+        data class ContentBlockStop(val index: Int) : WebSocketEvent()
+
         data class ToolUse(val id: String, val name: String) : WebSocketEvent()
         data class ToolInputDelta(val id: String, val partialJson: String) : WebSocketEvent()
         data class ToolStart(val id: String, val name: String, val input: JsonElement?) : WebSocketEvent()
@@ -455,8 +459,29 @@ class WebSocketManager {
             }
 
             "content_block_delta" -> {
-                val text = data["text"]?.jsonPrimitive?.content ?: ""
-                WebSocketEvent.MessageDelta("", text)
+                val messageId = data["messageId"]?.jsonPrimitive?.content ?: ""
+                val delta = data["delta"]
+                val text = if (delta != null && delta is JsonObject) {
+                    (delta["text"]?.jsonPrimitive?.content ?: "")
+                } else {
+                    data["text"]?.jsonPrimitive?.content ?: ""
+                }
+                val deltaType = if (delta != null && delta is JsonObject) {
+                    delta["type"]?.jsonPrimitive?.content ?: "text_delta"
+                } else {
+                    "text_delta"
+                }
+                val thinkingText = if (delta != null && delta is JsonObject) {
+                    delta["thinking"]?.jsonPrimitive?.content
+                } else {
+                    null
+                }
+                val index = data["index"]?.jsonPrimitive?.int ?: -1
+                if (deltaType == "thinking_delta" && thinkingText != null) {
+                    WebSocketEvent.ContentBlockDelta(index, deltaType, null, thinkingText)
+                } else {
+                    WebSocketEvent.MessageDelta(messageId, text)
+                }
             }
 
             "message_stop" -> {
@@ -471,6 +496,18 @@ class WebSocketManager {
                 val messageId = data["messageId"]?.jsonPrimitive?.content ?: ""
                 val role = data["role"]?.jsonPrimitive?.content ?: ""
                 WebSocketEvent.MessageSaved(sessionId, messageId, role)
+            }
+
+            "content_block_start" -> {
+                val index = data["index"]?.jsonPrimitive?.int ?: 0
+                val contentBlock = data["content_block"]?.jsonObject
+                val blockType = contentBlock?.get("type")?.jsonPrimitive?.content ?: "text"
+                WebSocketEvent.ContentBlockStart(index, blockType)
+            }
+
+            "content_block_stop" -> {
+                val index = data["index"]?.jsonPrimitive?.int ?: 0
+                WebSocketEvent.ContentBlockStop(index)
             }
 
             "tool_use" -> {

@@ -218,6 +218,18 @@ fun ToolCallCard(
                         Spacer(modifier = Modifier.height(12.dp))
                     }
 
+                    if (toolCall.progressOutput != null && toolCall.progressOutput.isNotEmpty() && toolCall.status == "executing") {
+                        ResultSection(
+                            title = "执行进度",
+                            titleIcon = "⏳",
+                            content = toolCall.progressOutput,
+                            contentColor = AppColor.TextSecondary,
+                            metaText = "实时输出"
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
                     if (formattedOutput.isNotEmpty()) {
                         // 根据状态决定执行结果的颜色
                         val outputColor = if (toolCall.status == "error") {

@@ -11,6 +11,7 @@ import { getAgentStatusService } from '../services/agentStatusService'
 import { wsManager } from '../integration/wsBridge'
 import { toolExecutor } from '../integration/enhancedToolExecutor'
 import { verifyToken } from '../services/jwtService'
+import { getAgentPushService } from '../services/agentPushService'
 import { WebCommandBridge } from '../integrations/commandBridge'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -228,6 +229,10 @@ async function handleLogin(ws: any, wsData: WebSocketData, message: any, sendEve
       wsManager.syncConnectionMeta(wsData.connectionId, { userId: payload.userId })
       console.log(`[WS] User logged in via token: ${payload.userId}`)
       ws.send(JSON.stringify({ type: 'logged_in', userId: payload.userId }))
+
+      getAgentPushService().deliverOfflineMessages(payload.userId).catch(err => {
+        console.error(`[WS] Failed to deliver offline messages for user ${payload.userId}:`, err)
+      })
     } else {
       console.error('[WS] Login failed: invalid token')
       ws.send(JSON.stringify({ type: 'error', message: 'Invalid token' }))

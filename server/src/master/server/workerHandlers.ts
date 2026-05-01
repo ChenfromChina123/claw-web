@@ -59,7 +59,15 @@ export async function handleWorkerAgentExecute(req: Request): Promise<Response> 
           console.error('[WorkerAgent] Failed to enqueue event:', e)
         }
       }
-      
+
+      const pingInterval = setInterval(() => {
+        try {
+          controller.enqueue(new TextEncoder().encode(': ping\n\n'))
+        } catch {
+          clearInterval(pingInterval)
+        }
+      }, 15000)
+
       executeAgentOnWorkerInternal(
         userInfo.userId!,
         sessionId,
@@ -69,7 +77,9 @@ export async function handleWorkerAgentExecute(req: Request): Promise<Response> 
       ).catch(error => {
         console.error('[WorkerAgent] Execution error:', error)
         sendEvent('error', { message: error.message })
-        controller.close()
+      }).finally(() => {
+        clearInterval(pingInterval)
+        try { controller.close() } catch {}
       })
     }
   })
