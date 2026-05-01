@@ -89,13 +89,13 @@ val LocalBubbleTheme = staticCompositionLocalOf { getBubbleThemeColors(BubbleThe
  *
  * 使用方式：
  * ```kotlin
- * val bubbleColors = BubbleThemeColors.current
+ * val bubbleColors = BubbleColor.current
  * Surface(color = bubbleColors.background) {
  *     Text(color = bubbleColors.textColor)
  * }
  * ```
  */
-object BubbleThemeColors {
+object BubbleColor {
     val current: BubbleThemeColors
         @Composable
         @ReadOnlyComposable

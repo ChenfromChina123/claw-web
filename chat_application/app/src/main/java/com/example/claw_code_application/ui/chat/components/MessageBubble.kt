@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.ui.theme.AppColor
-import com.example.claw_code_application.ui.theme.BubbleThemeColors
+import com.example.claw_code_application.ui.theme.BubbleColor
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -25,7 +25,7 @@ fun MessageBubble(
     modifier: Modifier = Modifier
 ) {
     val colors = AppColor.current
-    val bubbleColors = BubbleThemeColors.current
+    val bubbleColors = BubbleColor.current
     val isUser = message.role == "user"
 
     Row(
