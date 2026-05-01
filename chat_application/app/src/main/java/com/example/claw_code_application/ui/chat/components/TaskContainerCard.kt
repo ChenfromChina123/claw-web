@@ -113,7 +113,8 @@ fun TaskContainerCard(
                 modifier = Modifier
                     .width(3.dp)
                     .fillMaxHeight()
-                    .background(statusStyle.accentColor)
+                    .background(statusStyle.accentColor),
+                content = {}
             )
 
             Column(modifier = Modifier.weight(1f)) {

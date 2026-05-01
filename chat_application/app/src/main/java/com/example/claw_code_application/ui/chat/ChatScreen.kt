@@ -575,6 +575,7 @@ private fun TaskStatusBar(viewModel: ChatViewModel) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(max = 200.dp)
                 .background(colors.SurfaceVariant)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
