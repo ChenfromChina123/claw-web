@@ -121,16 +121,13 @@ fun ChatScreen(
         }
     }
 
-    // 流式内容增长时节流滚动到底部（参考Web端48ms节流策略）
-    var lastScrollTime by remember { mutableStateOf(0L) }
+    // 流式内容增长时：只在消息刚开始流式时滚动，内容增长期间不滚动
+    // 避免scrollToItem导致的跳动，让用户可以正常阅读正在生成的内容
     val streamingMessage = displayMessages.firstOrNull { it.isStreaming }
-    LaunchedEffect(streamingMessage?.content?.length) {
-        if (streamingMessage != null && canAutoScroll) {
-            val now = System.currentTimeMillis()
-            if (now - lastScrollTime >= 80L) {
-                lastScrollTime = now
-                listState.scrollToItem(0)
-            }
+    val streamingMessageId = remember(streamingMessage?.id) { streamingMessage?.id }
+    LaunchedEffect(streamingMessageId) {
+        if (streamingMessageId != null && canAutoScroll) {
+            listState.animateScrollToItem(0)
         }
     }
 
