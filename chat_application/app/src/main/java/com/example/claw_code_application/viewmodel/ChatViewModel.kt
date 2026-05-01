@@ -77,6 +77,13 @@ class ChatViewModel(
 
     val connectionState = webSocketManager.connectionState
 
+    var maxIterations: Int = 30
+        private set
+
+    fun setMaxIterations(value: Int) {
+        maxIterations = value.coerceIn(1, 100)
+    }
+
     /** 暴露viewModelScope供扩展函数使用 */
     internal val vmScope get() = viewModelScope
 
@@ -196,7 +203,7 @@ class ChatViewModel(
                 _uiState.value = UiState.Loading
 
                 if (webSocketManager.isConnected) {
-                    webSocketManager.sendUserMessage(sessionId = session.id, content = content, imageAttachments = imageAttachments)
+                    webSocketManager.sendUserMessage(sessionId = session.id, content = content, imageAttachments = imageAttachments, maxIterations = maxIterations)
                 } else {
                     val result = cachedChatRepository.executeAgent(sessionId = session.id, task = content, prompt = content)
                     when (result) {
@@ -307,7 +314,7 @@ class ChatViewModel(
                 currentSessionId?.let { webSocketManager.interruptGeneration(it) }
                 cachedChatRepository.interruptAgent()
                 _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(),
-                    executionStatus = ExecutionStatus(status = "idle", currentTurn = 0, maxTurns = 100, progress = 0, message = "已中断"))
+                    executionStatus = ExecutionStatus(status = "idle", currentTurn = 0, maxTurns = maxIterations, progress = 0, message = "已中断"))
             } catch (_: Exception) {}
         }
     }

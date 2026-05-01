@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { WebSocketData } from '../index'
 import { llmService, type ChatMessage, type ToolDefinition } from '../services/llmService'
 import { getToolRegistry } from '../integrations/toolRegistry'
+import { AGENT_DEFAULTS } from '../../shared/constants'
 
 // Agent 消息类型
 export interface AgentMessage {
@@ -269,7 +270,7 @@ export class WebAgentRunner {
       executeTool: (name: string, input: Record<string, unknown>, sendEvent?: EventSender) => Promise<{ success: boolean; result?: unknown; error?: string }>
     },
     sendEvent: EventSender,
-    maxIterations: number = 10
+    maxIterations: number = AGENT_DEFAULTS.MAX_ITERATIONS
   ): Promise<AgentResult> {
     const result: AgentResult = {
       message: '',

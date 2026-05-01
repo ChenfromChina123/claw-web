@@ -80,3 +80,11 @@ export const RESOURCE_LIMITS = {
     MAX_PROCESSES: 50,
   },
 } as const
+
+export const AGENT_DEFAULTS = {
+  MAX_ITERATIONS: 30,
+  MAX_TURNS: 30,
+  MAX_ITERATIONS_MIN: 1,
+  MAX_ITERATIONS_MAX: 100,
+  TIMEOUT_SECONDS: 300,
+} as const

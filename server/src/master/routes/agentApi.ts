@@ -35,6 +35,7 @@ import {
 import { SimpleLLMCaller } from '../agents/taskDecomposer'
 import { getAgentStatusService } from '../services/agentStatusService'
 import type { ToolCall } from '../integration/webStore'
+import { AGENT_DEFAULTS } from '../../shared/constants'
 import { executeAgent, type AgentMessage, type RunAgentParams } from '../agents/runAgent'
 import { v4 as uuidv4 } from 'uuid'
 import { WebSocket } from 'ws'
@@ -177,7 +178,7 @@ export function createAgentApiRouter(): Router {
         sessionId,
         userId: req.body.userId || 'unknown',
         cwd: options?.cwd || process.cwd(),
-        maxTurns: options?.maxTurns || 20,
+        maxTurns: options?.maxTurns || AGENT_DEFAULTS.MAX_TURNS,
         permissionMode: options?.permissionMode || 'auto',
         model: options?.model,
         abortSignal: abortController.signal,

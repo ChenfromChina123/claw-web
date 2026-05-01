@@ -303,13 +303,15 @@ class WebSocketManager {
         sessionId: String,
         content: String,
         model: String = "qwen-plus",
-        imageAttachments: List<Map<String, String>>? = null
+        imageAttachments: List<Map<String, String>>? = null,
+        maxIterations: Int = 30
     ) {
         val message = buildJsonObject {
             put("type", "user_message")
             put("sessionId", sessionId)
             put("content", content)
             put("model", model)
+            put("maxIterations", maxIterations)
             if (!imageAttachments.isNullOrEmpty()) {
                 val attachmentsArray = buildJsonArray {
                     for (attachment in imageAttachments) {

@@ -28,7 +28,7 @@ const DEFAULT_MODEL: ModelSettings = {
 }
 
 const DEFAULT_AGENT: AgentSettings = {
-  maxIterations: 10,
+  maxIterations: 30,
   debugMode: false,
   timeout: 300,
 }

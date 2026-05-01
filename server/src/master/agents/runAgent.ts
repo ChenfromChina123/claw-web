@@ -30,6 +30,7 @@ import {
   getFallbackReason,
   type DenialTrackingState,
 } from './denialTracking'
+import { AGENT_DEFAULTS } from '../../shared/constants'
 
 /**
  * Agent 消息类型
@@ -158,7 +159,7 @@ export async function* runAgent(
       sessionId: params.sessionId,
       userId: params.userId,
       model: params.model,
-      maxTurns: params.maxTurns || 100,
+      maxTurns: params.maxTurns || AGENT_DEFAULTS.MAX_TURNS,
     },
   })
 
@@ -205,7 +206,7 @@ export async function* runAgent(
   const context = createRuntimeContext(params.agentDefinition, {
     sessionId: params.sessionId,
     cwd: finalCwd,
-    maxTurns: params.maxTurns || 100,
+    maxTurns: params.maxTurns || AGENT_DEFAULTS.MAX_TURNS,
     permissionMode: (params.permissionMode as PermissionMode) || PermissionMode.AUTO,
     model: params.model,
     parentAgentId: params.parentAgentId,

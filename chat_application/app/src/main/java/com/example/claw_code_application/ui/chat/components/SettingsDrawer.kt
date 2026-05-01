@@ -53,7 +53,8 @@ fun SettingsDrawer(
     onBubbleThemeChange: (BubbleTheme) -> Unit,
     onLogout: () -> Unit,
     onNavigateToLogin: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    chatViewModel: com.example.claw_code_application.viewmodel.ChatViewModel? = null
 ) {
     val colors = AppColor.current
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -129,6 +130,10 @@ fun SettingsDrawer(
                     HorizontalDivider(color = colors.Divider, thickness = 1.dp)
 
                     ServerConfigSection()
+
+                    HorizontalDivider(color = colors.Divider, thickness = 1.dp)
+
+                    AgentConfigSection(chatViewModel = chatViewModel)
 
                     HorizontalDivider(color = colors.Divider, thickness = 1.dp)
 
@@ -892,6 +897,79 @@ private fun AccountSection(
             titleContentColor = colors.TextPrimary,
             textContentColor = colors.TextSecondary
         )
+    }
+}
+
+/**
+ * Agent 配置区域
+ * 提供最大循环次数等 Agent 相关设置
+ */
+@Composable
+private fun AgentConfigSection(
+    chatViewModel: com.example.claw_code_application.viewmodel.ChatViewModel?
+) {
+    val colors = AppColor.current
+    var maxIterations by remember {
+        mutableStateOf(chatViewModel?.maxIterations?.toString() ?: "30")
+    }
+
+    Column(
+        modifier = Modifier.padding(16.dp)
+    ) {
+        Text(
+            text = "Agent 设置",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = colors.TextSecondary,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "最大循环次数",
+                    fontSize = 15.sp,
+                    color = colors.TextPrimary
+                )
+                Text(
+                    text = "Agent 执行工具调用的最大轮次 (1-100)",
+                    fontSize = 11.sp,
+                    color = colors.TextSecondary
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            OutlinedTextField(
+                value = maxIterations,
+                onValueChange = { input ->
+                    val filtered = input.filter { it.isDigit() }
+                    val num = filtered.toIntOrNull()
+                    if (num != null && num in 1..100) {
+                        maxIterations = filtered
+                        chatViewModel?.setMaxIterations(num)
+                    } else if (filtered.isEmpty()) {
+                        maxIterations = ""
+                    }
+                },
+                modifier = Modifier.width(80.dp),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape = RoundedCornerShape(8.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontSize = 14.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = colors.Primary,
+                    unfocusedBorderColor = colors.Border
+                )
+            )
+        }
     }
 }
 

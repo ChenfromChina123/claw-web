@@ -52,7 +52,7 @@ private fun ChatViewModel.handleMessageStart(event: WebSocketManager.WebSocketEv
     updateDisplayMessages()
     _uiState.value = ChatViewModel.UiState.Success(
         messages = _messages.toList(), toolCalls = _toolCalls.toList(),
-        executionStatus = ExecutionStatus(status = "running", currentTurn = event.iteration, maxTurns = 20, progress = 0)
+        executionStatus = ExecutionStatus(status = "running", currentTurn = event.iteration, maxTurns = maxIterations, progress = 0)
     )
 }
 
@@ -91,7 +91,7 @@ private fun ChatViewModel.handleMessageStop(event: WebSocketManager.WebSocketEve
         messages = _messages.toList(), toolCalls = _toolCalls.toList(),
         executionStatus = ExecutionStatus(
             status = if (event.stopReason == "end_turn") "completed" else "running",
-            currentTurn = event.iteration, maxTurns = 20,
+            currentTurn = event.iteration, maxTurns = maxIterations,
             progress = if (event.stopReason == "end_turn") 100 else 50
         )
     )
@@ -218,7 +218,7 @@ private fun ChatViewModel.handleToolProgress(event: WebSocketManager.WebSocketEv
 private fun ChatViewModel.handleConversationEnd() {
     _uiState.value = ChatViewModel.UiState.Success(
         messages = _messages.toList(), toolCalls = _toolCalls.toList(),
-        executionStatus = ExecutionStatus(status = "completed", currentTurn = 0, maxTurns = 20, progress = 100)
+        executionStatus = ExecutionStatus(status = "completed", currentTurn = 0, maxTurns = maxIterations, progress = 100)
     )
 }
 

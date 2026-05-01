@@ -6,6 +6,7 @@ import { getBuiltInAgents, agentManager, initializeDemoOrchestration, engineExec
 import { createSuccessResponse, createErrorResponse, createCorsPreflightResponse } from '../utils/response'
 import { authMiddleware } from '../utils/auth'
 import { SessionManager } from '../services/sessionManager'
+import { AGENT_DEFAULTS } from '../../shared/constants'
 
 const sessionManager = SessionManager.getInstance()
 
@@ -170,7 +171,7 @@ export async function handleAgentRoutes(req: Request): Promise<Response | null> 
         promptMessages: messages,
         sessionId: sessionId,
         userId: auth.userId,
-        maxTurns: body.maxTurns || 20,
+        maxTurns: body.maxTurns || AGENT_DEFAULTS.MAX_TURNS,
       })
 
       // 收集所有事件
@@ -321,7 +322,7 @@ export async function handleAgentRoutes(req: Request): Promise<Response | null> 
         executionStatus: {
           status: finalStatus,
           currentTurn: assistantMessages.length,
-          maxTurns: body.maxTurns || 20,
+          maxTurns: body.maxTurns || AGENT_DEFAULTS.MAX_TURNS,
           progress: finalStatus === 'completed' ? 100 : 0,
           message: errorMessage || undefined
         }

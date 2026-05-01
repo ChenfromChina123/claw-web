@@ -27,6 +27,7 @@ import { getBackgroundTaskManager, type BackgroundTask } from '../backgroundTask
 import type { ToolCall } from '../../models/types'
 import type { EventSender } from '../../types'
 import type { MessageContent, ImageContentBlock, ImageAttachment } from '../../models/imageTypes'
+import { AGENT_DEFAULTS } from '../../../shared/constants'
 
 interface StreamResult {
   text?: string
@@ -313,8 +314,8 @@ export class SessionConversationManager {
     taskManager.on('task_cancelled', (task: BackgroundTask) => taskEventHandler('task_cancelled', task))
 
     try {
-      // 4. 进入 Agent Loop (使用配置的最大迭代次数，默认10次)
-      const maxIterations = options?.maxIterations ?? 10
+      // 4. 进入 Agent Loop (使用配置的最大迭代次数，默认30次)
+      const maxIterations = options?.maxIterations ?? AGENT_DEFAULTS.MAX_ITERATIONS
       let actualIterations = 0
       for (let iteration = 0; iteration < maxIterations; iteration++) {
         actualIterations = iteration + 1

@@ -389,7 +389,8 @@ private fun ChatMainScreen(
             currentBubbleTheme = currentBubbleTheme,
             onBubbleThemeChange = onBubbleThemeChange,
             onLogout = onLogout,
-            onNavigateToLogin = onNavigateToLogin
+            onNavigateToLogin = onNavigateToLogin,
+            chatViewModel = chatViewModel
         )
     }
 
