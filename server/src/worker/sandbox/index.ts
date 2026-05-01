@@ -16,7 +16,7 @@
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 import { exec } from 'child_process'
-import { isPathSafe, parseEnvironmentVariables } from '../../shared/utils'
+import { isPathSafe, isPathSafeAsync, parseEnvironmentVariables } from '../../shared/utils'
 
 const execAsync = promisify(exec)
 
@@ -173,7 +173,7 @@ export class WorkerSandbox {
   }
 
   async readFile(path: string, encoding: BufferEncoding = 'utf8'): Promise<{ content: string | Buffer; error?: string }> {
-    if (!isPathSafe(path, this.workspaceDir)) {
+    if (!isPathSafe(path, this.workspaceDir) || !(await isPathSafeAsync(path, this.workspaceDir))) {
       return { content: '', error: 'INVALID_PATH' }
     }
 
@@ -187,7 +187,7 @@ export class WorkerSandbox {
   }
 
   async writeFile(path: string, content: string | Buffer): Promise<{ success: boolean; error?: string }> {
-    if (!isPathSafe(path, this.workspaceDir)) {
+    if (!isPathSafe(path, this.workspaceDir) || !(await isPathSafeAsync(path, this.workspaceDir))) {
       return { success: false, error: 'INVALID_PATH' }
     }
 
@@ -206,7 +206,7 @@ export class WorkerSandbox {
   }
 
   async deleteFile(path: string): Promise<{ success: boolean; error?: string }> {
-    if (!isPathSafe(path, this.workspaceDir)) {
+    if (!isPathSafe(path, this.workspaceDir) || !(await isPathSafeAsync(path, this.workspaceDir))) {
       return { success: false, error: 'INVALID_PATH' }
     }
 

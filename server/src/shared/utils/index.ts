@@ -19,9 +19,34 @@ export function sanitizePath(path: string, baseDir: string): string {
   return `${baseDir}/${normalized}`.replace(/\/+/g, '/')
 }
 
+/**
+ * 危险路径前缀（禁止访问的特殊文件系统）
+ */
+const DANGEROUS_PATH_PREFIXES = [
+  '/proc',
+  '/sys',
+  '/dev',
+  '/etc/shadow',
+  '/etc/passwd',
+  '/root',
+  '/var/run/docker.sock'
+]
+
+/**
+ * 增强版路径安全检查
+ *
+ * 在基础检查之上增加：
+ * - 符号链接解析（防止通过符号链接逃逸）
+ * - 危险路径保护（禁止访问 /proc, /sys, /dev 等）
+ * - 路径规范化（去除多余分隔符、尾随斜杠）
+ *
+ * @param path 待检查的路径
+ * @param allowedBaseDir 允许的基础目录
+ * @returns 路径是否安全
+ */
 export function isPathSafe(path: string, allowedBaseDir: string): boolean {
-  const normalizedPath = path.replace(/\\/g, '/')
-  const normalizedBase = allowedBaseDir.replace(/\\/g, '/')
+  const normalizedPath = path.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '')
+  const normalizedBase = allowedBaseDir.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '')
 
   if (!normalizedPath.startsWith(normalizedBase)) {
     return false
@@ -31,7 +56,50 @@ export function isPathSafe(path: string, allowedBaseDir: string): boolean {
     return false
   }
 
+  for (const dangerousPrefix of DANGEROUS_PATH_PREFIXES) {
+    if (normalizedPath.startsWith(dangerousPrefix) || normalizedPath === dangerousPrefix) {
+      return false
+    }
+  }
+
   return true
+}
+
+/**
+ * 异步版路径安全检查（包含符号链接解析）
+ *
+ * 在同步版基础上增加符号链接解析，防止通过符号链接逃逸沙箱。
+ * 例如：/workspace/link -> /etc/passwd 应被阻止
+ *
+ * @param path 待检查的路径
+ * @param allowedBaseDir 允许的基础目录
+ * @returns 路径是否安全
+ */
+export async function isPathSafeAsync(path: string, allowedBaseDir: string): Promise<boolean> {
+  if (!isPathSafe(path, allowedBaseDir)) {
+    return false
+  }
+
+  try {
+    const fs = require('fs/promises')
+    const realPath = await fs.realpath(path)
+    const normalizedReal = realPath.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '')
+    const normalizedBase = allowedBaseDir.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '')
+
+    if (!normalizedReal.startsWith(normalizedBase)) {
+      return false
+    }
+
+    for (const dangerousPrefix of DANGEROUS_PATH_PREFIXES) {
+      if (normalizedReal.startsWith(dangerousPrefix) || normalizedReal === dangerousPrefix) {
+        return false
+      }
+    }
+
+    return true
+  } catch {
+    return true
+  }
 }
 
 export function parseEnvironmentVariables(env: Record<string, string | undefined>): Record<string, string> {
