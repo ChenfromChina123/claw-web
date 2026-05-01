@@ -24,8 +24,9 @@ services:
       - ${HOST_WORKSPACE_PATH:-/data/claws/workspaces}:/app/workspaces
       - /var/run/docker.sock:/var/run/docker.sock
     
-    # ✅ 使用 Bun 的热重载模式，并在启动时检查安装依赖
-    command: ["/bin/sh", "-c", "bun install && bun run --watch src/index.ts"]
+    # ✅ 使用 Bun 的热重载模式
+    # 检测依赖是否存在，不存在才安装，避免网络问题导致启动卡住
+    command: ["/bin/sh", "-c", "[ -d /app/node_modules/express ] || bun install ; bun run --watch src/index.ts"]
     
     environment:
       NODE_ENV: development
