@@ -206,4 +206,40 @@ interface ApiService {
     suspend fun removeRemoteWorker(
         @Path("id") workerId: String
     ): Response<ApiResponse<Unit>>
+
+    // ==================== Skills 技能 API ====================
+
+    /**
+     * 获取技能列表
+     * @param category 类别过滤（可选）
+     * @param query 搜索关键词（可选）
+     * @return 技能列表响应
+     */
+    @GET("/api/skills")
+    suspend fun listSkills(
+        @Query("category") category: String? = null,
+        @Query("query") query: String? = null
+    ): Response<ApiResponse<SkillListResponse>>
+
+    /**
+     * 获取技能详情
+     * @param id 技能ID
+     * @return 技能定义
+     */
+    @GET("/api/skills/{id}")
+    suspend fun getSkill(
+        @Path("id") id: String
+    ): Response<ApiResponse<SkillDefinition>>
+
+    /**
+     * 启用/禁用技能
+     * @param id 技能ID
+     * @param body 包含 enabled 字段的请求体
+     * @return 更新后的技能信息
+     */
+    @POST("/api/skills/{id}/toggle")
+    suspend fun toggleSkill(
+        @Path("id") id: String,
+        @Body body: Map<String, Boolean>
+    ): Response<ApiResponse<SkillDefinition>>
 }
