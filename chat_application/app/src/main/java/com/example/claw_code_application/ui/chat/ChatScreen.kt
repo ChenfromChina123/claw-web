@@ -121,21 +121,8 @@ fun ChatScreen(
         }
     }
 
-    // 流式内容增长时：平滑滚动跟随内容
-    // 只在用户在底部附近时自动滚动，避免强制跳动
-    val streamingMessage = displayMessages.firstOrNull { it.isStreaming }
-    var lastContentLength by remember { mutableStateOf(0) }
-
-    LaunchedEffect(streamingMessage?.content?.length) {
-        if (streamingMessage != null && canAutoScroll) {
-            val currentLength = streamingMessage.content.length
-            // 每增加200字符或首次滚动时平滑滚动
-            if (currentLength - lastContentLength >= 200 || lastContentLength == 0) {
-                lastContentLength = currentLength
-                listState.animateScrollToItem(0)
-            }
-        }
-    }
+    // 流式内容增长时：不主动滚动，避免跳动
+    // 用户可以在底部附近正常阅读，内容增长不会导致跳动
 
     // 检测是否需要加载更多历史消息（reverseLayout中，底部=历史消息末尾）
     val shouldLoadMore by remember {

@@ -182,27 +182,29 @@ private fun DynamicMessageContent(
 }
 
 /**
- * 流式Markdown渲染：实时渲染但使用防抖减少重解析频率
- * 平衡实时性和流畅度，每100ms更新一次渲染
+ * 流式文本渲染：使用纯文本避免Markdown重解析导致的跳动
+ * 流式期间使用简单Text组件，内容稳定不跳动，完成后用Markdown渲染
  */
 @Composable
 private fun StreamingTextContent(content: String) {
-    var renderedContent by remember { mutableStateOf(content) }
+    val colors = AppColor.current
 
-    LaunchedEffect(content) {
-        renderedContent = content
-    }
-
-    val displayContent = if (renderedContent.length > 5000) {
-        renderedContent.take(5000) + "\n... (内容过长，已截断)"
+    val displayContent = if (content.length > 5000) {
+        content.take(5000) + "\n... (内容过长，已截断)"
     } else {
-        renderedContent
+        content
     }
 
     if (displayContent.isNotBlank()) {
-        BeautifulMarkdown(
-            markdown = displayContent,
-            isStreaming = true
+        Text(
+            text = displayContent,
+            style = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 23.sp,
+                color = colors.TextPrimary
+            ),
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
