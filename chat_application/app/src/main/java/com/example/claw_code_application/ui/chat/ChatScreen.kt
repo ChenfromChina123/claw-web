@@ -94,7 +94,7 @@ fun ChatScreen(
         if (listState.isScrollInProgress) {
             userScrolling = true
         } else {
-            delay(1000L)
+            delay(1500L)
             userScrolling = false
         }
     }
@@ -106,16 +106,17 @@ fun ChatScreen(
         }
     }
 
-    // 消息变化时自动滚动到底部（最新消息，reverseLayout中item0在底部）
+    // 消息数量变化时自动滚动到底部（新消息添加时触发）
     LaunchedEffect(displayMessages.size) {
         if (displayMessages.isNotEmpty() && canAutoScroll) {
             listState.animateScrollToItem(0)
         }
     }
 
-    // 会话加载完成后直接定位到底部（无动画，避免"从顶部跳到底部"的视觉效果）
-    LaunchedEffect(uiState) {
-        if (uiState is ChatViewModel.UiState.Success && displayMessages.isNotEmpty()) {
+    // 会话切换时直接定位到底部（仅在sessionId变化时触发，避免流式更新时频繁滚动）
+    val currentSessionId = viewModel.currentSessionId
+    LaunchedEffect(currentSessionId) {
+        if (displayMessages.isNotEmpty()) {
             listState.scrollToItem(0)
         }
     }

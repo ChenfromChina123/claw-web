@@ -96,10 +96,10 @@ class ChatViewModel(
     internal var streamingMessageId: String? = null
     internal var pendingDeltaText = StringBuilder()
     internal var debounceJob: Job? = null
-    internal val debounceIntervalMs = 50L
+    internal val debounceIntervalMs = 120L
     internal val pendingToolUpdates = mutableMapOf<String, ToolCall>()
     internal var toolUpdateDebounceJob: Job? = null
-    internal val toolUpdateDebounceIntervalMs = 100L
+    internal val toolUpdateDebounceIntervalMs = 150L
     internal val pendingToolInput = mutableMapOf<String, StringBuilder>()
     internal val messageToToolCalls = mutableMapOf<String, MutableList<String>>()
     internal val unassociatedToolCallIds = mutableListOf<String>()
@@ -113,10 +113,20 @@ class ChatViewModel(
         return _messageToolCallMap[messageId] ?: emptyList()
     }
 
-    /** 增量更新显示消息列表 */
+    /** 全量重建显示消息列表（仅在消息增删时调用） */
     internal fun updateDisplayMessages() {
         _displayMessages.clear()
         _displayMessages.addAll(_messages.reversed().filter { shouldShowMessage(it) })
+    }
+
+    /** 增量更新流式消息（仅更新指定消息，避免全量重建） */
+    internal fun updateStreamingMessage(messageId: String) {
+        val message = _messages.find { it.id == messageId } ?: return
+        if (!shouldShowMessage(message)) return
+        val displayIndex = _displayMessages.indexOfFirst { it.id == messageId }
+        if (displayIndex != -1) {
+            _displayMessages[displayIndex] = message
+        }
     }
 
     /** 更新消息-工具调用映射 */
@@ -152,7 +162,7 @@ class ChatViewModel(
     internal fun emitUiStateUpdate() {
         uiStateUpdateJob?.cancel()
         uiStateUpdateJob = viewModelScope.launch {
-            delay(50L)
+            delay(200L)
             _uiState.value = UiState.Success(
                 messages = _messages.toList(),
                 toolCalls = _toolCalls.toList(),

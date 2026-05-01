@@ -68,7 +68,7 @@ private fun ChatViewModel.handleMessageDelta(event: WebSocketManager.WebSocketEv
             if (index != -1) {
                 val oldMessage = _messages[index]
                 _messages[index] = oldMessage.copy(content = oldMessage.content + deltaToApply)
-                updateDisplayMessages()
+                updateStreamingMessage(messageId)
             }
         }
     }
@@ -83,7 +83,7 @@ private fun ChatViewModel.handleMessageStop(event: WebSocketManager.WebSocketEve
         if (index != -1) {
             val oldMessage = _messages[index]
             _messages[index] = oldMessage.copy(content = oldMessage.content + remainingDelta, isStreaming = false)
-            updateDisplayMessages()
+            updateStreamingMessage(messageId)
         }
     }
     streamingMessageId = null
