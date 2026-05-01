@@ -51,6 +51,7 @@ data class AppColors(
     val Error: Color,
     val Warning: Color,
     val Info: Color,
+    @Deprecated("用户气泡颜色已由 BubbleTheme 系统接管，请使用 BubbleThemeColors.current")
     val UserBubbleBackground: Color,
     val AssistantBubbleBackground: Color,
     val CodeBackground: Color,
@@ -218,6 +219,7 @@ object AppColor {
         @ReadOnlyComposable
         get() = current.Info
     
+    @Deprecated("用户气泡颜色已由 BubbleTheme 系统接管，请使用 BubbleThemeColors.current")
     val UserBubbleBackground: Color
         @Composable
         @ReadOnlyComposable

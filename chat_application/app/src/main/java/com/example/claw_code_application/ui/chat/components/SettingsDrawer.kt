@@ -25,6 +25,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.claw_code_application.data.api.models.RemoteWorker
 import com.example.claw_code_application.data.local.UserManager
 import com.example.claw_code_application.ui.theme.AppColor
+import com.example.claw_code_application.ui.theme.BubbleTheme
 import com.example.claw_code_application.util.NetworkConfig
 import com.example.claw_code_application.viewmodel.RemoteWorkerViewModel
 import kotlinx.coroutines.launch
@@ -48,6 +49,8 @@ fun SettingsDrawer(
     onDismiss: () -> Unit,
     onThemeChange: (ThemeMode) -> Unit,
     currentTheme: ThemeMode,
+    currentBubbleTheme: BubbleTheme,
+    onBubbleThemeChange: (BubbleTheme) -> Unit,
     onLogout: () -> Unit,
     onNavigateToLogin: () -> Unit,
     modifier: Modifier = Modifier
@@ -132,6 +135,13 @@ fun SettingsDrawer(
                     ThemeSection(
                         currentTheme = currentTheme,
                         onThemeChange = onThemeChange
+                    )
+
+                    HorizontalDivider(color = colors.Divider, thickness = 1.dp)
+
+                    BubbleThemeSection(
+                        currentBubbleTheme = currentBubbleTheme,
+                        onBubbleThemeChange = onBubbleThemeChange
                     )
 
                     HorizontalDivider(color = colors.Divider, thickness = 1.dp)
@@ -532,6 +542,89 @@ private fun ThemeOption(
             )
             Text(
                 text = title,
+                fontSize = 14.sp,
+                color = if (isSelected) colors.Primary else colors.TextPrimary
+            )
+        }
+
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = colors.Primary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+/**
+ * 气泡主题配置区域
+ */
+@Composable
+private fun BubbleThemeSection(
+    currentBubbleTheme: BubbleTheme,
+    onBubbleThemeChange: (BubbleTheme) -> Unit
+) {
+    val colors = AppColor.current
+
+    Column(
+        modifier = Modifier.padding(16.dp)
+    ) {
+        Text(
+            text = "气泡主题",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = colors.TextSecondary,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+
+        BubbleTheme.values().forEach { theme ->
+            BubbleThemeOption(
+                theme = theme,
+                isSelected = currentBubbleTheme == theme,
+                onClick = { onBubbleThemeChange(theme) }
+            )
+        }
+    }
+}
+
+/**
+ * 气泡主题选项
+ */
+@Composable
+private fun BubbleThemeOption(
+    theme: BubbleTheme,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val colors = AppColor.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (isSelected) colors.Primary.copy(alpha = 0.1f)
+                else Color.Transparent
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(theme.previewColor)
+            )
+            Text(
+                text = theme.displayName,
                 fontSize = 14.sp,
                 color = if (isSelected) colors.Primary else colors.TextPrimary
             )

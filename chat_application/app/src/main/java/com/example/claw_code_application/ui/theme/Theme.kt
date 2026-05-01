@@ -106,18 +106,21 @@ private val DarkColorScheme = darkColorScheme(
  * 包含平滑的主题切换动画效果
  * 
  * @param themeMode 用户选择的主题模式，默认为 SYSTEM（跟随系统）
+ * @param bubbleTheme 用户选择的气泡主题，默认为 OCEAN（海洋蓝）
  * @param dynamicColor 是否使用动态颜色，默认关闭以保持 Manus 风格一致
  * @param content 主题包裹的内容
  */
 @Composable
 fun ClawCodeApplicationTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
+    bubbleTheme: BubbleTheme = BubbleTheme.OCEAN,
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val darkTheme = shouldUseDarkTheme(themeMode)
     
     val appColors = remember(darkTheme) { getAppColors(darkTheme) }
+    val bubbleThemeColors = remember(bubbleTheme, darkTheme) { getBubbleThemeColors(bubbleTheme, darkTheme) }
     
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
@@ -144,7 +147,8 @@ fun ClawCodeApplicationTheme(
     }
 
     CompositionLocalProvider(
-        LocalAppColors provides appColors
+        LocalAppColors provides appColors,
+        LocalBubbleTheme provides bubbleThemeColors
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

@@ -40,6 +40,8 @@ import com.example.claw_code_application.ui.chat.ChatScreen
 import com.example.claw_code_application.ui.chat.SessionListScreen
 import com.example.claw_code_application.ui.chat.components.SettingsDrawer
 import com.example.claw_code_application.ui.chat.components.ThemeMode
+import com.example.claw_code_application.ui.theme.BubbleTheme
+import com.example.claw_code_application.ui.theme.parseBubbleTheme
 import com.example.claw_code_application.ui.theme.ClawCodeApplicationTheme
 import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.viewmodel.AuthViewModel
@@ -67,6 +69,7 @@ class MainActivity : ComponentActivity() {
             
             // 使用 remember 缓存主题状态
             var currentTheme by remember { mutableStateOf(ThemeMode.SYSTEM) }
+            var currentBubbleTheme by remember { mutableStateOf(BubbleTheme.OCEAN) }
             
             // 异步加载保存的主题设置
             LaunchedEffect(Unit) {
@@ -76,9 +79,11 @@ class MainActivity : ComponentActivity() {
                     "DARK" -> ThemeMode.DARK
                     else -> ThemeMode.SYSTEM
                 }
+                val savedBubbleTheme = themePreferencesStore.getBubbleThemeSync()
+                currentBubbleTheme = parseBubbleTheme(savedBubbleTheme)
             }
             
-            ClawCodeApplicationTheme(themeMode = currentTheme) {
+            ClawCodeApplicationTheme(themeMode = currentTheme, bubbleTheme = currentBubbleTheme) {
                 val navController = rememberNavController()
 
                 NavHost(
@@ -146,6 +151,13 @@ class MainActivity : ComponentActivity() {
                                         ThemeMode.SYSTEM -> "SYSTEM"
                                     }
                                     themePreferencesStore.saveThemeMode(themeString)
+                                }
+                            },
+                            currentBubbleTheme = currentBubbleTheme,
+                            onBubbleThemeChange = { newBubbleTheme ->
+                                currentBubbleTheme = newBubbleTheme
+                                scope.launch {
+                                    themePreferencesStore.saveBubbleTheme(newBubbleTheme.name)
                                 }
                             },
                             onLogout = {
@@ -250,6 +262,8 @@ private fun AuthCheckScreen(
 private fun ChatMainScreen(
     currentTheme: ThemeMode,
     onThemeChange: (ThemeMode) -> Unit,
+    currentBubbleTheme: BubbleTheme,
+    onBubbleThemeChange: (BubbleTheme) -> Unit,
     onLogout: () -> Unit,
     onNavigateToLogin: () -> Unit
 ) {
@@ -437,6 +451,8 @@ private fun ChatMainScreen(
             onDismiss = { showSettingsDrawer = false },
             onThemeChange = onThemeChange,
             currentTheme = currentTheme,
+            currentBubbleTheme = currentBubbleTheme,
+            onBubbleThemeChange = onBubbleThemeChange,
             onLogout = onLogout,
             onNavigateToLogin = onNavigateToLogin
         )

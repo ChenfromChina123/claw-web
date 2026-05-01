@@ -22,9 +22,13 @@ class ThemePreferencesStore(private val context: Context) {
     private val _themeFlow = MutableStateFlow(DEFAULT_THEME_MODE)
     val themeFlow: Flow<String> = _themeFlow.asStateFlow()
 
+    /** 气泡主题状态流 */
+    private val _bubbleThemeFlow = MutableStateFlow(DEFAULT_BUBBLE_THEME)
+    val bubbleThemeFlow: Flow<String> = _bubbleThemeFlow.asStateFlow()
+
     init {
-        // 初始化时从MMKV读取主题设置
         _themeFlow.value = getThemeModeSync()
+        _bubbleThemeFlow.value = getBubbleThemeSync()
     }
 
     /**
@@ -70,9 +74,31 @@ class ThemePreferencesStore(private val context: Context) {
         _themeFlow.value = DEFAULT_THEME_MODE
     }
 
+    /**
+     * 保存气泡主题到MMKV存储
+     *
+     * @param bubbleTheme 气泡主题字符串（CLASSIC, OCEAN, MINT, LAVENDER, SUNSET, SAKURA）
+     */
+    suspend fun saveBubbleTheme(bubbleTheme: String) {
+        val success = MMKVManager.putString(KEY_BUBBLE_THEME, bubbleTheme)
+        _bubbleThemeFlow.value = bubbleTheme
+        android.util.Log.d(TAG, "气泡主题保存: $bubbleTheme, 结果: $success")
+    }
+
+    /**
+     * 同步获取存储的气泡主题
+     *
+     * @return 气泡主题字符串，如果不存在则返回默认值 OCEAN
+     */
+    fun getBubbleThemeSync(): String {
+        return MMKVManager.getString(KEY_BUBBLE_THEME, DEFAULT_BUBBLE_THEME) ?: DEFAULT_BUBBLE_THEME
+    }
+
     companion object {
         private const val KEY_THEME_MODE = "theme_mode"
         private const val DEFAULT_THEME_MODE = "SYSTEM"
+        private const val KEY_BUBBLE_THEME = "bubble_theme"
+        private const val DEFAULT_BUBBLE_THEME = "OCEAN"
         private const val TAG = "ThemePreferencesStore"
 
         @Volatile

@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.ui.theme.AppColor
+import com.example.claw_code_application.ui.theme.BubbleThemeColors
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -24,6 +25,7 @@ fun MessageBubble(
     modifier: Modifier = Modifier
 ) {
     val colors = AppColor.current
+    val bubbleColors = BubbleThemeColors.current
     val isUser = message.role == "user"
 
     Row(
@@ -42,7 +44,7 @@ fun MessageBubble(
                     bottomStart = 16.dp,
                     bottomEnd = 16.dp
                 ),
-                color = if (isUser) colors.UserBubbleBackground else colors.AssistantBubbleBackground,
+                color = if (isUser) bubbleColors.background else colors.AssistantBubbleBackground,
                 shadowElevation = if (isUser) 0.dp else 1.dp,
                 border = if (isUser) null else androidx.compose.foundation.BorderStroke(1.dp, colors.Border)
             ) {
@@ -51,7 +53,7 @@ fun MessageBubble(
                 ) {
                     Text(
                         text = message.content,
-                        color = if (isUser) colors.Surface else colors.TextPrimary,
+                        color = if (isUser) bubbleColors.textColor else colors.TextPrimary,
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
                         modifier = Modifier.padding(
@@ -63,7 +65,7 @@ fun MessageBubble(
                     if (message.isStreaming) {
                         Text(
                             text = "▋",
-                            color = if (isUser) colors.Surface else colors.Primary,
+                            color = if (isUser) bubbleColors.textColor else colors.Primary,
                             modifier = Modifier.padding(end = 14.dp, bottom = 10.dp)
                         )
                     }

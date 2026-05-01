@@ -23,6 +23,7 @@ import coil.compose.AsyncImage
 import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.ui.theme.AppColor
+import com.example.claw_code_application.ui.theme.BubbleThemeColors
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -42,6 +43,7 @@ fun EnhancedMessageBubble(
     modifier: Modifier = Modifier
 ) {
     val colors = AppColor.current
+    val bubbleColors = BubbleThemeColors.current
     val isUser = message.role == "user"
 
     // Manus 1.6 Lite 气泡配置
@@ -76,7 +78,7 @@ fun EnhancedMessageBubble(
                 Surface(
                     modifier = bubbleElevation,
                     shape = bubbleShape,
-                    color = colors.UserBubbleBackground,
+                    color = bubbleColors.background,
                     shadowElevation = 0.dp,
                     border = null
                 ) {
@@ -91,10 +93,9 @@ fun EnhancedMessageBubble(
                         }
 
                         if (filteredContent.isNotBlank()) {
-                            // 用户消息：使用主题表面色（深色主题下为深色文字）
                             Text(
                                 text = filteredContent,
-                                color = colors.Surface,
+                                color = bubbleColors.textColor,
                                 style = TextStyle(
                                     fontSize = 15.sp,
                                     lineHeight = 23.sp
