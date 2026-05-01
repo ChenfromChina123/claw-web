@@ -481,6 +481,19 @@ export class ProjectDeploymentService {
       throw new Error('部署不存在')
     }
 
+    // 获取容器名称（Docker 网络通信需要容器名而非容器ID）
+    let containerName: string | undefined
+    try {
+      const { getContainerOrchestrator } = await import('../orchestrator/containerOrchestrator')
+      const orchestrator = getContainerOrchestrator()
+      const userMapping = orchestrator.getUserMapping(userId)
+      if (userMapping) {
+        containerName = userMapping.container.containerName
+      }
+    } catch (error) {
+      console.warn('[ProjectDeploymentService] 获取容器名称失败，将使用 hostPort 模式:', error)
+    }
+
     // 分配域名
     const domainService = getDomainService()
     const domainInfo = await domainService.assignDomain(projectId, userId)
@@ -492,6 +505,7 @@ export class ProjectDeploymentService {
       domain: domainInfo.domain,
       workerPort: deployment.worker_port,
       internalPort: deployment.internal_port,
+      containerName,
       sslEnabled: true
     }
 

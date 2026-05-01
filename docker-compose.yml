@@ -127,6 +127,7 @@ services:
       - ${HOST_WORKSPACE_PATH:-/data/claws/workspaces}:/app/workspaces
       - master_logs:/app/logs
       - /var/run/docker.sock:/var/run/docker.sock  # Docker socket 访问权限
+      - nginx_configs:/etc/nginx/conf.d  # 共享 Nginx 配置目录
     networks:
       - claude-network      # 访问 MySQL
       - worker-network      # 访问 Worker 容器
@@ -237,6 +238,9 @@ services:
     networks:
       - frontend-network
       - claude-network  # 需要访问 master:3000 进行 API 反向代理
+      - worker-network  # 需要访问 Worker 容器进行项目反向代理
+    volumes:
+      - nginx_configs:/etc/nginx/conf.d  # 共享 Nginx 配置目录
     depends_on:
       - master
     healthcheck:
@@ -285,3 +289,7 @@ volumes:
   worker_logs:
     driver: local
     name: claw-web-worker-logs
+
+  nginx_configs:
+    driver: local
+    name: claw-web-nginx-configs

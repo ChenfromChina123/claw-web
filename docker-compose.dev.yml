@@ -114,6 +114,7 @@ services:
     
     networks:
       - claude-network       # ✅ 连接到主网络以访问 Master
+      - worker-network       # ✅ 连接到 Worker 网络以访问部署的项目
     
     deploy:
       resources:

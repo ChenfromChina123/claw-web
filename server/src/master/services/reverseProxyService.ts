@@ -31,6 +31,7 @@ export interface ProxyConfig {
   domain: string
   workerPort: number
   internalPort: number
+  containerName?: string
   sslEnabled: boolean
   sslCertPath?: string
   sslKeyPath?: string
@@ -91,14 +92,19 @@ export class ReverseProxyService {
       domain,
       workerPort,
       internalPort,
+      containerName,
       sslEnabled,
       sslCertPath,
       sslKeyPath,
       accessControl
     } = config
 
-    // 构建上游服务器地址（Worker 容器的主端口）
-    const upstreamServer = `http://localhost:${workerPort}`
+    // 构建上游服务器地址
+    // 优先使用 Docker 网络直接通信（containerName:internalPort），
+    // 这样无需额外映射端口，更安全更高效
+    const upstreamServer = containerName
+      ? `http://${containerName}:${internalPort}`
+      : `http://localhost:${workerPort}`
 
     // 生成配置
     let nginxConfig = ''
@@ -248,16 +254,29 @@ server {
 
   /**
    * 重载 Nginx 配置
+   *
+   * 在 Docker 环境中，Nginx 运行在 Frontend 容器中，
+   * 需要通过 docker exec 执行重载命令。
+   * 在非 Docker 环境中，直接执行 nginx -s reload。
    */
   async reloadNginx(): Promise<boolean> {
     try {
-      // 测试配置
+      const frontendContainer = process.env.FRONTEND_CONTAINER_NAME || 'claw-web-frontend'
+
+      // 先尝试通过 docker exec 在 Frontend 容器中重载
+      try {
+        await execAsync(`docker exec ${frontendContainer} nginx -t`)
+        await execAsync(`docker exec ${frontendContainer} nginx -s reload`)
+        console.log('[ReverseProxyService] Nginx 配置已重载（通过 Frontend 容器）')
+        return true
+      } catch {
+        // docker exec 失败，尝试本地重载
+      }
+
+      // 本地重载（非 Docker 环境）
       await execAsync('nginx -t')
-
-      // 重载配置
       await execAsync('nginx -s reload')
-
-      console.log('[ReverseProxyService] Nginx 配置已重载')
+      console.log('[ReverseProxyService] Nginx 配置已重载（本地）')
       return true
     } catch (error) {
       console.error('[ReverseProxyService] Nginx 重载失败:', error)
@@ -270,6 +289,15 @@ server {
    */
   async testNginxConfig(): Promise<{ valid: boolean; error?: string }> {
     try {
+      const frontendContainer = process.env.FRONTEND_CONTAINER_NAME || 'claw-web-frontend'
+
+      try {
+        await execAsync(`docker exec ${frontendContainer} nginx -t`)
+        return { valid: true }
+      } catch {
+        // docker exec 失败，尝试本地测试
+      }
+
       await execAsync('nginx -t')
       return { valid: true }
     } catch (error) {
@@ -289,12 +317,24 @@ server {
     uptime?: number
   }> {
     try {
+      const frontendContainer = process.env.FRONTEND_CONTAINER_NAME || 'claw-web-frontend'
+
+      // 先尝试通过 docker exec 在 Frontend 容器中获取状态
+      try {
+        const { stdout } = await execAsync(`docker exec ${frontendContainer} nginx -v 2>&1`)
+        const versionMatch = stdout.match(/nginx version: nginx\/([\d.]+)/)
+        const { stdout: processCheck } = await execAsync(`docker exec ${frontendContainer} pgrep nginx || echo ""`)
+        return {
+          running: processCheck.trim().length > 0,
+          version: versionMatch ? versionMatch[1] : undefined
+        }
+      } catch {
+        // docker exec 失败，尝试本地
+      }
+
       const { stdout } = await execAsync('nginx -v 2>&1')
       const versionMatch = stdout.match(/nginx version: nginx\/([\d.]+)/)
-
-      // 检查进程是否运行
       const { stdout: processCheck } = await execAsync('pgrep nginx || echo ""')
-
       return {
         running: processCheck.trim().length > 0,
         version: versionMatch ? versionMatch[1] : undefined
