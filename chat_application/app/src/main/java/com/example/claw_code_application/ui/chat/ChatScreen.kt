@@ -346,7 +346,8 @@ private fun ChatMessageList(
         state = listState,
         reverseLayout = true,
         contentPadding = PaddingValues(vertical = 16.dp),
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Bottom
     ) {
         items(
             items = displayMessages,
