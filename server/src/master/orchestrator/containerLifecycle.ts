@@ -189,6 +189,14 @@ export class ContainerLifecycle {
       }
 
       console.log(`[ContainerLifecycle] 容器创建完成, containerId=${containerId}, hostPort=${instance.hostPort}, status=${instance.status}`)
+
+      // 设置出站网络限制（仅允许 HTTP/HTTPS/DNS 出站）
+      try {
+        await this.containerOps.setupEgressRestriction(containerId)
+      } catch (error) {
+        console.warn(`[ContainerLifecycle] 设置出站网络限制失败（非致命）:`, error)
+      }
+
       return { success: true, data: instance }
 
     } catch (error) {
@@ -314,6 +322,9 @@ export class ContainerLifecycle {
       destroyingContainers.add(containerId)
 
       try {
+        // 销毁前：移除出站网络限制
+        await this.containerOps.removeEgressRestriction(containerId)
+
         // 销毁前：尝试保存工作快照
         await this.createSnapshotBeforeDestroy(containerId)
 

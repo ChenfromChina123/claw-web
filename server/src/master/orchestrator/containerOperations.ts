@@ -445,4 +445,89 @@ export class ContainerOperations {
       return null
     }
   }
+
+  /**
+   * 为容器设置出站网络限制
+   *
+   * 使用 iptables 限制容器的出站流量，仅允许：
+   * - HTTP/HTTPS 出站（80, 443）
+   * - DNS 出站（53）
+   * - Docker 内部网络通信
+   * - 回环地址通信
+   *
+   * 阻止其他所有出站连接，防止滥用（挖矿、DDoS、数据外泄等）
+   *
+   * @param containerId 容器ID
+   * @param networkSubnet Docker 网络子网（如 172.29.0.0/16）
+   */
+  async setupEgressRestriction(containerId: string, networkSubnet: string = '172.29.0.0/16'): Promise<boolean> {
+    try {
+      const containerIp = await this.getContainerIp(containerId)
+      if (!containerIp) {
+        console.warn(`[ContainerOperations] 无法获取容器 ${containerId} 的IP，跳过出站限制`)
+        return false
+      }
+
+      const chainName = `CLAW-EGRESS-${containerId.substring(0, 12)}`
+
+      // 创建自定义链
+      await execAsync(`iptables -N ${chainName} 2>/dev/null || true`)
+
+      // 清空已有规则
+      await execAsync(`iptables -F ${chainName}`)
+
+      // 允许回环地址
+      await execAsync(`iptables -A ${chainName} -s ${containerIp} -d 127.0.0.1 -j ACCEPT`)
+
+      // 允许 Docker 内部网络通信
+      await execAsync(`iptables -A ${chainName} -s ${containerIp} -d ${networkSubnet} -j ACCEPT`)
+
+      // 允许 DNS 出站（UDP/TCP 53）
+      await execAsync(`iptables -A ${chainName} -s ${containerIp} -p udp --dport 53 -j ACCEPT`)
+      await execAsync(`iptables -A ${chainName} -s ${containerIp} -p tcp --dport 53 -j ACCEPT`)
+
+      // 允许 HTTP 出站（80）
+      await execAsync(`iptables -A ${chainName} -s ${containerIp} -p tcp --dport 80 -j ACCEPT`)
+
+      // 允许 HTTPS 出站（443）
+      await execAsync(`iptables -A ${chainName} -s ${containerIp} -p tcp --dport 443 -j ACCEPT`)
+
+      // 阻止其他所有出站
+      await execAsync(`iptables -A ${chainName} -s ${containerIp} -j DROP`)
+
+      // 将自定义链挂载到 FORWARD 链
+      await execAsync(`iptables -I FORWARD -s ${containerIp} -j ${chainName}`)
+
+      console.log(`[ContainerOperations] 已为容器 ${containerId} (${containerIp}) 设置出站网络限制`)
+      return true
+    } catch (error) {
+      console.warn(`[ContainerOperations] 设置出站网络限制失败（非致命）:`, error)
+      return false
+    }
+  }
+
+  /**
+   * 移除容器的出站网络限制
+   *
+   * @param containerId 容器ID
+   */
+  async removeEgressRestriction(containerId: string): Promise<void> {
+    try {
+      const containerIp = await this.getContainerIp(containerId)
+      const chainName = `CLAW-EGRESS-${containerId.substring(0, 12)}`
+
+      // 从 FORWARD 链移除引用
+      if (containerIp) {
+        await execAsync(`iptables -D FORWARD -s ${containerIp} -j ${chainName} 2>/dev/null || true`)
+      }
+
+      // 清空并删除自定义链
+      await execAsync(`iptables -F ${chainName} 2>/dev/null || true`)
+      await execAsync(`iptables -X ${chainName} 2>/dev/null || true`)
+
+      console.log(`[ContainerOperations] 已移除容器 ${containerId} 的出站网络限制`)
+    } catch (error) {
+      console.warn(`[ContainerOperations] 移除出站网络限制失败（非致命）:`, error)
+    }
+  }
 }
