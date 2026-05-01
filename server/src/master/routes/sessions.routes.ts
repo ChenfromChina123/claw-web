@@ -6,6 +6,7 @@ import { SessionManager } from '../services/sessionManager'
 import { createSuccessResponse, createErrorResponse, createCorsPreflightResponse } from '../utils/response'
 import { authMiddleware } from '../utils/auth'
 import { sessionOpenFilesRepository } from '../db/repositories/sessionOpenFilesRepository'
+import { getBackgroundTaskManager } from '../services/backgroundTaskManager'
 import type { RegisterRequest } from '../models/types'
 
 const sessionManager = SessionManager.getInstance()
@@ -153,6 +154,44 @@ export async function handleSessionRoutes(req: Request): Promise<Response | null
     } catch (error) {
       const message = error instanceof Error ? error.message : '清空会话失败'
       return createErrorResponse('CLEAR_SESSION_FAILED', message, 500)
+    }
+  }
+
+  // ==================== 会话任务 ====================
+
+  // GET /api/sessions/:id/tasks - 获取会话关联的后台任务
+  const sessionTasksMatch = path.match(/^\/api\/sessions\/([^\/]+)\/tasks$/)
+  if (sessionTasksMatch && method === 'GET') {
+    try {
+      const auth = await authMiddleware(req)
+      if (!auth.userId) {
+        return createErrorResponse('UNAUTHORIZED', '请先登录', 401)
+      }
+      const sessionId = sessionTasksMatch[1]
+      const taskManager = getBackgroundTaskManager()
+      const allTasks = taskManager.getAllTasks()
+      const sessionTasks = allTasks.filter(task => {
+        const meta = task.metadata as Record<string, unknown> | undefined
+        return meta?.sessionId === sessionId
+      }).map(task => ({
+        taskId: task.id,
+        taskName: task.name,
+        description: task.description || '',
+        status: task.status,
+        priority: task.priority,
+        progress: task.progress,
+        result: task.result ? JSON.stringify(task.result) : null,
+        error: task.error || null,
+        parentTaskId: task.parentTaskId || null,
+        agentId: task.agentId || null,
+        createdAt: task.createdAt instanceof Date ? task.createdAt.getTime() : new Date(task.createdAt).getTime(),
+        startedAt: task.startedAt instanceof Date ? task.startedAt.getTime() : task.startedAt ? new Date(task.startedAt).getTime() : null,
+        completedAt: task.completedAt instanceof Date ? task.completedAt.getTime() : task.completedAt ? new Date(task.completedAt).getTime() : null,
+      }))
+      return createSuccessResponse(sessionTasks)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '获取会话任务失败'
+      return createErrorResponse('GET_SESSION_TASKS_FAILED', message, 500)
     }
   }
 

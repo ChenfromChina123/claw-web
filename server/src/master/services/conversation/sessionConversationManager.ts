@@ -305,6 +305,7 @@ export class SessionConversationManager {
         result: task.result ? JSON.stringify(task.result) : undefined,
         error: task.error,
         traceId: (task.metadata as Record<string, unknown>)?.traceId as string | undefined,
+        sessionId: sessionId,
       })
     }
     taskManager.on('task_created', (task: BackgroundTask) => taskEventHandler('task_created', task))
