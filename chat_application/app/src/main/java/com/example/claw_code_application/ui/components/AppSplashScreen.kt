@@ -88,7 +88,7 @@ fun AppSplashScreen(
                 orbitRotation = orbitRotation,
                 primaryColor = colors.Primary,
                 surfaceColor = colors.Surface,
-                onPrimaryColor = colors.OnPrimary
+                onPrimaryColor = Color.White
             )
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -250,7 +250,7 @@ private fun ShimmerLoadingBar(
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .fillMaxFraction(shimmerOffset.coerceIn(0f, 1f))
+                .fillMaxWidth(shimmerOffset.coerceIn(0f, 1f))
                 .background(
                     brush = Brush.horizontalGradient(
                         colors = listOf(
