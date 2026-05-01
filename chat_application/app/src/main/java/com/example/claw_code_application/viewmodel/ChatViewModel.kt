@@ -265,13 +265,39 @@ class ChatViewModel(
                                 when (result) {
                                     is CachedChatRepository.Result.Loading -> {}
                                     is CachedChatRepository.Result.Success -> {
-                                        _toolCalls.clear(); _toolCalls.addAll(result.data.toolCalls)
-                                        rebuildMessageToolCallMapping(); updateMessageToolCallMap()
-                                        if (result.data.messages.size > totalMessageCount) {
-                                            totalMessageCount = result.data.messages.size
-                                            hasMoreHistory = _messages.size < totalMessageCount
+                                        val remoteMessages = result.data.messages.map { it.copy(isStreaming = false) }
+                                        val remoteToolCalls = result.data.toolCalls
+
+                                        val localMsgIds = _messages.map { it.id }.toSet()
+                                        val remoteMsgIds = remoteMessages.map { it.id }.toSet()
+
+                                        val newMessages = remoteMessages.filter { it.id !in localMsgIds }
+                                        val updatedMessages = remoteMessages.filter { it.id in localMsgIds }
+
+                                        newMessages.forEach { _messages.add(it) }
+                                        updatedMessages.forEach { updated ->
+                                            val index = _messages.indexOfFirst { it.id == updated.id }
+                                            if (index != -1) {
+                                                _messages[index] = updated
+                                            }
                                         }
-                                        _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = null)
+
+                                        _messages.sortBy { it.timestamp.toLongOrNull() ?: 0L }
+
+                                        _toolCalls.clear()
+                                        _toolCalls.addAll(remoteToolCalls)
+                                        rebuildMessageToolCallMapping()
+                                        updateMessageToolCallMap()
+                                        updateDisplayMessages()
+
+                                        totalMessageCount = remoteMessages.size
+                                        hasMoreHistory = _messages.size < totalMessageCount
+
+                                        _uiState.value = UiState.Success(
+                                            messages = _messages.toList(),
+                                            toolCalls = _toolCalls.toList(),
+                                            executionStatus = null
+                                        )
                                     }
                                     is CachedChatRepository.Result.Error -> {
                                         if (_messages.isEmpty()) _uiState.value = UiState.Error(result.message)

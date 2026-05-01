@@ -98,12 +98,27 @@ private fun ChatViewModel.handleMessageStop(event: WebSocketManager.WebSocketEve
 }
 
 private fun ChatViewModel.handleMessageSaved(event: WebSocketManager.WebSocketEvent.MessageSaved) {
-    if (event.role == "user") {
-        val lastUserMsgIndex = _messages.indexOfLast { it.role == "user" }
-        if (lastUserMsgIndex != -1) {
-            val oldMsg = _messages[lastUserMsgIndex]
-            if (oldMsg.id != event.messageId) {
-                _messages[lastUserMsgIndex] = oldMsg.copy(id = event.messageId)
+    when (event.role) {
+        "user" -> {
+            val lastUserMsgIndex = _messages.indexOfLast { it.role == "user" }
+            if (lastUserMsgIndex != -1) {
+                val oldMsg = _messages[lastUserMsgIndex]
+                if (oldMsg.id != event.messageId) {
+                    _messages[lastUserMsgIndex] = oldMsg.copy(id = event.messageId)
+                }
+            }
+        }
+        "assistant" -> {
+            streamingMessageId?.let { currentStreamingId ->
+                val index = _messages.indexOfFirst { it.id == currentStreamingId }
+                if (index != -1) {
+                    val oldMsg = _messages[index]
+                    if (oldMsg.id != event.messageId) {
+                        _messages[index] = oldMsg.copy(id = event.messageId)
+                        streamingMessageId = event.messageId
+                        updateStreamingMessage(event.messageId)
+                    }
+                }
             }
         }
     }

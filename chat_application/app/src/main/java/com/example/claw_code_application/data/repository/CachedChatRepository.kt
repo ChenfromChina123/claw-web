@@ -225,9 +225,9 @@ class CachedChatRepository(
                 emit(Result.Success(cachedDetail))
 
                 val cacheAge = System.currentTimeMillis() - localSession.cachedAt
-                if (cacheAge < MIN_CACHE_AGE_MS) {
-                    Logger.d(TAG, "缓存新鲜（${cacheAge}ms），跳过网络请求: sessionId=$sessionId")
-                    return@flow
+                if (cacheAge < MIN_CACHE_AGE_MS && !forceRefresh) {
+                    Logger.d(TAG, "缓存新鲜（${cacheAge}ms），延迟后台更新: sessionId=$sessionId")
+                    kotlinx.coroutines.delay(MIN_CACHE_AGE_MS - cacheAge)
                 }
             }
             
