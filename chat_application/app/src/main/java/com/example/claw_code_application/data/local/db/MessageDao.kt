@@ -78,6 +78,44 @@ interface MessageDao {
     ): List<MessageEntity>
 
     /**
+     * 加载早于指定时间戳的消息（用于向上翻页加载历史）
+     *
+     * @param sessionId 会话ID
+     * @param beforeTimestamp 时间戳边界（不包含）
+     * @param limit 加载数量
+     */
+    @Query("""
+        SELECT * FROM messages 
+        WHERE sessionId = :sessionId AND timestamp < :beforeTimestamp
+        ORDER BY timestamp DESC
+        LIMIT :limit
+    """)
+    suspend fun getMessagesBeforeTimestamp(
+        sessionId: String,
+        beforeTimestamp: String,
+        limit: Int
+    ): List<MessageEntity>
+
+    /**
+     * 加载晚于指定时间戳的消息（用于向下翻页加载新消息）
+     *
+     * @param sessionId 会话ID
+     * @param afterTimestamp 时间戳边界（不包含）
+     * @param limit 加载数量
+     */
+    @Query("""
+        SELECT * FROM messages 
+        WHERE sessionId = :sessionId AND timestamp > :afterTimestamp
+        ORDER BY timestamp ASC
+        LIMIT :limit
+    """)
+    suspend fun getMessagesAfterTimestamp(
+        sessionId: String,
+        afterTimestamp: String,
+        limit: Int
+    ): List<MessageEntity>
+
+    /**
      * 获取指定会话的所有消息（一次性）
      * 注意：大数据量时请使用分页版本
      */

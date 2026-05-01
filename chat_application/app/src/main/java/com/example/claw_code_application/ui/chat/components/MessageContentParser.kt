@@ -10,8 +10,17 @@ object MessageContentParser {
         isLenient = true
     }
 
-    private val parseCache = mutableMapOf<String, List<MessageComponent>>()
     private const val MAX_CACHE_SIZE = 100
+
+    /**
+     * LRU缓存：使用LinkedHashMap的accessOrder模式
+     * 最近访问的条目移到链表尾部，淘汰时移除链表头部（最久未访问）
+     */
+    private val parseCache = object : LinkedHashMap<String, List<MessageComponent>>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<MessageComponent>>): Boolean {
+            return size > MAX_CACHE_SIZE
+        }
+    }
 
     fun parse(content: String): List<MessageComponent> {
         if (content.isBlank()) return emptyList()
@@ -21,11 +30,6 @@ object MessageContentParser {
         }
 
         val components = parseInternal(content)
-
-        if (parseCache.size >= MAX_CACHE_SIZE) {
-            val keyToRemove = parseCache.keys.first()
-            parseCache.remove(keyToRemove)
-        }
         parseCache[content] = components
 
         return components

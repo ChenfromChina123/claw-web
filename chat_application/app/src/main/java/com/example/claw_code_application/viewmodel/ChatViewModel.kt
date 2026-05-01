@@ -1,15 +1,10 @@
 package com.example.claw_code_application.viewmodel
 
-import android.app.Application
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.lifecycle.AndroidViewModel
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.claw_code_application.ClawCodeApplication
 import com.example.claw_code_application.data.api.models.*
 import com.example.claw_code_application.data.local.PushMessageStore
 import com.example.claw_code_application.data.local.TokenManager
@@ -25,22 +20,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.Json
 import java.util.UUID
 
 class ChatViewModel(
-    private val cachedChatRepository: CachedChatRepository,
-    private val tokenManager: TokenManager,
-    private val webSocketManager: WebSocketManager = WebSocketManager(),
-    private val sessionLocalStore: SessionLocalStore? = null,
-    private val notificationManager: NotificationManager? = null,
-    private val pushMessageStore: PushMessageStore? = null
+    internal val cachedChatRepository: CachedChatRepository,
+    internal val tokenManager: TokenManager,
+    internal val webSocketManager: WebSocketManager = WebSocketManager(),
+    internal val sessionLocalStore: SessionLocalStore? = null,
+    internal val notificationManager: NotificationManager? = null,
+    internal val pushMessageStore: PushMessageStore? = null
 ) : ViewModel() {
-
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
 
     sealed class UiState {
         data object Idle : UiState()
@@ -53,74 +43,92 @@ class ChatViewModel(
         data class Error(val message: String) : UiState()
     }
 
-    private val _uiState = MutableStateFlow<UiState>(UiState.Idle)
+    internal val _uiState = MutableStateFlow<UiState>(UiState.Idle)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     var currentSessionId: String? = null
         private set
 
-    /**
-     * 标记当前会话是否是仅本地存在的临时会话
-     * 用于懒创建会话模式
-     */
     var isLocalOnlySession: Boolean = false
         private set
 
-    private val _messages = mutableStateListOf<Message>()
+    internal val _messages = mutableStateListOf<Message>()
     val messages: List<Message> = _messages
 
-    val displayMessages: List<Message> by derivedStateOf {
-        _messages.reversed().filter { shouldShowMessage(it) }
-    }
+    internal val _displayMessages = mutableStateListOf<Message>()
+    val displayMessages: List<Message> = _displayMessages
 
-    private val _toolCalls = mutableStateListOf<ToolCall>()
+    var hasMoreHistory: Boolean = false
+        internal set
+    var isLoadingHistory: Boolean = false
+        internal set
+    internal var totalMessageCount: Int = 0
+
+    internal val _toolCalls = mutableStateListOf<ToolCall>()
     val toolCalls: List<ToolCall> = _toolCalls
+
+    internal val _messageToolCallMap = mutableStateMapOf<String, List<ToolCall>>()
 
     val connectionState = webSocketManager.connectionState
 
-    private var streamingMessageId: String? = null
-    private var pendingDeltaText = StringBuilder()
-    private var debounceJob: Job? = null
-    private val debounceIntervalMs = 50L
-    private val pendingToolUpdates = mutableMapOf<String, ToolCall>()
-    private var toolUpdateDebounceJob: Job? = null
-    private val toolUpdateDebounceIntervalMs = 100L
-    private val pendingToolInput = mutableMapOf<String, StringBuilder>()
-    private val messageToToolCalls = mutableMapOf<String, MutableList<String>>()
-    private val unassociatedToolCallIds = mutableListOf<String>()
+    /** 暴露viewModelScope供扩展函数使用 */
+    internal val vmScope get() = viewModelScope
 
+    internal val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    internal var streamingMessageId: String? = null
+    internal var pendingDeltaText = StringBuilder()
+    internal var debounceJob: Job? = null
+    internal val debounceIntervalMs = 50L
+    internal val pendingToolUpdates = mutableMapOf<String, ToolCall>()
+    internal var toolUpdateDebounceJob: Job? = null
+    internal val toolUpdateDebounceIntervalMs = 100L
+    internal val pendingToolInput = mutableMapOf<String, StringBuilder>()
+    internal val messageToToolCalls = mutableMapOf<String, MutableList<String>>()
+    internal val unassociatedToolCallIds = mutableListOf<String>()
+    internal var uiStateUpdateJob: Job? = null
+
+    /** 获取指定消息关联的工具调用 */
     fun getToolCallsForMessage(messageId: String): List<ToolCall> {
-        val toolCallIds = messageToToolCalls[messageId]
-        if (toolCallIds == null) {
-            return emptyList()
-        }
-        return _toolCalls.filter { it.id in toolCallIds }
+        return _messageToolCallMap[messageId] ?: emptyList()
     }
 
-    private fun scheduleToolUpdate(toolCallId: String, updatedTool: ToolCall) {
-        pendingToolUpdates[toolCallId] = updatedTool
+    /** 增量更新显示消息列表 */
+    internal fun updateDisplayMessages() {
+        _displayMessages.clear()
+        _displayMessages.addAll(_messages.reversed().filter { shouldShowMessage(it) })
+    }
 
+    /** 更新消息-工具调用映射 */
+    internal fun updateMessageToolCallMap() {
+        _messageToolCallMap.clear()
+        for (message in _messages) {
+            if (message.role != "assistant") continue
+            val toolCallIds = messageToToolCalls[message.id]
+            if (toolCallIds != null && toolCallIds.isNotEmpty()) {
+                _messageToolCallMap[message.id] = _toolCalls.filter { it.id in toolCallIds }
+            }
+        }
+    }
+
+    /** 防抖更新工具调用 */
+    internal fun scheduleToolUpdate(toolCallId: String, updatedTool: ToolCall) {
+        pendingToolUpdates[toolCallId] = updatedTool
         toolUpdateDebounceJob?.cancel()
         toolUpdateDebounceJob = viewModelScope.launch {
             delay(toolUpdateDebounceIntervalMs)
-
             for ((id, tool) in pendingToolUpdates) {
                 val index = _toolCalls.indexOfFirst { it.id == id }
-                if (index != -1) {
-                    _toolCalls[index] = tool
-                } else {
-                    _toolCalls.add(tool)
-                }
+                if (index != -1) _toolCalls[index] = tool
+                else _toolCalls.add(tool)
             }
             pendingToolUpdates.clear()
-
+            updateMessageToolCallMap()
             emitUiStateUpdate()
         }
     }
 
-    private var uiStateUpdateJob: Job? = null
-
-    private fun emitUiStateUpdate() {
+    /** 防抖更新UI状态 */
+    internal fun emitUiStateUpdate() {
         uiStateUpdateJob?.cancel()
         uiStateUpdateJob = viewModelScope.launch {
             delay(50L)
@@ -132,25 +140,11 @@ class ChatViewModel(
         }
     }
 
-    /**
-     * 初始化块 - 优化启动性能
-     * 延迟初始化WebSocket连接和会话恢复，避免阻塞主线程
-     */
     init {
-        // 延迟初始化WebSocket和会话恢复，避免启动时阻塞
         viewModelScope.launch {
-            // 先收集消息，再建立连接
-            launch {
-                webSocketManager.incomingMessages.collect { event ->
-                    event?.let { handleWebSocketEvent(it) }
-                }
-            }
-
-            // 延迟连接WebSocket，避免启动时立即连接
+            launch { webSocketManager.incomingMessages.collect { event -> event?.let { handleWebSocketEvent(it) } } }
             delay(500L)
             connectWebSocket()
-
-            // 延迟恢复会话，让UI先完成渲染
             delay(300L)
             restoreSessionFromLocalStore()
         }
@@ -168,665 +162,214 @@ class ChatViewModel(
         }
     }
 
-    private fun saveSessionToLocalStore(sessionId: String) {
-        viewModelScope.launch {
-            sessionLocalStore?.saveSessionId(sessionId)
-        }
+    internal fun saveSessionToLocalStore(sessionId: String) {
+        viewModelScope.launch { sessionLocalStore?.saveSessionId(sessionId) }
     }
 
     private fun connectWebSocket() {
         viewModelScope.launch {
             val token = tokenManager.getTokenSync()
-            if (token != null) {
-                webSocketManager.connect(token)
-            }
-        }
-    }
-
-    private fun handleWebSocketEvent(event: WebSocketManager.WebSocketEvent) {
-        when (event) {
-            is WebSocketManager.WebSocketEvent.MessageStart -> {
-                streamingMessageId = event.messageId
-
-                if (unassociatedToolCallIds.isNotEmpty()) {
-                    val toolCallList = messageToToolCalls.getOrPut(event.messageId) { mutableListOf() }
-                    toolCallList.addAll(unassociatedToolCallIds)
-                    unassociatedToolCallIds.clear()
-                }
-
-                val assistantMessage = Message(
-                    id = event.messageId,
-                    role = "assistant",
-                    content = "",
-                    timestamp = System.currentTimeMillis().toString(),
-                    isStreaming = true
-                )
-                _messages.add(assistantMessage)
-                _uiState.value = UiState.Success(
-                    messages = _messages.toList(),
-                    toolCalls = _toolCalls.toList(),
-                    executionStatus = ExecutionStatus(
-                        status = "running",
-                        currentTurn = event.iteration,
-                        maxTurns = 20,
-                        progress = 0
-                    )
-                )
-            }
-
-            is WebSocketManager.WebSocketEvent.MessageDelta -> {
-                pendingDeltaText.append(event.delta)
-
-                debounceJob?.cancel()
-                debounceJob = viewModelScope.launch {
-                    delay(debounceIntervalMs)
-
-                    val deltaToApply = pendingDeltaText.toString()
-                    pendingDeltaText.clear()
-
-                    streamingMessageId?.let { messageId ->
-                        val index = _messages.indexOfFirst { it.id == messageId }
-                        if (index != -1) {
-                            val oldMessage = _messages[index]
-                            _messages[index] = oldMessage.copy(
-                                content = oldMessage.content + deltaToApply
-                            )
-                        }
-                    }
-                }
-            }
-
-            is WebSocketManager.WebSocketEvent.MessageStop -> {
-                debounceJob?.cancel()
-                val remainingDelta = pendingDeltaText.toString()
-                pendingDeltaText.clear()
-
-                streamingMessageId?.let { messageId ->
-                    val index = _messages.indexOfFirst { it.id == messageId }
-                    if (index != -1) {
-                        val oldMessage = _messages[index]
-                        val updatedMessage = oldMessage.copy(
-                            content = oldMessage.content + remainingDelta,
-                            isStreaming = false
-                        )
-                        _messages[index] = updatedMessage
-                    }
-                }
-                streamingMessageId = null
-
-                _uiState.value = UiState.Success(
-                    messages = _messages.toList(),
-                    toolCalls = _toolCalls.toList(),
-                    executionStatus = ExecutionStatus(
-                        status = if (event.stopReason == "end_turn") "completed" else "running",
-                        currentTurn = event.iteration,
-                        maxTurns = 20,
-                        progress = if (event.stopReason == "end_turn") 100 else 50
-                    )
-                )
-            }
-
-            is WebSocketManager.WebSocketEvent.MessageSaved -> {
-                if (event.role == "user") {
-                    val lastUserMsgIndex = _messages.indexOfLast { it.role == "user" }
-                    if (lastUserMsgIndex != -1) {
-                        val oldMsg = _messages[lastUserMsgIndex]
-                        if (oldMsg.id != event.messageId) {
-                            _messages[lastUserMsgIndex] = oldMsg.copy(id = event.messageId)
-                        }
-                    }
-                }
-            }
-
-            is WebSocketManager.WebSocketEvent.ToolUse -> {
-                val toolCall = ToolCall(
-                    id = event.id,
-                    toolName = event.name,
-                    toolInput = JsonObject(emptyMap()),
-                    toolOutput = null,
-                    status = "pending",
-                    createdAt = System.currentTimeMillis().toString()
-                )
-                _toolCalls.add(toolCall)
-                pendingToolInput[event.id] = StringBuilder()
-
-                streamingMessageId?.let { messageId ->
-                    messageToToolCalls.getOrPut(messageId) { mutableListOf() }.add(event.id)
-                } ?: run {
-                    unassociatedToolCallIds.add(event.id)
-                }
-
-                emitUiStateUpdate()
-            }
-
-            is WebSocketManager.WebSocketEvent.ToolInputDelta -> {
-                pendingToolInput[event.id]?.append(event.partialJson)
-            }
-
-            is WebSocketManager.WebSocketEvent.ToolStart -> {
-                val index = _toolCalls.indexOfFirst { it.id == event.id }
-                if (index != -1) {
-                    val oldTool = _toolCalls[index]
-                    val inputJson = pendingToolInput[event.id]?.toString()
-                    val toolInput: JsonObject = if (!inputJson.isNullOrEmpty()) {
-                        try {
-                            val element = json.parseToJsonElement(inputJson)
-                            when (element) {
-                                is JsonObject -> element
-                                else -> JsonObject(emptyMap())
-                            }
-                        } catch (e: Exception) {
-                            JsonObject(emptyMap())
-                        }
-                    } else {
-                        (event.input as? JsonObject) ?: JsonObject(emptyMap())
-                    }
-                    val updatedTool = oldTool.copy(
-                        status = "executing",
-                        toolInput = toolInput
-                    )
-                    scheduleToolUpdate(event.id, updatedTool)
-                }
-            }
-
-            is WebSocketManager.WebSocketEvent.ToolEnd -> {
-                val index = _toolCalls.indexOfFirst { it.id == event.id }
-                if (index != -1) {
-                    val oldTool = _toolCalls[index]
-                    val updatedTool = oldTool.copy(
-                        status = "completed",
-                        toolOutput = event.result,
-                        completedAt = System.currentTimeMillis().toString()
-                    )
-                    scheduleToolUpdate(event.id, updatedTool)
-                }
-                pendingToolInput.remove(event.id)
-            }
-
-            is WebSocketManager.WebSocketEvent.ToolError -> {
-                val index = _toolCalls.indexOfFirst { it.id == event.id }
-                if (index != -1) {
-                    val oldTool = _toolCalls[index]
-                    val updatedTool = oldTool.copy(
-                        status = "error",
-                        error = event.error,
-                        completedAt = System.currentTimeMillis().toString()
-                    )
-                    scheduleToolUpdate(event.id, updatedTool)
-                }
-                pendingToolInput.remove(event.id)
-            }
-
-            is WebSocketManager.WebSocketEvent.ToolProgress -> {
-                // 进度事件暂不改变工具状态
-            }
-
-            is WebSocketManager.WebSocketEvent.ToolUseEnd -> {
-                val index = _toolCalls.indexOfFirst { it.id == event.id }
-                if (index != -1) {
-                    val oldTool = _toolCalls[index]
-                    val newStatus = if (event.error != null) "error" else "completed"
-                    val updatedTool = oldTool.copy(
-                        status = newStatus,
-                        toolOutput = event.output ?: oldTool.toolOutput,
-                        error = event.error ?: oldTool.error,
-                        completedAt = System.currentTimeMillis().toString()
-                    )
-                    scheduleToolUpdate(event.id, updatedTool)
-                }
-            }
-
-            is WebSocketManager.WebSocketEvent.ConversationEnd -> {
-                _uiState.value = UiState.Success(
-                    messages = _messages.toList(),
-                    toolCalls = _toolCalls.toList(),
-                    executionStatus = ExecutionStatus(
-                        status = "completed",
-                        currentTurn = 0,
-                        maxTurns = 20,
-                        progress = 100
-                    )
-                )
-            }
-
-            is WebSocketManager.WebSocketEvent.Error -> {
-                _uiState.value = UiState.Error(event.message)
-            }
-
-            is WebSocketManager.WebSocketEvent.AgentPush -> {
-                // 处理 Agent 推送消息
-                // 1. 显示系统通知
-                notificationManager?.showAgentPushNotification(event.message)
-                // 2. 保存到本地存储
-                pushMessageStore?.addMessage(event.message)
-                android.util.Log.d(TAG, "Agent push received: ${event.message.id}, category: ${event.message.category}")
-            }
+            if (token != null) webSocketManager.connect(token)
         }
     }
 
     fun sendMessage(content: String, imageAttachments: List<Map<String, String>>? = null) {
         viewModelScope.launch {
-            val session = ensureSession() ?: run {
-                _uiState.value = UiState.Error("无法创建会话")
-                return@launch
-            }
-
+            val session = ensureSession() ?: run { _uiState.value = UiState.Error("无法创建会话"); return@launch }
             try {
                 val userMessage = Message(
-                    id = UUID.randomUUID().toString(),
-                    role = "user",
-                    content = content,
-                    timestamp = System.currentTimeMillis().toString(),
-                    isStreaming = false,
-                    attachments = imageAttachments?.map {
-                        ImageAttachment(
-                            imageId = it["imageId"] ?: "",
-                            type = "image",
-                            mimeType = it["mimeType"]
-                        )
-                    }
+                    id = UUID.randomUUID().toString(), role = "user", content = content,
+                    timestamp = System.currentTimeMillis().toString(), isStreaming = false,
+                    attachments = imageAttachments?.map { ImageAttachment(imageId = it["imageId"] ?: "", type = "image", mimeType = it["mimeType"]) }
                 )
                 _messages.add(userMessage)
-
+                updateDisplayMessages()
                 _uiState.value = UiState.Loading
 
                 if (webSocketManager.isConnected) {
-                    webSocketManager.sendUserMessage(
-                        sessionId = session.id,
-                        content = content,
-                        imageAttachments = imageAttachments
-                    )
+                    webSocketManager.sendUserMessage(sessionId = session.id, content = content, imageAttachments = imageAttachments)
                 } else {
-                    val result = cachedChatRepository.executeAgent(
-                        sessionId = session.id,
-                        task = content,
-                        prompt = content
-                    )
-
+                    val result = cachedChatRepository.executeAgent(sessionId = session.id, task = content, prompt = content)
                     when (result) {
                         is CachedChatRepository.Result.Success -> {
-                            val response = result.data
-                            response.messages.forEach { msg ->
-                                // 避免重复添加已存在的消息
-                                if (_messages.none { it.id == msg.id }) {
-                                    _messages.add(msg)
-                                }
-                            }
-                            _toolCalls.clear()
-                            _toolCalls.addAll(response.toolCalls)
-                            _uiState.value = UiState.Success(
-                                messages = _messages.toList(),
-                                toolCalls = _toolCalls.toList(),
-                                executionStatus = response.executionStatus
-                            )
+                            result.data.messages.forEach { msg -> if (_messages.none { it.id == msg.id }) _messages.add(msg) }
+                            _toolCalls.clear(); _toolCalls.addAll(result.data.toolCalls)
+                            _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = result.data.executionStatus)
                         }
-                        is CachedChatRepository.Result.Error -> {
-                            _uiState.value = UiState.Error(result.message)
-                        }
-                        is CachedChatRepository.Result.Loading -> {
-                            // 忽略
-                        }
+                        is CachedChatRepository.Result.Error -> _uiState.value = UiState.Error(result.message)
+                        is CachedChatRepository.Result.Loading -> {}
                     }
                 }
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "网络错误")
-            }
+            } catch (e: Exception) { _uiState.value = UiState.Error(e.message ?: "网络错误") }
         }
     }
 
-    /**
-     * 初始化新会话（懒创建模式）
-     * @param sessionId 会话ID（可能是本地临时ID）
-     * @param isLocalOnly 是否是仅本地存在的临时会话
-     */
     fun initNewSession(sessionId: String, isLocalOnly: Boolean = false) {
-        android.util.Log.d(TAG, "initNewSession() - 初始化新会话: $sessionId, isLocalOnly=$isLocalOnly")
-        currentSessionId = sessionId
-        this.isLocalOnlySession = isLocalOnly
-        saveSessionToLocalStore(sessionId)
-
-        _messages.clear()
-        _toolCalls.clear()
-        messageToToolCalls.clear()
-        unassociatedToolCallIds.clear()
-        pendingToolInput.clear()
-
-        _uiState.value = UiState.Success(
-            messages = emptyList(),
-            toolCalls = emptyList(),
-            executionStatus = null
-        )
-        android.util.Log.d(TAG, "新会话已初始化为空白状态")
+        currentSessionId = sessionId; isLocalOnlySession = isLocalOnly; saveSessionToLocalStore(sessionId)
+        clearInternalState()
+        _uiState.value = UiState.Success(messages = emptyList(), toolCalls = emptyList(), executionStatus = null)
     }
 
     fun loadSession(sessionId: String, forceRefresh: Boolean = false) {
-        android.util.Log.d(TAG, "loadSession() - sessionId: $sessionId, forceRefresh: $forceRefresh")
         viewModelScope.launch {
             try {
-                currentSessionId = sessionId
-                saveSessionToLocalStore(sessionId)
+                currentSessionId = sessionId; saveSessionToLocalStore(sessionId)
+                clearInternalState(); _uiState.value = UiState.Loading
 
-                _messages.clear()
-                _toolCalls.clear()
-                messageToToolCalls.clear()
-                unassociatedToolCallIds.clear()
-                pendingToolInput.clear()
+                val latestResult = cachedChatRepository.getLatestMessages(sessionId)
+                when (latestResult) {
+                    is CachedChatRepository.Result.Success -> {
+                        _messages.addAll(latestResult.data.map { it.copy(isStreaming = false) })
+                        updateDisplayMessages()
+                        totalMessageCount = cachedChatRepository.getMessageCount(sessionId)
+                        hasMoreHistory = _messages.size < totalMessageCount
 
-                _uiState.value = UiState.Loading
-
-                cachedChatRepository.getSessionDetail(sessionId, forceRefresh).collect { result ->
-                    when (result) {
-                        is CachedChatRepository.Result.Loading -> {
-                            // 保持 Loading 状态
-                        }
-                        is CachedChatRepository.Result.Success -> {
-                            val detail = result.data
-                            _messages.clear()
-                            // 加载历史消息时，强制将 isStreaming 设置为 false，避免显示闪烁动画
-                            _messages.addAll(detail.messages.map { it.copy(isStreaming = false) })
-
-                            _toolCalls.clear()
-                            _toolCalls.addAll(detail.toolCalls)
-
-                            rebuildMessageToolCallMapping()
-
-                            android.util.Log.d(TAG, "会话加载成功: ${detail.messages.size} 条消息, ${detail.toolCalls.size} 个工具调用")
-                            _uiState.value = UiState.Success(
-                                messages = _messages.toList(),
-                                toolCalls = _toolCalls.toList(),
-                                executionStatus = null
-                            )
-                        }
-                        is CachedChatRepository.Result.Error -> {
-                            android.util.Log.e(TAG, "加载会话失败: ${result.message}")
-                            _uiState.value = UiState.Error(result.message)
+                        cachedChatRepository.getSessionDetail(sessionId, forceRefresh).collect { result ->
+                            when (result) {
+                                is CachedChatRepository.Result.Loading -> {}
+                                is CachedChatRepository.Result.Success -> {
+                                    _toolCalls.clear(); _toolCalls.addAll(result.data.toolCalls)
+                                    rebuildMessageToolCallMapping(); updateMessageToolCallMap()
+                                    if (result.data.messages.size > totalMessageCount) {
+                                        totalMessageCount = result.data.messages.size
+                                        hasMoreHistory = _messages.size < totalMessageCount
+                                    }
+                                    _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = null)
+                                }
+                                is CachedChatRepository.Result.Error -> {
+                                    if (_messages.isNotEmpty()) _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = null)
+                                    else _uiState.value = UiState.Error(result.message)
+                                }
+                            }
                         }
                     }
+                    is CachedChatRepository.Result.Error -> loadSessionFallback(sessionId, forceRefresh)
+                    is CachedChatRepository.Result.Loading -> {}
                 }
-            } catch (e: Exception) {
-                android.util.Log.e(TAG, "加载异常", e)
-                _uiState.value = UiState.Error(e.message ?: "加载失败")
+            } catch (e: Exception) { _uiState.value = UiState.Error(e.message ?: "加载失败") }
+        }
+    }
+
+    private suspend fun loadSessionFallback(sessionId: String, forceRefresh: Boolean) {
+        cachedChatRepository.getSessionDetail(sessionId, forceRefresh).collect { result ->
+            when (result) {
+                is CachedChatRepository.Result.Loading -> {}
+                is CachedChatRepository.Result.Success -> {
+                    _messages.clear(); _messages.addAll(result.data.messages.map { it.copy(isStreaming = false) })
+                    _toolCalls.clear(); _toolCalls.addAll(result.data.toolCalls)
+                    rebuildMessageToolCallMapping(); updateMessageToolCallMap(); updateDisplayMessages()
+                    totalMessageCount = result.data.messages.size; hasMoreHistory = false
+                    _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = null)
+                }
+                is CachedChatRepository.Result.Error -> _uiState.value = UiState.Error(result.message)
             }
         }
     }
 
-    private fun rebuildMessageToolCallMapping() {
-        messageToToolCalls.clear()
-
-        for (message in _messages) {
-            if (message.role != "assistant") continue
-
-            val content = message.content.trim()
-            if (!content.startsWith("[") && !content.startsWith("{")) continue
-
+    /** 加载更早的历史消息（向上翻页） */
+    fun loadOlderMessages() {
+        if (isLoadingHistory || !hasMoreHistory) return
+        val sessionId = currentSessionId ?: return
+        isLoadingHistory = true
+        viewModelScope.launch {
             try {
-                val toolUseIds = extractToolUseIdsFromContent(content)
-                if (toolUseIds.isNotEmpty()) {
-                    messageToToolCalls[message.id] = toolUseIds.toMutableList()
-                }
-            } catch (e: Exception) {
-                // 解析失败，跳过
-            }
-        }
-
-        val associatedIds = messageToToolCalls.values.flatten().toSet()
-        val unassociated = _toolCalls.filter { it.id !in associatedIds }
-
-        if (unassociated.isNotEmpty()) {
-            var lastAssistantMessageId: String? = null
-            for (message in _messages) {
-                if (message.role == "assistant") {
-                    lastAssistantMessageId = message.id
-                }
-            }
-
-            for (toolCall in unassociated) {
-                val toolCallTime = toolCall.createdAt.toLongOrNull() ?: 0
-                var bestMessageId: String? = null
-
-                for (message in _messages) {
-                    if (message.role == "assistant") {
-                        val messageTime = message.timestamp.toLongOrNull() ?: 0
-                        if (messageTime <= toolCallTime) {
-                            bestMessageId = message.id
-                        } else {
-                            break
+                val oldestTimestamp = _messages.minOfOrNull { it.timestamp.toLongOrNull() ?: Long.MAX_VALUE }?.toString() ?: return@launch
+                val result = cachedChatRepository.getOlderMessages(sessionId, oldestTimestamp)
+                when (result) {
+                    is CachedChatRepository.Result.Success -> {
+                        if (result.data.isEmpty()) { hasMoreHistory = false }
+                        else {
+                            val sortedOlder = result.data.sortedBy { it.timestamp.toLongOrNull() ?: 0L }.map { it.copy(isStreaming = false) }
+                            _messages.addAll(0, sortedOlder); updateDisplayMessages()
+                            hasMoreHistory = _messages.size < totalMessageCount
                         }
                     }
+                    is CachedChatRepository.Result.Error -> android.util.Log.e(TAG, "加载更早消息失败: ${result.message}")
+                    is CachedChatRepository.Result.Loading -> {}
                 }
-
-                if (bestMessageId == null) {
-                    bestMessageId = lastAssistantMessageId
-                }
-
-                if (bestMessageId != null) {
-                    messageToToolCalls.getOrPut(bestMessageId) { mutableListOf() }.add(toolCall.id)
-                }
-            }
+            } catch (e: Exception) { android.util.Log.e(TAG, "加载更早消息异常", e) }
+            finally { isLoadingHistory = false }
         }
-    }
-
-    private fun extractToolUseIdsFromContent(content: String): List<String> {
-        val ids = mutableListOf<String>()
-        try {
-            if (content.startsWith("[")) {
-                val jsonArray = json.parseToJsonElement(content).jsonArray
-                for (element in jsonArray) {
-                    if (element is JsonObject) {
-                        if (element["type"]?.jsonPrimitive?.content == "tool_use") {
-                            element["id"]?.jsonPrimitive?.content?.let { ids.add(it) }
-                        }
-                    }
-                }
-            } else if (content.startsWith("{")) {
-                val jsonObj = json.parseToJsonElement(content).jsonObject
-                if (jsonObj["type"]?.jsonPrimitive?.content == "tool_use") {
-                    jsonObj["id"]?.jsonPrimitive?.content?.let { ids.add(it) }
-                }
-            }
-        } catch (_: Exception) {
-        }
-        return ids
     }
 
     fun abortExecution() {
         viewModelScope.launch {
             try {
-                currentSessionId?.let { sessionId ->
-                    webSocketManager.interruptGeneration(sessionId)
-                }
-
+                currentSessionId?.let { webSocketManager.interruptGeneration(it) }
                 cachedChatRepository.interruptAgent()
-                _uiState.value = UiState.Success(
-                    messages = _messages.toList(),
-                    toolCalls = _toolCalls.toList(),
-                    executionStatus = ExecutionStatus(
-                        status = "idle",
-                        currentTurn = 0,
-                        maxTurns = 100,
-                        progress = 0,
-                        message = "已中断"
-                    )
-                )
-            } catch (e: Exception) {
-                // 忽略中断错误
-            }
+                _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(),
+                    executionStatus = ExecutionStatus(status = "idle", currentTurn = 0, maxTurns = 100, progress = 0, message = "已中断"))
+            } catch (_: Exception) {}
         }
     }
 
-    // ==================== 文件上传 ====================
-
-    /**
-     * 上传文件到 Worker 工作区
-     *
-     * @param files 要上传的文件列表
-     * @param directory 目标目录 (默认为 "uploads")
-     * @param onProgress 进度回调 (当前索引, 总数, 当前文件名)
-     * @param onComplete 完成回调 (成功数量, 失败数量, 失败文件名列表)
-     */
-    fun uploadFilesToWorkdir(
-        files: List<FileInfo>,
-        directory: String = "uploads",
-        onProgress: ((Int, Int, String) -> Unit)? = null,
-        onComplete: (Int, Int, List<String>) -> Unit
-    ) {
+    fun uploadFilesToWorkdir(files: List<FileInfo>, directory: String = "uploads", onProgress: ((Int, Int, String) -> Unit)? = null, onComplete: (Int, Int, List<String>) -> Unit) {
         viewModelScope.launch {
             val sessionId = currentSessionId
-            if (sessionId == null) {
-                onComplete(0, files.size, files.map { it.name })
-                return@launch
-            }
-
-            if (files.isEmpty()) {
-                onComplete(0, 0, emptyList())
-                return@launch
-            }
-
-            android.util.Log.d(TAG, "开始上传文件到工作区: sessionId=$sessionId, 文件数=${files.size}")
-
-            // 转换文件列表
+            if (sessionId == null) { onComplete(0, files.size, files.map { it.name }); return@launch }
+            if (files.isEmpty()) { onComplete(0, 0, emptyList()); return@launch }
             val fileContents = files.map { it.name to it.content }
-
-            // 调用 Repository 上传
-            val result = cachedChatRepository.uploadFilesToWorkdir(
-                sessionId = sessionId,
-                fileContents = fileContents,
-                directory = directory
-            )
-
+            val result = cachedChatRepository.uploadFilesToWorkdir(sessionId = sessionId, fileContents = fileContents, directory = directory)
             when (result) {
                 is CachedChatRepository.Result.Success -> {
-                    val uploadResult = result.data
-                    val successCount = uploadResult.uploaded.size
-                    val failedCount = uploadResult.failed.size
-                    val failedNames = uploadResult.failed.map { it.name }
-
-                    android.util.Log.i(TAG, "文件上传完成: 成功=$successCount, 失败=$failedCount")
-
-                    // 发送系统消息通知用户文件已上传
-                    if (successCount > 0) {
-                        val fileNames = uploadResult.uploaded.joinToString(", ") { it.name }
-                        val systemMessage = Message(
-                            id = UUID.randomUUID().toString(),
-                            role = "system",
-                            content = "📎 已上传 $successCount 个文件到工作区: $fileNames",
-                            timestamp = System.currentTimeMillis().toString()
-                        )
-                        _messages.add(systemMessage)
+                    val r = result.data
+                    if (r.uploaded.isNotEmpty()) {
+                        val names = r.uploaded.joinToString(", ") { it.name }
+                        _messages.add(Message(id = UUID.randomUUID().toString(), role = "system", content = "📎 已上传 ${r.uploaded.size} 个文件: $names", timestamp = System.currentTimeMillis().toString()))
                         emitUiStateUpdate()
                     }
-
-                    onComplete(successCount, failedCount, failedNames)
+                    onComplete(r.uploaded.size, r.failed.size, r.failed.map { it.name })
                 }
-                is CachedChatRepository.Result.Error -> {
-                    android.util.Log.e(TAG, "文件上传失败: ${result.message}")
-                    onComplete(0, files.size, files.map { it.name })
-                }
-                is CachedChatRepository.Result.Loading -> {
-                    // 忽略加载状态
-                }
+                is CachedChatRepository.Result.Error -> onComplete(0, files.size, files.map { it.name })
+                is CachedChatRepository.Result.Loading -> {}
             }
         }
     }
 
-    /**
-     * 用于将本地临时会话转换为真实会话的回调
-     * 由 MainActivity 设置，用于协调 SessionViewModel 和 ChatViewModel
-     */
     var onConvertLocalSession: (suspend (tempSessionId: String) -> Session?)? = null
 
-    /**
-     * 确保有有效的会话
-     * 如果当前是本地临时会话，会先调用后端创建真实会话
-     */
     private suspend fun ensureSession(): Session? {
-        android.util.Log.d(TAG, "ensureSession() - currentSessionId: $currentSessionId, isLocalOnlySession: $isLocalOnlySession")
-
-        // 如果当前是本地临时会话，需要先创建真实会话
         if (isLocalOnlySession && currentSessionId != null) {
-            android.util.Log.d(TAG, "本地临时会话需要转换为真实会话: $currentSessionId")
-            val tempSessionId = currentSessionId!!
-
-            // 调用回调将本地临时会话转换为真实会话
-            val realSession = onConvertLocalSession?.invoke(tempSessionId)
-
-            if (realSession != null) {
-                // 更新当前会话ID为真实会话ID
-                currentSessionId = realSession.id
-                isLocalOnlySession = false
-                saveSessionToLocalStore(realSession.id)
-                android.util.Log.d(TAG, "本地临时会话已转换为真实会话: ${realSession.id}")
-                return realSession
-            } else {
-                android.util.Log.e(TAG, "转换本地临时会话失败")
-                return null
-            }
+            val realSession = onConvertLocalSession?.invoke(currentSessionId!!)
+            if (realSession != null) { currentSessionId = realSession.id; isLocalOnlySession = false; saveSessionToLocalStore(realSession.id); return realSession }
+            return null
         }
-
-        return currentSessionId?.let { id ->
-            android.util.Log.d(TAG, "复用现有会话: $id")
-            Session(id = id, title = "", createdAt = "", updatedAt = "")
-        } ?: run {
-            android.util.Log.d(TAG, "创建新会话...")
+        return currentSessionId?.let { Session(id = it, title = "", createdAt = "", updatedAt = "") } ?: run {
             val result = cachedChatRepository.createSession(null, "qwen-plus")
             when (result) {
-                is CachedChatRepository.Result.Success -> {
-                    val session = result.data
-                    currentSessionId = session.id
-                    isLocalOnlySession = false
-                    saveSessionToLocalStore(session.id)
-                    android.util.Log.d(TAG, "新会话已创建并保存: ${session.id}")
-                    session
-                }
-                is CachedChatRepository.Result.Error -> {
-                    android.util.Log.e(TAG, "创建会话失败: ${result.message}")
-                    null
-                }
-                is CachedChatRepository.Result.Loading -> null
+                is CachedChatRepository.Result.Success -> { val s = result.data; currentSessionId = s.id; isLocalOnlySession = false; saveSessionToLocalStore(s.id); s }
+                else -> null
             }
         }
     }
 
     fun clearSession() {
-        android.util.Log.d(TAG, "clearSession() - 清空当前会话")
-        currentSessionId = null
-        _messages.clear()
-        _toolCalls.clear()
-        _uiState.value = UiState.Idle
-
-        viewModelScope.launch {
-            sessionLocalStore?.clearSessionId()
-            android.util.Log.d(TAG, "本地存储的会话ID已清除")
-        }
+        currentSessionId = null; clearInternalState(); _uiState.value = UiState.Idle
+        viewModelScope.launch { sessionLocalStore?.clearSessionId() }
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        webSocketManager.disconnect()
+    private fun clearInternalState() {
+        _messages.clear(); _toolCalls.clear(); _displayMessages.clear(); _messageToolCallMap.clear()
+        messageToToolCalls.clear(); unassociatedToolCallIds.clear(); pendingToolInput.clear()
+        hasMoreHistory = false; isLoadingHistory = false; totalMessageCount = 0
     }
+
+    override fun onCleared() { super.onCleared(); webSocketManager.disconnect() }
 
     companion object {
         private const val TAG = "ChatViewModel"
-
         fun provideFactory(
             cachedChatRepository: CachedChatRepository,
-            tokenManager: com.example.claw_code_application.data.local.TokenManager,
+            tokenManager: TokenManager,
             sessionLocalStore: SessionLocalStore? = null,
             notificationManager: NotificationManager? = null,
             pushMessageStore: PushMessageStore? = null
-        ): ViewModelProvider.Factory {
-            return object : ViewModelProvider.Factory {
-                @Suppress("UNCHECKED_CAST")
-                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                    return ChatViewModel(
-                        cachedChatRepository = cachedChatRepository,
-                        tokenManager = tokenManager,
-                        sessionLocalStore = sessionLocalStore,
-                        notificationManager = notificationManager,
-                        pushMessageStore = pushMessageStore
-                    ) as T
-                }
-            }
+        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = ChatViewModel(
+                cachedChatRepository = cachedChatRepository, tokenManager = tokenManager,
+                sessionLocalStore = sessionLocalStore, notificationManager = notificationManager, pushMessageStore = pushMessageStore
+            ) as T
         }
     }
 }
