@@ -99,36 +99,34 @@ fun ChatScreen(
         }
     }
 
-    // 判断是否允许自动滚动：在底部附近且用户没有主动滑动
+    // 判断是否允许自动滚动：在顶部附近（reverseLayout中item0=最新消息在底部）且用户没有主动滑动
     val canAutoScroll by remember {
         derivedStateOf {
-            val layoutInfo = listState.layoutInfo
-            val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            val totalItems = layoutInfo.totalItemsCount
-            lastVisibleIndex >= totalItems - 2 && !userScrolling
+            listState.firstVisibleItemIndex <= 1 && !userScrolling
         }
     }
 
-    // 消息变化时自动滚动到底部（最新消息）
+    // 消息变化时自动滚动到底部（最新消息，reverseLayout中item0在底部）
     LaunchedEffect(displayMessages.size) {
         if (displayMessages.isNotEmpty() && canAutoScroll) {
-            listState.animateScrollToItem(displayMessages.size - 1)
+            listState.animateScrollToItem(0)
         }
     }
 
     // 会话加载完成后直接定位到底部（无动画，避免"从顶部跳到底部"的视觉效果）
     LaunchedEffect(uiState) {
         if (uiState is ChatViewModel.UiState.Success && displayMessages.isNotEmpty()) {
-            listState.scrollToItem(displayMessages.size - 1)
+            listState.scrollToItem(0)
         }
     }
 
-    // 检测是否需要加载更多历史消息（正常布局中，顶部=最老消息）
+    // 检测是否需要加载更多历史消息（reverseLayout中，底部=历史消息末尾）
     val shouldLoadMore by remember {
         derivedStateOf {
             val layoutInfo = listState.layoutInfo
-            val firstVisibleIndex = layoutInfo.visibleItemsInfo.firstOrNull()?.index ?: 0
-            firstVisibleIndex <= 1 && viewModel.hasMoreHistory && !viewModel.isLoadingHistory
+            val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val totalItems = layoutInfo.totalItemsCount
+            lastVisibleIndex >= totalItems - 3 && viewModel.hasMoreHistory && !viewModel.isLoadingHistory
         }
     }
 
@@ -369,44 +367,13 @@ private fun ChatMessageList(
     val colors = AppColor.current
     LazyColumn(
         state = listState,
+        reverseLayout = true,
+        verticalArrangement = Arrangement.Top,
         contentPadding = PaddingValues(vertical = 16.dp),
         modifier = Modifier.fillMaxSize()
     ) {
-        // 加载历史消息指示器（正常布局中显示在顶部=视觉上的顶部）
-        if (viewModel.isLoadingHistory) {
-            item(key = "loading_history") {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp,
-                        color = colors.PrimaryLight
-                    )
-                }
-            }
-        } else if (viewModel.hasMoreHistory) {
-            item(key = "load_more_hint") {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "↑ 向上滑动加载更多",
-                        color = colors.TextSecondary,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-        }
-
         items(
-            items = displayMessages.asReversed(),
+            items = displayMessages,
             key = { message -> message.id },
             contentType = { message ->
                 when (message.role) {
@@ -446,6 +413,39 @@ private fun ChatMessageList(
                     steps = steps,
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
+            }
+        }
+
+        // 加载历史消息指示器（reverseLayout中显示在底部=视觉上的顶部）
+        if (viewModel.isLoadingHistory) {
+            item(key = "loading_history") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = colors.PrimaryLight
+                    )
+                }
+            }
+        } else if (viewModel.hasMoreHistory) {
+            item(key = "load_more_hint") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "↑ 向上滑动加载更多",
+                        color = colors.TextSecondary,
+                        fontSize = 12.sp
+                    )
+                }
             }
         }
 
