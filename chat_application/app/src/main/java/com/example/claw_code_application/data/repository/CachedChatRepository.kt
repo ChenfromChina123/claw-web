@@ -235,12 +235,22 @@ class CachedChatRepository(
             val remoteDetail = fetchSessionDetailFromNetwork(sessionId)
             
             if (remoteDetail != null) {
-                // 5. 更新本地缓存
-                val (sessionEntity, messageEntities, toolCallEntities) = remoteDetail.toCacheData()
-                sessionDao.insertSession(sessionEntity)
-                messageDao.insertMessages(messageEntities)
-                toolCallDao.insertToolCalls(toolCallEntities)
-                Logger.d(TAG, "更新会话缓存: sessionId=$sessionId, ${remoteDetail.messages.size} 条消息")
+                // 5. 仅在远端数据发生变化时更新本地缓存，避免无效全量写回
+                val shouldUpdateCache = localSession == null || forceRefresh || isRemoteDetailChanged(
+                    localSession = localSession,
+                    localMessages = localMessages,
+                    localToolCalls = localToolCalls,
+                    remoteDetail = remoteDetail
+                )
+                if (shouldUpdateCache) {
+                    val (sessionEntity, messageEntities, toolCallEntities) = remoteDetail.toCacheData()
+                    sessionDao.insertSession(sessionEntity)
+                    messageDao.insertMessages(messageEntities)
+                    toolCallDao.insertToolCalls(toolCallEntities)
+                    Logger.d(TAG, "更新会话缓存: sessionId=$sessionId, ${remoteDetail.messages.size} 条消息")
+                } else {
+                    Logger.d(TAG, "远端数据未变化，跳过缓存写回: sessionId=$sessionId")
+                }
                 
                 // 6. 发射最新数据
                 emit(Result.Success(remoteDetail))
@@ -782,6 +792,29 @@ class CachedChatRepository(
             Logger.e(TAG, "获取会话详情异常", e)
             null
         }
+    }
+
+    /**
+     * 判断远端会话详情是否相对本地缓存发生变化。
+     * 通过关键字段与尾部标识快速比对，避免每次都触发全量写入。
+     */
+    private fun isRemoteDetailChanged(
+        localSession: com.example.claw_code_application.data.local.db.SessionEntity,
+        localMessages: List<com.example.claw_code_application.data.local.db.MessageEntity>,
+        localToolCalls: List<com.example.claw_code_application.data.local.db.ToolCallEntity>,
+        remoteDetail: SessionDetail
+    ): Boolean {
+        if (localSession.updatedAt != remoteDetail.session.updatedAt) return true
+        if (localMessages.size != remoteDetail.messages.size) return true
+        if (localToolCalls.size != remoteDetail.toolCalls.size) return true
+
+        val localLastMessageId = localMessages.lastOrNull()?.id
+        val remoteLastMessageId = remoteDetail.messages.lastOrNull()?.id
+        if (localLastMessageId != remoteLastMessageId) return true
+
+        val localLastToolId = localToolCalls.lastOrNull()?.id
+        val remoteLastToolId = remoteDetail.toolCalls.lastOrNull()?.id
+        return localLastToolId != remoteLastToolId
     }
 }
 

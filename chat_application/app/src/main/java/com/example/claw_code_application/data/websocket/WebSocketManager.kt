@@ -137,6 +137,18 @@ class WebSocketManager {
     )
 
     /**
+     * 安全发射事件，避免缓冲区满时 tryEmit 静默丢失。
+     * 先尝试无阻塞发射，失败后切到协程挂起发射保证送达。
+     */
+    private fun emitEventSafely(event: WebSocketEvent) {
+        if (!_incomingMessages.tryEmit(event)) {
+            scope.launch {
+                _incomingMessages.emit(event)
+            }
+        }
+    }
+
+    /**
      * 连接WebSocket
      *
      * @param token 认证Token
@@ -444,7 +456,7 @@ class WebSocketManager {
                 "error" -> {
                     val errorMessage = jsonObject["message"]?.jsonPrimitive?.content ?: "Unknown error"
                     Log.e(TAG, "Server error: $errorMessage")
-                    _incomingMessages.tryEmit(WebSocketEvent.Error(errorMessage))
+                    emitEventSafely(WebSocketEvent.Error(errorMessage))
                 }
 
                 else -> {
@@ -617,6 +629,6 @@ class WebSocketManager {
             }
         }
 
-        _incomingMessages.tryEmit(webSocketEvent)
+        emitEventSafely(webSocketEvent)
     }
 }

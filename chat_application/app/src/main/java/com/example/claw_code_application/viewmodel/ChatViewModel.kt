@@ -228,6 +228,7 @@ class ChatViewModel(
             }
             pendingToolUpdates.clear()
             updateMessageToolCallMap()
+            rebuildTaskToolCallCache()
             emitUiStateUpdate()
         }
     }
@@ -311,6 +312,19 @@ class ChatViewModel(
         messageContentBuffers.remove(messageId)
     }
 
+    /**
+     * 迁移消息缓冲区键值（用于 messageId 变更场景）。
+     * 避免 message_saved 后后续 delta 写入新 ID 时丢失既有缓冲内容。
+     */
+    internal fun migrateMessageBuffer(oldMessageId: String, newMessageId: String) {
+        if (oldMessageId == newMessageId) return
+        val oldBuffer = messageContentBuffers.remove(oldMessageId) ?: return
+        val targetBuffer = messageContentBuffers.getOrPut(newMessageId) { StringBuilder() }
+        if (targetBuffer.isEmpty()) {
+            targetBuffer.append(oldBuffer.toString())
+        }
+    }
+
     private fun restoreSessionFromLocalStore() {
         viewModelScope.launch {
             sessionLocalStore?.let { store ->
@@ -356,6 +370,7 @@ class ChatViewModel(
                         is CachedChatRepository.Result.Success -> {
                             result.data.messages.forEach { msg -> if (_messages.none { it.id == msg.id }) _messages.add(msg) }
                             _toolCalls.clear(); _toolCalls.addAll(result.data.toolCalls)
+                            rebuildTaskToolCallCache()
                             _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = result.data.executionStatus)
                         }
                         is CachedChatRepository.Result.Error -> _uiState.value = UiState.Error(result.message)
@@ -405,6 +420,7 @@ class ChatViewModel(
                                         _toolCalls.addAll(remoteToolCalls)
                                         rebuildMessageToolCallMapping()
                                         updateMessageToolCallMap()
+                                        rebuildTaskToolCallCache()
                                         updateDisplayMessages()
 
                                         totalMessageCount = remoteMessages.size
@@ -438,6 +454,7 @@ class ChatViewModel(
                     _messages.clear(); _messages.addAll(result.data.messages.map { it.copy(isStreaming = false) })
                     _toolCalls.clear(); _toolCalls.addAll(result.data.toolCalls)
                     rebuildMessageToolCallMapping(); updateMessageToolCallMap(); updateDisplayMessages()
+                    rebuildTaskToolCallCache()
                     totalMessageCount = result.data.messages.size; hasMoreHistory = false
                     _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = null)
                 }
@@ -531,6 +548,7 @@ class ChatViewModel(
     private fun clearInternalState() {
         _messages.clear(); _toolCalls.clear(); _displayMessages.clear(); _messageToolCallMap.clear()
         messageToToolCalls.clear(); unassociatedToolCallIds.clear(); pendingToolInput.clear()
+        messageContentBuffers.clear(); _taskToolCallCache.clear()
         hasMoreHistory = false; isLoadingHistory = false; totalMessageCount = 0
     }
 
@@ -545,6 +563,7 @@ class ChatViewModel(
             val entities = dao.getTasksBySessionOnce(sessionId)
             _tasks.clear()
             _tasks.addAll(entities.map { it.toBackgroundTask() })
+            rebuildTaskToolCallCache()
         } catch (e: Exception) {
             android.util.Log.w(TAG, "从数据库加载任务失败: ${e.message}")
         }

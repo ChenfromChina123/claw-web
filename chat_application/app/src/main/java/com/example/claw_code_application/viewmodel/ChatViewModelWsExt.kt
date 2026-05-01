@@ -115,6 +115,8 @@ private fun ChatViewModel.handleMessageSaved(event: WebSocketManager.WebSocketEv
                 if (index != -1) {
                     val oldMsg = _messages[index]
                     if (oldMsg.id != event.messageId) {
+                        // messageId 从临时 ID 切换到服务端 ID 时，迁移流式缓冲区
+                        migrateMessageBuffer(oldMsg.id, event.messageId)
                         _messages[index] = oldMsg.copy(id = event.messageId)
                         streamingMessageId = event.messageId
                         updateStreamingMessage(event.messageId)
@@ -280,6 +282,7 @@ private fun ChatViewModel.handleTaskStatusChanged(event: WebSocketManager.WebSoc
 
     vmScope.launch { saveTaskToDatabase(updatedTask) }
 
+    rebuildTaskToolCallCache()
     updateDisplayMessages()
     emitUiStateUpdate()
 }

@@ -569,11 +569,6 @@ private fun TaskStatusBar(
 
     if (tasks.isEmpty()) return
     
-    // 当 tasks 或 toolCalls 变化时，重建缓存
-    LaunchedEffect(tasks.size, viewModel.toolCalls.size) {
-        viewModel.rebuildTaskToolCallCache()
-    }
-
     val activeTasks = tasks.filter { it.status != "completed" && it.status != "cancelled" }
     val completedTasks = tasks.filter { it.status == "completed" || it.status == "cancelled" }
 
