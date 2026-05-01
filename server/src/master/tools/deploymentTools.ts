@@ -212,6 +212,53 @@ export const disableExternalAccessTool = {
   }
 }
 
+/**
+ * 发布网站工具
+ *
+ * Agent 调用此工具将项目发布为可访问的网站，
+ * 部署成功后返回预览URL，用户可直接点击预览。
+ */
+export const publishWebsiteTool = {
+  name: 'publish_website',
+  description: '将项目发布为可访问的网站。部署项目并开启外部访问，返回预览URL供用户直接访问。适用于用户要求"发布网站"、"部署上线"、"预览效果"等场景。',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description: '项目名称'
+      },
+      type: {
+        type: 'string',
+        enum: ['nodejs', 'python', 'static', 'custom'],
+        description: '项目类型'
+      },
+      startCommand: {
+        type: 'string',
+        description: '启动命令，如 "npm start"、"python app.py"、"npx serve ."'
+      },
+      buildCommand: {
+        type: 'string',
+        description: '构建命令（可选），如 "npm install && npm run build"'
+      },
+      sourceType: {
+        type: 'string',
+        enum: ['upload', 'git', 'template'],
+        description: '源代码来源，默认 upload（使用工作区已有代码）'
+      },
+      sourceUrl: {
+        type: 'string',
+        description: 'Git 仓库 URL（当 sourceType 为 git 时必填）'
+      },
+      envVars: {
+        type: 'object',
+        description: '环境变量（可选）'
+      }
+    },
+    required: ['name', 'type', 'startCommand']
+  }
+}
+
 // ==================== 工具执行函数 ====================
 
 /**
@@ -449,6 +496,65 @@ export async function executeDisableExternalAccess(
   }
 }
 
+/**
+ * 执行发布网站
+ *
+ * 一站式部署+开启外部访问，返回预览URL。
+ * 这是 Agent 推送网站的核心工具。
+ */
+export async function executePublishWebsite(
+  userId: string,
+  params: {
+    name: string
+    type: 'nodejs' | 'python' | 'static' | 'custom'
+    startCommand: string
+    buildCommand?: string
+    sourceType?: 'upload' | 'git' | 'template'
+    sourceUrl?: string
+    envVars?: Record<string, string>
+  }
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const deploymentService = getProjectDeploymentService()
+
+    const deployment = await deploymentService.createProject({
+      userId,
+      name: params.name,
+      type: params.type,
+      sourceType: params.sourceType || 'upload',
+      sourceUrl: params.sourceUrl,
+      buildCommand: params.buildCommand,
+      startCommand: params.startCommand,
+      envVars: params.envVars,
+      enableExternalAccess: true
+    })
+
+    const previewUrl = deployment.publicUrl || ''
+
+    return {
+      success: true,
+      data: {
+        projectId: deployment.projectId,
+        name: deployment.name,
+        status: deployment.status,
+        domain: deployment.domain,
+        publicUrl: previewUrl,
+        previewUrl,
+        internalPort: deployment.internalPort,
+        message: previewUrl
+          ? `网站已发布成功！预览地址：${previewUrl}`
+          : '网站部署成功，但外部访问配置失败，请稍后重试开启外部访问。'
+      }
+    }
+  } catch (error) {
+    console.error('[DeploymentTools] 发布网站失败:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '发布网站失败'
+    }
+  }
+}
+
 // ==================== 工具集合 ====================
 
 /**
@@ -463,7 +569,8 @@ export const deploymentToolDefinitions = [
   listProjectsTool,
   deleteProjectTool,
   enableExternalAccessTool,
-  disableExternalAccessTool
+  disableExternalAccessTool,
+  publishWebsiteTool
 ]
 
 /**
@@ -478,5 +585,6 @@ export const deploymentToolExecutors: Record<string, (userId: string, params: an
   list_projects: executeListProjects,
   delete_project: executeDeleteProject,
   enable_external_access: executeEnableExternalAccess,
-  disable_external_access: executeDisableExternalAccess
+  disable_external_access: executeDisableExternalAccess,
+  publish_website: executePublishWebsite
 }

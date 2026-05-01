@@ -67,6 +67,20 @@ fun ChatScreen(
     var showSkillPicker by remember { mutableStateOf(false) }
     val selectedSkills = remember { mutableStateListOf<SkillAttachment>() }
 
+    // 网站预览弹窗状态
+    var showWebsitePreview by remember { mutableStateOf(false) }
+    var websitePreviewUrl by remember { mutableStateOf("") }
+    var websitePreviewTitle by remember { mutableStateOf("网站预览") }
+
+    /**
+     * 处理预览网站按钮点击
+     */
+    val handlePreviewWebsite: (String) -> Unit = { url ->
+        websitePreviewUrl = url
+        websitePreviewTitle = "网站预览"
+        showWebsitePreview = true
+    }
+
     val displayMessages = viewModel.displayMessages
 
     val density = LocalDensity.current
@@ -229,6 +243,15 @@ fun ChatScreen(
                 }
                 showSkillPicker = false
             }
+        )
+    }
+
+    // 网站预览弹窗
+    if (showWebsitePreview && websitePreviewUrl.isNotBlank()) {
+        WebsitePreviewDialog(
+            url = websitePreviewUrl,
+            title = websitePreviewTitle,
+            onDismiss = { showWebsitePreview = false }
         )
     }
 
@@ -596,7 +619,8 @@ private fun TaskStatusBar(viewModel: ChatViewModel) {
                                     CompactToolCallCard(
                                         toolCall = toolCall,
                                         expanded = false,
-                                        onExpandedChange = {}
+                                        onExpandedChange = {},
+                                        onPreviewWebsite = handlePreviewWebsite
                                     )
                                 }
                             }
@@ -621,7 +645,8 @@ private fun TaskStatusBar(viewModel: ChatViewModel) {
                                     CompactToolCallCard(
                                         toolCall = toolCall,
                                         expanded = false,
-                                        onExpandedChange = {}
+                                        onExpandedChange = {},
+                                        onPreviewWebsite = handlePreviewWebsite
                                     )
                                 }
                             }

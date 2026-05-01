@@ -517,6 +517,38 @@ private fun formatToolOutput(output: kotlinx.serialization.json.JsonElement?): S
     }
 }
 
+/** 部署相关工具名称 */
+private val DEPLOY_TOOL_NAMES = setOf(
+    "publish_website",
+    "deploy_project",
+    "enable_external_access"
+)
+
+/**
+ * 从工具调用结果中提取预览URL
+ *
+ * 检查工具是否为部署类工具，并从输出中提取 previewUrl/publicUrl
+ */
+private fun extractPreviewUrlFromToolCall(toolCall: ToolCall): String? {
+    if (toolCall.toolName !in DEPLOY_TOOL_NAMES) return null
+    if (toolCall.status != "completed") return null
+    if (toolCall.toolOutput == null) return null
+
+    return try {
+        val output = toolCall.toolOutput
+        if (output is kotlinx.serialization.json.JsonObject) {
+            val data = output["data"]
+            if (data is kotlinx.serialization.json.JsonObject) {
+                val previewUrl = data["previewUrl"]?.jsonPrimitive?.content
+                val publicUrl = data["publicUrl"]?.jsonPrimitive?.content
+                previewUrl?.ifBlank { null } ?: publicUrl?.ifBlank { null }
+            } else null
+        } else null
+    } catch (_: Exception) {
+        null
+    }
+}
+
 /**
  * 极简版工具调用卡片 - 单行显示，类似图2风格
  */
@@ -526,7 +558,8 @@ fun CompactToolCallCard(
     modifier: Modifier = Modifier,
     expanded: Boolean = false,
     onExpandedChange: (Boolean) -> Unit = {},
-    onRetry: () -> Unit = {}
+    onRetry: () -> Unit = {},
+    onPreviewWebsite: ((String) -> Unit)? = null
 ) {
     val statusConfig = getStatusConfig(toolCall.status)
 
@@ -633,6 +666,34 @@ fun CompactToolCallCard(
                             color = statusColor,
                             fontWeight = FontWeight.Medium
                         )
+                    }
+                }
+
+                // 预览按钮（部署类工具成功后显示）
+                val previewUrl = remember(toolCall.toolName, toolCall.toolOutput, toolCall.status) {
+                    extractPreviewUrlFromToolCall(toolCall)
+                }
+                if (previewUrl != null && onPreviewWebsite != null) {
+                    Surface(
+                        onClick = { onPreviewWebsite.invoke(previewUrl) },
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0x1460A5FA),
+                        border = BorderStroke(0.5.dp, Color(0x4D60A5FA)),
+                        modifier = Modifier.padding(start = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Text(text = "🌐", fontSize = 11.sp)
+                            Text(
+                                text = "预览",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF93C5FD)
+                            )
+                        }
                     }
                 }
 

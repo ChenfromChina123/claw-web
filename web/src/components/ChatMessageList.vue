@@ -30,6 +30,8 @@ import ToolUseEnhanced from './ToolUseEnhanced.vue'
 import TaskPipeline from './TaskPipeline.vue'
 import FileWriteToolInline from './FileWriteToolInline.vue'
 import FileOutputCard from './FileOutputCard.vue'
+import WebsitePreviewModal from './WebsitePreviewModal.vue'
+import { getPreviewUrl } from '@/api/deploymentApi'
 import { StopCircleOutline, ChevronDownOutline, ListOutline, ArrowUndoOutline, CreateOutline, CheckmarkOutline, CloseOutline } from '@vicons/ionicons5'
 import { interruptAgent } from '@/api/agentApi'
 import { extractIdeUserDisplay, extractTerminalRefs, stripTerminalRefs, type TerminalRefInMessage } from '@/utils/ideUserMessageMarkers'
@@ -606,6 +608,111 @@ function getStatusType(status: string): string {
 function isShellToolName(name: string): boolean {
   const n = name.toLowerCase()
   return n === 'bash' || n === 'powershell' || n === 'shell'
+}
+
+/** 部署相关工具名称 */
+const DEPLOY_TOOL_NAMES = new Set([
+  'publish_website',
+  'deploy_project',
+  'enable_external_access'
+])
+
+/**
+ * 判断工具调用是否为部署类工具且有预览URL
+ *
+ * 检查条件：
+ * 1. 工具名称为 publish_website / deploy_project / enable_external_access
+ * 2. 工具已完成（有输出）
+ * 3. 输出中包含 previewUrl / publicUrl / projectId
+ */
+function isDeployToolWithPreview(toolCall: ToolCall): boolean {
+  if (!DEPLOY_TOOL_NAMES.has(toolCall.toolName)) return false
+  if (!toolCall.toolOutput) return false
+
+  try {
+    const output = typeof toolCall.toolOutput === 'string'
+      ? JSON.parse(toolCall.toolOutput)
+      : toolCall.toolOutput
+    return !!(output?.data?.previewUrl || output?.data?.publicUrl || output?.data?.projectId)
+  } catch {
+    return false
+  }
+}
+
+/** 网站预览弹窗状态 */
+const showWebsitePreview = ref(false)
+const websitePreviewUrl = ref('')
+const websitePreviewTitle = ref('网站预览')
+
+/**
+ * 从工具调用结果中提取预览URL
+ */
+function extractPreviewInfo(toolCall: ToolCall): { url: string; name: string } | null {
+  try {
+    const output = typeof toolCall.toolOutput === 'string'
+      ? JSON.parse(toolCall.toolOutput)
+      : toolCall.toolOutput
+
+    if (!output?.data) return null
+
+    const url = output.data.previewUrl || output.data.publicUrl || ''
+    const name = output.data.name || '网站预览'
+    const projectId = output.data.projectId || ''
+
+    if (url) return { url, name }
+
+    if (projectId) {
+      return {
+        url: '',
+        name
+      }
+    }
+
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 处理预览网站按钮点击
+ *
+ * 优先使用工具结果中的 previewUrl，
+ * 否则通过 API 获取预览URL。
+ */
+async function handlePreviewWebsite(toolCall: ToolCall): Promise<void> {
+  const info = extractPreviewInfo(toolCall)
+
+  if (info?.url) {
+    websitePreviewUrl.value = info.url
+    websitePreviewTitle.value = info.name
+    showWebsitePreview.value = true
+    return
+  }
+
+  try {
+    const output = typeof toolCall.toolOutput === 'string'
+      ? JSON.parse(toolCall.toolOutput)
+      : toolCall.toolOutput
+    const projectId = output?.data?.projectId
+
+    if (!projectId) {
+      message?.error('无法获取项目ID')
+      return
+    }
+
+    const res = await getPreviewUrl(projectId)
+    if (res.success && res.data?.previewUrl) {
+      websitePreviewUrl.value = res.data.previewUrl
+      websitePreviewTitle.value = info?.name || '网站预览'
+      showWebsitePreview.value = true
+    } else {
+      message?.error('无法获取预览地址，项目可能未开启外部访问')
+    }
+  } catch (err) {
+    console.error('[ChatMessageList] 获取预览URL失败:', err)
+    message?.error('获取预览地址失败')
+  }
 }
 
 function handleFocusTerminalClick(e: Event): void {
@@ -1259,6 +1366,22 @@ async function handleInterruptExecution() {
                               跳转到底部终端面板并聚焦
                             </NTooltip>
 
+                            <!-- 预览按钮：部署/发布网站工具成功后显示 -->
+                            <NTooltip v-if="isDeployToolWithPreview(toolCall)" trigger="hover">
+                              <template #trigger>
+                                <button
+                                  type="button"
+                                  class="tool-call-preview-link"
+                                  aria-label="预览网站"
+                                  @click.stop="handlePreviewWebsite(toolCall)"
+                                >
+                                  <span class="tool-call-preview-icon">🌐</span>
+                                  <span class="tool-call-preview-text">预览</span>
+                                </button>
+                              </template>
+                              点击预览已部署的网站
+                            </NTooltip>
+
                             <!-- 展开/收起图标 -->
                             <span class="tool-call-expand-icon">
                               <Transition name="icon-rotate" mode="out-in">
@@ -1356,6 +1479,20 @@ async function handleInterruptExecution() {
                           </button>
                         </template>
                         跳转到底部终端面板并聚焦
+                      </NTooltip>
+                      <NTooltip v-if="isDeployToolWithPreview(toolCall)" trigger="hover">
+                        <template #trigger>
+                          <button
+                            type="button"
+                            class="tool-call-preview-link"
+                            aria-label="预览网站"
+                            @click.stop="handlePreviewWebsite(toolCall)"
+                          >
+                            <span class="tool-call-preview-icon">🌐</span>
+                            预览
+                          </button>
+                        </template>
+                        点击预览已部署的网站
                       </NTooltip>
                       <span class="tool-call-status">{{
                         toolCall.status === 'pending' ? '执行中...' : toolCall.status
@@ -1506,6 +1643,13 @@ async function handleInterruptExecution() {
         </div>
       </template>
     </NModal>
+
+    <!-- 网站预览弹窗 -->
+    <WebsitePreviewModal
+      v-model:show="showWebsitePreview"
+      :preview-url="websitePreviewUrl"
+      :title="websitePreviewTitle"
+    />
   </div>
 </template>
 
@@ -3847,6 +3991,37 @@ async function handleInterruptExecution() {
 }
 
 .tool-call-terminal-icon {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* 预览链接按钮 */
+.tool-call-preview-link {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.08) 0%, rgba(96, 165, 250, 0.04) 100%);
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tool-call-preview-link:hover {
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.15) 0%, rgba(96, 165, 250, 0.08) 100%);
+  border-color: rgba(96, 165, 250, 0.5);
+  color: #bfdbfe;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(96, 165, 250, 0.15);
+}
+
+.tool-call-preview-icon {
   font-size: 12px;
   opacity: 0.9;
 }

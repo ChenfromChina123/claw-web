@@ -271,6 +271,126 @@ router.get('/:id/logs', authMiddleware, async (req: Request, res: Response) => {
 // ==================== 外部访问路由 ====================
 
 /**
+ * GET /api/deployments/:id/preview-url
+ * 获取项目预览URL
+ *
+ * 返回可直接访问的预览地址，用于前端"预览"按钮。
+ * 如果项目已开启外部访问，返回公网URL；
+ * 否则返回基于 Master 代理的本地预览URL。
+ */
+router.get('/:id/preview-url', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user
+    const { id } = req.params
+
+    const deploymentService = getProjectDeploymentService()
+    const status = await deploymentService.getProjectStatus(id, user.userId)
+
+    if (!status) {
+      return res.status(404).json({
+        success: false,
+        error: '部署不存在'
+      })
+    }
+
+    let previewUrl = ''
+
+    if (status.domain && status.external_access_enabled) {
+      previewUrl = `https://${status.domain}`
+    } else if (status.worker_port && status.internal_port) {
+      const masterHost = process.env.MASTER_HOST || 'localhost'
+      const masterPort = process.env.MASTER_PORT || '3000'
+      previewUrl = `http://${masterHost}:${masterPort}/api/deployments/${id}/proxy`
+    }
+
+    res.json({
+      success: true,
+      data: {
+        projectId: id,
+        previewUrl,
+        status: status.status || status.workerStatus?.status || 'unknown',
+        domain: status.domain || null,
+        internalPort: status.internal_port || null
+      }
+    })
+  } catch (error) {
+    console.error('[DeploymentRoutes] 获取预览URL失败:', error)
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : '获取预览URL失败'
+    })
+  }
+})
+
+/**
+ * GET /api/deployments/:id/proxy
+ * 本地预览代理
+ *
+ * 当项目未开启外部访问时，通过 Master 代理访问 Worker 内的项目。
+ * 这提供了一个无需域名配置的预览方式。
+ */
+router.get('/:id/proxy', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user
+    const { id } = req.params
+
+    const deploymentService = getProjectDeploymentService()
+    const deployment = await deploymentService.getProjectStatus(id, user.userId)
+
+    if (!deployment) {
+      return res.status(404).json({ success: false, error: '部署不存在' })
+    }
+
+    if (deployment.status !== 'running' && deployment.workerStatus?.status !== 'running') {
+      return res.status(503).json({ success: false, error: '项目未运行' })
+    }
+
+    const { getContainerOrchestrator } = await import('../orchestrator/containerOrchestrator')
+    const orchestrator = getContainerOrchestrator()
+    const userMapping = orchestrator.getUserMapping(user.userId)
+
+    if (!userMapping) {
+      return res.status(503).json({ success: false, error: 'Worker 容器不可用' })
+    }
+
+    const containerName = userMapping.container.containerName
+    const internalPort = deployment.internal_port
+
+    if (!containerName || !internalPort) {
+      return res.status(500).json({ success: false, error: '缺少容器信息' })
+    }
+
+    const http = require('http')
+    const proxyReq = http.request(
+      {
+        hostname: containerName,
+        port: internalPort,
+        path: req.url.replace(`/api/deployments/${id}/proxy`, '') || '/',
+        method: req.method,
+        headers: { ...req.headers, host: `${containerName}:${internalPort}` }
+      },
+      (proxyRes: any) => {
+        res.writeHead(proxyRes.statusCode, proxyRes.headers)
+        proxyRes.pipe(res)
+      }
+    )
+
+    proxyReq.on('error', (err: Error) => {
+      console.error('[DeploymentRoutes] 代理请求失败:', err)
+      res.status(502).json({ success: false, error: '代理请求失败' })
+    })
+
+    req.pipe(proxyReq)
+  } catch (error) {
+    console.error('[DeploymentRoutes] 代理预览失败:', error)
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : '代理预览失败'
+    })
+  }
+})
+
+/**
  * POST /api/deployments/:id/external-access
  * 开启外部访问
  */

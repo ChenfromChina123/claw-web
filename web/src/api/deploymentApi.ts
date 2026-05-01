@@ -257,3 +257,43 @@ export async function configureProxy(data: {
   const response = await client.post('/api/external-access/proxy', data)
   return response.data
 }
+
+/**
+ * 获取项目预览URL
+ *
+ * 返回可直接访问的预览地址。
+ * 如果项目已开启外部访问，返回公网URL；
+ * 否则返回基于 Master 代理的本地预览URL。
+ */
+export async function getPreviewUrl(
+  projectId: string
+): Promise<ApiResponse<{
+  projectId: string
+  previewUrl: string
+  status: string
+  domain: string | null
+  internalPort: number | null
+}>> {
+  const response = await client.get(`/api/deployments/${projectId}/preview-url`)
+  return response.data
+}
+
+/**
+ * 开启外部访问
+ */
+export async function enableExternalAccess(
+  projectId: string
+): Promise<ApiResponse<{ domain: string; publicUrl: string }>> {
+  const response = await client.post(`/api/deployments/${projectId}/external-access`)
+  return response.data
+}
+
+/**
+ * 关闭外部访问
+ */
+export async function disableExternalAccess(
+  projectId: string
+): Promise<ApiResponse<void>> {
+  const response = await client.delete(`/api/deployments/${projectId}/external-access`)
+  return response.data
+}
