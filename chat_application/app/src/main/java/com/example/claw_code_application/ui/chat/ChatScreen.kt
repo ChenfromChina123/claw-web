@@ -195,7 +195,20 @@ fun ChatScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // 任务状态区域（输入框上方）
-            TaskStatusBar(viewModel = viewModel)
+            TaskStatusBar(
+                viewModel = viewModel,
+                onPreviewWebsite = handlePreviewWebsite
+            )
+
+            // 新对话快捷操作（仅在消息为空时显示）
+            val messages by viewModel.messages.collectAsStateWithLifecycle()
+            if (messages.isEmpty()) {
+                QuickActionChips(
+                    onActionClick = { prompt ->
+                        onSend(prompt, emptyList())
+                    }
+                )
+            }
 
             // 输入框
             InputBar(
@@ -577,7 +590,10 @@ private fun buildMessageWithSkills(content: String, skills: List<SkillAttachment
  * 任务完成时自动折叠，失败时保持展开
  */
 @Composable
-private fun TaskStatusBar(viewModel: ChatViewModel) {
+private fun TaskStatusBar(
+    viewModel: ChatViewModel,
+    onPreviewWebsite: (String) -> Unit = {}
+) {
     val tasks = viewModel.tasks
     val colors = AppColor.current
 
@@ -620,7 +636,7 @@ private fun TaskStatusBar(viewModel: ChatViewModel) {
                                         toolCall = toolCall,
                                         expanded = false,
                                         onExpandedChange = {},
-                                        onPreviewWebsite = handlePreviewWebsite
+                                        onPreviewWebsite = onPreviewWebsite
                                     )
                                 }
                             }
@@ -646,7 +662,7 @@ private fun TaskStatusBar(viewModel: ChatViewModel) {
                                         toolCall = toolCall,
                                         expanded = false,
                                         onExpandedChange = {},
-                                        onPreviewWebsite = handlePreviewWebsite
+                                        onPreviewWebsite = onPreviewWebsite
                                     )
                                 }
                             }

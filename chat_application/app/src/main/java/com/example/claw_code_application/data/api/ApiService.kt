@@ -276,4 +276,68 @@ interface ApiService {
      */
     @GET("/api/push/messages/unread-count")
     suspend fun getUnreadPushCount(): Response<ApiResponse<Int>>
+
+    // ==================== 项目部署 API ====================
+
+    /**
+     * 获取用户所有部署项目
+     */
+    @GET("/api/deployments")
+    suspend fun getDeployments(): Response<ApiResponse<DeploymentListResponse>>
+
+    /**
+     * 获取部署详情
+     */
+    @GET("/api/deployments/{id}")
+    suspend fun getDeployment(
+        @Path("id") projectId: String
+    ): Response<ApiResponse<ProjectDeployment>>
+
+    /**
+     * 创建部署
+     */
+    @POST("/api/deployments")
+    suspend fun createDeployment(
+        @Body request: CreateDeploymentRequest
+    ): Response<ApiResponse<ProjectDeployment>>
+
+    /**
+     * 启动项目
+     */
+    @POST("/api/deployments/{id}/start")
+    suspend fun startDeployment(
+        @Path("id") projectId: String
+    ): Response<ApiResponse<Unit>>
+
+    /**
+     * 停止项目
+     */
+    @POST("/api/deployments/{id}/stop")
+    suspend fun stopDeployment(
+        @Path("id") projectId: String
+    ): Response<ApiResponse<Unit>>
+
+    /**
+     * 删除部署
+     */
+    @DELETE("/api/deployments/{id}")
+    suspend fun deleteDeployment(
+        @Path("id") projectId: String
+    ): Response<ApiResponse<Unit>>
+
+    /**
+     * 获取预览URL
+     */
+    @GET("/api/deployments/{id}/preview-url")
+    suspend fun getPreviewUrl(
+        @Path("id") projectId: String
+    ): Response<ApiResponse<PreviewUrlResponse>>
+
+    /**
+     * 开启外部访问
+     */
+    @POST("/api/deployments/{id}/external-access")
+    suspend fun enableExternalAccess(
+        @Path("id") projectId: String
+    ): Response<ApiResponse<Map<String, String>>>
 }

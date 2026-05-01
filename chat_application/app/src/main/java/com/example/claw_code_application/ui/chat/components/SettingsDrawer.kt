@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,7 +29,9 @@ import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.ui.theme.BubbleTheme
 import com.example.claw_code_application.util.NetworkConfig
 import com.example.claw_code_application.viewmodel.RemoteWorkerViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 设置侧栏组件
@@ -62,6 +65,11 @@ fun SettingsDrawer(
     val unreadCount by pushMessageStore.unreadCount.collectAsState()
     var showPushMessagesDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    // 网站预览弹窗状态
+    var websitePreviewUrl by remember { mutableStateOf("") }
+    var websitePreviewTitle by remember { mutableStateOf("网站预览") }
+    var showWebsitePreview by remember { mutableStateOf(false) }
 
     // 远程 Worker ViewModel
     val remoteWorkerViewModel: RemoteWorkerViewModel = viewModel(
@@ -166,6 +174,17 @@ fun SettingsDrawer(
                         HorizontalDivider(color = colors.Divider, thickness = 1.dp)
                     }
 
+                    // 已部署网站管理（功能待实现）
+                    // DeployedSitesSection(
+                    //     onPreviewWebsite = { url ->
+                    //         websitePreviewUrl = url
+                    //         websitePreviewTitle = "网站预览"
+                    //         showWebsitePreview = true
+                    //     }
+                    // )
+
+                    HorizontalDivider(color = colors.Divider, thickness = 1.dp)
+
                     AboutSection()
                 }
             }
@@ -196,6 +215,15 @@ fun SettingsDrawer(
             isPrechecking = remoteWorkerState.isPrechecking,
             isDeploying = remoteWorkerState.isDeploying,
             precheckPassed = remoteWorkerState.precheckPassed
+        )
+    }
+
+    // 网站预览弹窗
+    if (showWebsitePreview && websitePreviewUrl.isNotBlank()) {
+        WebsitePreviewDialog(
+            url = websitePreviewUrl,
+            title = websitePreviewTitle,
+            onDismiss = { showWebsitePreview = false }
         )
     }
 
@@ -650,6 +678,255 @@ private fun BubbleThemeOption(
  * 关于区域
  */
 @Composable
+/**
+ * 已部署网站管理区域
+ *
+ * 显示用户所有已部署的项目，支持预览、启停、删除操作。
+ */
+@Composable
+private fun DeployedSitesSection(
+    onPreviewWebsite: (String) -> Unit
+) {
+    val colors = AppColor.current
+    val scope = rememberCoroutineScope()
+    var deployments by remember { mutableStateOf<List<ProjectDeployment>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        isLoading = true
+        withContext(Dispatchers.IO) {
+            try {
+                val repo = com.example.claw_code_application.data.repository.DeploymentRepository.Companion
+                    .getInstance(com.example.claw_code_application.data.api.RetrofitClient.apiService)
+                deployments = repo.fetchDeployments(forceRefresh = true)
+            } catch (_: Exception) { } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier.padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🌐", fontSize = 16.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "已部署网站",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.TextSecondary
+                )
+                if (deployments.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = colors.Primary.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = "${deployments.size}",
+                            fontSize = 11.sp,
+                            color = colors.Primary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+            }
+
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = colors.Primary
+                )
+            } else {
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    contentDescription = if (expanded) "收起" else "展开",
+                    tint = colors.TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        AnimatedVisibility(visible = expanded) {
+            Column(modifier = Modifier.padding(top = 8.dp)) {
+                if (deployments.isEmpty()) {
+                    Text(
+                        text = "暂无已部署的网站",
+                        fontSize = 13.sp,
+                        color = colors.TextSecondary.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp)
+                    )
+                    Text(
+                        text = "在对话中让 Agent 帮你发布网站",
+                        fontSize = 11.sp,
+                        color = colors.TextSecondary.copy(alpha = 0.4f),
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                } else {
+                    deployments.forEach { deployment ->
+                        DeployedSiteItem(
+                            deployment = deployment,
+                            onPreview = {
+                                val url = deployment.publicUrl ?: ""
+                                if (url.isNotBlank()) {
+                                    onPreviewWebsite(url)
+                                }
+                            },
+                            onStop = {
+                                scope.launch(Dispatchers.IO) {
+                                    val repo = com.example.claw_code_application.data.repository.DeploymentRepository.Companion
+                                        .getInstance(com.example.claw_code_application.data.api.RetrofitClient.apiService)
+                                    repo.stopProject(deployment.projectId)
+                                    deployments = repo.fetchDeployments(forceRefresh = true)
+                                }
+                            },
+                            onStart = {
+                                scope.launch(Dispatchers.IO) {
+                                    val repo = com.example.claw_code_application.data.repository.DeploymentRepository.Companion
+                                        .getInstance(com.example.claw_code_application.data.api.RetrofitClient.apiService)
+                                    repo.startProject(deployment.projectId)
+                                    deployments = repo.fetchDeployments(forceRefresh = true)
+                                }
+                            },
+                            onDelete = {
+                                scope.launch(Dispatchers.IO) {
+                                    val repo = com.example.claw_code_application.data.repository.DeploymentRepository.Companion
+                                        .getInstance(com.example.claw_code_application.data.api.RetrofitClient.apiService)
+                                    repo.deleteProject(deployment.projectId)
+                                    deployments = repo.fetchDeployments(forceRefresh = true)
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 单个已部署网站条目
+ */
+@Composable
+private fun DeployedSiteItem(
+    deployment: ProjectDeployment,
+    onPreview: () -> Unit,
+    onStop: () -> Unit,
+    onStart: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val colors = AppColor.current
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        shape = RoundedCornerShape(10.dp),
+        color = colors.Surface,
+        border = BorderStroke(0.5.dp, colors.Divider)
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    val statusColor = when (deployment.status) {
+                        "running" -> Color(0xFF4ADE80)
+                        "stopped" -> Color(0xFF9CA3AF)
+                        "error" -> Color(0xFFF87171)
+                        else -> Color(0xFFFBBF24)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(statusColor, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = deployment.name,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                val statusLabel = when (deployment.status) {
+                    "running" -> "运行中"
+                    "stopped" -> "已停止"
+                    "error" -> "错误"
+                    "building" -> "构建中"
+                    else -> deployment.status
+                }
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = statusColor.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        text = statusLabel,
+                        fontSize = 10.sp,
+                        color = statusColor,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            if (deployment.domain != null) {
+                Text(
+                    text = deployment.domain,
+                    fontSize = 11.sp,
+                    color = colors.Primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 16.dp, top = 2.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (deployment.status == "running" && deployment.publicUrl != null) {
+                    TextButton(onClick = onPreview, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Text("预览", fontSize = 12.sp, color = colors.Primary)
+                    }
+                }
+                if (deployment.status == "running") {
+                    TextButton(onClick = onStop, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Text("停止", fontSize = 12.sp, color = colors.TextSecondary)
+                    }
+                } else if (deployment.status == "stopped") {
+                    TextButton(onClick = onStart, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Text("启动", fontSize = 12.sp, color = colors.Primary)
+                    }
+                }
+                TextButton(onClick = onDelete, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                    Text("删除", fontSize = 12.sp, color = Color(0xFFF87171))
+                }
+            }
+        }
+    }
+}
+
 private fun AboutSection() {
     val colors = AppColor.current
     
