@@ -5,26 +5,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,7 +22,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.BackHandler
 import com.example.claw_code_application.ui.auth.LoginScreen
 import com.example.claw_code_application.ui.auth.RegisterScreen
@@ -40,6 +29,7 @@ import com.example.claw_code_application.ui.chat.ChatScreen
 import com.example.claw_code_application.ui.chat.SessionListScreen
 import com.example.claw_code_application.ui.chat.components.SettingsDrawer
 import com.example.claw_code_application.ui.chat.components.ThemeMode
+import com.example.claw_code_application.ui.components.AppSplashScreen
 import com.example.claw_code_application.ui.theme.BubbleTheme
 import com.example.claw_code_application.ui.theme.parseBubbleTheme
 import com.example.claw_code_application.ui.theme.ClawCodeApplicationTheme
@@ -186,25 +176,21 @@ class MainActivity : ComponentActivity() {
 /**
  * 认证检查屏幕
  * 检查登录状态，如果已登录但缺少用户信息则尝试获取
- * 使用异步方式检查，避免阻塞主线程
+ * 使用精美加载动画，避免白屏闪烁
  */
 @Composable
 private fun AuthCheckScreen(
     onAuthenticated: () -> Unit,
     onNotAuthenticated: () -> Unit
 ) {
-    // 使用 remember 避免重复检查
     var isChecking by remember { mutableStateOf(true) }
-    
+
     LaunchedEffect(Unit) {
         try {
-            // 异步获取 token
             val token = ClawCodeApplication.tokenManager.getToken().first()
             if (!token.isNullOrEmpty()) {
-                // 检查是否有用户信息，如果没有则尝试获取
                 val userInfo = ClawCodeApplication.userManager.getUserInfoSync()
                 if (userInfo == null) {
-                    // 尝试从服务器获取用户信息（异步）
                     try {
                         val result = ClawCodeApplication.authRepository.getUserInfo()
                         result.onFailure {
@@ -226,31 +212,14 @@ private fun AuthCheckScreen(
         }
     }
 
-    // 显示加载界面
     if (isChecking) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(color = AppColor.current.Primary)
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "正在检查登录状态...",
-                    color = AppColor.current.TextSecondary,
-                    fontSize = 14.sp
-                )
-            }
-        }
+        AppSplashScreen(message = "正在检查登录状态...")
     }
 }
 
 /**
  * 聊天主界面
- * 使用viewModel()确保ViewModel生命周期正确管理，避免重组时重复创建
- * 优化ViewModel创建时机，延迟到实际需要时才创建
+ * 加载完成前显示精美启动动画，完成后 Crossfade 平滑过渡到会话列表
  *
  * @param currentTheme 当前主题模式
  * @param onThemeChange 主题变更回调
@@ -267,7 +236,6 @@ private fun ChatMainScreen(
     onLogout: () -> Unit,
     onNavigateToLogin: () -> Unit
 ) {
-    // 使用 remember 缓存 ViewModel，避免重组时重复创建
     val sessionViewModel: SessionViewModel = viewModel(
         factory = SessionViewModel.provideFactory(
             cachedChatRepository = ClawCodeApplication.cachedChatRepository,
@@ -277,7 +245,7 @@ private fun ChatMainScreen(
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val pushMessageStore = remember { PushMessageStore.getInstance(context) }
-    
+
     val chatViewModel: ChatViewModel = viewModel(
         factory = ChatViewModel.provideFactory(
             cachedChatRepository = ClawCodeApplication.cachedChatRepository,
@@ -288,11 +256,8 @@ private fun ChatMainScreen(
         )
     )
 
-    // 设置本地临时会话转换回调
     chatViewModel.onConvertLocalSession = { tempSessionId ->
-        // 调用后端创建真实会话
-        val result = sessionViewModel.createRealSession(tempSessionId)
-        result
+        sessionViewModel.createRealSession(tempSessionId)
     }
 
     var selectedSessionId by remember { mutableStateOf<String?>(null) }
@@ -304,7 +269,20 @@ private fun ChatMainScreen(
     val sessionUiState by sessionViewModel.uiState.collectAsStateWithLifecycle()
     val syncState by sessionViewModel.syncState.collectAsStateWithLifecycle()
 
-    // 页面加载时异步加载会话列表，并触发全量同步
+    val isDataReady = sessionUiState is SessionViewModel.UiState.Success &&
+            (syncState is SessionViewModel.SyncState.Completed ||
+                    syncState is SessionViewModel.SyncState.Failed ||
+                    syncState is SessionViewModel.SyncState.Idle)
+
+    val syncMessage = when (syncState) {
+        is SessionViewModel.SyncState.Checking -> "正在检查数据..."
+        is SessionViewModel.SyncState.Syncing -> {
+            val s = syncState as SessionViewModel.SyncState.Syncing
+            "正在同步聊天数据 (${s.current}/${s.total})"
+        }
+        else -> null
+    }
+
     LaunchedEffect(Unit) {
         sessionViewModel.loadSessions()
         sessionViewModel.startFullSync()
@@ -312,45 +290,38 @@ private fun ChatMainScreen(
 
     val scope = rememberCoroutineScope()
 
-    /**
-     * 处理系统返回键事件
-     * 1. 在聊天界面：返回到会话列表
-     * 2. 在会话列表：弹出退出确认对话框
-     */
     BackHandler(enabled = true) {
         if (!showSessionList && selectedSessionId != null) {
-            // 当前在聊天界面，返回到会话列表
             chatViewModel.clearSession()
             selectedSessionId = null
             showSessionList = true
         } else if (showSessionList) {
-            // 当前在会话列表，显示退出确认对话框
             showExitDialog = true
         }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AnimatedVisibility(
-            visible = showSessionList || selectedSessionId == null,
-            enter = slideInHorizontally { -it },
-            exit = slideOutHorizontally { -it }
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = AppColor.current.Background
-            ) {
-                when (val state = sessionUiState) {
-                    is SessionViewModel.UiState.Loading -> {
-                        Box(
+        Crossfade(
+            targetState = isDataReady,
+            animationSpec = tween(500),
+            label = "mainCrossfade"
+        ) { ready ->
+            if (!ready) {
+                AppSplashScreen(
+                    message = syncMessage ?: "正在加载会话..."
+                )
+            } else {
+                val state = sessionUiState as? SessionViewModel.UiState.Success
+                if (state != null) {
+                    AnimatedVisibility(
+                        visible = showSessionList || selectedSessionId == null,
+                        enter = slideInHorizontally { -it },
+                        exit = slideOutHorizontally { -it }
+                    ) {
+                        Surface(
                             modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
+                            color = AppColor.current.Background
                         ) {
-                            CircularProgressIndicator(color = AppColor.current.Primary)
-                        }
-                    }
-
-                    is SessionViewModel.UiState.Success -> {
-                        Box(modifier = Modifier.fillMaxSize()) {
                             SessionListScreen(
                                 sessions = state.sessions,
                                 currentSessionId = selectedSessionId,
@@ -361,9 +332,7 @@ private fun ChatMainScreen(
                                     showSessionList = false
                                 },
                                 onCreateNew = {
-                                    // 懒创建会话：只在客户端生成临时会话，不立即调用后端
                                     val newSessionId = sessionViewModel.createNewSession()
-                                    // 标记为本地临时会话
                                     chatViewModel.initNewSession(newSessionId, isLocalOnly = true)
                                     selectedSessionId = newSessionId
                                     isNewSession = true
@@ -381,68 +350,34 @@ private fun ChatMainScreen(
                                 onAvatarClick = { showSettingsDrawer = true },
                                 modifier = Modifier.fillMaxSize()
                             )
-
                         }
                     }
 
-                    is SessionViewModel.UiState.Error -> {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "加载失败",
-                                    color = AppColor.current.Error,
-                                    fontSize = 16.sp
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Text(
-                                    text = state.message,
-                                    color = AppColor.current.TextSecondary,
-                                    fontSize = 14.sp
-                                )
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Button(onClick = { sessionViewModel.refresh() }) {
-                                    Text("重试")
+                    AnimatedVisibility(
+                        visible = selectedSessionId != null && !showSessionList,
+                        enter = slideInHorizontally { it },
+                        exit = slideOutHorizontally { it }
+                    ) {
+                        val currentSessionId = selectedSessionId
+                        if (currentSessionId != null) {
+                            LaunchedEffect(currentSessionId) {
+                                if (!isNewSession) {
+                                    chatViewModel.loadSession(currentSessionId)
                                 }
                             }
+
+                            ChatScreen(
+                                viewModel = chatViewModel,
+                                onBack = {
+                                    chatViewModel.clearSession()
+                                    selectedSessionId = null
+                                    showSessionList = true
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
                         }
                     }
-
-                    else -> {}
                 }
-            }
-        }
-
-        AnimatedVisibility(
-            visible = selectedSessionId != null && !showSessionList,
-            enter = slideInHorizontally { it },
-            exit = slideOutHorizontally { it }
-        ) {
-            val currentSessionId = selectedSessionId
-            if (currentSessionId != null) {
-                LaunchedEffect(currentSessionId) {
-                    if (!isNewSession) {
-                        chatViewModel.loadSession(currentSessionId)
-                    }
-                }
-
-                ChatScreen(
-                    viewModel = chatViewModel,
-                    onBack = {
-                        chatViewModel.clearSession()
-                        selectedSessionId = null
-                        showSessionList = true
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
             }
         }
 
@@ -456,14 +391,8 @@ private fun ChatMainScreen(
             onLogout = onLogout,
             onNavigateToLogin = onNavigateToLogin
         )
-
-        DataSyncOverlay(syncState = syncState)
     }
 
-    /**
-     * 退出应用确认对话框
-     * 在会话列表界面按返回键时显示
-     */
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
@@ -476,7 +405,6 @@ private fun ChatMainScreen(
                 TextButton(
                     onClick = {
                         showExitDialog = false
-                        // 调用系统的 finish() 方法退出应用
                         if (android.os.Process.myPid() > 0) {
                             android.os.Process.killProcess(android.os.Process.myPid())
                         }
@@ -493,105 +421,5 @@ private fun ChatMainScreen(
                 }
             }
         )
-    }
-}
-
-/**
- * 数据同步动画覆盖层
- * 在全量同步聊天数据时显示进度动画
- */
-@Composable
-private fun DataSyncOverlay(
-    syncState: SessionViewModel.SyncState
-) {
-    val isSyncing = syncState is SessionViewModel.SyncState.Syncing ||
-            syncState is SessionViewModel.SyncState.Checking
-
-    AnimatedVisibility(visible = isSyncing) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            val infiniteTransition = rememberInfiniteTransition(label = "syncPulse")
-            val pulseAlpha by infiniteTransition.animateFloat(
-                initialValue = 0.6f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(800, easing = LinearEasing),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "pulseAlpha"
-            )
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp)),
-                colors = CardDefaults.cardColors(
-                    containerColor = AppColor.current.Primary.copy(alpha = 0.12f)
-                ),
-                shape = RoundedCornerShape(12.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CloudDownload,
-                        contentDescription = "同步中",
-                        tint = AppColor.current.Primary.copy(alpha = pulseAlpha),
-                        modifier = Modifier.size(20.dp)
-                    )
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        when (syncState) {
-                            is SessionViewModel.SyncState.Checking -> {
-                                Text(
-                                    text = "正在检查数据...",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = AppColor.current.Primary
-                                )
-                            }
-                            is SessionViewModel.SyncState.Syncing -> {
-                                Text(
-                                    text = "正在同步聊天数据 (${syncState.current}/${syncState.total})",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = AppColor.current.Primary
-                                )
-                                if (syncState.currentSessionTitle.isNotEmpty()) {
-                                    Text(
-                                        text = syncState.currentSessionTitle,
-                                        fontSize = 11.sp,
-                                        color = AppColor.current.TextSecondary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(top = 2.dp)
-                                    )
-                                }
-                                LinearProgressIndicator(
-                                    progress = { if (syncState.total > 0) syncState.current.toFloat() / syncState.total else 0f },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 6.dp)
-                                        .clip(RoundedCornerShape(4.dp)),
-                                    color = AppColor.current.Primary,
-                                    trackColor = AppColor.current.Primary.copy(alpha = 0.15f),
-                                )
-                            }
-                            else -> {}
-                        }
-                    }
-                }
-            }
-        }
     }
 }
