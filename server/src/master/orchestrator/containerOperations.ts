@@ -53,9 +53,20 @@ export class ContainerOperations {
     const { containerName, port, workspacePath, resourceArgs, userId, userTier, quota } = config
 
     // 基础安全加固参数
-    // 使用 --privileged 提供最高权限，确保 PTY 功能正常工作
+    // 使用最小权限 --cap-add 替代 --privileged，降低安全风险
+    // SYS_PTRACE: node-pty 需要 ptrace 系统调用
+    // SETUID/SETGID: 进程用户切换
+    // CHOWN: 文件所有权变更
+    // DAC_OVERRIDE: 文件权限覆盖（确保文件读写正常）
+    // NET_RAW: 网络诊断工具（ping, traceroute 等）
     const securityArgs = [
-      '--privileged',
+      '--cap-add=SYS_PTRACE',
+      '--cap-add=SETUID',
+      '--cap-add=SETGID',
+      '--cap-add=CHOWN',
+      '--cap-add=DAC_OVERRIDE',
+      '--cap-add=NET_RAW',
+      '--security-opt=no-new-privileges',
       '--tty',
       '--pids-limit 100',
       '--ulimit nproc=100:100',
