@@ -270,14 +270,15 @@ export class HealthMonitor {
   }
 
   /**
-   * 检查用户是否有活跃的 WebSocket 连接
+   * 检查用户是否有活跃的 WebSocket 连接或活跃部署
    *
    * 检测维度：
    * 1. 前端 WebSocket 连接数（wsManager）
    * 2. Worker WebSocket 连接状态（workerForwarder）
+   * 3. Worker 内是否有活跃的部署项目（防休眠关键）
    *
    * @param userId 用户ID
-   * @returns 是否有活跃连接
+   * @returns 是否有活跃连接或部署
    */
   private async checkUserActiveConnections(userId: string): Promise<boolean> {
     try {
@@ -309,10 +310,53 @@ export class HealthMonitor {
         }
       }
 
+      // 3. 检查 Worker 内是否有活跃的部署项目
+      const hasActiveDeployments = await this.checkActiveDeployments(userId)
+      if (hasActiveDeployments) {
+        console.log(`[HealthMonitor] 用户 ${userId} 有活跃部署项目，跳过休眠`)
+        return true
+      }
+
       return false
     } catch (error) {
       console.warn(`[HealthMonitor] 检查用户 ${userId} 连接状态失败:`, error)
       // 出错时保守处理：假设有连接，不执行休眠
+      return true
+    }
+  }
+
+  /**
+   * 检查用户 Worker 内是否有活跃的部署项目
+   *
+   * 如果有正在运行的持久化部署，则不应休眠容器，
+   * 否则会导致部署的服务中断。
+   *
+   * @param userId 用户ID
+   * @returns 是否有活跃部署
+   */
+  private async checkActiveDeployments(userId: string): Promise<boolean> {
+    try {
+      const mapping = this.userMappings.get(userId)
+      if (!mapping || mapping.container.status === 'paused') {
+        return false
+      }
+
+      const { getWorkerDeploymentClient } = await import('../integrations/workerDeploymentClient')
+      const client = getWorkerDeploymentClient()
+      const activeDeployments = await client.getActiveDeployments(mapping.container)
+
+      if (activeDeployments.length > 0) {
+        console.log(
+          `[HealthMonitor] 用户 ${userId} 有 ${activeDeployments.length} 个活跃部署: ` +
+          activeDeployments.map(d => d.projectId).join(', ')
+        )
+        return true
+      }
+
+      return false
+    } catch (error) {
+      console.warn(`[HealthMonitor] 检查用户 ${userId} 活跃部署失败:`, error)
+      // 出错时保守处理：假设有活跃部署，不执行休眠
       return true
     }
   }

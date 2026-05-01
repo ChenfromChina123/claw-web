@@ -431,6 +431,25 @@ killasgroup=true
   }
 
   /**
+   * 获取活跃的部署项目列表（用于防休眠检测）
+   */
+  async getActiveDeployments(): Promise<Array<{ projectId: string; name?: string; running: boolean; port?: number }>> {
+    try {
+      const projects = await this.listProjects()
+      return projects
+        .filter(p => p.status.running)
+        .map(p => ({
+          projectId: p.projectId,
+          running: p.status.running,
+          port: p.status.port
+        }))
+    } catch (error) {
+      console.error('[WorkerDeploymentManager] 获取活跃部署失败:', error)
+      return []
+    }
+  }
+
+  /**
    * 读取部署信息
    */
   async getDeployInfo(userId: string, projectId: string): Promise<(ProjectConfig & { port: number }) | null> {

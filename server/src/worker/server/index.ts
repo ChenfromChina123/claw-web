@@ -342,6 +342,12 @@ export class WorkerInternalAPI {
           return { requestId: req.requestId, success: true, data: { projects } }
         }
 
+        case 'deploy_active': {
+          const deploymentManager = getWorkerDeploymentManager()
+          const activeDeployments = await deploymentManager.getActiveDeployments()
+          return { requestId: req.requestId, success: true, data: { activeDeployments } }
+        }
+
         default:
           return { requestId: req.requestId, success: false, error: `Unknown request type: ${type}` }
       }

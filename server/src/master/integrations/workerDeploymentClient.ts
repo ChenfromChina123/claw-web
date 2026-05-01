@@ -218,6 +218,26 @@ export class WorkerDeploymentClient {
   }
 
   /**
+   * 获取 Worker 容器内活跃的部署项目（用于防休眠检测）
+   */
+  async getActiveDeployments(
+    container: ContainerInstance
+  ): Promise<Array<{ projectId: string; running: boolean; port?: number }>> {
+    try {
+      const response = await this.callWorkerAPI(container, 'deploy_active', {})
+
+      if (response.success) {
+        return response.data.activeDeployments || []
+      }
+
+      return []
+    } catch (error) {
+      console.error('[WorkerDeploymentClient] 获取活跃部署失败:', error)
+      return []
+    }
+  }
+
+  /**
    * 调用 Worker 内部 API
    */
   private async callWorkerAPI(
