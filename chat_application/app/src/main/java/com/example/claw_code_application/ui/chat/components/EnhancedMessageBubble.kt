@@ -182,33 +182,42 @@ private fun DynamicMessageContent(
 }
 
 /**
- * 流式Markdown渲染：兼顾实时性和流畅度
- * 使用防抖策略减少重解析频率，每80ms更新一次渲染
- * 既保证Markdown格式正确，又避免频繁跳动
+ * 流式文本内容渲染 - 优化版
+ * 使用LaunchedEffect + delay实现真正的防抖，避免重组循环
+ * 核心优化：
+ * 1. 不在Composable执行期间直接修改状态
+ * 2. 使用协程delay实现防抖，避免无限重组
+ * 3. 使用derivedStateOf缓存截断后的内容
  */
 @Composable
 private fun StreamingTextContent(content: String) {
-    var renderedContent by remember { mutableStateOf(content) }
-    var lastUpdateTime by remember { mutableStateOf(0L) }
+    // 使用remember缓存显示内容，避免不必要的重组
+    var displayedContent by remember { mutableStateOf(content) }
 
-    val currentTime = System.currentTimeMillis()
-    if (content != renderedContent && currentTime - lastUpdateTime >= 80) {
-        renderedContent = content
-        lastUpdateTime = currentTime
-    }
-
+    // 使用LaunchedEffect监听内容变化，在协程中处理防抖逻辑
     LaunchedEffect(content) {
-        if (content != renderedContent) {
-            delay(80)
-            renderedContent = content
-            lastUpdateTime = System.currentTimeMillis()
+        // 只有内容增长超过阈值或首次加载时才更新
+        val shouldUpdate = displayedContent.isEmpty() ||
+                content.length - displayedContent.length >= 50 ||
+                content.length < displayedContent.length // 内容被重置
+
+        if (shouldUpdate) {
+            // 添加短暂延迟，批量处理快速到达的字符
+            // 32ms ≈ 30fps，平衡流畅度和性能
+            delay(32)
+            displayedContent = content
         }
     }
 
-    val displayContent = if (renderedContent.length > 5000) {
-        renderedContent.take(5000) + "\n... (内容过长，已截断)"
-    } else {
-        renderedContent
+    // 使用derivedStateOf缓存截断后的内容，避免重复计算
+    val displayContent by remember(displayedContent) {
+        derivedStateOf {
+            if (displayedContent.length > 5000) {
+                displayedContent.take(5000) + "\n... (内容过长，已截断)"
+            } else {
+                displayedContent
+            }
+        }
     }
 
     if (displayContent.isNotBlank()) {

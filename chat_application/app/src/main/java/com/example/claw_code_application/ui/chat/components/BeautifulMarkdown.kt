@@ -25,9 +25,13 @@ import com.mikepenz.markdown.compose.elements.highlightedCodeFence
 import com.mikepenz.markdown.model.DefaultMarkdownExtendedSpans
 
 /**
- * Manus 风格 Markdown 渲染组件
+ * Manus 风格 Markdown 渲染组件 - 优化版
  * 集成自定义颜色、字体排版、代码语法高亮和扩展样式
  * 支持表格渲染、代码语法高亮、圆角行内代码样式
+ *
+ * 优化点：
+ * 1. 使用remember缓存所有样式对象，避免每次重组重新创建
+ * 2. 缓存MarkdownTable.createComponents()结果，减少计算开销
  *
  * @param markdown Markdown文本内容
  * @param isStreaming 是否正在流式输出
@@ -41,117 +45,129 @@ fun BeautifulMarkdown(
 ) {
     val colors = AppColor.current
 
-    val markdownColors = markdownColor(
-        text = colors.TextPrimary,
-        codeText = colors.PrimaryLight,
-        codeBackground = colors.CodeBackground,
-        inlineCodeText = colors.PrimaryLight,
-        inlineCodeBackground = colors.SurfaceVariant,
-        dividerColor = colors.Border,
-        linkText = colors.PrimaryLight
-    )
-
-    val markdownTypography = markdownTypography(
-        h1 = TextStyle(
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            lineHeight = 28.sp,
-            color = colors.TextPrimary
-        ),
-        h2 = TextStyle(
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            lineHeight = 26.sp,
-            color = colors.TextPrimary
-        ),
-        h3 = TextStyle(
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            lineHeight = 24.sp,
-            color = colors.TextPrimary
-        ),
-        h4 = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            lineHeight = 22.sp,
-            color = colors.TextPrimary
-        ),
-        h5 = TextStyle(
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            lineHeight = 20.sp,
-            color = colors.TextPrimary
-        ),
-        h6 = TextStyle(
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            lineHeight = 18.sp,
-            color = colors.TextPrimary
-        ),
-        text = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 23.sp,
-            color = colors.TextPrimary
-        ),
-        code = TextStyle(
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 19.sp,
-            color = colors.PrimaryLight
-        ),
-        inlineCode = TextStyle(
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 18.sp,
-            color = colors.PrimaryLight
-        ),
-        quote = TextStyle(
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 20.sp,
-            color = colors.TextSecondary
-        ),
-        paragraph = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 23.sp,
-            color = colors.TextPrimary
-        ),
-        link = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 23.sp,
-            color = colors.PrimaryLight
-        ),
-        list = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 23.sp,
-            color = colors.TextPrimary
-        ),
-        ordered = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 23.sp,
-            color = colors.TextPrimary
-        ),
-        bullet = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 23.sp,
-            color = colors.TextPrimary
+    // 使用remember缓存样式对象，避免每次重组重新创建
+    // 依赖colors确保主题切换时更新
+    val markdownColors = remember(colors) {
+        markdownColor(
+            text = colors.TextPrimary,
+            codeText = colors.PrimaryLight,
+            codeBackground = colors.CodeBackground,
+            inlineCodeText = colors.PrimaryLight,
+            inlineCodeBackground = colors.SurfaceVariant,
+            dividerColor = colors.Border,
+            linkText = colors.PrimaryLight
         )
-    )
+    }
 
-    val tableComponents = MarkdownTable.createComponents()
+    // 缓存排版样式
+    val markdownTypography = remember(colors) {
+        markdownTypography(
+            h1 = TextStyle(
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 28.sp,
+                color = colors.TextPrimary
+            ),
+            h2 = TextStyle(
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 26.sp,
+                color = colors.TextPrimary
+            ),
+            h3 = TextStyle(
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 24.sp,
+                color = colors.TextPrimary
+            ),
+            h4 = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 22.sp,
+                color = colors.TextPrimary
+            ),
+            h5 = TextStyle(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 20.sp,
+                color = colors.TextPrimary
+            ),
+            h6 = TextStyle(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 18.sp,
+                color = colors.TextPrimary
+            ),
+            text = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 23.sp,
+                color = colors.TextPrimary
+            ),
+            code = TextStyle(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 19.sp,
+                color = colors.PrimaryLight
+            ),
+            inlineCode = TextStyle(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 18.sp,
+                color = colors.PrimaryLight
+            ),
+            quote = TextStyle(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 20.sp,
+                color = colors.TextSecondary
+            ),
+            paragraph = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 23.sp,
+                color = colors.TextPrimary
+            ),
+            link = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 23.sp,
+                color = colors.PrimaryLight
+            ),
+            list = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 23.sp,
+                color = colors.TextPrimary
+            ),
+            ordered = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 23.sp,
+                color = colors.TextPrimary
+            ),
+            bullet = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 23.sp,
+                color = colors.TextPrimary
+            )
+        )
+    }
 
-    val components = markdownComponents(
-        codeBlock = highlightedCodeBlock,
-        codeFence = highlightedCodeFence,
-        table = tableComponents.table
-    )
+    // 缓存table组件，避免每次重组重新创建
+    val tableComponents = remember { MarkdownTable.createComponents() }
 
+    // 缓存组件配置
+    val components = remember(tableComponents) {
+        markdownComponents(
+            codeBlock = highlightedCodeBlock,
+            codeFence = highlightedCodeFence,
+            table = tableComponents.table
+        )
+    }
+
+    // 扩展span配置不需要频繁变化，使用remember缓存
     val extendedSpans = remember {
         DefaultMarkdownExtendedSpans {
             ExtendedSpans(

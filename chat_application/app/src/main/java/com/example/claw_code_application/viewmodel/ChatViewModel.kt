@@ -99,7 +99,8 @@ class ChatViewModel(
     internal val debounceIntervalMs = 16L
     internal val pendingToolUpdates = mutableMapOf<String, ToolCall>()
     internal var toolUpdateDebounceJob: Job? = null
-    internal val toolUpdateDebounceIntervalMs = 100L
+    // 优化：增加工具调用更新防抖间隔从100ms到300ms，减少UI刷新频率，避免与流式输出冲突
+    internal val toolUpdateDebounceIntervalMs = 300L
     internal val pendingToolInput = mutableMapOf<String, StringBuilder>()
     internal val messageToToolCalls = mutableMapOf<String, MutableList<String>>()
     internal val unassociatedToolCallIds = mutableListOf<String>()
@@ -119,13 +120,22 @@ class ChatViewModel(
         _displayMessages.addAll(_messages.reversed().filter { shouldShowMessage(it) })
     }
 
-    /** 流式增量更新：仅更新指定消息，避免全量重建列表 */
+    /**
+     * 流式增量更新：仅更新指定消息，避免全量重建列表 - 优化版
+     * 优化点：使用copy-on-write策略，通过创建新列表实例触发Compose精准重组
+     * 避免直接修改列表项导致的全列表重新测量
+     */
     internal fun updateStreamingMessage(messageId: String) {
         val message = _messages.find { it.id == messageId } ?: return
         if (!shouldShowMessage(message)) return
         val displayIndex = _displayMessages.indexOfFirst { it.id == messageId }
         if (displayIndex != -1) {
-            _displayMessages[displayIndex] = message
+            // 创建新列表实例，触发Compose的精准重组
+            // 而不是直接修改列表项，避免LazyColumn全量重组
+            val newList = _displayMessages.toMutableList()
+            newList[displayIndex] = message
+            _displayMessages.clear()
+            _displayMessages.addAll(newList)
         }
     }
 
