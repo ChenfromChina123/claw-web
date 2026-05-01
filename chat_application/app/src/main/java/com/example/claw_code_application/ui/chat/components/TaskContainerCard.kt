@@ -12,7 +12,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -20,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.data.api.models.BackgroundTask
 import com.example.claw_code_application.ui.theme.AppColor
+import com.example.claw_code_application.ui.theme.AppColors
 
 private data class TaskStatusStyle(
     val icon: String,
@@ -29,7 +29,10 @@ private data class TaskStatusStyle(
     val accentColor: Color
 )
 
-private fun getTaskStatusStyle(status: String, colors: AppColor): TaskStatusStyle {
+/**
+ * 根据任务状态获取对应的样式配置
+ */
+private fun getTaskStatusStyle(status: String, colors: AppColors): TaskStatusStyle {
     return when (status) {
         "created", "queued" -> TaskStatusStyle(
             icon = "○",
