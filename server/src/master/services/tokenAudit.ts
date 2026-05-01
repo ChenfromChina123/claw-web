@@ -53,6 +53,8 @@ export interface TokenUsage {
   toolResultTokens: number
   /** 附件 Token 数 */
   attachmentTokens: number
+  /** 图片 Token 数 */
+  imageTokens: number
   /** 总 Token 数 */
   totalTokens: number
 }
@@ -393,6 +395,7 @@ export interface ContextAnalysis {
     toolCallTokens: number
     toolResultTokens: number
     attachmentTokens: number
+    imageTokens: number
   }
   /** 是否需要压缩 */
   needsCompaction: boolean
@@ -401,7 +404,7 @@ export interface ContextAnalysis {
 }
 
 /**
- * 分析上下文使用情况
+ * 分析上下文使用情况（支持图片 Token 估算）
  */
 export function analyzeContext(usage: TokenUsage, maxTokens: number = 200_000): ContextAnalysis {
   const percentage = (usage.totalTokens / maxTokens) * 100
@@ -415,14 +418,16 @@ export function analyzeContext(usage: TokenUsage, maxTokens: number = 200_000): 
     suggestions.push('上下文使用率超过 80%，建议考虑压缩历史')
   }
   
-  // 检查工具结果占比
   if (usage.toolResultTokens > usage.totalTokens * 0.5) {
     suggestions.push('工具结果占用过多 Token，建议启用结果截断')
   }
   
-  // 检查输入占比
   if (usage.inputTokens > maxTokens * 0.8) {
     suggestions.push('输入内容较大，建议减少系统提示词或历史消息')
+  }
+
+  if (usage.imageTokens > usage.totalTokens * 0.3) {
+    suggestions.push('图片占用较多 Token，建议压缩历史图片为文字描述')
   }
   
   return {
@@ -434,6 +439,7 @@ export function analyzeContext(usage: TokenUsage, maxTokens: number = 200_000): 
       toolCallTokens: usage.toolCallTokens,
       toolResultTokens: usage.toolResultTokens,
       attachmentTokens: usage.attachmentTokens,
+      imageTokens: usage.imageTokens,
     },
     needsCompaction,
     suggestions,

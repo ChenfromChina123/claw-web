@@ -81,6 +81,7 @@ export interface ChatImage {
   height?: number
   storagePath: string
   llmReadyPath?: string
+  analysisText?: string
   createdAt: Date | string
 }
 

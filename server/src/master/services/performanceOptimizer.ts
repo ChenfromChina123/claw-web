@@ -5,6 +5,79 @@
  */
 
 import { EventEmitter } from 'events'
+import type { MessageContent, MessageContentBlock, ImageContentBlock } from '../models/imageTypes'
+
+// ==================== 图片 Token 估算 ====================
+
+/**
+ * 根据图片分辨率估算 Token 数量
+ * 参考 OpenAI 公式: tokens = ceil(width/512) * ceil(height/512) * 170 + 85
+ */
+export function estimateImageTokens(width?: number, height?: number): number {
+  if (!width || !height) return 170
+  const tilesX = Math.ceil(width / 512)
+  const tilesY = Math.ceil(height / 512)
+  return tilesX * tilesY * 170 + 85
+}
+
+/**
+ * 从消息内容中提取图片 ID
+ */
+function extractImageIdFromUrl(url: string): string {
+  const match = url.match(/\/api\/chat\/images\/([^/?]+)/)
+  return match ? match[1] : url
+}
+
+/**
+ * 将消息内容转为纯文本（图片块替换为占位符）
+ */
+function contentToPlainText(content: MessageContent, imagePlaceholder: string = '[图片]'): string {
+  if (typeof content === 'string') return content
+  return content.map(block => {
+    if (block.type === 'text') return block.text
+    if (block.type === 'image') {
+      const imgBlock = block as ImageContentBlock
+      const imageId = extractImageIdFromUrl(imgBlock.source.url)
+      return `${imagePlaceholder}:${imageId}`
+    }
+    if (block.type === 'tool_use') return `[工具调用: ${(block as any).name}]`
+    if (block.type === 'tool_result') return `[工具结果: ${(block as any).tool_use_id}]`
+    return ''
+  }).filter(Boolean).join('\n')
+}
+
+/**
+ * 估算消息内容的 Token 数量（支持图片）
+ */
+function estimateContentTokens(content: MessageContent, imageWidths?: Map<string, { width?: number; height?: number }>): number {
+  if (typeof content === 'string') {
+    return Math.ceil(content.length / 4)
+  }
+  let total = 0
+  for (const block of content) {
+    if (block.type === 'text') {
+      total += Math.ceil(block.text.length / 4)
+    } else if (block.type === 'image') {
+      const imgBlock = block as ImageContentBlock
+      const imageId = extractImageIdFromUrl(imgBlock.source.url)
+      const dims = imageWidths?.get(imageId)
+      total += estimateImageTokens(dims?.width, dims?.height)
+    } else if (block.type === 'tool_use') {
+      total += 500
+    } else if (block.type === 'tool_result') {
+      total += Math.ceil(((block as any).content?.length || 0) / 4)
+    }
+  }
+  return total
+}
+
+/**
+ * 支持多模态内容的消息类型
+ */
+export interface MultimodalMessage {
+  role: string
+  content: MessageContent
+}
 
 // ==================== Token 计数 ====================
 
@@ -55,18 +128,35 @@ export class TokenEstimator {
   }
 
   /**
-   * 估算消息列表的 token 数量
+   * 估算消息列表的 token 数量（仅支持纯文本消息）
    */
   estimateMessages(messages: Array<{ role: string; content: string }>): number {
     let total = 0
 
     for (const msg of messages) {
       total += this.estimate(msg.content)
-      // 角色标记约消耗 4-5 tokens
       total += 4
     }
 
-    // 系统消息开销
+    total += 10
+
+    return total
+  }
+
+  /**
+   * 估算多模态消息列表的 token 数量（支持图片内容块）
+   */
+  estimateMultimodalMessages(
+    messages: MultimodalMessage[],
+    imageDimensions?: Map<string, { width?: number; height?: number }>
+  ): number {
+    let total = 0
+
+    for (const msg of messages) {
+      total += estimateContentTokens(msg.content, imageDimensions)
+      total += 4
+    }
+
     total += 10
 
     return total
@@ -132,14 +222,18 @@ export interface CompressionConfig {
   preserveRecent?: number
   /** 摘要 prompt */
   summaryPrompt?: string
+  /** 压缩时保留最近几张图片（默认 2） */
+  preserveRecentImages?: number
+  /** 图片维度信息（用于精确估算图片 token） */
+  imageDimensions?: Map<string, { width?: number; height?: number }>
 }
 
 /**
  * 压缩后的上下文
  */
 export interface CompressedContext {
-  /** 压缩后的消息 */
-  messages: Array<{ role: string; content: string }>
+  /** 压缩后的消息（支持多模态） */
+  messages: MultimodalMessage[]
   /** 压缩前 token 数 */
   originalTokenCount: number
   /** 压缩后 token 数 */
@@ -148,10 +242,12 @@ export interface CompressedContext {
   compressionRatio: number
   /** 摘要内容 (如果有) */
   summary?: string
+  /** 被压缩掉的图片数量 */
+  compressedImageCount?: number
 }
 
 /**
- * 上下文压缩器
+ * 上下文压缩器（支持多模态消息）
  */
 export class ContextCompressor {
   private estimator: TokenEstimator
@@ -164,26 +260,30 @@ export class ContextCompressor {
       targetTokens: config.targetTokens || 4000,
       preserveRecent: config.preserveRecent ?? 5,
       summaryPrompt: config.summaryPrompt || '请简要总结以下对话的要点：',
+      preserveRecentImages: config.preserveRecentImages ?? 2,
+      imageDimensions: config.imageDimensions,
     }
   }
 
   /**
-   * 压缩上下文
+   * 压缩上下文（支持多模态消息）
    */
   compress(
-    messages: Array<{ role: string; content: string }>,
+    messages: MultimodalMessage[],
     targetTokens?: number
   ): CompressedContext {
     const target = targetTokens || this.config.targetTokens!
-    const originalTokenCount = this.estimator.estimateMessages(messages)
+    const originalTokenCount = this.estimator.estimateMultimodalMessages(
+      messages, this.config.imageDimensions
+    )
 
-    // 如果不需要压缩，直接返回
     if (originalTokenCount <= target) {
       return {
         messages,
         originalTokenCount,
         compressedTokenCount: originalTokenCount,
         compressionRatio: 1.0,
+        compressedImageCount: 0,
       }
     }
 
@@ -203,30 +303,28 @@ export class ContextCompressor {
   }
 
   /**
-   * 摘要压缩
+   * 摘要压缩（支持多模态）
    */
   private compressWithSummary(
-    messages: Array<{ role: string; content: string }>,
+    messages: MultimodalMessage[],
     targetTokens: number
   ): CompressedContext {
-    // 保留最近的 N 条消息
     const recentCount = Math.min(this.config.preserveRecent!, messages.length)
     const recentMessages = messages.slice(-recentCount)
     const olderMessages = messages.slice(0, -recentCount)
 
-    // 对旧消息生成摘要 (这里简化处理，实际可能需要调用 LLM)
     const summary = this.generateSummary(olderMessages)
     const summaryTokens = this.estimator.estimate(summary)
 
-    // 构建压缩后的消息
     const compressed: CompressedContext = {
       messages: [
         { role: 'system', content: `【对话摘要】\n${summary}` },
         ...recentMessages,
       ],
-      originalTokenCount: this.estimator.estimateMessages(messages),
-      compressedTokenCount: summaryTokens + this.estimator.estimateMessages(recentMessages),
+      originalTokenCount: this.estimator.estimateMultimodalMessages(messages, this.config.imageDimensions),
+      compressedTokenCount: summaryTokens + this.estimator.estimateMultimodalMessages(recentMessages, this.config.imageDimensions),
       compressionRatio: 0,
+      compressedImageCount: this.countImages(olderMessages),
     }
 
     compressed.compressionRatio = compressed.originalTokenCount > 0
@@ -237,59 +335,57 @@ export class ContextCompressor {
   }
 
   /**
-   * 剪枝压缩
+   * 剪枝压缩（支持多模态）
    */
   private compressWithPrune(
-    messages: Array<{ role: string; content: string }>,
+    messages: MultimodalMessage[],
     targetTokens: number
   ): CompressedContext {
-    const result: Array<{ role: string; content: string }> = []
+    const result: MultimodalMessage[] = []
     let currentTokens = 0
+    let compressedImageCount = 0
 
-    // 从最新消息开始添加
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i]
-      const msgTokens = this.estimator.estimate(msg.content) + 4
+      const msgTokens = estimateContentTokens(msg.content, this.config.imageDimensions) + 4
 
       if (currentTokens + msgTokens <= targetTokens) {
         result.unshift(msg)
         currentTokens += msgTokens
       } else {
-        break
+        compressedImageCount += this.countImages([msg])
       }
     }
 
-    // 如果仍然超限，截断旧消息
     if (currentTokens > targetTokens) {
-      const truncateIndex = 0
       for (let i = 0; i < result.length; i++) {
-        currentTokens -= this.estimator.estimate(result[i].content) + 4
+        currentTokens -= estimateContentTokens(result[i].content, this.config.imageDimensions) + 4
         if (currentTokens <= targetTokens) {
           break
         }
+        compressedImageCount += this.countImages([result[0]])
         result.shift()
       }
     }
 
     return {
       messages: result,
-      originalTokenCount: this.estimator.estimateMessages(messages),
+      originalTokenCount: this.estimator.estimateMultimodalMessages(messages, this.config.imageDimensions),
       compressedTokenCount: currentTokens,
-      compressionRatio: currentTokens / this.estimator.estimateMessages(messages),
+      compressionRatio: currentTokens / this.estimator.estimateMultimodalMessages(messages, this.config.imageDimensions),
+      compressedImageCount,
     }
   }
 
   /**
-   * 混合压缩
+   * 混合压缩（支持多模态）
    */
   private compressWithHybrid(
-    messages: Array<{ role: string; content: string }>,
+    messages: MultimodalMessage[],
     targetTokens: number
   ): CompressedContext {
-    // 先尝试摘要压缩
     const summaryResult = this.compressWithSummary(messages, targetTokens)
 
-    // 如果摘要压缩后仍然超限，使用剪枝
     if (summaryResult.compressedTokenCount > targetTokens) {
       return this.compressWithPrune(messages, targetTokens)
     }
@@ -298,30 +394,47 @@ export class ContextCompressor {
   }
 
   /**
-   * 生成摘要 (简化版本)
+   * 生成摘要 (简化版本，支持多模态)
    */
-  private generateSummary(messages: Array<{ role: string; content: string }>): string {
+  private generateSummary(messages: MultimodalMessage[]): string {
     if (messages.length === 0) {
       return '无历史对话'
     }
 
-    // 简单摘要：统计消息数量和主要主题
     const userMessages = messages.filter(m => m.role === 'user')
     const assistantMessages = messages.filter(m => m.role === 'assistant')
+    const imageCount = this.countImages(messages)
 
-    // 提取前几条用户消息的关键词
     const keywords: string[] = []
     for (const msg of userMessages.slice(0, 3)) {
-      const words = msg.content.slice(0, 50)
+      const text = contentToPlainText(msg.content, '[图片]')
+      const words = text.slice(0, 50)
       if (words) keywords.push(words)
     }
+
+    const imageInfo = imageCount > 0 ? `\n- 包含 ${imageCount} 张图片（已压缩）` : ''
 
     return `
 对话历史摘要：
 - 用户共发送 ${userMessages.length} 条消息
 - 助手共回复 ${assistantMessages.length} 条消息
-- 最近讨论主题：${keywords.join('; ') || '无'}
+- 最近讨论主题：${keywords.join('; ') || '无'}${imageInfo}
 `.trim()
+  }
+
+  /**
+   * 统计消息中的图片数量
+   */
+  private countImages(messages: MultimodalMessage[]): number {
+    let count = 0
+    for (const msg of messages) {
+      if (typeof msg.content !== 'string') {
+        for (const block of msg.content) {
+          if (block.type === 'image') count++
+        }
+      }
+    }
+    return count
   }
 }
 
@@ -592,7 +705,11 @@ export {
   ContextCompressor,
   PromptCache,
   AutoBackupService,
+  estimateImageTokens,
+  contentToPlainText,
 }
+
+export type { MultimodalMessage }
 
 export function createTokenEstimator(config?: TokenEstimatorConfig): TokenEstimator {
   return new TokenEstimator(config)

@@ -384,15 +384,30 @@ export function estimateMessagesTokens(messages: Array<{ role: string; content: 
   let total = 0
   
   for (const msg of messages) {
-    const content = typeof msg.content === 'string' 
-      ? msg.content 
-      : JSON.stringify(msg.content)
-    total += estimateTokens(content)
+    const content = msg.content
+    
+    if (typeof content === 'string') {
+      total += estimateTokens(content)
+    } else if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block?.type === 'text') {
+          total += estimateTokens(block.text || '')
+        } else if (block?.type === 'image') {
+          total += estimateImageTokensFromBlock(block)
+        } else if (block?.type === 'tool_use') {
+          total += TOKEN_ESTIMATION.TOOL_CALL_OVERHEAD
+          total += estimateTokens(JSON.stringify(block.input || {}))
+        } else if (block?.type === 'tool_result') {
+          total += estimateTokens(typeof block.content === 'string' ? block.content : JSON.stringify(block.content || ''))
+        }
+      }
+    } else {
+      total += estimateTokens(JSON.stringify(content))
+    }
   }
   
-  // 加上工具调用开销
   const toolCallsCount = messages.filter(m => {
-    if (typeof m.content !== 'string') {
+    if (typeof m.content !== 'string' && Array.isArray(m.content)) {
       return (m.content as Array<{ type?: string }>)?.some(c => c.type === 'tool_use')
     }
     return false
@@ -401,6 +416,22 @@ export function estimateMessagesTokens(messages: Array<{ role: string; content: 
   total += toolCallsCount * TOKEN_ESTIMATION.TOOL_CALL_OVERHEAD
   
   return total
+}
+
+/**
+ * 根据图片内容块估算 Token 数量
+ * 参考 OpenAI 公式: tokens = ceil(width/512) * ceil(height/512) * 170 + 85
+ */
+function estimateImageTokensFromBlock(block: { type: string; source?: { type?: string; url?: string; media_type?: string; data?: string } }): number {
+  if (block.source?.type === 'base64' && block.source.data) {
+    const base64Length = block.source.data.length
+    const estimatedBytes = Math.ceil(base64Length * 0.75)
+    const estimatedPixels = estimatedBytes / 3
+    const estimatedWidth = Math.sqrt(estimatedPixels)
+    const tiles = Math.max(1, Math.ceil(estimatedWidth / 512))
+    return tiles * tiles * 170 + 85
+  }
+  return 255
 }
 
 /**

@@ -8,6 +8,7 @@ import type { MessageContent, ImageAttachment } from '../models/imageTypes'
 import { generateSessionTitleWithLLM } from './sessionTitleGenerator'
 import { extractIdeUserDisplay } from '../utils/ideUserMessageMarkers'
 import { buildCompleteSystemPrompt, getWebSearchPrompt } from '../prompts'
+import { imageStorageService } from './imageStorageService'
 
 export interface InMemorySession {
   session: Session
@@ -537,6 +538,9 @@ export class SessionManager {
       throw new Error('Forbidden: cannot delete another user\'s session')
     }
 
+    await imageStorageService.deleteImagesBySession(sessionId).catch(err => {
+      console.warn('[SessionManager] 清理会话图片失败:', err)
+    })
     await this.messageRepo.deleteBySessionId(sessionId)
     await this.toolCallRepo.deleteBySessionId(sessionId)
     await this.sessionRepo.delete(sessionId)
@@ -660,6 +664,9 @@ export class SessionManager {
   }
 
   async clearSession(sessionId: string): Promise<void> {
+    await imageStorageService.deleteImagesBySession(sessionId).catch(err => {
+      console.warn('[SessionManager] 清理会话图片失败:', err)
+    })
     await this.messageRepo.deleteBySessionId(sessionId)
     await this.toolCallRepo.deleteBySessionId(sessionId)
 

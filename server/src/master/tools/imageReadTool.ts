@@ -17,6 +17,12 @@ import sharp from 'sharp'
 import { llmService } from '../services/llmService'
 
 /**
+ * 图片分析结果内存缓存（避免同一图片重复调用 LLM）
+ */
+const analysisCache = new Map<string, { text: string; mtimeMs: number }>()
+const ANALYSIS_CACHE_MAX_SIZE = 100
+
+/**
  * 支持的图片格式
  */
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([
@@ -440,8 +446,32 @@ export async function executeImageRead(
       }
     }
     
+    // 检查内存缓存（基于文件路径和修改时间）
+    const cacheKey = resolvedPath
+    const cached = analysisCache.get(cacheKey)
+    if (cached && cached.mtimeMs === fileStats.mtimeMs) {
+      return {
+        success: true,
+        result: {
+          base64,
+          mimeType: metadata.mimeType,
+          metadata,
+          path: resolvedPath,
+          analysis: cached.text,
+          analyzed: true,
+        },
+      }
+    }
+
     // 使用大模型分析图片内容（不直接返回 base64 给 Agent）
     const analysis = await analyzeImageWithLLM(base64, metadata.mimeType, metadata)
+
+    // 缓存分析结果
+    if (analysisCache.size >= ANALYSIS_CACHE_MAX_SIZE) {
+      const firstKey = analysisCache.keys().next().value
+      if (firstKey) analysisCache.delete(firstKey)
+    }
+    analysisCache.set(cacheKey, { text: analysis, mtimeMs: fileStats.mtimeMs })
     
     return {
       success: true,

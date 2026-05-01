@@ -273,6 +273,7 @@ CREATE TABLE IF NOT EXISTS chat_images (
   height INT COMMENT '图片高度',
   storage_path VARCHAR(500) NOT NULL COMMENT '磁盘存储路径',
   llm_ready_path VARCHAR(500) COMMENT 'LLM 就绪的压缩版本路径',
+  analysis_text LONGTEXT COMMENT 'LLM 分析图片后的文字描述缓存',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_chat_images_user_id (user_id),
   INDEX idx_chat_images_session_id (session_id),

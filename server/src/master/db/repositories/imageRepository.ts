@@ -79,6 +79,17 @@ export class ImageRepository {
   }
 
   /**
+   * 更新图片的分析文本缓存
+   */
+  async updateAnalysisText(imageId: string, analysisText: string): Promise<void> {
+    const pool = getPool()
+    await pool.query(
+      'UPDATE chat_images SET analysis_text = ? WHERE id = ?',
+      [analysisText, imageId]
+    )
+  }
+
+  /**
    * 删除图片记录
    */
   async delete(id: string): Promise<void> {
@@ -92,6 +103,40 @@ export class ImageRepository {
   async deleteBySessionId(sessionId: string): Promise<void> {
     const pool = getPool()
     await pool.query('DELETE FROM chat_images WHERE session_id = ?', [sessionId])
+  }
+
+  /**
+   * 根据用户 ID 查找图片列表
+   */
+  async findByUserId(userId: string): Promise<ChatImage[]> {
+    const pool = getPool()
+    const [rows] = await pool.query(
+      'SELECT * FROM chat_images WHERE user_id = ? ORDER BY created_at ASC',
+      [userId]
+    ) as [any[], unknown]
+
+    return rows.map((row: any) => this.mapToChatImage(row))
+  }
+
+  /**
+   * 删除用户关联的所有图片记录
+   */
+  async deleteByUserId(userId: string): Promise<void> {
+    const pool = getPool()
+    await pool.query('DELETE FROM chat_images WHERE user_id = ?', [userId])
+  }
+
+  /**
+   * 查找孤立图片（无 session 关联且超过指定天数）
+   */
+  async findOrphanImages(olderThanDays: number = 30): Promise<ChatImage[]> {
+    const pool = getPool()
+    const [rows] = await pool.query(
+      'SELECT * FROM chat_images WHERE session_id IS NULL AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)',
+      [olderThanDays]
+    ) as [any[], unknown]
+
+    return rows.map((row: any) => this.mapToChatImage(row))
   }
 
   /**
@@ -111,6 +156,7 @@ export class ImageRepository {
       height: row.height,
       storagePath: row.storage_path,
       llmReadyPath: row.llm_ready_path,
+      analysisText: row.analysis_text,
       createdAt: row.created_at,
     }
   }
