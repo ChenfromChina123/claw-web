@@ -76,7 +76,9 @@ export class WorkerForwarder {
       return existing
     }
 
-    const wsUrl = `ws://${containerId}:${getWorkerPort()}/internal/pty`
+    // 修复：使用 localhost:hostPort 连接 Worker，而不是容器名
+    // 因为 Docker 端口映射是通过主机的 hostPort 暴露的
+    const wsUrl = `ws://localhost:${hostPort}/internal/pty`
     const token = getMasterInternalToken()
 
     return new Promise((resolve, reject) => {

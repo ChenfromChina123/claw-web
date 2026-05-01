@@ -28,6 +28,7 @@ import { getPerformanceMonitor } from '../monitoring/PerformanceMonitor'
 import { truncateToolResult, truncateFileRead, TOOL_RESULT_LIMITS, FILE_READ_LIMITS } from '../utils/fileLimits'
 import { getPermissionPipeline, type ToolUseContext } from '../services/permissionPipeline'
 import { getDenialTracker, integratedDenialCheck } from '../services/denialTracker'
+import { shouldExecuteOnWorker } from './workerToolExecutor'
 
 const execAsync = promisify(exec)
 const dnsLookup = promisify(dns.lookup)
@@ -316,6 +317,14 @@ export class WebToolExecutor {
     }
     
     sendEvent?.('tool_start', { id: toolId, name, input })
+    
+    // 架构铁律：危险工具禁止在 Master 本地执行，必须转发到 Worker
+    if (shouldExecuteOnWorker(name)) {
+      const error = `[SECURITY] 工具 ${name} 必须在 Worker 容器中执行，禁止在 Master 本地运行。请通过 ToolRegistry.executeTool() 调用。`
+      console.error(error)
+      sendEvent?.('tool_error', { id: toolId, name, error })
+      return { success: false, error }
+    }
     
     try {
       let result: unknown
