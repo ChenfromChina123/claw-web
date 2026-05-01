@@ -24,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -66,6 +68,9 @@ fun ChatScreen(
     val selectedSkills = remember { mutableStateListOf<SkillAttachment>() }
 
     val displayMessages = viewModel.displayMessages
+
+    val density = LocalDensity.current
+    var bottomBarHeight by remember { mutableStateOf(76) }
 
     // 用户手动滑动时暂停自动滚动
     var userScrolling by remember { mutableStateOf(false) }
@@ -148,7 +153,7 @@ fun ChatScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(top = 64.dp, bottom = 76.dp)
+                .padding(top = 64.dp, bottom = with(density) { bottomBarHeight.toDp() })
         ) {
             if (displayMessages.isEmpty() && uiState !is ChatViewModel.UiState.Loading) {
                 ChatEmptyState()
@@ -162,14 +167,23 @@ fun ChatScreen(
             }
         }
 
-        // 悬浮输入框 - 固定在底部，随键盘自动上移
-        Box(
+        // 底部区域：任务状态 + 输入框
+        Column(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .background(colors.Background)
+                .onSizeChanged { size ->
+                    bottomBarHeight = size.height
+                }
                 .imePadding()
-                .navigationBarsPadding()
+                .navigationBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // 任务状态区域（输入框上方）
+            TaskStatusBar(viewModel = viewModel)
+
+            // 输入框
             InputBar(
                 onSend = { content -> onSend(content, selectedSkills.toList()) },
                 enabled = uiState !is ChatViewModel.UiState.Loading,
@@ -352,89 +366,29 @@ private fun ChatMessageList(
             )
         }
 
-        // 任务容器区域：有任务时按任务分组显示，无任务时使用原有 AgentTaskCard
-        val tasks = viewModel.tasks
-        if (tasks.isNotEmpty()) {
-            items(
-                items = tasks,
-                key = { task -> "task_container_${task.taskId}" }
-            ) { task ->
-                val isCollapsed = viewModel.collapsedTasks[task.taskId] ?: false
-                val taskToolCalls = viewModel.toolCalls.filter { toolCall ->
-                    isToolCallInTask(toolCall, task)
-                }
-
-                TaskContainerCard(
-                    task = task,
-                    isCollapsed = isCollapsed,
-                    onCollapsedChange = { viewModel._collapsedTasks[task.taskId] = it },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                ) {
-                    if (taskToolCalls.isNotEmpty()) {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            taskToolCalls.forEach { toolCall ->
-                                CompactToolCallCard(
-                                    toolCall = toolCall,
-                                    expanded = false,
-                                    onExpandedChange = {}
-                                )
+        // Agent 任务步骤指示（聊天列表内仅显示简化步骤）
+        item(key = "active_agent_task_${viewModel.toolCalls.hashCode()}") {
+            val activeToolCalls = viewModel.toolCalls.filter {
+                it.status == "executing" || it.status == "pending"
+            }
+            if (activeToolCalls.isNotEmpty()) {
+                val steps = remember(activeToolCalls) {
+                    activeToolCalls.map { toolCall ->
+                        AgentStep(
+                            title = getToolStepTitle(toolCall),
+                            status = when (toolCall.status) {
+                                "executing" -> AgentStepStatus.IN_PROGRESS
+                                "completed" -> AgentStepStatus.COMPLETED
+                                else -> AgentStepStatus.PENDING
                             }
-                        }
+                        )
                     }
                 }
-            }
-
-            // 不属于任何任务的工具调用
-            val unassignedToolCalls = viewModel.toolCalls.filter { toolCall ->
-                val isActive = toolCall.status == "executing" || toolCall.status == "pending"
-                isActive && tasks.none { task -> isToolCallInTask(toolCall, task) }
-            }
-            if (unassignedToolCalls.isNotEmpty()) {
-                item(key = "unassigned_tool_calls") {
-                    val steps = remember(unassignedToolCalls) {
-                        unassignedToolCalls.map { toolCall ->
-                            AgentStep(
-                                title = getToolStepTitle(toolCall),
-                                status = when (toolCall.status) {
-                                    "executing" -> AgentStepStatus.IN_PROGRESS
-                                    "completed" -> AgentStepStatus.COMPLETED
-                                    else -> AgentStepStatus.PENDING
-                                }
-                            )
-                        }
-                    }
-                    AgentTaskCard(
-                        taskTitle = "正在执行任务",
-                        steps = steps,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                }
-            }
-        } else {
-            // 无任务时保持原有逻辑
-            item(key = "active_agent_task_${viewModel.toolCalls.hashCode()}") {
-                val activeToolCalls = viewModel.toolCalls.filter {
-                    it.status == "executing" || it.status == "pending"
-                }
-                if (activeToolCalls.isNotEmpty()) {
-                    val steps = remember(activeToolCalls) {
-                        activeToolCalls.mapIndexed { index, toolCall ->
-                            AgentStep(
-                                title = getToolStepTitle(toolCall),
-                                status = when (toolCall.status) {
-                                    "executing" -> AgentStepStatus.IN_PROGRESS
-                                    "completed" -> AgentStepStatus.COMPLETED
-                                    else -> AgentStepStatus.PENDING
-                                }
-                            )
-                        }
-                    }
-                    AgentTaskCard(
-                        taskTitle = "正在执行任务",
-                        steps = steps,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                }
+                AgentTaskCard(
+                    taskTitle = "正在执行任务",
+                    steps = steps,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
             }
         }
 
@@ -590,4 +544,89 @@ private fun buildMessageWithSkills(content: String, skills: List<SkillAttachment
         "### 使用 Skill: ${skill.name}\n${skill.description}"
     }
     return "$skillParts\n\n$content"
+}
+
+/**
+ * 任务状态栏 - 显示在输入框上方
+ *
+ * 展示当前活跃任务的实时状态，支持展开/折叠
+ * 任务完成时自动折叠，失败时保持展开
+ */
+@Composable
+private fun TaskStatusBar(viewModel: ChatViewModel) {
+    val tasks = viewModel.tasks
+    val colors = AppColor.current
+
+    if (tasks.isEmpty()) return
+
+    val activeTasks = tasks.filter { it.status != "completed" && it.status != "cancelled" }
+    val completedTasks = tasks.filter { it.status == "completed" || it.status == "cancelled" }
+
+    AnimatedVisibility(
+        visible = tasks.isNotEmpty(),
+        enter = expandVertically(
+            animationSpec = tween(250, easing = FastOutSlowInEasing)
+        ) + fadeIn(animationSpec = tween(200)),
+        exit = shrinkVertically(
+            animationSpec = tween(200, easing = FastOutSlowInEasing)
+        ) + fadeOut(animationSpec = tween(150))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(colors.SurfaceVariant)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            activeTasks.forEach { task ->
+                val isCollapsed = viewModel.collapsedTasks[task.taskId] ?: false
+                TaskContainerCard(
+                    task = task,
+                    isCollapsed = isCollapsed,
+                    onCollapsedChange = { viewModel._collapsedTasks[task.taskId] = it },
+                    content = {
+                        val taskToolCalls = viewModel.toolCalls.filter { toolCall ->
+                            isToolCallInTask(toolCall, task)
+                        }
+                        if (taskToolCalls.isNotEmpty()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                taskToolCalls.forEach { toolCall ->
+                                    CompactToolCallCard(
+                                        toolCall = toolCall,
+                                        expanded = false,
+                                        onExpandedChange = {}
+                                    )
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+
+            completedTasks.forEach { task ->
+                val isCollapsed = viewModel.collapsedTasks[task.taskId] ?: true
+                TaskContainerCard(
+                    task = task,
+                    isCollapsed = isCollapsed,
+                    onCollapsedChange = { viewModel._collapsedTasks[task.taskId] = it },
+                    content = {
+                        val taskToolCalls = viewModel.toolCalls.filter { toolCall ->
+                            isToolCallInTask(toolCall, task)
+                        }
+                        if (taskToolCalls.isNotEmpty()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                taskToolCalls.forEach { toolCall ->
+                                    CompactToolCallCard(
+                                        toolCall = toolCall,
+                                        expanded = false,
+                                        onExpandedChange = {}
+                                    )
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+        }
+    }
 }
