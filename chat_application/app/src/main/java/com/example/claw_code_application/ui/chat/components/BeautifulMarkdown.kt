@@ -150,8 +150,9 @@ fun BeautifulMarkdown(
         )
     )
 
-    // 缓存table组件，避免每次重组重新创建
-    val tableComponents = remember { MarkdownTable.createComponents() }
+    // MarkdownTable.createComponents()是@Composable函数，不能直接缓存
+    // 但它是轻量级操作，直接调用即可
+    val tableComponents = MarkdownTable.createComponents()
 
     // 组件配置 - highlightedCodeBlock/highlightedCodeFence是@Composable函数引用
     val components = markdownComponents(
