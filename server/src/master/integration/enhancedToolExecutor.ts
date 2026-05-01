@@ -32,6 +32,7 @@ import {
 import { createFileTools } from './tools/fileTools'
 import { createShellTools } from './tools/shellTools'
 import { createTaskTools } from './tools/taskTools'
+import { shouldExecuteOnWorker } from '../integrations/workerToolExecutor'
 
 // ==================== 全局实例 ====================
 
@@ -178,7 +179,14 @@ export class EnhancedToolExecutor {
     const startTime = Date.now()
 
     try {
-      // 1. 查找工具
+      if (shouldExecuteOnWorker(toolName)) {
+        console.error(`[SECURITY] EnhancedToolExecutor: 工具 ${toolName} 必须在 Worker 容器中执行，禁止在 Master 本地运行。请通过 ToolRegistry.executeTool() 调用。`)
+        return {
+          success: false,
+          error: `[SECURITY] 工具 ${toolName} 必须在 Worker 容器中执行，禁止在 Master 本地运行。`,
+        }
+      }
+
       const tool = this.tools.get(toolName)
       if (!tool) {
         return {

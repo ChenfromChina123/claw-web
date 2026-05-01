@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { WebSocketData } from '../index'
 import { llmService, type ChatMessage, type ToolDefinition } from '../services/llmService'
 import { getToolRegistry } from '../integrations/toolRegistry'
+import { shouldExecuteOnWorker } from '../integrations/workerToolExecutor'
 import { AGENT_DEFAULTS } from '../../shared/constants'
 import { truncateToolResult, TOOL_RESULT_LIMITS } from '../utils/fileLimits'
 
@@ -32,6 +33,8 @@ export interface AgentConfig {
   maxTokens: number
   temperature: number
   systemPrompt?: string
+  sessionId?: string
+  userId?: string
 }
 
 // Agent 执行结果
@@ -351,11 +354,27 @@ export class WebAgentRunner {
           for (const toolCall of result.toolCalls) {
             sendEvent('tool_call', { id: toolCall.id, name: toolCall.name, input: toolCall.input })
 
-            const toolResult = await toolExecutor.executeTool(
-              toolCall.name,
-              toolCall.input,
-              sendEvent
-            )
+            let toolResult: { success: boolean; result?: unknown; error?: string }
+
+            if (shouldExecuteOnWorker(toolCall.name)) {
+              const registryResult = await toolRegistry.executeTool({
+                toolName: toolCall.name,
+                toolInput: toolCall.input,
+                sessionId: config.sessionId,
+                userId: config.userId,
+              })
+              toolResult = {
+                success: registryResult.success,
+                result: registryResult.result ?? registryResult.output,
+                error: registryResult.error,
+              }
+            } else {
+              toolResult = await toolExecutor.executeTool(
+                toolCall.name,
+                toolCall.input,
+                sendEvent
+              )
+            }
 
             toolCall.output = toolResult.success ? toolResult.result : toolResult.error
             toolCall.status = toolResult.success ? 'completed' : 'error'

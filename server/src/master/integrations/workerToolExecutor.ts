@@ -22,6 +22,7 @@ import type { WorkerToolExecRequest, WorkerToolExecResponse } from '../../shared
 /**
  * 需要通过 Worker 执行的危险工具列表
  * 架构铁律：Master 禁止直接执行任何用户命令或文件操作
+ * 包含：Shell执行、编程语言、构建工具、包管理器、文件操作、系统工具
  */
 const WORKER_REQUIRED_TOOLS = new Set([
   'Bash',
@@ -50,14 +51,78 @@ const WORKER_REQUIRED_TOOLS = new Set([
   'Find',
   'Which',
   'Env',
+  'Java',
+  'GCC',
+  'Pip',
+  'Npm',
+  'Pnpm',
+  'Yarn',
+  'Cargo',
+  'Poetry',
+  'NuGet',
+  'Brew',
+  'Apt',
+  'Yum',
+  'Chocolatey',
+  'Composer',
+  'Bundler',
+  'Make',
+  'CMake',
+  'Gradle',
+  'Maven',
+  'Webpack',
+  'Vite',
+  'Bazel',
+  'Ninja',
+  'Scons',
+  'Ruby',
+  'Lua',
+  'Perl',
+  'Rscript',
+  'Julia',
+  'Dart',
+  'PHP',
+  'ImageRead',
+  'NotebookEdit',
+  'DockerManager',
+  'GitLog',
+  'GitStatus',
+  'GitDiff',
+  'GitAdvanced',
+  'DatabaseQuery',
+  'LSP',
+  'PackageInfo',
+  'ProcessList',
+  'SystemInfo',
+  'EnvGet',
+  'EnvSet',
+  'ClipboardRead',
+  'ClipboardWrite',
+  'Ping',
+  'DnsLookup',
+  'PortScan',
+  'Traceroute',
+  'NetConnect',
+  'WhoisLookup',
+  'IpInfo',
+  'NetworkInterfaces',
 ])
 
 /**
  * 危险工具名称模式匹配（用于捕获未显式列出的变体）
+ * 匹配规则：
+ * 1. Shell/终端类工具名
+ * 2. 文件/目录操作类工具名
+ * 3. 编程语言执行类工具名
+ * 4. 构建/包管理类工具名
  */
 const DANGEROUS_TOOL_PATTERNS = [
-  /^(bash|shell|exec|cmd|terminal|powershell|python|node|go|rust)$/i,
-  /^(file|dir|path|fs|disk)(read|write|edit|delete|create|remove|move|copy|list|find|glob|grep|cat|head|tail)/i,
+  /^(bash|shell|exec|cmd|terminal|powershell|command|run|script)$/i,
+  /^(file|dir|path|fs|disk|folder)(read|write|edit|delete|create|remove|move|copy|list|find|glob|grep|cat|head|tail|watch|scan|tree)/i,
+  /^(python|node|go|rust|java|ruby|perl|lua|dart|php|julia|rscript|gcc|g\+\+|clang)$/i,
+  /^(npm|yarn|pnpm|pip|cargo|poetry|nuget|brew|apt|yum|choco|composer|bundler|maven|gradle|make|cmake|bazel|ninja|scons|vite|webpack|rollup|esbuild|parcel)$/i,
+  /^(docker|container|git|svn|hg)(run|exec|build|push|pull|clone|commit|checkout|merge|rebase|log|status|diff)/i,
+  /^(network|net|tcp|udp|http|ssh|scp|ftp|curl|wget|socket)/i,
 ]
 
 /**
