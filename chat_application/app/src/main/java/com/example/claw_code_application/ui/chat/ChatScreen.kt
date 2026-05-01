@@ -121,19 +121,17 @@ fun ChatScreen(
         }
     }
 
-    // 流式内容增长时：智能滚动跟随 - 优化版
-    // 优化点：
-    // 1. 增加滚动触发阈值从300到800字符，减少滚动频率
-    // 2. 使用scrollToItem替代animateScrollToItem，避免动画与内容更新冲突导致的抖动
+    // 流式内容增长时：智能滚动跟随 - Web端对齐版
+    // 参考Web端实现：使用节流而非防抖，48ms间隔避免频繁滚动
     val streamingMessage = displayMessages.firstOrNull { it.isStreaming }
-    var lastScrollLength by remember { mutableStateOf(0) }
+    var lastScrollTime by remember { mutableStateOf(0L) }
 
     LaunchedEffect(streamingMessage?.content?.length) {
         if (streamingMessage != null && canAutoScroll) {
-            val currentLength = streamingMessage.content.length
-            // 增加阈值到800字符，减少滚动频率，避免抖动
-            if (currentLength - lastScrollLength >= 800 || lastScrollLength == 0) {
-                lastScrollLength = currentLength
+            val now = System.currentTimeMillis()
+            // 48ms节流间隔，与Web端保持一致
+            if (now - lastScrollTime >= 48) {
+                lastScrollTime = now
                 // 使用scrollToItem而非animateScrollToItem，避免动画冲突
                 listState.scrollToItem(0)
             }
