@@ -33,9 +33,26 @@ class SessionViewModel(
         data class Error(val message: String) : UiState()
     }
 
+    /** 同步状态密封类 */
+    sealed class SyncState {
+        data object Idle : SyncState()
+        data object Checking : SyncState()
+        data class Syncing(
+            val current: Int,
+            val total: Int,
+            val currentSessionTitle: String
+        ) : SyncState()
+        data object Completed : SyncState()
+        data class Failed(val message: String) : SyncState()
+    }
+
     /** 私有可观察状态 */
     private val _uiState = MutableStateFlow<UiState>(UiState.Idle)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    /** 同步状态 */
+    private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
+    val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
 
     /** 会话列表（用于乐观更新）*/
     private val _sessions = mutableStateListOf<Session>()
@@ -378,6 +395,54 @@ class SessionViewModel(
     fun clearSelection() {
         Logger.d(TAG, "清空会话选择")
         selectedSessionId = null
+    }
+
+    /**
+     * 启动全量同步
+     * 先检查是否需要同步，如果需要则逐个同步所有会话的详情数据
+     * 同步过程中通过syncState报告进度
+     */
+    fun startFullSync() {
+        Logger.d(TAG, "开始全量同步检查...")
+        viewModelScope.launch {
+            _syncState.value = SyncState.Checking
+
+            val needsSync = chatRepository.needsFullSync()
+            if (!needsSync) {
+                Logger.d(TAG, "本地缓存完整，无需全量同步")
+                _syncState.value = SyncState.Completed
+                return@launch
+            }
+
+            Logger.d(TAG, "本地缓存不完整，开始全量同步...")
+            chatRepository.syncAllChatData().collect { progress ->
+                when {
+                    progress.isCompleted -> {
+                        Logger.d(TAG, "全量同步完成")
+                        _syncState.value = SyncState.Completed
+                        loadSessions(forceRefresh = true)
+                    }
+                    progress.isFailed -> {
+                        Logger.e(TAG, "全量同步失败: ${progress.errorMessage}")
+                        _syncState.value = SyncState.Failed(progress.errorMessage ?: "同步失败")
+                    }
+                    else -> {
+                        _syncState.value = SyncState.Syncing(
+                            current = progress.current,
+                            total = progress.total,
+                            currentSessionTitle = progress.currentSessionTitle
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 重置同步状态
+     */
+    fun resetSyncState() {
+        _syncState.value = SyncState.Idle
     }
 
     companion object {

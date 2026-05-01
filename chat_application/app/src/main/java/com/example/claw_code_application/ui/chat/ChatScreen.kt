@@ -11,7 +11,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -53,6 +61,8 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     var showBottomSheet by remember { mutableStateOf(false) }
     var showFilePicker by remember { mutableStateOf(false) }
+    var showSkillPicker by remember { mutableStateOf(false) }
+    val selectedSkills = remember { mutableStateListOf<SkillAttachment>() }
 
     val displayMessages = viewModel.displayMessages
 
@@ -64,7 +74,6 @@ fun ChatScreen(
         if (listState.isScrollInProgress) {
             userScrolling = true
         } else {
-            // 滑动停止后，延迟恢复自动滚动
             delay(1000L)
             userScrolling = false
         }
@@ -84,17 +93,35 @@ fun ChatScreen(
         }
     }
 
-    // 会话加载完成后滚动到最新消息
+    // 会话加载完成后直接定位到底部（无动画，避免"从顶部跳到底部"的视觉效果）
     LaunchedEffect(uiState) {
         if (uiState is ChatViewModel.UiState.Success && displayMessages.isNotEmpty()) {
-            // 延迟一点确保列表已渲染
-            delay(100L)
-            listState.animateScrollToItem(0)
+            listState.scrollToItem(0)
         }
     }
 
-    val onSend: (String) -> Unit = remember(viewModel) {
-        { content: String -> viewModel.sendMessage(content) }
+    // 检测是否需要加载更多历史消息（reverseLayout中，底部=历史消息末尾）
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val totalItems = layoutInfo.totalItemsCount
+            lastVisibleIndex >= totalItems - 3 && viewModel.hasMoreHistory && !viewModel.isLoadingHistory
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) {
+            viewModel.loadOlderMessages()
+        }
+    }
+
+    val onSend: (String, List<SkillAttachment>) -> Unit = remember(viewModel) {
+        { content: String, skills: List<SkillAttachment> ->
+            val finalContent = buildMessageWithSkills(content, skills)
+            viewModel.sendMessage(finalContent)
+            selectedSkills.clear()
+        }
     }
 
     /**
@@ -143,9 +170,11 @@ fun ChatScreen(
                 .navigationBarsPadding()
         ) {
             InputBar(
-                onSend = onSend,
+                onSend = { content -> onSend(content, selectedSkills.toList()) },
                 enabled = uiState !is ChatViewModel.UiState.Loading,
-                onAddClick = { showFilePicker = true }
+                onAddClick = { showBottomSheet = true },
+                selectedSkills = selectedSkills,
+                onRemoveSkill = { skill -> selectedSkills.remove(skill) }
             )
         }
     }
@@ -157,9 +186,33 @@ fun ChatScreen(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
         ) {
             ToolBottomSheet(
-                onDismiss = { showBottomSheet = false }
+                onDismiss = { showBottomSheet = false },
+                onFileClick = {
+                    showBottomSheet = false
+                    showFilePicker = true
+                },
+                onImageClick = {
+                    showBottomSheet = false
+                },
+                onAddSkillClick = {
+                    showBottomSheet = false
+                    showSkillPicker = true
+                }
             )
         }
+    }
+
+    // 技能选择器底部弹窗
+    if (showSkillPicker) {
+        SkillPickerSheet(
+            onDismiss = { showSkillPicker = false },
+            onSkillSelected = { skill ->
+                if (selectedSkills.none { it.id == skill.id }) {
+                    selectedSkills.add(skill)
+                }
+                showSkillPicker = false
+            }
+        )
     }
 
     // 文件选择器对话框
@@ -293,9 +346,7 @@ private fun ChatMessageList(
         ) { message ->
             EnhancedMessageBubble(
                 message = message,
-                toolCalls = remember(message.id, viewModel.toolCalls) {
-                    viewModel.getToolCallsForMessage(message.id)
-                },
+                toolCalls = viewModel.getToolCallsForMessage(message.id),
                 modifier = Modifier.padding(vertical = 4.dp)
             )
         }
@@ -323,6 +374,39 @@ private fun ChatMessageList(
                     steps = steps,
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
+            }
+        }
+
+        // 加载历史消息指示器（reverseLayout中显示在底部=视觉上的顶部）
+        if (viewModel.isLoadingHistory) {
+            item(key = "loading_history") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = colors.PrimaryLight
+                    )
+                }
+            }
+        } else if (viewModel.hasMoreHistory) {
+            item(key = "load_more_hint") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "↑ 向上滑动加载更多",
+                        color = colors.TextSecondary,
+                        fontSize = 12.sp
+                    )
+                }
             }
         }
 
@@ -412,4 +496,25 @@ private fun getToolStepTitle(toolCall: ToolCall): String {
         toolCall.toolName.contains("write", ignoreCase = true) -> "写入文件: ${toolCall.toolName}"
         else -> "执行: ${toolCall.toolName}"
     }
+}
+
+/**
+ * 技能附件数据类，用于在输入框上方以芯片形式展示已选技能
+ */
+data class SkillAttachment(
+    val id: String,
+    val name: String,
+    val description: String
+)
+
+/**
+ * 将用户消息与技能引用拼接为最终发送内容
+ * 格式与 Web 端保持一致：### 使用 Skill: {name}\n{description}
+ */
+private fun buildMessageWithSkills(content: String, skills: List<SkillAttachment>): String {
+    if (skills.isEmpty()) return content
+    val skillParts = skills.joinToString("\n\n") { skill ->
+        "### 使用 Skill: ${skill.name}\n${skill.description}"
+    }
+    return "$skillParts\n\n$content"
 }

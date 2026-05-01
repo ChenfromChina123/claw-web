@@ -64,6 +64,16 @@ class CachedChatRepository(
          * 最小缓存时间（毫秒）- 防止频繁刷新
          */
         private const val MIN_CACHE_AGE_MS = 60 * 1000L
+
+        /**
+         * 首屏加载消息数量
+         */
+        const val INITIAL_LOAD_COUNT = 50
+
+        /**
+         * 向上翻页每页加载消息数量
+         */
+        const val PAGE_SIZE = 30
     }
 
     /**
@@ -272,6 +282,74 @@ class CachedChatRepository(
     }
 
     // ==================== 消息操作 ====================
+
+    /**
+     * 获取最新N条消息（首屏分页加载）
+     * 优先从本地缓存读取，缓存为空时从网络获取
+     *
+     * @param sessionId 会话ID
+     * @param count 加载数量（默认50条）
+     */
+    suspend fun getLatestMessages(
+        sessionId: String,
+        count: Int = INITIAL_LOAD_COUNT
+    ): Result<List<Message>> = withContext(Dispatchers.IO) {
+        try {
+            val localMessages = messageDao.getLatestMessages(sessionId, count)
+            if (localMessages.isNotEmpty()) {
+                Logger.d(TAG, "从本地缓存加载最新消息: sessionId=$sessionId, ${localMessages.size} 条")
+                Result.Success(localMessages.toMessages())
+            } else {
+                val remoteDetail = fetchSessionDetailFromNetwork(sessionId)
+                if (remoteDetail != null) {
+                    val (sessionEntity, messageEntities, toolCallEntities) = remoteDetail.toCacheData()
+                    sessionDao.insertSession(sessionEntity)
+                    messageDao.insertMessages(messageEntities)
+                    toolCallDao.insertToolCalls(toolCallEntities)
+                    val messages = remoteDetail.messages.takeLast(count)
+                    Logger.d(TAG, "从网络加载最新消息: sessionId=$sessionId, ${messages.size} 条")
+                    Result.Success(messages)
+                } else {
+                    Result.Success(emptyList())
+                }
+            }
+        } catch (e: Exception) {
+            Logger.e(TAG, "获取最新消息异常: sessionId=$sessionId", e)
+            Result.Error(e.message ?: "加载失败", e)
+        }
+    }
+
+    /**
+     * 获取更早的历史消息（向上翻页加载）
+     * 仅从本地缓存读取，不触发网络请求
+     *
+     * @param sessionId 会话ID
+     * @param beforeTimestamp 早于此时间戳的消息
+     * @param limit 加载数量（默认30条）
+     */
+    suspend fun getOlderMessages(
+        sessionId: String,
+        beforeTimestamp: String,
+        limit: Int = PAGE_SIZE
+    ): Result<List<Message>> = withContext(Dispatchers.IO) {
+        try {
+            val olderMessages = messageDao.getMessagesBeforeTimestamp(sessionId, beforeTimestamp, limit)
+            Logger.d(TAG, "加载更早消息: sessionId=$sessionId, ${olderMessages.size} 条")
+            Result.Success(olderMessages.toMessages())
+        } catch (e: Exception) {
+            Logger.e(TAG, "加载更早消息异常: sessionId=$sessionId", e)
+            Result.Error(e.message ?: "加载失败", e)
+        }
+    }
+
+    /**
+     * 获取会话消息总数（用于判断是否还有更多历史消息）
+     *
+     * @param sessionId 会话ID
+     */
+    suspend fun getMessageCount(sessionId: String): Int = withContext(Dispatchers.IO) {
+        messageDao.getMessageCount(sessionId)
+    }
 
     /**
      * 保存消息到本地缓存
@@ -539,6 +617,94 @@ class CachedChatRepository(
             fileName.endsWith(".pptx", ignoreCase = true) -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
             else -> "application/octet-stream"
         }
+    }
+
+    /**
+     * 全量同步进度数据类
+     */
+    data class SyncProgress(
+        val current: Int = 0,
+        val total: Int = 0,
+        val currentSessionTitle: String = "",
+        val isCompleted: Boolean = false,
+        val isFailed: Boolean = false,
+        val errorMessage: String? = null
+    )
+
+    /**
+     * 全量同步所有聊天数据
+     * 1. 从网络获取所有会话列表
+     * 2. 逐个获取每个会话的详情（消息+工具调用）
+     * 3. 保存到本地Room数据库
+     * 4. 通过Flow报告同步进度
+     */
+    fun syncAllChatData(): Flow<SyncProgress> = flow {
+        try {
+            val remoteSessions = fetchSessionsFromNetwork()
+            if (remoteSessions == null) {
+                emit(SyncProgress(isFailed = true, errorMessage = "无法获取会话列表"))
+                return@flow
+            }
+
+            if (remoteSessions.isEmpty()) {
+                emit(SyncProgress(isCompleted = true, total = 0, current = 0))
+                return@flow
+            }
+
+            sessionDao.insertSessionsBatch(remoteSessions.toSessionEntities())
+
+            val total = remoteSessions.size
+
+            remoteSessions.forEachIndexed { index, session ->
+                emit(SyncProgress(
+                    current = index + 1,
+                    total = total,
+                    currentSessionTitle = session.title ?: "新对话"
+                ))
+
+                try {
+                    val cachedMsgCount = messageDao.getMessageCount(session.id)
+                    if (cachedMsgCount > 0) {
+                        Logger.d(TAG, "会话 ${session.id} 已有 $cachedMsgCount 条缓存消息，跳过")
+                    } else {
+                        val detail = fetchSessionDetailFromNetwork(session.id)
+                        if (detail != null) {
+                            val (sessionEntity, messageEntities, toolCallEntities) = detail.toCacheData()
+                            sessionDao.insertSession(sessionEntity)
+                            messageDao.insertMessagesBatch(messageEntities)
+                            toolCallDao.insertToolCalls(toolCallEntities)
+                            Logger.d(TAG, "同步会话详情: ${session.id}, ${messageEntities.size} 条消息")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Logger.e(TAG, "同步会话详情失败: ${session.id}", e)
+                }
+            }
+
+            emit(SyncProgress(current = total, total = total, isCompleted = true))
+            Logger.i(TAG, "全量同步完成: 共 $total 个会话")
+
+        } catch (e: Exception) {
+            Logger.e(TAG, "全量同步异常", e)
+            emit(SyncProgress(isFailed = true, errorMessage = e.message ?: "同步失败"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    /**
+     * 检查是否需要进行全量同步
+     * 如果本地缓存为空，则需要全量同步
+     */
+    suspend fun needsFullSync(): Boolean = withContext(Dispatchers.IO) {
+        val localSessionCount = sessionDao.getSessionCount()
+        if (localSessionCount == 0) return@withContext true
+
+        val sessionsWithMessages = sessionDao.getAllSessionsOnce()
+        for (session in sessionsWithMessages) {
+            val msgCount = messageDao.getMessageCount(session.id)
+            if (msgCount == 0) return@withContext true
+        }
+
+        false
     }
 
     // ==================== 缓存清理 ====================

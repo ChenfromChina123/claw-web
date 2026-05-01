@@ -53,6 +53,8 @@ fun InputBar(
     enabled: Boolean = true,
     onAddClick: () -> Unit = {},
     onImageSelected: ((Uri) -> Unit)? = null,
+    selectedSkills: List<com.example.claw_code_application.ui.chat.SkillAttachment> = emptyList(),
+    onRemoveSkill: (com.example.claw_code_application.ui.chat.SkillAttachment) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val colors = AppColor.current
@@ -87,12 +89,20 @@ fun InputBar(
         color = colors.Surface,
         shadowElevation = 8.dp
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Column {
+            if (selectedSkills.isNotEmpty()) {
+                SkillChipsRow(
+                    skills = selectedSkills,
+                    onRemove = onRemoveSkill,
+                    colors = colors
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
             AddButton(
                 onClick = {
                     if (onImageSelected != null) {
@@ -183,6 +193,7 @@ fun InputBar(
                     colors = colors
                 )
             }
+        }
         }
     }
 }
@@ -381,4 +392,63 @@ private fun startVoiceInput(
 
     onReady(recognizer)
     recognizer.startListening(intent)
+}
+
+/**
+ * 技能芯片行 - 在输入框上方展示已选技能
+ * 横向可滚动，每个芯片包含闪电图标+名称+关闭按钮
+ */
+@Composable
+private fun SkillChipsRow(
+    skills: List<com.example.claw_code_application.ui.chat.SkillAttachment>,
+    onRemove: (com.example.claw_code_application.ui.chat.SkillAttachment) -> Unit,
+    colors: com.example.claw_code_application.ui.theme.AppColors
+) {
+    androidx.compose.foundation.lazy.LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(
+            count = skills.size,
+            key = { index -> skills[index].id }
+        ) { index ->
+            val skill = skills[index]
+            androidx.compose.material3.Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = colors.PrimaryLight.copy(alpha = 0.15f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, colors.PrimaryLight.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "⚡",
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = skill.name,
+                        fontSize = 12.sp,
+                        color = colors.PrimaryLight,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1
+                    )
+                    androidx.compose.material3.IconButton(
+                        onClick = { onRemove(skill) },
+                        modifier = Modifier.size(16.dp)
+                    ) {
+                        Text(
+                            text = "×",
+                            fontSize = 14.sp,
+                            color = colors.TextSecondary
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

@@ -5,15 +5,26 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -277,10 +288,12 @@ private fun ChatMainScreen(
     var showSettingsDrawer by remember { mutableStateOf(false) }
 
     val sessionUiState by sessionViewModel.uiState.collectAsStateWithLifecycle()
+    val syncState by sessionViewModel.syncState.collectAsStateWithLifecycle()
 
-    // 页面加载时异步加载会话列表
+    // 页面加载时异步加载会话列表，并触发全量同步
     LaunchedEffect(Unit) {
         sessionViewModel.loadSessions()
+        sessionViewModel.startFullSync()
     }
 
     val scope = rememberCoroutineScope()
@@ -427,6 +440,8 @@ private fun ChatMainScreen(
             onLogout = onLogout,
             onNavigateToLogin = onNavigateToLogin
         )
+
+        DataSyncOverlay(syncState = syncState)
     }
 
     /**
@@ -462,5 +477,105 @@ private fun ChatMainScreen(
                 }
             }
         )
+    }
+}
+
+/**
+ * 数据同步动画覆盖层
+ * 在全量同步聊天数据时显示进度动画
+ */
+@Composable
+private fun DataSyncOverlay(
+    syncState: SessionViewModel.SyncState
+) {
+    val isSyncing = syncState is SessionViewModel.SyncState.Syncing ||
+            syncState is SessionViewModel.SyncState.Checking
+
+    AnimatedVisibility(visible = isSyncing) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            val infiniteTransition = rememberInfiniteTransition(label = "syncPulse")
+            val pulseAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.6f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(800, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "pulseAlpha"
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp)),
+                colors = CardDefaults.cardColors(
+                    containerColor = AppColor.current.Primary.copy(alpha = 0.12f)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CloudDownload,
+                        contentDescription = "同步中",
+                        tint = AppColor.current.Primary.copy(alpha = pulseAlpha),
+                        modifier = Modifier.size(20.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        when (syncState) {
+                            is SessionViewModel.SyncState.Checking -> {
+                                Text(
+                                    text = "正在检查数据...",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = AppColor.current.Primary
+                                )
+                            }
+                            is SessionViewModel.SyncState.Syncing -> {
+                                Text(
+                                    text = "正在同步聊天数据 (${syncState.current}/${syncState.total})",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = AppColor.current.Primary
+                                )
+                                if (syncState.currentSessionTitle.isNotEmpty()) {
+                                    Text(
+                                        text = syncState.currentSessionTitle,
+                                        fontSize = 11.sp,
+                                        color = AppColor.current.TextSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                }
+                                LinearProgressIndicator(
+                                    progress = { if (syncState.total > 0) syncState.current.toFloat() / syncState.total else 0f },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 6.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    color = AppColor.current.Primary,
+                                    trackColor = AppColor.current.Primary.copy(alpha = 0.15f),
+                                )
+                            }
+                            else -> {}
+                        }
+                    }
+                }
+            }
+        }
     }
 }
