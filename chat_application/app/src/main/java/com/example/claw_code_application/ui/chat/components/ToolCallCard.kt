@@ -7,8 +7,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -197,7 +199,10 @@ fun ToolCallCard(
                 ) + fadeOut(animationSpec = tween(150))
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+                    modifier = Modifier
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                        .heightIn(max = 250.dp)
+                        .verticalScroll(rememberScrollState())
                 ) {
                     HorizontalDivider(
                     color = colors.Divider,
@@ -640,7 +645,7 @@ fun CompactToolCallCard(
                 )
             }
 
-            // 展开内容（极简风格）
+            // 展开内容（极简风格，限制最大高度）
             AnimatedVisibility(
                 visible = expanded,
                 enter = expandVertically(
@@ -651,7 +656,10 @@ fun CompactToolCallCard(
                 ) + fadeOut(animationSpec = tween(150))
             ) {
                 Column(
-                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
+                    modifier = Modifier
+                        .padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
+                        .heightIn(max = 200.dp)
+                        .verticalScroll(rememberScrollState())
                 ) {
                     HorizontalDivider(
                         color = colors.Divider,
