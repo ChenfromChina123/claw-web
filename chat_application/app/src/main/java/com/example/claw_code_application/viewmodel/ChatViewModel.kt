@@ -9,6 +9,8 @@ import com.example.claw_code_application.data.api.models.*
 import com.example.claw_code_application.data.local.PushMessageStore
 import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.local.SessionLocalStore
+import com.example.claw_code_application.data.local.db.TaskDao
+import com.example.claw_code_application.data.local.db.TaskEntity
 import com.example.claw_code_application.data.repository.CachedChatRepository
 import com.example.claw_code_application.data.websocket.WebSocketManager
 import com.example.claw_code_application.service.NotificationManager
@@ -29,7 +31,8 @@ class ChatViewModel(
     internal val webSocketManager: WebSocketManager = WebSocketManager(),
     internal val sessionLocalStore: SessionLocalStore? = null,
     internal val notificationManager: NotificationManager? = null,
-    internal val pushMessageStore: PushMessageStore? = null
+    internal val pushMessageStore: PushMessageStore? = null,
+    internal val taskDao: TaskDao? = null
 ) : ViewModel() {
 
     sealed class UiState {
@@ -232,6 +235,8 @@ class ChatViewModel(
                 currentSessionId = sessionId; saveSessionToLocalStore(sessionId)
                 clearInternalState(); _uiState.value = UiState.Loading
 
+                loadTasksFromDatabase(sessionId)
+
                 val latestResult = cachedChatRepository.getLatestMessages(sessionId)
                 when (latestResult) {
                     is CachedChatRepository.Result.Success -> {
@@ -372,6 +377,33 @@ class ChatViewModel(
 
     override fun onCleared() { super.onCleared(); webSocketManager.disconnect() }
 
+    /**
+     * 从数据库加载会话关联的任务列表
+     */
+    private suspend fun loadTasksFromDatabase(sessionId: String) {
+        val dao = taskDao ?: return
+        try {
+            val entities = dao.getTasksBySessionOnce(sessionId)
+            _tasks.clear()
+            _tasks.addAll(entities.map { it.toBackgroundTask() })
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "从数据库加载任务失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 将任务持久化到数据库
+     */
+    internal suspend fun saveTaskToDatabase(task: BackgroundTask) {
+        val dao = taskDao ?: return
+        val sid = currentSessionId ?: return
+        try {
+            dao.insertTask(task.toTaskEntity(sid))
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "保存任务到数据库失败: ${e.message}")
+        }
+    }
+
     companion object {
         private const val TAG = "ChatViewModel"
         fun provideFactory(
@@ -379,12 +411,14 @@ class ChatViewModel(
             tokenManager: TokenManager,
             sessionLocalStore: SessionLocalStore? = null,
             notificationManager: NotificationManager? = null,
-            pushMessageStore: PushMessageStore? = null
+            pushMessageStore: PushMessageStore? = null,
+            taskDao: TaskDao? = null
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T = ChatViewModel(
                 cachedChatRepository = cachedChatRepository, tokenManager = tokenManager,
-                sessionLocalStore = sessionLocalStore, notificationManager = notificationManager, pushMessageStore = pushMessageStore
+                sessionLocalStore = sessionLocalStore, notificationManager = notificationManager,
+                pushMessageStore = pushMessageStore, taskDao = taskDao
             ) as T
         }
     }

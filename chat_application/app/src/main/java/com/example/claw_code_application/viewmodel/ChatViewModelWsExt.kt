@@ -236,17 +236,17 @@ private fun ChatViewModel.handleTaskStatusChanged(event: WebSocketManager.WebSoc
     val existingIndex = _tasks.indexOfFirst { it.taskId == payload.taskId }
     val now = System.currentTimeMillis()
 
-    if (existingIndex != -1) {
+    val updatedTask = if (existingIndex != -1) {
         val existing = _tasks[existingIndex]
-        _tasks[existingIndex] = existing.copy(
+        existing.copy(
             status = payload.newStatus,
             result = payload.result ?: existing.result,
             error = payload.error ?: existing.error,
             startedAt = if (payload.newStatus == "running") now else existing.startedAt,
             completedAt = if (payload.newStatus == "completed" || payload.newStatus == "failed" || payload.newStatus == "cancelled") now else existing.completedAt
-        )
+        ).also { _tasks[existingIndex] = it }
     } else {
-        _tasks.add(BackgroundTask(
+        BackgroundTask(
             taskId = payload.taskId,
             taskName = payload.taskName,
             status = payload.newStatus,
@@ -255,12 +255,14 @@ private fun ChatViewModel.handleTaskStatusChanged(event: WebSocketManager.WebSoc
             completedAt = if (payload.newStatus == "completed" || payload.newStatus == "failed" || payload.newStatus == "cancelled") now else null,
             result = payload.result,
             error = payload.error
-        ))
+        ).also { _tasks.add(it) }
     }
 
     if (payload.newStatus == "completed") {
         _collapsedTasks[payload.taskId] = true
     }
+
+    vmScope.launch { saveTaskToDatabase(updatedTask) }
 
     updateDisplayMessages()
     emitUiStateUpdate()

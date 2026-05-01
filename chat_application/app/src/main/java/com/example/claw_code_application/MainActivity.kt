@@ -252,7 +252,8 @@ private fun ChatMainScreen(
             tokenManager = ClawCodeApplication.tokenManager,
             sessionLocalStore = ClawCodeApplication.sessionLocalStore,
             notificationManager = ClawCodeApplication.notificationManager,
-            pushMessageStore = pushMessageStore
+            pushMessageStore = pushMessageStore,
+            taskDao = ClawCodeApplication.appDatabase.taskDao()
         )
     )
 

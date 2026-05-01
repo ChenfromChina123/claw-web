@@ -108,5 +108,7 @@ data class TaskStatusChangePayload(
     val result: String? = null,
     val error: String? = null,
     @SerialName("traceId")
-    val traceId: String? = null
+    val traceId: String? = null,
+    @SerialName("sessionId")
+    val sessionId: String? = null
 )

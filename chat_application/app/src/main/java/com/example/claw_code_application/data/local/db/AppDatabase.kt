@@ -13,16 +13,18 @@ import androidx.room.RoomDatabase
     entities = [
         SessionEntity::class,
         MessageEntity::class,
-        ToolCallEntity::class
+        ToolCallEntity::class,
+        TaskEntity::class
     ],
-    version = 4,  // 升级版本号：同步Server端大文本支持
-    exportSchema = false  // 禁用schema导出，简化构建
+    version = 5,
+    exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun sessionDao(): SessionDao
     abstract fun messageDao(): MessageDao
     abstract fun toolCallDao(): ToolCallDao
+    abstract fun taskDao(): TaskDao
 
     companion object {
         private const val DATABASE_NAME = "claw_chat_database"
