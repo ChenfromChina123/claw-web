@@ -1,26 +1,26 @@
 [versions]
 agp = "8.13.2"
-kotlin = "2.0.21"
+kotlin = "2.1.20"
 # Kotlinx Serialization (JSON)
-kotlinxSerialization = "1.6.3"
+kotlinxSerialization = "1.7.3"
 # Room 数据库
 room = "2.6.1"
-ksp = "2.0.21-1.0.27"
+ksp = "2.1.20-1.0.32"
 coreKtx = "1.12.0"
 junit = "4.13.2"
 junitVersion = "1.1.5"
 espressoCore = "3.5.1"
 appcompat = "1.6.1"
 material = "1.10.0"
-# Compose BOM 版本 - 使用与 Kotlin 2.0.21 兼容的版本（已升级以兼容 markdown renderer）
-composeBom = "2024.09.00"
+# Compose BOM 版本 - Kotlin 2.1.20 兼容
+composeBom = "2025.01.00"
 # 导航组件
-navigationCompose = "2.7.6"
+navigationCompose = "2.8.5"
 # Lifecycle
-lifecycleRuntimeKtx = "2.7.0"
-lifecycleViewmodelCompose = "2.7.0"
-lifecycleRuntimeCompose = "2.7.0"
-activityCompose = "1.8.2"
+lifecycleRuntimeKtx = "2.8.7"
+lifecycleViewmodelCompose = "2.8.7"
+lifecycleRuntimeCompose = "2.8.7"
+activityCompose = "1.9.3"
 # 网络
 okhttp = "4.12.0"
 okhttpLogging = "4.12.0"
@@ -30,15 +30,15 @@ datastorePreferences = "1.0.0"
 # Security - 加密存储
 securityCrypto = "1.1.0-alpha06"
 # 协程
-coroutinesAndroid = "1.7.3"
+coroutinesAndroid = "1.9.0"
 # 图片加载
 coilCompose = "2.5.0"
 # Accompanist
 accompanistSystemUiController = "0.34.0"
-# Markdown渲染 - 使用 mikepenz multiplatform-markdown-renderer (Material3 + 代码高亮)
-# 升级到 0.31.0 版本，与 Kotlin 2.0.21 兼容，支持表格
-markdownRenderer = "0.31.0"
-markdownCode = "0.31.0"
+# Markdown渲染 - mikepenz multiplatform-markdown-renderer (Material3 + 代码高亮)
+# 0.34.0 是与 Kotlin 2.1.20 兼容的最高版本，支持代码高亮头部、扩展样式
+markdownRenderer = "0.34.0"
+markdownCode = "0.34.0"
 # MMKV - 腾讯高性能KV存储（比SharedPreferences快10~100倍）
 mmkv = "1.3.9"
 
