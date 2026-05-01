@@ -5,9 +5,19 @@ import com.example.claw_code_application.data.api.models.AgentPushMessage
 import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.data.api.models.TaskStatusChangePayload
 import com.example.claw_code_application.util.NetworkConfig
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.*
 import okhttp3.*
@@ -58,8 +68,16 @@ class WebSocketManager {
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
-    private val _incomingMessages = MutableStateFlow<WebSocketEvent?>(null)
-    val incomingMessages: StateFlow<WebSocketEvent?> = _incomingMessages.asStateFlow()
+    /**
+     * WebSocket 事件流 - 使用 SharedFlow 替代 StateFlow
+     * 避免 StateFlow 的合并状态特性导致高频事件丢失
+     * extraBufferCapacity = 64: 缓冲 64 个事件
+     * 默认策略 SUSPEND: 当缓冲区满时挂起，确保事件不丢失
+     */
+    private val _incomingMessages = MutableSharedFlow<WebSocketEvent>(
+        extraBufferCapacity = 64
+    )
+    val incomingMessages: SharedFlow<WebSocketEvent> = _incomingMessages.asSharedFlow()
 
     val isConnected: Boolean
         get() = _connectionState.value is ConnectionState.Connected
@@ -426,7 +444,7 @@ class WebSocketManager {
                 "error" -> {
                     val errorMessage = jsonObject["message"]?.jsonPrimitive?.content ?: "Unknown error"
                     Log.e(TAG, "Server error: $errorMessage")
-                    _incomingMessages.value = WebSocketEvent.Error(errorMessage)
+                    _incomingMessages.tryEmit(WebSocketEvent.Error(errorMessage))
                 }
 
                 else -> {
@@ -599,6 +617,6 @@ class WebSocketManager {
             }
         }
 
-        _incomingMessages.value = webSocketEvent
+        _incomingMessages.tryEmit(webSocketEvent)
     }
 }

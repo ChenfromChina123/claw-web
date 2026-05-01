@@ -56,25 +56,36 @@ private fun ChatViewModel.handleMessageStart(event: WebSocketManager.WebSocketEv
     )
 }
 
+/**
+ * 处理消息增量事件
+ * 使用 StringBuilder 缓冲区避免 O(n²) 字符串拼接
+ * 通过帧节流机制减少 UI 重组频率
+ */
 private fun ChatViewModel.handleMessageDelta(event: WebSocketManager.WebSocketEvent.MessageDelta) {
     streamingMessageId?.let { messageId ->
-        val index = _messages.indexOfFirst { it.id == messageId }
-        if (index != -1) {
-            val oldMessage = _messages[index]
-            _messages[index] = oldMessage.copy(content = oldMessage.content + event.delta)
-            updateStreamingMessage(messageId)
-        }
+        // 使用缓冲区追加内容，避免频繁的字符串拼接
+        appendToMessageBuffer(messageId, event.delta)
     }
 }
 
+/**
+ * 处理消息停止事件
+ * 刷新缓冲区内容并清理资源
+ */
 private fun ChatViewModel.handleMessageStop(event: WebSocketManager.WebSocketEvent.MessageStop) {
     streamingMessageId?.let { messageId ->
+        // 先刷新缓冲区，确保最后的内容被写入
+        flushMessageContentBuffer(messageId)
+        
         val index = _messages.indexOfFirst { it.id == messageId }
         if (index != -1) {
             val oldMessage = _messages[index]
             _messages[index] = oldMessage.copy(isStreaming = false)
             updateStreamingMessage(messageId)
         }
+        
+        // 清理缓冲区
+        clearMessageBuffer(messageId)
     }
     streamingMessageId = null
     _uiState.value = ChatViewModel.UiState.Success(

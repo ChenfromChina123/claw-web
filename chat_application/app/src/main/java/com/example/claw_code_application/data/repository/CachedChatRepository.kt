@@ -638,12 +638,14 @@ class CachedChatRepository(
         val errorMessage: String? = null
     )
 
-    /**
+/**
      * 全量同步所有聊天数据
      * 1. 从网络获取所有会话列表
      * 2. 逐个获取每个会话的详情（消息+工具调用）
      * 3. 保存到本地Room数据库
      * 4. 通过Flow报告同步进度
+     * 
+     * 优化：使用批量查询获取已有消息计数，避免 N+1 问题
      */
     fun syncAllChatData(): Flow<SyncProgress> = flow {
         try {
@@ -661,6 +663,10 @@ class CachedChatRepository(
             sessionDao.insertSessionsBatch(remoteSessions.toSessionEntities())
 
             val total = remoteSessions.size
+            
+            // 批量获取已有消息计数，避免 N+1 查询
+            val messageCounts = sessionDao.getSessionMessageCounts()
+                .associate { it.sessionId to it.messageCount }
 
             remoteSessions.forEachIndexed { index, session ->
                 emit(SyncProgress(
@@ -670,7 +676,8 @@ class CachedChatRepository(
                 ))
 
                 try {
-                    val cachedMsgCount = messageDao.getMessageCount(session.id)
+                    // 使用缓存的消息计数，避免单独查询
+                    val cachedMsgCount = messageCounts[session.id] ?: 0
                     if (cachedMsgCount > 0) {
                         Logger.d(TAG, "会话 ${session.id} 已有 $cachedMsgCount 条缓存消息，跳过")
                     } else {
@@ -697,21 +704,19 @@ class CachedChatRepository(
         }
     }.flowOn(Dispatchers.IO)
 
-    /**
+/**
      * 检查是否需要进行全量同步
      * 如果本地缓存为空，则需要全量同步
+     * 
+     * 优化：使用批量查询避免 N+1 问题
      */
     suspend fun needsFullSync(): Boolean = withContext(Dispatchers.IO) {
         val localSessionCount = sessionDao.getSessionCount()
         if (localSessionCount == 0) return@withContext true
 
-        val sessionsWithMessages = sessionDao.getAllSessionsOnce()
-        for (session in sessionsWithMessages) {
-            val msgCount = messageDao.getMessageCount(session.id)
-            if (msgCount == 0) return@withContext true
-        }
-
-        false
+        // 使用批量查询检查是否存在没有消息的会话
+        // 避免逐个会话查询导致的 N+1 问题
+        sessionDao.hasSessionsWithoutMessages()
     }
 
     // ==================== 缓存清理 ====================

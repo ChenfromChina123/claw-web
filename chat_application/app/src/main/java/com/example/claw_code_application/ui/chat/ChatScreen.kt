@@ -121,17 +121,19 @@ fun ChatScreen(
         }
     }
 
-    // 流式内容增长时：智能滚动跟随 - Web端对齐版
-    // 参考Web端实现：使用节流而非防抖，48ms间隔避免频繁滚动
+    // 流式内容增长时：智能滚动跟随 - 优化版
+    // 优化点：
+    // 1. 增加滚动触发阈值从300到800字符，减少滚动频率
+    // 2. 使用scrollToItem替代animateScrollToItem，避免动画与内容更新冲突导致的抖动
     val streamingMessage = displayMessages.firstOrNull { it.isStreaming }
-    var lastScrollTime by remember { mutableStateOf(0L) }
+    var lastScrollLength by remember { mutableStateOf(0) }
 
     LaunchedEffect(streamingMessage?.content?.length) {
         if (streamingMessage != null && canAutoScroll) {
-            val now = System.currentTimeMillis()
-            // 48ms节流间隔，与Web端保持一致
-            if (now - lastScrollTime >= 48) {
-                lastScrollTime = now
+            val currentLength = streamingMessage.content.length
+            // 增加阈值到800字符，减少滚动频率，避免抖动
+            if (currentLength - lastScrollLength >= 800 || lastScrollLength == 0) {
+                lastScrollLength = currentLength
                 // 使用scrollToItem而非animateScrollToItem，避免动画冲突
                 listState.scrollToItem(0)
             }
@@ -529,18 +531,6 @@ private fun ChatMessageList(
 }
 
 /**
- * 判断工具调用是否属于某个任务（基于时间窗口关联）
- *
- * 策略：工具调用的创建时间在任务的 startedAt 之后且在 completedAt 之前
- */
-private fun isToolCallInTask(toolCall: ToolCall, task: BackgroundTask): Boolean {
-    val toolCallTime = toolCall.createdAt.toLongOrNull() ?: return false
-    val taskStart = task.startedAt ?: task.createdAt
-    val taskEnd = task.completedAt ?: Long.MAX_VALUE
-    return toolCallTime in taskStart..taskEnd
-}
-
-/**
  * 技能附件数据类，用于在输入框上方以芯片形式展示已选技能
  */
 data class SkillAttachment(
@@ -566,6 +556,8 @@ private fun buildMessageWithSkills(content: String, skills: List<SkillAttachment
  *
  * 展示当前活跃任务的实时状态，支持展开/折叠
  * 任务完成时自动折叠，失败时保持展开
+ * 
+ * 优化：使用预构建的 taskId -> toolCalls 映射缓存，避免每次重组都进行全表扫描
  */
 @Composable
 private fun TaskStatusBar(
@@ -576,6 +568,11 @@ private fun TaskStatusBar(
     val colors = AppColor.current
 
     if (tasks.isEmpty()) return
+    
+    // 当 tasks 或 toolCalls 变化时，重建缓存
+    LaunchedEffect(tasks.size, viewModel.toolCalls.size) {
+        viewModel.rebuildTaskToolCallCache()
+    }
 
     val activeTasks = tasks.filter { it.status != "completed" && it.status != "cancelled" }
     val completedTasks = tasks.filter { it.status == "completed" || it.status == "cancelled" }
@@ -604,9 +601,8 @@ private fun TaskStatusBar(
                     isCollapsed = isCollapsed,
                     onCollapsedChange = { viewModel._collapsedTasks[task.taskId] = it },
                     content = {
-                        val taskToolCalls = viewModel.toolCalls.filter { toolCall ->
-                            isToolCallInTask(toolCall, task)
-                        }
+                        // 使用缓存的工具调用列表，避免每次重组都 filter
+                        val taskToolCalls = viewModel.getToolCallsForTask(task.taskId)
                         if (taskToolCalls.isNotEmpty()) {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 taskToolCalls.forEach { toolCall ->
@@ -630,9 +626,8 @@ private fun TaskStatusBar(
                     isCollapsed = isCollapsed,
                     onCollapsedChange = { viewModel._collapsedTasks[task.taskId] = it },
                     content = {
-                        val taskToolCalls = viewModel.toolCalls.filter { toolCall ->
-                            isToolCallInTask(toolCall, task)
-                        }
+                        // 使用缓存的工具调用列表，避免每次重组都 filter
+                        val taskToolCalls = viewModel.getToolCallsForTask(task.taskId)
                         if (taskToolCalls.isNotEmpty()) {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 taskToolCalls.forEach { toolCall ->

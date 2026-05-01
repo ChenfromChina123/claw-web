@@ -19,7 +19,11 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["sessionId"]), Index(value = ["messageId"])]
+    indices = [
+        Index(value = ["sessionId"]),
+        Index(value = ["messageId"]),
+        Index(value = ["cachedAt"])  // 优化：支持按时间清理缓存
+    ]
 )
 data class ToolCallEntity(
     @PrimaryKey

@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.sp
 import com.example.claw_code_application.ui.theme.AppColor
 import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.compose.elements.MarkdownText
+import com.mikepenz.markdown.compose.elements.highlightedCodeBlock
+import com.mikepenz.markdown.compose.elements.highlightedCodeFence
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.ast.getTextInNode
 
@@ -31,10 +33,12 @@ import org.intellij.markdown.ast.getTextInNode
 object MarkdownTable {
 
     /**
-     * 创建带有自定义表格的 markdown 组件配置
+     * 创建带有自定义表格和代码高亮的 markdown 组件配置
      */
     @Composable
     fun createComponents() = markdownComponents(
+        codeBlock = highlightedCodeBlock,
+        codeFence = highlightedCodeFence,
         table = { tableData ->
             CustomTable(
                 content = tableData.content,

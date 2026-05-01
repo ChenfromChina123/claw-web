@@ -20,7 +20,11 @@ import com.example.claw_code_application.data.api.models.BackgroundTask
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["sessionId"]), Index(value = ["status"])]
+    indices = [
+        Index(value = ["sessionId"]),
+        Index(value = ["status"]),
+        Index(value = ["cachedAt"])  // 优化：支持按时间清理缓存
+    ]
 )
 data class TaskEntity(
     @PrimaryKey

@@ -18,9 +18,13 @@ import com.example.claw_code_application.data.websocket.WebSocketManager
 import com.example.claw_code_application.service.NotificationManager
 import com.example.claw_code_application.ui.chat.components.shouldShowMessage
 import com.example.claw_code_application.util.FileInfo
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -79,6 +83,33 @@ class ChatViewModel(
     val collapsedTasks: Map<String, Boolean> = _collapsedTasks
 
     internal val _messageToolCallMap = mutableStateMapOf<String, List<ToolCall>>()
+    
+    /**
+     * 任务到工具调用的映射缓存
+     * Key: taskId, Value: 该任务关联的工具调用列表
+     * 避免 TaskStatusBar 每次重组都进行全表扫描
+     */
+    internal val _taskToolCallCache = mutableStateMapOf<String, List<ToolCall>>()
+    
+    /**
+     * 获取指定任务关联的工具调用（使用缓存）
+     */
+    fun getToolCallsForTask(taskId: String): List<ToolCall> {
+        return _taskToolCallCache[taskId] ?: emptyList()
+    }
+    
+    /**
+     * 重建任务-工具调用映射缓存
+     * 在 toolCalls 或 tasks 变化时调用
+     */
+    internal fun rebuildTaskToolCallCache() {
+        _taskToolCallCache.clear()
+        _tasks.forEach { task ->
+            _taskToolCallCache[task.taskId] = _toolCalls.filter { 
+                isToolCallInTask(it, task) 
+            }
+        }
+    }
 
     val connectionState = webSocketManager.connectionState
 
@@ -94,7 +125,23 @@ class ChatViewModel(
 
     internal val json = Json { ignoreUnknownKeys = true; isLenient = true }
     internal var streamingMessageId: String? = null
-    internal var pendingDeltaText = StringBuilder()
+    
+    /**
+     * 流式消息内容缓冲 - 使用 StringBuilder 避免 O(n²) 字符串拼接
+     * Key: messageId, Value: StringBuilder 缓冲
+     */
+    internal val messageContentBuffers = mutableMapOf<String, StringBuilder>()
+    
+    /**
+     * 消息更新事件流 - 用于帧节流
+     * extraBufferCapacity = 16: 缓冲 16 个更新事件
+     * 默认策略 SUSPEND: 当缓冲区满时挂起
+     */
+    private val _messageUpdates = MutableSharedFlow<String>(
+        extraBufferCapacity = 16
+    )
+    val messageUpdates: SharedFlow<String> = _messageUpdates.asSharedFlow()
+    
     internal var debounceJob: Job? = null
     internal val debounceIntervalMs = 16L
     internal val pendingToolUpdates = mutableMapOf<String, ToolCall>()
@@ -108,10 +155,27 @@ class ChatViewModel(
     internal var currentThinkingBlockIndex: Int = -1
     internal var _thinkingContent: String = ""
     val thinkingContent: String get() = _thinkingContent
+    
+    /**
+     * 帧节流任务 - 16ms 约等于 60fps
+     */
+    private var frameThrottleJob: Job? = null
 
     /** 获取指定消息关联的工具调用 */
     fun getToolCallsForMessage(messageId: String): List<ToolCall> {
         return _messageToolCallMap[messageId] ?: emptyList()
+    }
+    
+    /**
+     * 判断工具调用是否属于某个任务（基于时间窗口关联）
+     * 
+     * 策略：工具调用的创建时间在任务的 startedAt 之后且在 completedAt 之前
+     */
+    private fun isToolCallInTask(toolCall: ToolCall, task: BackgroundTask): Boolean {
+        val toolCallTime = toolCall.createdAt.toLongOrNull() ?: return false
+        val taskStart = task.startedAt ?: task.createdAt
+        val taskEnd = task.completedAt ?: Long.MAX_VALUE
+        return toolCallTime in taskStart..taskEnd
     }
 
     /** 增量更新显示消息列表（全量重建，仅在消息增删时调用） */
@@ -122,20 +186,20 @@ class ChatViewModel(
 
     /**
      * 流式增量更新：仅更新指定消息，避免全量重建列表 - 优化版
-     * 优化点：使用copy-on-write策略，通过创建新列表实例触发Compose精准重组
-     * 避免直接修改列表项导致的全列表重新测量
+     * 
+     * 优化策略：
+     * 1. 直接使用 SnapshotStateList 的 set 操作，Compose 会通过 key 识别变化
+     * 2. 避免 clear/addAll 导致的全列表重新测量
+     * 3. 配合 LazyColumn 的 key 参数实现精准重组
      */
     internal fun updateStreamingMessage(messageId: String) {
         val message = _messages.find { it.id == messageId } ?: return
         if (!shouldShowMessage(message)) return
         val displayIndex = _displayMessages.indexOfFirst { it.id == messageId }
         if (displayIndex != -1) {
-            // 创建新列表实例，触发Compose的精准重组
-            // 而不是直接修改列表项，避免LazyColumn全量重组
-            val newList = _displayMessages.toMutableList()
-            newList[displayIndex] = message
-            _displayMessages.clear()
-            _displayMessages.addAll(newList)
+            // 直接修改列表项，Compose 通过 key 识别变化
+            // 避免创建新列表和 clear/addAll 的开销
+            _displayMessages[displayIndex] = message
         }
     }
 
@@ -183,12 +247,68 @@ class ChatViewModel(
 
     init {
         viewModelScope.launch {
-            launch { webSocketManager.incomingMessages.collect { event -> event?.let { handleWebSocketEvent(it) } } }
+            // 使用 SharedFlow 收集事件，不再需要判断 null
+            launch { 
+                webSocketManager.incomingMessages.collect { event -> 
+                    handleWebSocketEvent(event)
+                } 
+            }
+            
+            // 帧节流收集消息更新 - 16ms 约等于 60fps
+            // 避免高频 token 更新导致 UI 频繁重组
+            @OptIn(kotlinx.coroutines.FlowPreview::class)
+            launch {
+                _messageUpdates
+                    .sample(16L)
+                    .collect { messageId ->
+                        flushMessageContentBuffer(messageId)
+                    }
+            }
+            
             delay(500L)
             connectWebSocket()
             delay(300L)
             restoreSessionFromLocalStore()
         }
+    }
+    
+    /**
+     * 将缓冲区的内容刷新到消息列表
+     * 在帧节流后被调用，减少 UI 重组频率
+     */
+    internal fun flushMessageContentBuffer(messageId: String) {
+        val buffer = messageContentBuffers[messageId] ?: return
+        val content = buffer.toString()
+        if (content.isEmpty()) return
+        
+        val index = _messages.indexOfFirst { it.id == messageId }
+        if (index != -1) {
+            val oldMessage = _messages[index]
+            // 只有当内容真正变化时才更新
+            if (oldMessage.content != content) {
+                _messages[index] = oldMessage.copy(content = content)
+                updateStreamingMessage(messageId)
+            }
+        }
+    }
+    
+    /**
+     * 追加内容到消息缓冲区
+     * 使用 StringBuilder 避免 O(n²) 字符串拼接
+     */
+    internal fun appendToMessageBuffer(messageId: String, delta: String) {
+        val buffer = messageContentBuffers.getOrPut(messageId) { StringBuilder() }
+        buffer.append(delta)
+        // 触发更新事件，会被帧节流收集
+        _messageUpdates.tryEmit(messageId)
+    }
+    
+    /**
+     * 清理消息缓冲区
+     * 在消息结束时调用
+     */
+    internal fun clearMessageBuffer(messageId: String) {
+        messageContentBuffers.remove(messageId)
     }
 
     private fun restoreSessionFromLocalStore() {

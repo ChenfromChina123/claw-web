@@ -210,4 +210,44 @@ interface SessionDao {
         ORDER BY updatedAt DESC
     """)
     suspend fun getRecentlyUpdatedSessions(since: String): List<SessionEntity>
+
+    /**
+     * 批量获取会话的消息数量
+     * 避免 N+1 查询问题，一次性返回所有会话的消息计数
+     * 
+     * @return Map<sessionId, messageCount>
+     */
+    @Query("""
+        SELECT s.id as sessionId, COUNT(m.id) as messageCount 
+        FROM sessions s 
+        LEFT JOIN messages m ON s.id = m.sessionId 
+        GROUP BY s.id
+    """)
+    suspend fun getSessionMessageCounts(): List<SessionMessageCount>
+
+    /**
+     * 检查是否存在没有消息的会话
+     * 用于快速判断是否需要全量同步
+     * 
+     * @return 是否存在消息数为 0 的会话
+     */
+    @Query("""
+        SELECT EXISTS(
+            SELECT 1 FROM sessions s 
+            LEFT JOIN messages m ON s.id = m.sessionId 
+            GROUP BY s.id 
+            HAVING COUNT(m.id) = 0
+            LIMIT 1
+        )
+    """)
+    suspend fun hasSessionsWithoutMessages(): Boolean
 }
+
+/**
+ * 会话消息计数数据类
+ * 用于批量查询结果
+ */
+data class SessionMessageCount(
+    val sessionId: String,
+    val messageCount: Int
+)
