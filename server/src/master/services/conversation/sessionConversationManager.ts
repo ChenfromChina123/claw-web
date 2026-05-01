@@ -23,6 +23,7 @@ import { getToolRegistry } from '../../integrations/toolRegistry'
 import { shouldExecuteOnWorker } from '../../integrations/workerToolExecutor'
 import { imageStorageService } from '../imageStorageService'
 import { workerForwarder } from '../../websocket/workerForwarder'
+import { getBackgroundTaskManager, type BackgroundTask } from '../backgroundTaskManager'
 import type { ToolCall } from '../../models/types'
 import type { EventSender } from '../../types'
 import type { MessageContent, ImageContentBlock, ImageAttachment } from '../../models/imageTypes'
@@ -284,6 +285,33 @@ export class SessionConversationManager {
     }
 
     const streamAbort = this.registerStreamAbort(sessionId)
+
+    const taskManager = getBackgroundTaskManager()
+    const taskEventHandler = (eventType: string, task: BackgroundTask) => {
+      const previousStatusMap: Record<string, string> = {
+        task_created: 'none',
+        task_queued: 'created',
+        task_started: 'queued',
+        task_completed: 'running',
+        task_failed: 'running',
+        task_cancelled: 'running',
+      }
+      sendEvent('task_status_changed', {
+        taskId: task.id,
+        taskName: task.name,
+        previousStatus: previousStatusMap[eventType] || 'unknown',
+        newStatus: task.status,
+        result: task.result ? JSON.stringify(task.result) : undefined,
+        error: task.error,
+        traceId: (task.metadata as Record<string, unknown>)?.traceId as string | undefined,
+      })
+    }
+    taskManager.on('task_created', (task: BackgroundTask) => taskEventHandler('task_created', task))
+    taskManager.on('task_started', (task: BackgroundTask) => taskEventHandler('task_started', task))
+    taskManager.on('task_completed', (task: BackgroundTask) => taskEventHandler('task_completed', task))
+    taskManager.on('task_failed', (task: BackgroundTask) => taskEventHandler('task_failed', task))
+    taskManager.on('task_cancelled', (task: BackgroundTask) => taskEventHandler('task_cancelled', task))
+
     try {
       // 4. 进入 Agent Loop (使用配置的最大迭代次数，默认10次)
       const maxIterations = options?.maxIterations ?? 10
@@ -442,6 +470,11 @@ export class SessionConversationManager {
       sendEvent('error', { message: errorMessage })
     } finally {
       this.clearStreamAbort(sessionId)
+      taskManager.off('task_created')
+      taskManager.off('task_started')
+      taskManager.off('task_completed')
+      taskManager.off('task_failed')
+      taskManager.off('task_cancelled')
     }
   }
 

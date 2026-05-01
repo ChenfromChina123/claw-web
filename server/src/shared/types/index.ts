@@ -313,3 +313,4 @@ export type WebSocketEventType =
   | 'tool_use' | 'tool_start' | 'tool_end' | 'tool_error' | 'tool_progress'
   | 'conversation_end' | 'error'
   | 'agent_push'
+  | 'task_status_changed'

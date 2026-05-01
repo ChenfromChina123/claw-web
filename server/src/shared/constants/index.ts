@@ -35,6 +35,7 @@ export const WS_MESSAGE_TYPES = {
   PTY_CLOSED: 'pty_closed',
   ERROR: 'error',
   RESULT: 'result',
+  TASK_STATUS_CHANGED: 'task_status_changed',
 } as const
 
 export const ERROR_CODES = {
