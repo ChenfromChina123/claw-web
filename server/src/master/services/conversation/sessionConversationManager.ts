@@ -1081,7 +1081,7 @@ export class SessionConversationManager {
         sendEvent('tool_end', {
           id: tool.id,
           name: tool.name,
-          success: true,
+          success: result.success,
           result: result.result,
           duration,
         })

@@ -1207,9 +1207,14 @@ async function handleInterruptExecution() {
                                     完成
                                   </template>
                                   <!-- 错误：显示错误标记 -->
-                                  <template v-else>
+                                  <template v-else-if="toolCall.status === 'error'">
                                     <span class="status-dot error"></span>
                                     错误
+                                  </template>
+                                  <!-- 未知状态 -->
+                                  <template v-else>
+                                    <span class="status-dot unknown"></span>
+                                    未知
                                   </template>
                                 </span>
                               </div>
@@ -4232,6 +4237,11 @@ async function handleInterruptExecution() {
 .status-dot.error {
   background: #ef4444;
   box-shadow: 0 0 6px #ef4444;
+}
+
+.status-dot.unknown {
+  background: #6b7280;
+  box-shadow: 0 0 6px #6b7280;
 }
 
 /* 执行中的加载动画 */

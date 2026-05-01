@@ -164,8 +164,9 @@ private fun ChatViewModel.handleToolEnd(event: WebSocketManager.WebSocketEvent.T
     val index = _toolCalls.indexOfFirst { it.id == event.id }
     if (index != -1) {
         val oldTool = _toolCalls[index]
+        val newStatus = if (event.success) "completed" else "error"
         scheduleToolUpdate(event.id, oldTool.copy(
-            status = "completed", toolOutput = event.result,
+            status = newStatus, toolOutput = event.result,
             completedAt = System.currentTimeMillis().toString()
         ))
     }

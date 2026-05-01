@@ -371,7 +371,7 @@ export const useChatStore = defineStore('chat', () => {
 
       const tool = toolCalls.value.find(t => t.id === msg.id)
       if (tool) {
-        tool.status = 'completed'
+        tool.status = msg.success === false ? 'error' : 'completed'
 
         if (msg.result !== null && msg.result !== undefined) {
           if (typeof msg.result === 'object' && !Array.isArray(msg.result)) {

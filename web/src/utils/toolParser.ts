@@ -635,6 +635,8 @@ function parseToolOutput(_toolName: string, output: unknown): {
         result.summary = '命令执行成功'
       } else {
         result.summary = `命令执行失败，退出码: ${exitCode}`
+        result.metrics = result.metrics || {}
+        result.metrics.errors = (result.metrics.errors || 0) + 1
         result.knowledge.push({
           id: `shell-error-${Date.now()}`,
           type: 'error',
@@ -648,6 +650,8 @@ function parseToolOutput(_toolName: string, output: unknown): {
     // 错误输出
     if (outputObj.error) {
       result.summary = `错误: ${outputObj.error}`
+      result.metrics = result.metrics || {}
+      result.metrics.errors = (result.metrics.errors || 0) + 1
       result.knowledge.push({
         id: `error-${Date.now()}`,
         type: 'error',
@@ -657,8 +661,8 @@ function parseToolOutput(_toolName: string, output: unknown): {
       })
     }
     
-    // 成功标志
-    if (outputObj.success || outputObj.ok) {
+    // 成功标志 - 仅在没有检测到错误时设置
+    if ((outputObj.success || outputObj.ok) && !result.metrics?.errors) {
       result.summary = '操作成功完成'
     }
     

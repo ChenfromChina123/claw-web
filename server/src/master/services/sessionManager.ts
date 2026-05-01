@@ -632,8 +632,18 @@ export class SessionManager {
 
     // 4. 处理所有工具调用
     for (const toolCall of sessionData.toolCalls) {
+      let effectiveStatus = toolCall.status
+      if (toolCall.toolOutput !== null && toolCall.toolOutput !== undefined) {
+        if (effectiveStatus === 'pending' || effectiveStatus === 'executing') {
+          const output = toolCall.toolOutput as Record<string, unknown>
+          effectiveStatus = output?.error ? 'error' : 'completed'
+          console.warn(
+            `[SessionManager] Tool call ${toolCall.id} has output but status was '${toolCall.status}', ` +
+            `correcting to '${effectiveStatus}'`)
+        }
+      }
+
       if (!existingToolCallMap.has(toolCall.id)) {
-        // 新增工具调用
         console.log(`[SessionManager] Saving new tool call: ${toolCall.id}, toolName=${toolCall.toolName}`)
         await this.toolCallRepo.createWithId(
           toolCall.id,
@@ -641,18 +651,17 @@ export class SessionManager {
           sessionId,
           toolCall.toolName,
           toolCall.toolInput,
-          toolCall.status,
+          effectiveStatus,
           toolCall.toolOutput
         )
       } else {
-        // 检查是否有变化（状态或输出）
         const existingTc = existingToolCallMap.get(toolCall.id)!
-        const statusChanged = existingTc.status !== toolCall.status
+        const statusChanged = existingTc.status !== effectiveStatus
         const outputChanged = JSON.stringify(existingTc.toolOutput) !== JSON.stringify(toolCall.toolOutput)
         
         if (statusChanged || outputChanged) {
-          console.log(`[SessionManager] Updating tool call: ${toolCall.id}, status=${toolCall.status}`)
-          await this.toolCallRepo.updateOutput(toolCall.id, toolCall.toolOutput || {}, toolCall.status)
+          console.log(`[SessionManager] Updating tool call: ${toolCall.id}, status=${effectiveStatus}`)
+          await this.toolCallRepo.updateOutput(toolCall.id, toolCall.toolOutput || {}, effectiveStatus)
         } else {
           console.log(`[SessionManager] Tool call unchanged: ${toolCall.id}, skipping`)
         }
