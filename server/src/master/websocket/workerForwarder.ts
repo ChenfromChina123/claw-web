@@ -64,6 +64,7 @@ export class WorkerForwarder {
   private connections: Map<string, WorkerConnection> = new Map()
   private userConnections: Map<string, string> = new Map()
   private userActivities: Map<string, UserActivity> = new Map()
+  private activeToolExecutions: Map<string, number> = new Map()
 
   async connectToWorker(userId: string, containerId: string, hostPort: number): Promise<WorkerConnection> {
     const connectionKey = `${userId}:${containerId}`
@@ -101,6 +102,10 @@ export class WorkerForwarder {
         this.connections.set(connectionKey, connection)
         this.userConnections.set(userId, connectionKey)
         console.log(`[WorkerForwarder] Connected to Worker ${containerId} for user ${userId}`)
+
+        ws.on('pong', () => {
+          connection.lastPong = Date.now()
+        })
 
         // 预先注册全局 output 消息监听器（解决时序竞态问题）
         this.setupOutputListener(connection)
@@ -575,12 +580,21 @@ export class WorkerForwarder {
       const elapsed = now - connection.lastPong
 
       if (elapsed > HEARTBEAT_TIMEOUT) {
+        const activeCount = this.activeToolExecutions.get(connection.userId) || 0
+        if (activeCount > 0) {
+          console.warn(
+            `[WorkerForwarder] Worker heartbeat timeout after ${Math.round(elapsed / 1000)}s, ` +
+            `but ${activeCount} tool(s) still executing for user ${connection.userId}, skipping reconnect`
+          )
+          connection.lastPong = now
+          return
+        }
+
         console.warn(
           `[WorkerForwarder] Worker heartbeat timeout after ${Math.round(elapsed / 1000)}s, ` +
           `attempting reconnect for user ${connection.userId}...`
         )
 
-        // 尝试重新连接而非直接断开
         this.attemptReconnect(connectionKey, connection)
 
         return
@@ -679,6 +693,26 @@ export class WorkerForwarder {
     if (connection?.heartbeatTimer) {
       clearInterval(connection.heartbeatTimer)
       connection.heartbeatTimer = null
+    }
+  }
+
+  /**
+   * 增加用户活跃工具执行计数
+   */
+  incrementActiveToolExecution(userId: string): void {
+    const count = this.activeToolExecutions.get(userId) || 0
+    this.activeToolExecutions.set(userId, count + 1)
+  }
+
+  /**
+   * 减少用户活跃工具执行计数
+   */
+  decrementActiveToolExecution(userId: string): void {
+    const count = this.activeToolExecutions.get(userId) || 0
+    if (count <= 1) {
+      this.activeToolExecutions.delete(userId)
+    } else {
+      this.activeToolExecutions.set(userId, count - 1)
     }
   }
 

@@ -31,6 +31,7 @@ import {
   type DenialTrackingState,
 } from './denialTracking'
 import { AGENT_DEFAULTS } from '../../shared/constants'
+import { truncateToolResult, TOOL_RESULT_LIMITS } from '../utils/fileLimits'
 
 /**
  * Agent 消息类型
@@ -327,10 +328,18 @@ export async function* runAgent(
 
         const response = await callAI({
           model: context.model || 'qwen-plus',
-          messages: messages.map(m => ({
-            role: m.role,
-            content: m.content,
-          })),
+          messages: messages.map(m => {
+            if (m.toolResults && m.toolResults.length > 0 && !m.content) {
+              const parts = m.toolResults.map(tr => {
+                const resultStr = tr.success
+                  ? (tr.result !== undefined ? serializeToolResult(tr.result) : '(无结果)')
+                  : (tr.error || '未知错误')
+                return `[工具 ${tr.toolName} 执行${tr.success ? '成功' : '失败'}]: ${resultStr}`
+              })
+              return { role: m.role, content: parts.join('\n\n') }
+            }
+            return { role: m.role, content: m.content }
+          }),
           abortSignal: context.getAbortSignal(),
           allowedToolNames: availableTools,
           toolChoice: context.toolPermission.readOnly
@@ -624,6 +633,22 @@ interface AICallResponse {
     name: string
     input: Record<string, unknown>
   }>
+}
+
+/**
+ * 序列化工具结果，自动截断大内容
+ */
+function serializeToolResult(result: unknown): string {
+  if (typeof result === 'string') {
+    const { result: truncated, wasTruncated } = truncateToolResult(result, 'AgentTool', TOOL_RESULT_LIMITS.MAX_CHARS)
+    return truncated
+  }
+  const jsonStr = JSON.stringify(result)
+  if (jsonStr.length > TOOL_RESULT_LIMITS.MAX_CHARS) {
+    const { result: truncated } = truncateToolResult(jsonStr, 'AgentTool', TOOL_RESULT_LIMITS.MAX_CHARS)
+    return truncated
+  }
+  return jsonStr
 }
 
 /**

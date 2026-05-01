@@ -291,7 +291,25 @@ export class WorkerSandbox {
             const lines = content.split('\n')
             content = lines.slice(0, limit).join('\n')
           }
-          result = { content, path: resolvedPath }
+          const FILE_READ_MAX_CHARS = 50_000
+          let truncated = false
+          let originalSize = content.length
+          if (content.length > FILE_READ_MAX_CHARS) {
+            const lines = content.split('\n')
+            let truncatedLines = 0
+            let charCount = 0
+            for (let i = 0; i < lines.length; i++) {
+              if (charCount + lines[i].length + 1 > FILE_READ_MAX_CHARS) {
+                break
+              }
+              charCount += lines[i].length + 1
+              truncatedLines = i + 1
+            }
+            content = lines.slice(0, truncatedLines).join('\n')
+              + `\n\n[文件内容已截断] 原始大小: ${originalSize} 字符, 截断至: ${content.length} 字符, 共 ${lines.length} 行, 已读取 ${truncatedLines} 行`
+            truncated = true
+          }
+          result = { content, path: resolvedPath, truncated, originalSize }
           output = content
           break
         }

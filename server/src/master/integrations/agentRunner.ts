@@ -9,6 +9,7 @@ import type { WebSocketData } from '../index'
 import { llmService, type ChatMessage, type ToolDefinition } from '../services/llmService'
 import { getToolRegistry } from '../integrations/toolRegistry'
 import { AGENT_DEFAULTS } from '../../shared/constants'
+import { truncateToolResult, TOOL_RESULT_LIMITS } from '../utils/fileLimits'
 
 // Agent 消息类型
 export interface AgentMessage {
@@ -163,7 +164,7 @@ export class WebAgentRunner {
             // 将工具结果添加到消息列表继续对话
             const toolResultMessage: AgentMessage = {
               role: 'user',
-              content: `工具 ${toolCall.name} 执行结果: ${JSON.stringify(toolResult.success ? toolResult.result : toolResult.error)}`,
+              content: `工具 ${toolCall.name} 执行结果: ${safeStringifyToolResult(toolResult.success ? toolResult.result : toolResult.error)}`,
             }
             
             // 递归调用获取最终响应
@@ -384,7 +385,7 @@ export class WebAgentRunner {
             // 将工具结果添加到对话
             conversationMessages.push({
               role: 'user',
-              content: `工具 ${toolCall.name} 执行结果: ${JSON.stringify(toolResult.success ? toolResult.result : { error: toolResult.error })}`,
+              content: `工具 ${toolCall.name} 执行结果: ${safeStringifyToolResult(toolResult.success ? toolResult.result : { error: toolResult.error })}`,
             })
           }
           
@@ -422,3 +423,21 @@ export class WebAgentRunner {
 }
 
 export default WebAgentRunner
+
+/**
+ * 安全序列化工具结果，自动截断大内容防止 Token 超限
+ */
+function safeStringifyToolResult(data: unknown): string {
+  if (data === undefined || data === null) return '(无结果)'
+  if (typeof data === 'string') {
+    if (data.length > TOOL_RESULT_LIMITS.MAX_CHARS) {
+      return truncateToolResult(data, 'AgentRunner', TOOL_RESULT_LIMITS.MAX_CHARS).result
+    }
+    return data
+  }
+  const jsonStr = JSON.stringify(data)
+  if (jsonStr.length > TOOL_RESULT_LIMITS.MAX_CHARS) {
+    return truncateToolResult(jsonStr, 'AgentRunner', TOOL_RESULT_LIMITS.MAX_CHARS).result
+  }
+  return jsonStr
+}

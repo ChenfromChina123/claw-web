@@ -21,6 +21,7 @@ import type { WorkerToolExecRequest, WorkerToolExecResponse } from '../../shared
 
 /**
  * 需要通过 Worker 执行的危险工具列表
+ * 架构铁律：Master 禁止直接执行任何用户命令或文件操作
  */
 const WORKER_REQUIRED_TOOLS = new Set([
   'Bash',
@@ -28,16 +29,43 @@ const WORKER_REQUIRED_TOOLS = new Set([
   'FileRead',
   'FileWrite',
   'FileEdit',
+  'FileEditLegacy',
   'Glob',
   'Grep',
   'PowerShell',
+  'Shell',
+  'Python',
+  'Node',
+  'Go',
+  'Rust',
+  'ListFiles',
+  'ListDir',
+  'Mkdir',
+  'Remove',
+  'Copy',
+  'Move',
+  'Cat',
+  'Head',
+  'Tail',
+  'Find',
+  'Which',
+  'Env',
 ])
+
+/**
+ * 危险工具名称模式匹配（用于捕获未显式列出的变体）
+ */
+const DANGEROUS_TOOL_PATTERNS = [
+  /^(bash|shell|exec|cmd|terminal|powershell|python|node|go|rust)$/i,
+  /^(file|dir|path|fs|disk)(read|write|edit|delete|create|remove|move|copy|list|find|glob|grep|cat|head|tail)/i,
+]
 
 /**
  * 检查工具是否需要在 Worker 中执行
  */
 export function shouldExecuteOnWorker(toolName: string): boolean {
-  return WORKER_REQUIRED_TOOLS.has(toolName)
+  if (WORKER_REQUIRED_TOOLS.has(toolName)) return true
+  return DANGEROUS_TOOL_PATTERNS.some(pattern => pattern.test(toolName))
 }
 
 /**
@@ -73,8 +101,26 @@ export class WorkerToolExecutor {
 
     console.log(`[WorkerToolExecutor] 开始执行工具: ${toolName}, userId=${userId}`)
 
-    // 更新用户活跃状态并确保 Worker 连接
     workerForwarder.updateUserActivity(userId)
+    workerForwarder.incrementActiveToolExecution(userId)
+
+    try {
+      return await this._executeToolInternal(userId, toolName, toolInput, options)
+    } finally {
+      workerForwarder.decrementActiveToolExecution(userId)
+    }
+  }
+
+  /**
+   * 内部执行逻辑
+   */
+  private async _executeToolInternal(
+    userId: string,
+    toolName: string,
+    toolInput: Record<string, unknown>,
+    options: { cwd?: string; timeout?: number } = {}
+  ): Promise<WorkerToolResult> {
+    const orchestrator = getContainerOrchestrator()
 
     // 获取用户的 Worker 容器映射
     let mapping = orchestrator.getUserMapping(userId)
