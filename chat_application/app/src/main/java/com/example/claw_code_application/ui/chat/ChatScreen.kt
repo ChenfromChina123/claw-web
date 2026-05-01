@@ -403,32 +403,6 @@ private fun ChatMessageList(
             )
         }
 
-        // Agent 任务步骤指示（聊天列表内仅显示简化步骤）
-        item(key = "active_agent_task_${viewModel.toolCalls.hashCode()}") {
-            val activeToolCalls = viewModel.toolCalls.filter {
-                it.status == "executing" || it.status == "pending"
-            }
-            if (activeToolCalls.isNotEmpty()) {
-                val steps = remember(activeToolCalls) {
-                    activeToolCalls.map { toolCall ->
-                        AgentStep(
-                            title = getToolStepTitle(toolCall),
-                            status = when (toolCall.status) {
-                                "executing" -> AgentStepStatus.IN_PROGRESS
-                                "completed" -> AgentStepStatus.COMPLETED
-                                else -> AgentStepStatus.PENDING
-                            }
-                        )
-                    }
-                }
-                AgentTaskCard(
-                    taskTitle = "正在执行任务",
-                    steps = steps,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-        }
-
         // 加载历史消息指示器（reverseLayout中显示在底部=视觉上的顶部）
         if (viewModel.isLoadingHistory) {
             item(key = "loading_history") {
@@ -533,20 +507,6 @@ private fun ChatMessageList(
                 }
             }
         }
-    }
-}
-
-/**
- * 根据工具调用生成步骤标题
- */
-private fun getToolStepTitle(toolCall: ToolCall): String {
-    return when {
-        toolCall.toolName.contains("shell", ignoreCase = true) -> "执行命令: ${toolCall.toolName}"
-        toolCall.toolName.contains("file", ignoreCase = true) -> "操作文件: ${toolCall.toolName}"
-        toolCall.toolName.contains("search", ignoreCase = true) -> "搜索信息: ${toolCall.toolName}"
-        toolCall.toolName.contains("browser", ignoreCase = true) -> "浏览网页: ${toolCall.toolName}"
-        toolCall.toolName.contains("write", ignoreCase = true) -> "写入文件: ${toolCall.toolName}"
-        else -> "执行: ${toolCall.toolName}"
     }
 }
 
