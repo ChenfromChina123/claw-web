@@ -201,7 +201,7 @@ fun ChatScreen(
             )
 
             // 新对话快捷操作（仅在消息为空时显示）
-            val messages by viewModel.messages.collectAsStateWithLifecycle()
+            val messages = viewModel.messages
             if (messages.isEmpty()) {
                 QuickActionChips(
                     onActionClick = { prompt ->

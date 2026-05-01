@@ -11,6 +11,8 @@ import com.example.claw_code_application.data.local.TokenManager
 import com.example.claw_code_application.data.local.SessionLocalStore
 import com.example.claw_code_application.data.local.db.TaskDao
 import com.example.claw_code_application.data.local.db.TaskEntity
+import com.example.claw_code_application.data.local.db.toBackgroundTask
+import com.example.claw_code_application.data.local.db.toTaskEntity
 import com.example.claw_code_application.data.repository.CachedChatRepository
 import com.example.claw_code_application.data.websocket.WebSocketManager
 import com.example.claw_code_application.service.NotificationManager
