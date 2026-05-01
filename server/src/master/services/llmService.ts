@@ -79,6 +79,16 @@ export interface ToolDefinition {
 }
 
 /**
+ * 工具选择策略
+ * 控制 LLM 是否/如何调用工具
+ */
+export type ToolChoice =
+  | { type: 'auto' }
+  | { type: 'none' }
+  | { type: 'any' }
+  | { type: 'tool'; name: string }
+
+/**
  * LLM 响应结果
  */
 export interface LLMResponse {
@@ -224,28 +234,27 @@ class LLMService {
     messages: ChatMessage[],
     config?: Partial<LLMConfig>,
     tools?: ToolDefinition[],
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    toolChoice?: ToolChoice
   ): Promise<LLMResponse> {
-    // Worker 模式下，调用 Master 的 LLM 服务
     if (process.env.CONTAINER_ROLE === 'worker') {
-      return await this.chatViaMaster(messages, config, tools, abortSignal)
+      return await this.chatViaMaster(messages, config, tools, abortSignal, toolChoice)
     }
 
     const finalConfig = { ...this.defaultConfig, ...config }
 
-    // 检查中断信号
     if (abortSignal?.aborted) {
       throw new DOMException('Request was cancelled', 'AbortError')
     }
 
-    console.log(`[LLMService] 调用 ${finalConfig.provider}/${finalConfig.model}，消息数: ${messages.length}`)
+    console.log(`[LLMService] 调用 ${finalConfig.provider}/${finalConfig.model}，消息数: ${messages.length}，toolChoice: ${toolChoice ? JSON.stringify(toolChoice) : 'auto'}`)
 
     switch (finalConfig.provider) {
       case 'anthropic':
-        return await this.chatAnthropic(messages, finalConfig, tools, abortSignal)
+        return await this.chatAnthropic(messages, finalConfig, tools, abortSignal, toolChoice)
       case 'qwen':
       case 'openai':
-        return await this.chatOpenAI(messages, finalConfig, tools, abortSignal)
+        return await this.chatOpenAI(messages, finalConfig, tools, abortSignal, toolChoice)
       default:
         throw new Error(`不支持的 LLM 提供商: ${finalConfig.provider}`)
     }
@@ -258,7 +267,8 @@ class LLMService {
     messages: ChatMessage[],
     config?: Partial<LLMConfig>,
     tools?: ToolDefinition[],
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    toolChoice?: ToolChoice
   ): Promise<LLMResponse> {
     const masterHost = process.env.MASTER_HOST || 'claude-backend-master'
     const masterPort = process.env.MASTER_PORT || '3000'
@@ -279,6 +289,7 @@ class LLMService {
           messages,
           options: config,
           tools,
+          toolChoice,
         }),
         signal: abortSignal,
       })
@@ -314,7 +325,8 @@ class LLMService {
     messages: ChatMessage[],
     config?: Partial<LLMConfig>,
     tools?: ToolDefinition[],
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    toolChoice?: ToolChoice
   ): AsyncGenerator<StreamChunk> {
     const finalConfig = { ...this.defaultConfig, ...config }
 
@@ -323,15 +335,15 @@ class LLMService {
       return
     }
 
-    console.log(`[LLMService] 流式调用 ${finalConfig.provider}/${finalConfig.model}`)
+    console.log(`[LLMService] 流式调用 ${finalConfig.provider}/${finalConfig.model}，toolChoice: ${toolChoice ? JSON.stringify(toolChoice) : 'auto'}`)
 
     switch (finalConfig.provider) {
       case 'anthropic':
-        yield* this.streamAnthropic(messages, finalConfig, tools, abortSignal)
+        yield* this.streamAnthropic(messages, finalConfig, tools, abortSignal, toolChoice)
         break
       case 'qwen':
       case 'openai':
-        yield* this.streamOpenAI(messages, finalConfig, tools, abortSignal)
+        yield* this.streamOpenAI(messages, finalConfig, tools, abortSignal, toolChoice)
         break
       default:
         yield { type: 'error', error: `不支持的 LLM 提供商: ${finalConfig.provider}` }
@@ -347,12 +359,12 @@ class LLMService {
     messages: ChatMessage[],
     config: LLMConfig,
     tools?: ToolDefinition[],
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    toolChoice?: ToolChoice
   ): Promise<LLMResponse> {
     try {
       const client = this.getAnthropicClient()
 
-      // 分离系统消息和对话消息
       let systemPrompt = config.systemPrompt || ''
       const chatMessages: Array<{ role: 'user' | 'assistant'; content: any[] }> = []
 
@@ -367,20 +379,25 @@ class LLMService {
         }
       }
 
-      // 如果没有用户消息，添加一个空消息
       if (chatMessages.length === 0) {
         chatMessages.push({ role: 'user', content: '请开始' })
       }
 
+      const requestParams: Record<string, unknown> = {
+        model: config.model,
+        max_tokens: config.maxTokens || 4096,
+        temperature: config.temperature,
+        system: systemPrompt || undefined,
+        messages: chatMessages,
+        tools: tools?.length ? tools as any : undefined,
+      }
+
+      if (toolChoice && tools?.length) {
+        requestParams.tool_choice = toolChoice
+      }
+
       const response = await client.messages.create(
-        {
-          model: config.model,
-          max_tokens: config.maxTokens || 4096,
-          temperature: config.temperature,
-          system: systemPrompt || undefined,
-          messages: chatMessages,
-          tools: tools?.length ? tools as any : undefined,
-        },
+        requestParams as any,
         { signal: abortSignal }
       )
 
@@ -426,7 +443,8 @@ class LLMService {
     messages: ChatMessage[],
     config: LLMConfig,
     tools?: ToolDefinition[],
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    toolChoice?: ToolChoice
   ): AsyncGenerator<StreamChunk> {
     try {
       const client = this.getAnthropicClient()
@@ -449,15 +467,21 @@ class LLMService {
         chatMessages.push({ role: 'user', content: '请开始' })
       }
 
+      const streamParams: Record<string, unknown> = {
+        model: config.model,
+        max_tokens: config.maxTokens || 4096,
+        temperature: config.temperature,
+        system: systemPrompt || undefined,
+        messages: chatMessages,
+        tools: tools?.length ? tools as any : undefined,
+      }
+
+      if (toolChoice && tools?.length) {
+        streamParams.tool_choice = toolChoice
+      }
+
       const stream = client.messages.stream(
-        {
-          model: config.model,
-          max_tokens: config.maxTokens || 4096,
-          temperature: config.temperature,
-          system: systemPrompt || undefined,
-          messages: chatMessages,
-          tools: tools?.length ? tools as any : undefined,
-        },
+        streamParams as any,
         { signal: abortSignal }
       )
 
@@ -512,20 +536,18 @@ class LLMService {
     messages: ChatMessage[],
     config: LLMConfig,
     tools?: ToolDefinition[],
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    toolChoice?: ToolChoice
   ): Promise<LLMResponse> {
     try {
       const client = await this.getOpenAIClient()
 
-      // 格式化消息为 OpenAI 格式
       const formattedMessages = this.formatMessagesForOpenAI(messages, config.systemPrompt)
 
-      // 如果没有用户消息，添加一个空消息
       if (!formattedMessages.some(m => m.role === 'user')) {
         formattedMessages.push({ role: 'user', content: '请开始' })
       }
 
-      // 转换工具格式
       const openAITools = tools?.map(tool => ({
         type: 'function' as const,
         function: {
@@ -535,14 +557,20 @@ class LLMService {
         },
       }))
 
+      const requestParams: Record<string, unknown> = {
+        model: config.model,
+        messages: formattedMessages as any,
+        max_tokens: config.maxTokens || 4096,
+        temperature: config.temperature,
+        tools: openAITools,
+      }
+
+      if (toolChoice && openAITools?.length) {
+        requestParams.tool_choice = this.mapToolChoiceForOpenAI(toolChoice)
+      }
+
       const response = await client.chat.completions.create(
-        {
-          model: config.model,
-          messages: formattedMessages as any,
-          max_tokens: config.maxTokens || 4096,
-          temperature: config.temperature,
-          tools: openAITools,
-        },
+        requestParams as any,
         { signal: abortSignal as any }
       )
 
@@ -581,7 +609,8 @@ class LLMService {
     messages: ChatMessage[],
     config: LLMConfig,
     tools?: ToolDefinition[],
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    toolChoice?: ToolChoice
   ): AsyncGenerator<StreamChunk> {
     try {
       const client = await this.getOpenAIClient()
@@ -601,15 +630,21 @@ class LLMService {
         },
       }))
 
+      const requestParams: Record<string, unknown> = {
+        model: config.model,
+        messages: formattedMessages as any,
+        max_tokens: config.maxTokens || 4096,
+        temperature: config.temperature,
+        tools: openAITools,
+        stream: true,
+      }
+
+      if (toolChoice && openAITools?.length) {
+        requestParams.tool_choice = this.mapToolChoiceForOpenAI(toolChoice)
+      }
+
       const stream = await client.chat.completions.create(
-        {
-          model: config.model,
-          messages: formattedMessages as any,
-          max_tokens: config.maxTokens || 4096,
-          temperature: config.temperature,
-          tools: openAITools,
-          stream: true,
-        },
+        requestParams as any,
         { signal: abortSignal as any }
       )
 
@@ -757,6 +792,24 @@ class LLMService {
     }
 
     return result
+  }
+
+  /**
+   * 将 ToolChoice 映射为 OpenAI 格式
+   */
+  private mapToolChoiceForOpenAI(toolChoice: ToolChoice): string | Record<string, unknown> {
+    switch (toolChoice.type) {
+      case 'auto':
+        return 'auto'
+      case 'none':
+        return 'none'
+      case 'any':
+        return 'required'
+      case 'tool':
+        return { type: 'function', function: { name: toolChoice.name } }
+      default:
+        return 'auto'
+    }
   }
 
   /**

@@ -21,6 +21,15 @@ import {
 } from '../prompts/efficiencyPrompts'
 import { parseAndPushMessages } from './pushMessageParser'
 import { getBackgroundTaskManager, TaskPriority, type BackgroundTask } from '../services/backgroundTaskManager'
+import { validateToolInput, createValidationErrorResponse } from '../tools/toolValidator'
+import {
+  createDenialState,
+  recordDenial,
+  recordSuccess,
+  shouldFallbackToPrompting,
+  getFallbackReason,
+  type DenialTrackingState,
+} from './denialTracking'
 
 /**
  * Agent 消息类型
@@ -282,6 +291,7 @@ export async function* runAgent(
     context.run()
 
     let lastAssistantMessage: AgentMessage | null = null
+    let denialState = createDenialState()
 
     while (!context.hasReachedMaxTurns()) {
       // 检查是否已取消
@@ -321,6 +331,10 @@ export async function* runAgent(
             content: m.content,
           })),
           abortSignal: context.getAbortSignal(),
+          allowedToolNames: availableTools,
+          toolChoice: context.toolPermission.readOnly
+            ? { type: 'auto' }
+            : { type: 'auto' },
         })
 
         if (!response) {
@@ -355,8 +369,14 @@ export async function* runAgent(
         const toolResults: AgentToolResult[] = []
 
         for (const toolCall of assistantMessage.toolCalls) {
-          // 检查工具权限
           if (!context.canUseTool(toolCall.name)) {
+            denialState = recordDenial(denialState, toolCall.name, `工具 "${toolCall.name}" 不可用或被禁用`)
+
+            if (shouldFallbackToPrompting(denialState)) {
+              const fallbackReason = getFallbackReason(denialState)
+              console.warn(`[runAgent] Denial Tracking 降级: ${fallbackReason}`)
+            }
+
             const result: AgentToolResult = {
               toolCallId: toolCall.id,
               toolName: toolCall.name,
@@ -377,6 +397,8 @@ export async function* runAgent(
           // 执行工具
           try {
             const toolResult = await executeTool(toolCall, context, params.userId)
+
+            denialState = recordSuccess(denialState)
 
             const result: AgentToolResult = {
               toolCallId: toolCall.id,
@@ -611,8 +633,9 @@ async function callAI(params: {
   model: string
   messages: Array<{ role: string; content: string }>
   abortSignal?: AbortSignal
+  allowedToolNames?: string[]
+  toolChoice?: { type: 'auto' } | { type: 'none' } | { type: 'any' } | { type: 'tool'; name: string }
 }): Promise<AICallResponse | null> {
-  // 检查是否已取消
   if (params.abortSignal?.aborted) {
     return null
   }
@@ -620,29 +643,30 @@ async function callAI(params: {
   console.log(`[callAI] 调用真实 LLM: ${params.model}，消息数: ${params.messages.length}`)
 
   try {
-    // 将消息格式转换为 LLM 服务需要的格式
     const chatMessages: ChatMessage[] = params.messages.map(msg => ({
       role: msg.role as 'user' | 'assistant' | 'system',
       content: msg.content,
     }))
 
-    // 获取可用工具定义（从工具注册表）
     const toolRegistry = getToolRegistry()
     const allTools = toolRegistry.getAllTools()
-    
-    // 转换为 LLM 工具格式
-    const tools: LLMToolDef[] = allTools.map(tool => ({
+
+    const filteredTools = params.allowedToolNames
+      ? allTools.filter(tool => params.allowedToolNames!.includes(tool.name))
+      : allTools
+
+    const tools: LLMToolDef[] = filteredTools.map(tool => ({
       name: tool.name,
       description: tool.description,
       input_schema: 'inputSchema' in tool ? tool.inputSchema : {},
     }))
 
-    // 调用真实的 LLM 服务
     const response = await llmService.chat(
       chatMessages,
       { model: params.model },
-      tools,
-      params.abortSignal
+      tools.length > 0 ? tools : undefined,
+      params.abortSignal,
+      params.toolChoice
     )
 
     console.log(`[callAI] LLM 响应成功，内容长度: ${response.content.length}, 工具调用数: ${response.toolCalls?.length || 0}`)
@@ -686,9 +710,22 @@ async function executeTool(
       }
     }
 
+    if (tool.inputSchema && typeof tool.inputSchema === 'object' && 'type' in (tool.inputSchema as object)) {
+      const validation = validateToolInput(toolCall.input, tool.inputSchema as Record<string, unknown>)
+      if (!validation.valid) {
+        const errorDetail = createValidationErrorResponse(validation.errors)
+        return {
+          success: false,
+          error: `<tool_use_error>InputValidationError: ${errorDetail.error}</tool_use_error>`,
+        }
+      }
+    }
+
+    const sanitizedInput = stripInternalFields(toolCall.input, toolCall.name)
+
     const result = await toolRegistry.executeTool({
       toolName: toolCall.name,
-      toolInput: toolCall.input,
+      toolInput: sanitizedInput,
       sessionId: context.sessionId,
       userId,
       timeout: tool.timeout,
@@ -744,6 +781,40 @@ export async function executeAgent(
     durationMs: Date.now() - startTime,
     error,
   }
+}
+
+/**
+ * 剥离模型可能伪造的内部字段
+ * 以 _ 前缀开头的字段是系统内部使用的，模型不应注入
+ */
+function stripInternalFields(
+  input: Record<string, unknown>,
+  toolName: string
+): Record<string, unknown> {
+  if (!input || typeof input !== 'object') return input
+
+  const PROTECTED_PREFIXES = ['_']
+  const ALLOWED_INTERNAL_KEYS = new Set(['_cwd', '_projectRoot'])
+
+  const stripped: Record<string, unknown> = {}
+  let hasStripped = false
+
+  for (const [key, value] of Object.entries(input)) {
+    const isInternal = PROTECTED_PREFIXES.some(prefix => key.startsWith(prefix))
+    const isAllowed = ALLOWED_INTERNAL_KEYS.has(key)
+
+    if (isInternal && !isAllowed) {
+      hasStripped = true
+      continue
+    }
+    stripped[key] = value
+  }
+
+  if (hasStripped) {
+    console.warn(`[stripInternalFields] 工具 "${toolName}" 的输入中包含被剥离的内部字段`)
+  }
+
+  return stripped
 }
 
 /**

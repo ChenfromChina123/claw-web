@@ -599,15 +599,21 @@ export class SessionConversationManager {
     }
     console.log(`[${sessionId}] === 共 ${anthropicMessages.length} 条消息 ===`)
 
-    const streamParams = {
+    const allAnthropicTools = this.toolExecutor.getAnthropicTools() as Anthropic.Tool[]
+
+    const streamParams: Record<string, unknown> = {
       model,
       max_tokens: 4096,
       system: systemBlocks,
-      tools: this.toolExecutor.getAnthropicTools() as Anthropic.Tool[],
+      tools: allAnthropicTools.length > 0 ? allAnthropicTools : undefined,
       messages: anthropicMessages,
     }
+
+    if (!allAnthropicTools.length) {
+      streamParams.tool_choice = { type: 'none' as const }
+    }
     const stream = client.messages.stream(
-      streamParams,
+      streamParams as any,
       signal ? { signal } : undefined
     )
 
@@ -624,12 +630,20 @@ export class SessionConversationManager {
 
               sendEvent('tool_use', { id: toolId, name: toolName })
             }
+            sendEvent('content_block_start', {
+              index: event.index,
+              content_block: { type: event.content_block.type }
+            })
             break
 
           case 'content_block_delta':
             if (event.delta.type === 'text_delta') {
               assistantText += event.delta.text
               sendEvent('message_delta', { delta: event.delta.text })
+              sendEvent('content_block_delta', {
+                index: event.index,
+                delta: { type: 'text_delta', text: event.delta.text }
+              })
             } else if (event.delta.type === 'input_json_delta') {
               if (pendingToolCalls.length > 0) {
                 const lastTool = pendingToolCalls[pendingToolCalls.length - 1]
@@ -639,10 +653,16 @@ export class SessionConversationManager {
                   partial_json: event.delta.partial_json
                 })
               }
+            } else if (event.delta.type === 'thinking_delta') {
+              sendEvent('content_block_delta', {
+                index: event.index,
+                delta: { type: 'thinking_delta', thinking: event.delta.thinking }
+              })
             }
             break
 
           case 'content_block_stop':
+            sendEvent('content_block_stop', { index: event.index })
             break
 
           case 'message_delta':
@@ -715,16 +735,15 @@ export class SessionConversationManager {
     let assistantText = ''
     let pendingToolCalls: Array<{ id: string; name: string; input: any }> = []
 
-    // 转换工具定义格式为 OpenAI function calling 格式
     const anthropicTools = this.toolExecutor.getAnthropicTools() as Anthropic.Tool[]
-    const openaiTools = anthropicTools.map(tool => ({
+    const openaiTools = anthropicTools.length > 0 ? anthropicTools.map(tool => ({
       type: 'function' as const,
       function: {
         name: tool.name,
         description: tool.description,
         parameters: tool.input_schema,
       },
-    }))
+    })) : undefined
 
     /**
      * 将 Anthropic 格式消息转换为 OpenAI/Qwen 兼容格式
@@ -849,7 +868,7 @@ export class SessionConversationManager {
         signal.addEventListener('abort', () => abortController.abort(), { once: true })
       }
 
-      const stream = await client.chat.completions.create({
+      const requestParams: Record<string, unknown> = {
         model,
         messages: openaiMessages,
         tools: openaiTools,
@@ -857,7 +876,16 @@ export class SessionConversationManager {
         temperature: 0.7,
         stream: true,
         stream_options: { include_usage: true },
-      }, { signal: abortController.signal })
+      }
+
+      if (!openaiTools) {
+        requestParams.tool_choice = 'none'
+      }
+
+      const stream = await client.chat.completions.create(
+        requestParams as any,
+        { signal: abortController.signal }
+      )
 
       let finishReason = ''
 
