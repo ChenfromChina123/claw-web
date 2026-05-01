@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.claw_code_application.data.api.models.ToolCall
+import com.example.claw_code_application.data.api.models.BackgroundTask
 import com.example.claw_code_application.ui.chat.components.*
 import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.viewmodel.ChatViewModel
@@ -351,29 +352,89 @@ private fun ChatMessageList(
             )
         }
 
-        // 使用 key 来避免不必要的重组
-        item(key = "active_agent_task_${viewModel.toolCalls.hashCode()}") {
-            val activeToolCalls = viewModel.toolCalls.filter {
-                it.status == "executing" || it.status == "pending"
-            }
-            if (activeToolCalls.isNotEmpty()) {
-                val steps = remember(activeToolCalls) {
-                    activeToolCalls.mapIndexed { index, toolCall ->
-                        AgentStep(
-                            title = getToolStepTitle(toolCall),
-                            status = when (toolCall.status) {
-                                "executing" -> AgentStepStatus.IN_PROGRESS
-                                "completed" -> AgentStepStatus.COMPLETED
-                                else -> AgentStepStatus.PENDING
+        // 任务容器区域：有任务时按任务分组显示，无任务时使用原有 AgentTaskCard
+        val tasks = viewModel.tasks
+        if (tasks.isNotEmpty()) {
+            items(
+                items = tasks,
+                key = { task -> "task_container_${task.taskId}" }
+            ) { task ->
+                val isCollapsed = viewModel.collapsedTasks[task.taskId] ?: false
+                val taskToolCalls = viewModel.toolCalls.filter { toolCall ->
+                    isToolCallInTask(toolCall, task)
+                }
+
+                TaskContainerCard(
+                    task = task,
+                    isCollapsed = isCollapsed,
+                    onCollapsedChange = { viewModel._collapsedTasks[task.taskId] = it },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    if (taskToolCalls.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            taskToolCalls.forEach { toolCall ->
+                                CompactToolCallCard(
+                                    toolCall = toolCall,
+                                    expanded = false,
+                                    onExpandedChange = {}
+                                )
                             }
-                        )
+                        }
                     }
                 }
-                AgentTaskCard(
-                    taskTitle = "正在执行任务",
-                    steps = steps,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
+            }
+
+            // 不属于任何任务的工具调用
+            val unassignedToolCalls = viewModel.toolCalls.filter { toolCall ->
+                val isActive = toolCall.status == "executing" || toolCall.status == "pending"
+                isActive && tasks.none { task -> isToolCallInTask(toolCall, task) }
+            }
+            if (unassignedToolCalls.isNotEmpty()) {
+                item(key = "unassigned_tool_calls") {
+                    val steps = remember(unassignedToolCalls) {
+                        unassignedToolCalls.map { toolCall ->
+                            AgentStep(
+                                title = getToolStepTitle(toolCall),
+                                status = when (toolCall.status) {
+                                    "executing" -> AgentStepStatus.IN_PROGRESS
+                                    "completed" -> AgentStepStatus.COMPLETED
+                                    else -> AgentStepStatus.PENDING
+                                }
+                            )
+                        }
+                    }
+                    AgentTaskCard(
+                        taskTitle = "正在执行任务",
+                        steps = steps,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+            }
+        } else {
+            // 无任务时保持原有逻辑
+            item(key = "active_agent_task_${viewModel.toolCalls.hashCode()}") {
+                val activeToolCalls = viewModel.toolCalls.filter {
+                    it.status == "executing" || it.status == "pending"
+                }
+                if (activeToolCalls.isNotEmpty()) {
+                    val steps = remember(activeToolCalls) {
+                        activeToolCalls.mapIndexed { index, toolCall ->
+                            AgentStep(
+                                title = getToolStepTitle(toolCall),
+                                status = when (toolCall.status) {
+                                    "executing" -> AgentStepStatus.IN_PROGRESS
+                                    "completed" -> AgentStepStatus.COMPLETED
+                                    else -> AgentStepStatus.PENDING
+                                }
+                            )
+                        }
+                    }
+                    AgentTaskCard(
+                        taskTitle = "正在执行任务",
+                        steps = steps,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
             }
         }
 
@@ -496,6 +557,18 @@ private fun getToolStepTitle(toolCall: ToolCall): String {
         toolCall.toolName.contains("write", ignoreCase = true) -> "写入文件: ${toolCall.toolName}"
         else -> "执行: ${toolCall.toolName}"
     }
+}
+
+/**
+ * 判断工具调用是否属于某个任务（基于时间窗口关联）
+ *
+ * 策略：工具调用的创建时间在任务的 startedAt 之后且在 completedAt 之前
+ */
+private fun isToolCallInTask(toolCall: ToolCall, task: BackgroundTask): Boolean {
+    val toolCallTime = toolCall.createdAt.toLongOrNull() ?: return false
+    val taskStart = task.startedAt ?: task.createdAt
+    val taskEnd = task.completedAt ?: Long.MAX_VALUE
+    return toolCallTime in taskStart..taskEnd
 }
 
 /**

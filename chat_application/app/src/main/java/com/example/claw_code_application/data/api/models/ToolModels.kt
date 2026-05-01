@@ -68,3 +68,43 @@ data class ExecutionStatus(
     val progress: Int,
     val message: String? = null
 )
+
+@Immutable
+@Serializable
+data class BackgroundTask(
+    val taskId: String,
+    @SerialName("taskName")
+    val taskName: String,
+    val description: String = "",
+    val status: String,
+    val priority: String = "normal",
+    val progress: Int = 0,
+    val result: String? = null,
+    val error: String? = null,
+    @SerialName("parentTaskId")
+    val parentTaskId: String? = null,
+    @SerialName("agentId")
+    val agentId: String? = null,
+    @SerialName("createdAt")
+    val createdAt: Long = 0L,
+    @SerialName("startedAt")
+    val startedAt: Long? = null,
+    @SerialName("completedAt")
+    val completedAt: Long? = null
+)
+
+@Serializable
+data class TaskStatusChangePayload(
+    @SerialName("taskId")
+    val taskId: String,
+    @SerialName("taskName")
+    val taskName: String,
+    @SerialName("previousStatus")
+    val previousStatus: String,
+    @SerialName("newStatus")
+    val newStatus: String,
+    val result: String? = null,
+    val error: String? = null,
+    @SerialName("traceId")
+    val traceId: String? = null
+)

@@ -3,6 +3,7 @@ package com.example.claw_code_application.data.websocket
 import android.util.Log
 import com.example.claw_code_application.data.api.models.AgentPushMessage
 import com.example.claw_code_application.data.api.models.Message
+import com.example.claw_code_application.data.api.models.TaskStatusChangePayload
 import com.example.claw_code_application.util.NetworkConfig
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -103,6 +104,7 @@ class WebSocketManager {
         data class ConversationEnd(val totalMessages: Int) : WebSocketEvent()
         data class Error(val message: String) : WebSocketEvent()
         data class AgentPush(val message: AgentPushMessage) : WebSocketEvent()
+        data class TaskStatusChanged(val payload: TaskStatusChangePayload) : WebSocketEvent()
     }
 
     // 待发送消息
@@ -538,6 +540,16 @@ class WebSocketManager {
                     WebSocketEvent.AgentPush(pushMessage)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to parse agent_push message: ${e.message}")
+                    return
+                }
+            }
+
+            "task_status_changed" -> {
+                try {
+                    val payload = json.decodeFromJsonElement(TaskStatusChangePayload.serializer(), data)
+                    WebSocketEvent.TaskStatusChanged(payload)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to parse task_status_changed: ${e.message}")
                     return
                 }
             }

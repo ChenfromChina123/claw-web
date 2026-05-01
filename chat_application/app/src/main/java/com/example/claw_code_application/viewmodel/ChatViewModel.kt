@@ -67,6 +67,12 @@ class ChatViewModel(
     internal val _toolCalls = mutableStateListOf<ToolCall>()
     val toolCalls: List<ToolCall> = _toolCalls
 
+    internal val _tasks = mutableStateListOf<BackgroundTask>()
+    val tasks: List<BackgroundTask> = _tasks
+
+    internal val _collapsedTasks = mutableStateMapOf<String, Boolean>()
+    val collapsedTasks: Map<String, Boolean> = _collapsedTasks
+
     internal val _messageToolCallMap = mutableStateMapOf<String, List<ToolCall>>()
 
     val connectionState = webSocketManager.connectionState

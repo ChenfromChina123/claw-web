@@ -27,6 +27,7 @@ internal fun ChatViewModel.handleWebSocketEvent(event: WebSocketManager.WebSocke
         is WebSocketManager.WebSocketEvent.ConversationEnd -> handleConversationEnd()
         is WebSocketManager.WebSocketEvent.Error -> handleErrorEvent(event)
         is WebSocketManager.WebSocketEvent.AgentPush -> handleAgentPush(event)
+        is WebSocketManager.WebSocketEvent.TaskStatusChanged -> handleTaskStatusChanged(event)
     }
 }
 
@@ -187,4 +188,39 @@ private fun ChatViewModel.handleErrorEvent(event: WebSocketManager.WebSocketEven
 private fun ChatViewModel.handleAgentPush(event: WebSocketManager.WebSocketEvent.AgentPush) {
     notificationManager?.showAgentPushNotification(event.message)
     pushMessageStore?.addMessage(event.message)
+}
+
+private fun ChatViewModel.handleTaskStatusChanged(event: WebSocketManager.WebSocketEvent.TaskStatusChanged) {
+    val payload = event.payload
+    val existingIndex = _tasks.indexOfFirst { it.taskId == payload.taskId }
+    val now = System.currentTimeMillis()
+
+    if (existingIndex != -1) {
+        val existing = _tasks[existingIndex]
+        _tasks[existingIndex] = existing.copy(
+            status = payload.newStatus,
+            result = payload.result ?: existing.result,
+            error = payload.error ?: existing.error,
+            startedAt = if (payload.newStatus == "running") now else existing.startedAt,
+            completedAt = if (payload.newStatus == "completed" || payload.newStatus == "failed" || payload.newStatus == "cancelled") now else existing.completedAt
+        )
+    } else {
+        _tasks.add(BackgroundTask(
+            taskId = payload.taskId,
+            taskName = payload.taskName,
+            status = payload.newStatus,
+            createdAt = now,
+            startedAt = if (payload.newStatus == "running") now else null,
+            completedAt = if (payload.newStatus == "completed" || payload.newStatus == "failed" || payload.newStatus == "cancelled") now else null,
+            result = payload.result,
+            error = payload.error
+        ))
+    }
+
+    if (payload.newStatus == "completed") {
+        _collapsedTasks[payload.taskId] = true
+    }
+
+    updateDisplayMessages()
+    emitUiStateUpdate()
 }
