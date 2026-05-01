@@ -24,6 +24,7 @@ import com.example.claw_code_application.data.api.models.Message
 import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.ui.theme.BubbleColor
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -170,10 +171,77 @@ private fun DynamicMessageContent(
     content: String,
     isStreaming: Boolean
 ) {
-    val components = remember(content) {
-        MessageContentParser.parse(content)
+    if (isStreaming) {
+        StreamingTextContent(content = content)
+    } else {
+        val components = remember(content) {
+            MessageContentParser.parse(content)
+        }
+        RenderParsedComponents(components = components)
+    }
+}
+
+/**
+ * 流式文本渲染：使用节流策略减少Markdown重解析频率
+ * 采用双重策略：组合期间节流更新 + LaunchedEffect兜底确保最终内容渲染
+ */
+@Composable
+private fun StreamingTextContent(content: String) {
+    val colors = AppColor.current
+    var renderedContent by remember { mutableStateOf(content) }
+    var lastRenderTime by remember { mutableStateOf(0L) }
+
+    val now = System.currentTimeMillis()
+    if (content != renderedContent && (now - lastRenderTime >= 100L)) {
+        renderedContent = content
+        lastRenderTime = now
     }
 
+    LaunchedEffect(content) {
+        if (content != renderedContent) {
+            delay(50L)
+            renderedContent = content
+            lastRenderTime = System.currentTimeMillis()
+        }
+    }
+
+    val displayContent = if (renderedContent.length > 5000) {
+        renderedContent.take(5000) + "\n... (内容过长，已截断)"
+    } else {
+        renderedContent
+    }
+
+    if (displayContent.isNotBlank()) {
+        BeautifulMarkdown(
+            markdown = displayContent,
+            isStreaming = true
+        )
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "cursor")
+    val cursorAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.2f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(530, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "cursor_alpha"
+    )
+    Text(
+        text = "▋",
+        color = colors.PrimaryLight.copy(alpha = cursorAlpha),
+        fontSize = 15.sp,
+        fontWeight = FontWeight.Normal,
+        modifier = Modifier.padding(start = 2.dp)
+    )
+}
+
+/**
+ * 渲染已解析的消息组件列表
+ */
+@Composable
+private fun RenderParsedComponents(components: List<MessageComponent>) {
     components.forEach { component ->
         when (component) {
             is MessageComponent.Text -> {
@@ -185,23 +253,16 @@ private fun DynamicMessageContent(
                     }
                 }
 
-                // 使用超美Markdown渲染组件（Material3 + 代码高亮）
                 BeautifulMarkdown(
                     markdown = displayContent,
-                    isStreaming = isStreaming
+                    isStreaming = false
                 )
             }
 
             is MessageComponent.ToolUse -> {
-                // 工具调用现在统一通过 ToolCallCard 显示
-                // 不在消息内容中渲染，避免与 ToolCallCard 重复
-                // 保留此分支以防止解析错误，但不渲染任何内容
             }
 
             is MessageComponent.ToolResult -> {
-                // 工具结果现在统一通过 ToolCallCard 显示
-                // 不在消息内容中渲染，避免与 ToolCallCard 重复
-                // 保留此分支以防止解析错误，但不渲染任何内容
             }
 
             is MessageComponent.FileListResult -> {
@@ -269,7 +330,6 @@ private fun DynamicMessageContent(
             }
         }
 
-        // 组件之间添加间距 - Manus标准：16dp
         if (component !== components.lastOrNull()) {
             Spacer(modifier = Modifier.height(16.dp))
         }

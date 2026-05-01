@@ -121,6 +121,19 @@ fun ChatScreen(
         }
     }
 
+    // 流式内容增长时节流滚动到底部（参考Web端48ms节流策略）
+    var lastScrollTime by remember { mutableStateOf(0L) }
+    val streamingMessage = displayMessages.firstOrNull { it.isStreaming }
+    LaunchedEffect(streamingMessage?.content?.length) {
+        if (streamingMessage != null && canAutoScroll) {
+            val now = System.currentTimeMillis()
+            if (now - lastScrollTime >= 80L) {
+                lastScrollTime = now
+                listState.scrollToItem(0)
+            }
+        }
+    }
+
     // 检测是否需要加载更多历史消息（reverseLayout中，底部=历史消息末尾）
     val shouldLoadMore by remember {
         derivedStateOf {
