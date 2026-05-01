@@ -19,14 +19,16 @@ services:
       - ./server/shared:/app/shared:ro
       # ✅ 挂载 package.json（依赖变更时自动同步）
       - ./server/package.json:/app/package.json:ro
+      # 注意：不挂载 node_modules，使用镜像内置的依赖
+      # 这样避免平台兼容性问题（Windows vs Linux）
       # 保留原有卷
       - master_logs:/app/logs
       - ${HOST_WORKSPACE_PATH:-/data/claws/workspaces}:/app/workspaces
       - /var/run/docker.sock:/var/run/docker.sock
     
-    # ✅ 使用 Bun 的热重载模式
-    # 检测依赖是否存在，不存在才安装，避免网络问题导致启动卡住
-    command: ["/bin/sh", "-c", "[ -d /app/node_modules/express ] || bun install ; bun run --watch src/index.ts"]
+    # ✅ 使用 Bun 热重载模式
+    # 依赖使用镜像内置的，代码通过 volume 挂载实现热更新
+    command: ["bun", "run", "--watch", "src/index.ts"]
     
     environment:
       NODE_ENV: development
