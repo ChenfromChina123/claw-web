@@ -217,24 +217,6 @@ private fun StreamingTextContent(content: String) {
             isStreaming = true
         )
     }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "cursor")
-    val cursorAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(530, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "cursor_alpha"
-    )
-    Text(
-        text = "▋",
-        color = colors.PrimaryLight.copy(alpha = cursorAlpha),
-        fontSize = 15.sp,
-        fontWeight = FontWeight.Normal,
-        modifier = Modifier.padding(start = 2.dp)
-    )
 }
 
 /**
