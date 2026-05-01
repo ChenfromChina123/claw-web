@@ -121,13 +121,19 @@ fun ChatScreen(
         }
     }
 
-    // 流式内容增长时：只在消息刚开始流式时滚动，内容增长期间不滚动
-    // 避免scrollToItem导致的跳动，让用户可以正常阅读正在生成的内容
+    // 流式内容增长时：平滑滚动跟随内容
+    // 只在用户在底部附近时自动滚动，避免强制跳动
     val streamingMessage = displayMessages.firstOrNull { it.isStreaming }
-    val streamingMessageId = remember(streamingMessage?.id) { streamingMessage?.id }
-    LaunchedEffect(streamingMessageId) {
-        if (streamingMessageId != null && canAutoScroll) {
-            listState.animateScrollToItem(0)
+    var lastContentLength by remember { mutableStateOf(0) }
+
+    LaunchedEffect(streamingMessage?.content?.length) {
+        if (streamingMessage != null && canAutoScroll) {
+            val currentLength = streamingMessage.content.length
+            // 每增加200字符或首次滚动时平滑滚动
+            if (currentLength - lastContentLength >= 200 || lastContentLength == 0) {
+                lastContentLength = currentLength
+                listState.animateScrollToItem(0)
+            }
         }
     }
 

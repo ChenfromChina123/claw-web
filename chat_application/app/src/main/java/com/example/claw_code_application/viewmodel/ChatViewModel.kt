@@ -96,7 +96,7 @@ class ChatViewModel(
     internal var streamingMessageId: String? = null
     internal var pendingDeltaText = StringBuilder()
     internal var debounceJob: Job? = null
-    internal val debounceIntervalMs = 50L
+    internal val debounceIntervalMs = 16L
     internal val pendingToolUpdates = mutableMapOf<String, ToolCall>()
     internal var toolUpdateDebounceJob: Job? = null
     internal val toolUpdateDebounceIntervalMs = 100L
