@@ -57,35 +57,22 @@ private fun ChatViewModel.handleMessageStart(event: WebSocketManager.WebSocketEv
 }
 
 private fun ChatViewModel.handleMessageDelta(event: WebSocketManager.WebSocketEvent.MessageDelta) {
-    pendingDeltaText.append(event.delta)
-
-    val currentPending = pendingDeltaText.toString()
-
     streamingMessageId?.let { messageId ->
         val index = _messages.indexOfFirst { it.id == messageId }
         if (index != -1) {
             val oldMessage = _messages[index]
-            _messages[index] = oldMessage.copy(content = oldMessage.content + currentPending)
+            _messages[index] = oldMessage.copy(content = oldMessage.content + event.delta)
             updateStreamingMessage(messageId)
         }
-    }
-
-    debounceJob?.cancel()
-    debounceJob = vmScope.launch {
-        delay(debounceIntervalMs)
-        pendingDeltaText.clear()
     }
 }
 
 private fun ChatViewModel.handleMessageStop(event: WebSocketManager.WebSocketEvent.MessageStop) {
-    debounceJob?.cancel()
-    val remainingDelta = pendingDeltaText.toString()
-    pendingDeltaText.clear()
     streamingMessageId?.let { messageId ->
         val index = _messages.indexOfFirst { it.id == messageId }
         if (index != -1) {
             val oldMessage = _messages[index]
-            _messages[index] = oldMessage.copy(content = oldMessage.content + remainingDelta, isStreaming = false)
+            _messages[index] = oldMessage.copy(isStreaming = false)
             updateStreamingMessage(messageId)
         }
     }

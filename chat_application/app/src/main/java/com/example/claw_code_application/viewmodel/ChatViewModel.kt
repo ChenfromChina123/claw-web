@@ -268,21 +268,8 @@ class ChatViewModel(
                                         val remoteMessages = result.data.messages.map { it.copy(isStreaming = false) }
                                         val remoteToolCalls = result.data.toolCalls
 
-                                        val localMsgIds = _messages.map { it.id }.toSet()
-                                        val remoteMsgIds = remoteMessages.map { it.id }.toSet()
-
-                                        val newMessages = remoteMessages.filter { it.id !in localMsgIds }
-                                        val updatedMessages = remoteMessages.filter { it.id in localMsgIds }
-
-                                        newMessages.forEach { _messages.add(it) }
-                                        updatedMessages.forEach { updated ->
-                                            val index = _messages.indexOfFirst { it.id == updated.id }
-                                            if (index != -1) {
-                                                _messages[index] = updated
-                                            }
-                                        }
-
-                                        _messages.sortBy { it.timestamp.toLongOrNull() ?: 0L }
+                                        _messages.clear()
+                                        _messages.addAll(remoteMessages)
 
                                         _toolCalls.clear()
                                         _toolCalls.addAll(remoteToolCalls)
