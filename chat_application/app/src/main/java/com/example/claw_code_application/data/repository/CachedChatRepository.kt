@@ -223,6 +223,12 @@ class CachedChatRepository(
                 )
                 Logger.d(TAG, "发射会话缓存: sessionId=$sessionId, ${localMessages.size} 条消息")
                 emit(Result.Success(cachedDetail))
+
+                val cacheAge = System.currentTimeMillis() - localSession.cachedAt
+                if (cacheAge < MIN_CACHE_AGE_MS) {
+                    Logger.d(TAG, "缓存新鲜（${cacheAge}ms），跳过网络请求: sessionId=$sessionId")
+                    return@flow
+                }
             }
             
             // 4. 后台从网络获取最新数据

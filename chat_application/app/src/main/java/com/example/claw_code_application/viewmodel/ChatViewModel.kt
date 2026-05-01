@@ -113,13 +113,13 @@ class ChatViewModel(
         return _messageToolCallMap[messageId] ?: emptyList()
     }
 
-    /** 全量重建显示消息列表（仅在消息增删时调用） */
+    /** 增量更新显示消息列表（全量重建，仅在消息增删时调用） */
     internal fun updateDisplayMessages() {
         _displayMessages.clear()
         _displayMessages.addAll(_messages.reversed().filter { shouldShowMessage(it) })
     }
 
-    /** 增量更新流式消息（仅更新指定消息，避免全量重建） */
+    /** 流式增量更新：仅更新指定消息，避免全量重建列表 */
     internal fun updateStreamingMessage(messageId: String) {
         val message = _messages.find { it.id == messageId } ?: return
         if (!shouldShowMessage(message)) return
@@ -188,6 +188,7 @@ class ChatViewModel(
                 if (!savedSessionId.isNullOrBlank()) {
                     android.util.Log.d(TAG, "从本地存储恢复会话: $savedSessionId")
                     currentSessionId = savedSessionId
+                    loadSession(savedSessionId)
                 }
             }
         }
@@ -257,21 +258,24 @@ class ChatViewModel(
                         totalMessageCount = cachedChatRepository.getMessageCount(sessionId)
                         hasMoreHistory = _messages.size < totalMessageCount
 
-                        cachedChatRepository.getSessionDetail(sessionId, forceRefresh).collect { result ->
-                            when (result) {
-                                is CachedChatRepository.Result.Loading -> {}
-                                is CachedChatRepository.Result.Success -> {
-                                    _toolCalls.clear(); _toolCalls.addAll(result.data.toolCalls)
-                                    rebuildMessageToolCallMapping(); updateMessageToolCallMap()
-                                    if (result.data.messages.size > totalMessageCount) {
-                                        totalMessageCount = result.data.messages.size
-                                        hasMoreHistory = _messages.size < totalMessageCount
+                        _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = null)
+
+                        launch {
+                            cachedChatRepository.getSessionDetail(sessionId, forceRefresh).collect { result ->
+                                when (result) {
+                                    is CachedChatRepository.Result.Loading -> {}
+                                    is CachedChatRepository.Result.Success -> {
+                                        _toolCalls.clear(); _toolCalls.addAll(result.data.toolCalls)
+                                        rebuildMessageToolCallMapping(); updateMessageToolCallMap()
+                                        if (result.data.messages.size > totalMessageCount) {
+                                            totalMessageCount = result.data.messages.size
+                                            hasMoreHistory = _messages.size < totalMessageCount
+                                        }
+                                        _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = null)
                                     }
-                                    _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = null)
-                                }
-                                is CachedChatRepository.Result.Error -> {
-                                    if (_messages.isNotEmpty()) _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = null)
-                                    else _uiState.value = UiState.Error(result.message)
+                                    is CachedChatRepository.Result.Error -> {
+                                        if (_messages.isEmpty()) _uiState.value = UiState.Error(result.message)
+                                    }
                                 }
                             }
                         }
