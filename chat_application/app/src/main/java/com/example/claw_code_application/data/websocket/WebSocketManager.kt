@@ -474,8 +474,11 @@ class WebSocketManager {
     private fun handleEvent(event: String?, data: JsonObject?) {
         if (event == null || data == null) return
 
-        Log.d(TAG, "=== WebSocket Event: $event ===")
-        Log.d(TAG, "Event data: ${data.toString().take(200)}")
+        // 只对非高频事件打印日志，message_delta 等高频事件跳过日志避免 I/O 开销
+        if (event != "message_delta" && event != "content_block_delta") {
+            Log.d(TAG, "=== WebSocket Event: $event ===")
+            Log.d(TAG, "Event data: ${data.toString().take(200)}")
+        }
 
         val webSocketEvent = when (event) {
             "message_start" -> {
