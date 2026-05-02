@@ -234,11 +234,12 @@ export class WorkerToolExecutor {
 
     const { container } = mapping
     
-    // Master和Worker容器在不同的Docker网络中（claude-network vs worker-network）
-    // 无法直接通过容器IP访问，必须使用宿主机端口映射
-    const workerHost = process.env.WORKER_HOST || 'host.docker.internal'
-    const workerUrl = `http://${workerHost}:${container.hostPort}/internal/exec`
-    console.log(`[WorkerToolExecutor] 使用宿主机端口映射访问Worker (userId=${userId}, host=${workerHost}, port=${container.hostPort})`)
+    // Master 和 Worker 都在 worker-network 中，优先使用容器名直接通信
+    // 开发模式可通过 WORKER_HOST 环境变量覆盖
+    const workerHost = process.env.WORKER_HOST || container.containerName
+    const workerPort = getWorkerInternalPort()
+    const workerUrl = `http://${workerHost}:${workerPort}/internal/exec`
+    console.log(`[WorkerToolExecutor] 访问Worker (userId=${userId}, host=${workerHost}, port=${workerPort})`)
 
     console.log(`[WorkerToolExecutor] 转发工具 ${toolName} 到 Worker 容器 (userId=${userId}, url=${workerUrl})`)
 

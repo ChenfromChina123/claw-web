@@ -40,6 +40,17 @@ function extractUserFromProxyHeader(request: Request): AuthResult {
   }
 }
 
+const PUBLIC_PATHS = ['/api/info', '/api/models', '/health']
+
+function isPublicPath(url: string): boolean {
+  try {
+    const path = new URL(url).pathname
+    return PUBLIC_PATHS.some(p => path === p)
+  } catch {
+    return false
+  }
+}
+
 /**
  * 认证中间件
  * 
@@ -58,46 +69,27 @@ export async function authMiddleware(request: Request): Promise<AuthResult> {
   }
 
   // Master 模式：验证 JWT token
+  const isPublic = isPublicPath(request.url)
   const authHeader = request.headers.get('Authorization')
-  console.log('[Auth] Request URL:', request.url)
-  console.log('[Auth] Authorization header:', authHeader ? `exists: "${authHeader.substring(0, 50)}..."` : 'missing')
   
   const token = await extractTokenFromHeader(authHeader)
-  console.log('[Auth] extractTokenFromHeader result:', token ? `token length: ${token.length}` : 'null')
 
   if (!token) {
-    console.warn('[Auth] No token extracted from header')
+    if (!isPublic) {
+      console.warn('[Auth] No token extracted from header for:', request.url)
+    }
     return { userId: null, isAdmin: null }
   }
 
   const payload = await verifyToken(token)
-  console.log('[Auth] verifyToken result:', payload ? `userId: ${payload.userId}` : 'null')
   
-  // 如果验证失败，打印 Token 信息用于调试
   if (!payload) {
-    console.warn('[Auth] Token verification failed')
-    console.warn('[Auth] Token preview:', token.substring(0, 80) + '...')
-    console.warn('[Auth] Token length:', token.length)
-    console.warn('[Auth] JWT_SECRET used:', process.env.JWT_SECRET?.substring(0, 30) + '...')
-    
-    // 尝试解码 Token 头部查看算法
-    try {
-      const parts = token.split('.')
-      if (parts.length >= 2) {
-        const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString())
-        console.warn('[Auth] Token header:', JSON.stringify(header))
-        
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
-        console.warn('[Auth] Token payload (decoded):', JSON.stringify(payload).substring(0, 200))
-      }
-    } catch (e) {
-      console.error('[Auth] Failed to decode token for debugging:', e)
+    if (!isPublic) {
+      console.warn('[Auth] Token verification failed for:', request.url)
     }
-    
     return { userId: null, isAdmin: null }
   }
 
-  console.log('[Auth] Token verified for user:', payload.userId)
   return { userId: payload.userId, isAdmin: payload.isAdmin || null }
 }
 
