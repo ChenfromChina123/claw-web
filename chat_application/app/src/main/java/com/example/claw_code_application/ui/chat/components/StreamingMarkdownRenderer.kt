@@ -2,6 +2,7 @@ package com.example.claw_code_application.ui.chat.components
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -30,9 +31,9 @@ import androidx.compose.ui.unit.dp
  *    - 历史块在 GPU 中是静态缓存，完全不参与计算
  *    - ViewModel 层 sample(50ms) 帧节流，避免每字符更新
  *
- * 性能对比：
- * - 旧方案：每次更新全量重解析 + 全量重组 → O(n) 每帧
- * - 新方案：只解析活跃块 + 只重组活跃块 → O(1) 每帧
+ * 4. 高度塌陷防护
+ *    - 活跃块设置 minHeight，避免内容从0高度撑开导致的跳动
+ *    - 代码块活跃时预留更大的 minHeight，提前渲染背景框轮廓
  *
  * @param content 当前完整的 Markdown 文本
  * @param modifier Compose 修饰符
@@ -53,10 +54,20 @@ fun StreamingMarkdownRenderer(
     Column(modifier = modifier.fillMaxWidth()) {
         blocks.forEach { block ->
             key(block.id) {
+                val blockModifier = if (!block.isStable) {
+                    val hasCodeFence = block.content.trimStart().startsWith("```")
+                    val minHeight = if (hasCodeFence) 80.dp else 24.dp
+                    Modifier
+                        .padding(vertical = 2.dp)
+                        .heightIn(min = minHeight)
+                } else {
+                    Modifier.padding(vertical = 2.dp)
+                }
+
                 BeautifulMarkdown(
                     markdown = block.content,
                     isStreaming = !block.isStable,
-                    modifier = Modifier.padding(vertical = 2.dp)
+                    modifier = blockModifier
                 )
             }
         }

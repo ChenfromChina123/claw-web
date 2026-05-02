@@ -38,7 +38,6 @@ import com.example.claw_code_application.ui.chat.components.*
 import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.ui.theme.AppColors
 import com.example.claw_code_application.viewmodel.ChatViewModel
-import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
@@ -88,34 +87,25 @@ fun ChatScreen(
     val density = LocalDensity.current
     var bottomBarHeight by remember { mutableStateOf(76) }
 
-    // 用户手动滑动时暂停自动滚动
-    var userScrolling by remember { mutableStateOf(false) }
-
-    // 检测用户是否正在滑动
-    LaunchedEffect(listState.isScrollInProgress) {
-        if (listState.isScrollInProgress) {
-            userScrolling = true
-        } else {
-            delay(1500L)
-            userScrolling = false
-        }
-    }
-
-    // 判断是否允许自动滚动：在顶部附近（reverseLayout中item0=最新消息在底部）且用户没有主动滑动
-    val canAutoScroll by remember {
+    /**
+     * 阈值吸附逻辑：判断用户是否在底部附近
+     * reverseLayout 中 item 0 = 最新消息在底部
+     * firstVisibleItemIndex <= 1 表示最新消息可见
+     */
+    val isNearBottom by remember {
         derivedStateOf {
-            listState.firstVisibleItemIndex <= 1 && !userScrolling
+            listState.firstVisibleItemIndex <= 1
         }
     }
 
-    // 消息数量变化时自动滚动到底部（新消息添加时触发）
+    // 新消息添加时：直接跳到底部（无动画，避免抖动）
     LaunchedEffect(displayMessages.size) {
-        if (displayMessages.isNotEmpty() && canAutoScroll) {
-            listState.animateScrollToItem(0)
+        if (displayMessages.isNotEmpty() && isNearBottom) {
+            listState.scrollToItem(0)
         }
     }
 
-    // 会话切换时直接定位到底部（仅在sessionId变化时触发，避免流式更新时频繁滚动）
+    // 会话切换时直接定位到底部
     val currentSessionId = viewModel.currentSessionId
     LaunchedEffect(currentSessionId) {
         if (displayMessages.isNotEmpty()) {
@@ -123,22 +113,13 @@ fun ChatScreen(
         }
     }
 
-    // 流式内容增长时：智能滚动跟随 - 优化版
-    // 优化点：
-    // 1. 增加滚动触发阈值从300到800字符，减少滚动频率
-    // 2. 使用scrollToItem替代animateScrollToItem，避免动画与内容更新冲突导致的抖动
+    // 流式内容增长时：阈值吸附跟随
+    // 核心优化：只在用户处于底部附近时跟随，否则保持静止
+    // 使用 scrollToItem（无动画），避免动画与内容更新冲突
     val streamingMessage = displayMessages.firstOrNull { it.isStreaming }
-    var lastScrollLength by remember { mutableStateOf(0) }
-
     LaunchedEffect(streamingMessage?.content?.length) {
-        if (streamingMessage != null && canAutoScroll) {
-            val currentLength = streamingMessage.content.length
-            // 增加阈值到800字符，减少滚动频率，避免抖动
-            if (currentLength - lastScrollLength >= 800 || lastScrollLength == 0) {
-                lastScrollLength = currentLength
-                // 使用scrollToItem而非animateScrollToItem，避免动画冲突
-                listState.scrollToItem(0)
-            }
+        if (streamingMessage != null && isNearBottom) {
+            listState.scrollToItem(0)
         }
     }
 
