@@ -366,6 +366,7 @@ async function handleUserMessage(ws: any, wsData: WebSocketData, message: any, s
     {
       ...agentOptions,
       imageAttachments,
+      userId,
     }
   ).catch(err => {
     console.error('[WS] processMessage error:', err)

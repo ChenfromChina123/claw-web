@@ -186,6 +186,7 @@ export class SessionConversationManager {
       debugMode?: boolean
       timeout?: number
       imageAttachments?: ImageAttachment[]
+      userId?: string
     }
   ): Promise<void> {
     // 首先尝试从内存获取会话，如果不存在则从数据库加载
@@ -195,11 +196,31 @@ export class SessionConversationManager {
       console.log(`[SessionConversationManager] Session ${sessionId} not in memory, loading from database...`)
       sessionDataTemp = await sessionManager.loadSession(sessionId)
       if (!sessionDataTemp) {
-        console.error(`[SessionConversationManager] Session ${sessionId} not found in database`)
-        sendEvent('error', { message: 'Session not found' })
+        console.warn(`[SessionConversationManager] Session ${sessionId} not found in database, auto-creating...`)
+      }
+    }
+
+    if (!sessionDataTemp) {
+      const userId = options?.userId
+      if (!userId) {
+        console.error(`[SessionConversationManager] Cannot auto-create session: no userId`)
+        sendEvent('error', { message: 'Session not found and cannot auto-create without userId' })
         return
       }
-      console.log(`[SessionConversationManager] Session ${sessionId} loaded from database`)
+      try {
+        const newSession = await sessionManager.createSession(userId, '新对话', model, true)
+        console.log(`[SessionConversationManager] Auto-created session ${newSession.id} for user ${userId}`)
+        sessionDataTemp = await sessionManager.loadSession(newSession.id)
+        if (!sessionDataTemp) {
+          sendEvent('error', { message: 'Failed to load auto-created session' })
+          return
+        }
+        sendEvent('session_created', { session: newSession, isNew: true })
+      } catch (err) {
+        console.error(`[SessionConversationManager] Failed to auto-create session:`, err)
+        sendEvent('error', { message: 'Session not found and auto-creation failed' })
+        return
+      }
     }
 
     const userId = sessionDataTemp?.session.userId

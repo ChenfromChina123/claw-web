@@ -284,7 +284,7 @@ export class HealthMonitor {
     try {
       // 动态导入避免循环依赖
       const { wsManager } = await import('../integration/wsBridge')
-      const { getWorkerForwarder } = await import('./workerForwarder')
+      const { workerForwarder } = await import('../websocket/workerForwarder')
 
       // 1. 检查前端 WebSocket 连接
       const allConnections = wsManager.getAllConnections()
@@ -298,9 +298,9 @@ export class HealthMonitor {
       }
 
       // 2. 检查 Worker WebSocket 连接
-      const workerForwarder = getWorkerForwarder()
-      if (workerForwarder) {
-        const workerConnection = workerForwarder.getConnectionByUserId(userId)
+      const workerForwarderInstance = workerForwarder
+      if (workerForwarderInstance) {
+        const workerConnection = workerForwarderInstance.getConnection(userId)
         if (workerConnection && workerConnection.ws.readyState === 1) { // WebSocket.OPEN = 1
           // 进一步检查前端是否通过 Worker 转发器有活跃连接
           if (workerConnection.frontendWs && workerConnection.frontendWs.readyState === 1) {
