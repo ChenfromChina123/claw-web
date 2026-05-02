@@ -388,10 +388,17 @@ class ChatViewModel(
     }
 
     internal var isLoadingSession = false
+    internal var lastLoadedSessionId: String? = null
 
     fun loadSession(sessionId: String, forceRefresh: Boolean = false) {
+        // 防止重复加载同一会话
         if (isLoadingSession) {
             android.util.Log.w(TAG, "loadSession: already loading, skipping duplicate call for sessionId=$sessionId")
+            return
+        }
+        // 如果已经加载了同一会话且非强制刷新，跳过
+        if (!forceRefresh && lastLoadedSessionId == sessionId && _messages.isNotEmpty()) {
+            android.util.Log.d(TAG, "loadSession: session $sessionId already loaded, skipping")
             return
         }
         isLoadingSession = true
@@ -416,6 +423,7 @@ class ChatViewModel(
                         hasMoreHistory = _messages.size < totalMessageCount
 
                         _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = null)
+                        lastLoadedSessionId = sessionId
 
                         // 后台从网络刷新 - 仅当本地缓存与远端不同时才更新UI
                         android.util.Log.d(TAG, "loadSession: starting background network refresh...")
@@ -427,10 +435,10 @@ class ChatViewModel(
                                         val remoteMessages = result.data.messages.map { it.copy(isStreaming = false) }
                                         val remoteToolCalls = result.data.toolCalls
 
-                                        // 增量更新：只有消息数量或最后一条消息ID变化时才重建
-                                        val localLastId = _messages.lastOrNull()?.id
-                                        val remoteLastId = remoteMessages.lastOrNull()?.id
-                                        val needsUpdate = _messages.size != remoteMessages.size || localLastId != remoteLastId
+                                        // 增量更新：比较消息ID集合而非仅比较数量和最后一条
+                                        val localIds = _messages.map { it.id }
+                                        val remoteIds = remoteMessages.map { it.id }
+                                        val needsUpdate = localIds != remoteIds
 
                                         if (needsUpdate) {
                                             android.util.Log.i(TAG, "loadSession: remote data changed, updating UI. local=${_messages.size}, remote=${remoteMessages.size}")
@@ -583,7 +591,7 @@ class ChatViewModel(
         messageToToolCalls.clear(); unassociatedToolCallIds.clear(); pendingToolInput.clear()
         messageContentBuffers.clear(); _taskToolCallCache.clear()
         hasMoreHistory = false; isLoadingHistory = false; totalMessageCount = 0
-        isLoadingSession = false
+        isLoadingSession = false; lastLoadedSessionId = null
     }
 
     override fun onCleared() { super.onCleared(); webSocketManager.disconnect() }
