@@ -1,11 +1,17 @@
-# 任务计划 - 优化安卓端 AI 流式输出渲染
+# 任务计划 - 优化安卓端 AI 流式输出渲染与键盘交互
 
 ## 已完成
 - [x] 探索安卓端 AI 响应渲染逻辑，定位流式输出闪烁问题
 - [x] 分析 Markdown 渲染库的使用方式及导致跳动的原因
+- [x] 修复键盘弹出时输入框不跟随上移的问题 (使用 imePadding)
+- [x] 移除会导致跳动的 animateContentSize 动画
+- [x] 优化流式输出的自动滚动逻辑，移除冲突的 scrollToItem 循环
+- [x] 优化 BeautifulMarkdown 渲染配置缓存
+
+## 待验证
+- [ ] 验证流式输出的平滑度
+- [ ] 验证键盘弹起时的输入框跟随效果
 
 ## 计划中
-- [ ] 优化 `IncrementalMarkdownParser` 以提供稳定的 Block ID，避免 Block 状态切换时的重组
-- [ ] 优化 `StreamingMarkdownRenderer` 的防抖策略，平衡实时性与稳定性
-- [ ] 考虑对 `BeautifulMarkdown` 进行性能优化，减少 Markdown 解析开销
-- [ ] 验证修复效果，并同步 README.md 和 .experience 文件
+- [ ] 同步 README.md (如果需要)
+- [ ] 提交代码

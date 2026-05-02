@@ -83,18 +83,6 @@ fun ChatScreen(
     val displayMessages = viewModel.displayMessages
 
     /**
-     * 监听键盘高度变化
-     * 用作 LazyColumn 的 contentPadding，让列表内容被"顶"上去
-     * 而不是容器被压缩，避免布局位移导致的跳动
-     */
-    val density = LocalDensity.current
-    val imeInsets = WindowInsets.ime
-    val imeHeight by remember {
-        derivedStateOf { imeInsets.getBottom(density) }
-    }
-    val imeHeightDp = with(density) { imeHeight.toDp() }
-
-    /**
      * 阈值吸附逻辑：判断用户是否在底部附近
      * reverseLayout 中 item 0 = 最新消息在底部
      * firstVisibleItemIndex <= 1 表示最新消息可见
@@ -106,28 +94,9 @@ fun ChatScreen(
     }
 
     // 新消息 ID 变化时：直接跳到底部（无动画，避免抖动）
-    // 只监听消息ID变化，不监听内容长度变化
-    // reverseLayout 下内容增长会自动向上推，不需要手动 scrollToItem
     LaunchedEffect(displayMessages.firstOrNull()?.id) {
         if (displayMessages.isNotEmpty() && isNearBottom) {
             listState.scrollToItem(0)
-        }
-    }
-
-    /**
-     * 流式输出时节流自动滚动
-     * 当首条消息正在流式输出时，每200ms检查一次是否需要滚动到底部
-     * 避免每个token都触发滚动导致动画叠加抖动
-     */
-    LaunchedEffect(displayMessages.firstOrNull()?.isStreaming) {
-        val isStreaming = displayMessages.firstOrNull()?.isStreaming == true
-        if (isStreaming) {
-            while (true) {
-                delay(200)
-                if (isNearBottom) {
-                    listState.scrollToItem(0)
-                }
-            }
         }
     }
 
@@ -167,7 +136,6 @@ fun ChatScreen(
      * 使用 Column + weight(1f) 布局
      * - 消息列表占据剩余空间，自动伸缩
      * - 底部输入区域使用 imePadding() 随键盘自动上移
-     * - 避免使用 onSizeChanged 手动计算 padding，消除布局位移
      */
     Column(
         modifier = modifier
@@ -191,18 +159,18 @@ fun ChatScreen(
                     displayMessages = displayMessages,
                     viewModel = viewModel,
                     uiState = uiState,
-                    listState = listState,
-                    imeHeightDp = imeHeightDp
+                    listState = listState
                 )
             }
         }
 
         // 底部区域：任务状态 + 输入框
-        // 不使用 imePadding()，键盘避让由 LazyColumn 的 contentPadding 处理
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(colors.Background),
+                .background(colors.Background)
+                .navigationBarsPadding()
+                .imePadding(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // 任务状态区域（输入框上方）
@@ -385,8 +353,7 @@ private fun ChatMessageList(
     displayMessages: List<com.example.claw_code_application.data.api.models.Message>,
     viewModel: ChatViewModel,
     uiState: ChatViewModel.UiState,
-    listState: androidx.compose.foundation.lazy.LazyListState,
-    imeHeightDp: androidx.compose.ui.unit.Dp
+    listState: androidx.compose.foundation.lazy.LazyListState
 ) {
     val colors = AppColor.current
     val tasks = viewModel.tasks
@@ -400,7 +367,7 @@ private fun ChatMessageList(
         verticalArrangement = Arrangement.Top,
         contentPadding = PaddingValues(
             top = 16.dp,
-            bottom = 16.dp + imeHeightDp
+            bottom = 16.dp
         ),
         modifier = Modifier.fillMaxSize()
     ) {

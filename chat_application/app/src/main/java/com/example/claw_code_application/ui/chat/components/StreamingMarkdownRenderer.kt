@@ -80,16 +80,23 @@ fun StreamingMarkdownRenderer(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            // 移除 animateContentSize，流式文本自然增长通常比动画增长更稳定，减少跳动感
     ) {
         blocks.forEach { block ->
             key(block.id) {
-                // 为活跃块提供稳定的最小高度预测，防止高度塌陷
+                // 为每个块缓存其曾经达到过的最大预测高度，防止流式输出过程中高度抖动
+                var maxMinHeight by remember { mutableStateOf(0.dp) }
+                val currentPredictHeight = remember(block.content) { predictMinHeight(block.content) }
+                
+                LaunchedEffect(currentPredictHeight) {
+                    if (currentPredictHeight > maxMinHeight) {
+                        maxMinHeight = currentPredictHeight
+                    }
+                }
+
                 val blockModifier = if (!block.isStable) {
-                    val minHeight = predictMinHeight(block.content)
                     Modifier
                         .padding(vertical = 2.dp)
-                        .heightIn(min = minHeight)
+                        .heightIn(min = maxMinHeight)
                 } else {
                     Modifier.padding(vertical = 2.dp)
                 }
@@ -117,6 +124,7 @@ private fun predictMinHeight(content: String): Dp {
         trimmed.lines().any { it.trimStart().let { l -> l.startsWith(">") } } -> 40.dp
         trimmed.lines().any { it.trimStart().let { l -> l.startsWith("#") } } -> 36.dp
         trimmed.lines().any { it.trimStart().let { l -> Regex("^\\d+\\.").containsMatchIn(l) } } -> 48.dp
-        else -> 24.dp
+        trimmed.isBlank() -> 0.dp
+        else -> 20.dp
     }
 }

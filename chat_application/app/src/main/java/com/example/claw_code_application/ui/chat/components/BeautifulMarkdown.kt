@@ -45,114 +45,119 @@ fun BeautifulMarkdown(
 ) {
     val colors = AppColor.current
 
-    // markdownColor和markdownTypography是@Composable函数，不能直接缓存
-    // 但它们内部只是创建数据对象，开销较小
-    val markdownColors = markdownColor(
-        text = colors.TextPrimary,
-        codeText = colors.PrimaryLight,
-        codeBackground = colors.CodeBackground,
-        inlineCodeText = colors.PrimaryLight,
-        inlineCodeBackground = colors.SurfaceVariant,
-        dividerColor = colors.Border,
-        linkText = colors.PrimaryLight
-    )
-
-    val markdownTypography = markdownTypography(
-        h1 = TextStyle(
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            lineHeight = 28.sp,
-            color = colors.TextPrimary
-        ),
-        h2 = TextStyle(
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            lineHeight = 26.sp,
-            color = colors.TextPrimary
-        ),
-        h3 = TextStyle(
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            lineHeight = 24.sp,
-            color = colors.TextPrimary
-        ),
-        h4 = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            lineHeight = 22.sp,
-            color = colors.TextPrimary
-        ),
-        h5 = TextStyle(
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            lineHeight = 20.sp,
-            color = colors.TextPrimary
-        ),
-        h6 = TextStyle(
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            lineHeight = 18.sp,
-            color = colors.TextPrimary
-        ),
-        text = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 23.sp,
-            color = colors.TextPrimary
-        ),
-        code = TextStyle(
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 19.sp,
-            color = colors.PrimaryLight
-        ),
-        inlineCode = TextStyle(
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 18.sp,
-            color = colors.PrimaryLight
-        ),
-        quote = TextStyle(
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 20.sp,
-            color = colors.TextSecondary
-        ),
-        paragraph = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 23.sp,
-            color = colors.TextPrimary
-        ),
-        link = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 23.sp,
-            color = colors.PrimaryLight
-        ),
-        list = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 23.sp,
-            color = colors.TextPrimary
-        ),
-        ordered = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 23.sp,
-            color = colors.TextPrimary
-        ),
-        bullet = TextStyle(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Normal,
-            lineHeight = 23.sp,
-            color = colors.TextPrimary
+    // 使用 remember 缓存配置，减少重组时的计算和对象创建
+    // 只有当主题颜色发生变化时才重新创建
+    val markdownColors = remember(colors) {
+        markdownColor(
+            text = colors.TextPrimary,
+            codeText = colors.PrimaryLight,
+            codeBackground = colors.CodeBackground,
+            inlineCodeText = colors.PrimaryLight,
+            inlineCodeBackground = colors.SurfaceVariant,
+            dividerColor = colors.Border,
+            linkText = colors.PrimaryLight
         )
-    )
+    }
 
-    // MarkdownTable.createComponents()是@Composable函数，不能直接缓存
-    // 它直接返回markdownComponents配置，包含自定义表格渲染
-    val components = MarkdownTable.createComponents()
+    val markdownTypography = remember(colors) {
+        markdownTypography(
+            h1 = TextStyle(
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 28.sp,
+                color = colors.TextPrimary
+            ),
+            h2 = TextStyle(
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 26.sp,
+                color = colors.TextPrimary
+            ),
+            h3 = TextStyle(
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 24.sp,
+                color = colors.TextPrimary
+            ),
+            h4 = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 22.sp,
+                color = colors.TextPrimary
+            ),
+            h5 = TextStyle(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 20.sp,
+                color = colors.TextPrimary
+            ),
+            h6 = TextStyle(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 18.sp,
+                color = colors.TextPrimary
+            ),
+            text = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 23.sp,
+                color = colors.TextPrimary
+            ),
+            code = TextStyle(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 19.sp,
+                color = colors.PrimaryLight
+            ),
+            inlineCode = TextStyle(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 18.sp,
+                color = colors.PrimaryLight
+            ),
+            quote = TextStyle(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 20.sp,
+                color = colors.TextSecondary
+            ),
+            paragraph = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 23.sp,
+                color = colors.TextPrimary
+            ),
+            link = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 23.sp,
+                color = colors.PrimaryLight
+            ),
+            list = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 23.sp,
+                color = colors.TextPrimary
+            ),
+            ordered = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 23.sp,
+                color = colors.TextPrimary
+            ),
+            bullet = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 23.sp,
+                color = colors.TextPrimary
+            )
+        )
+    }
+
+    // 缓存组件配置，避免重组时重复创建 Composable 组件映射
+    val components = remember(colors) {
+        MarkdownTable.createComponents()
+    }
 
     // 扩展span配置不需要频繁变化，使用remember缓存
     val extendedSpans = remember {
