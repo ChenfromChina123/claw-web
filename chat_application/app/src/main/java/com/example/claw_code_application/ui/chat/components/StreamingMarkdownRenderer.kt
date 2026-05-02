@@ -1,8 +1,5 @@
 package com.example.claw_code_application.ui.chat.components
 
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -21,37 +18,19 @@ import kotlinx.coroutines.delay
 /**
  * 流式 Markdown 渲染器
  *
- * 核心优化（ChatGPT 级丝滑体验）：
+ * 渲染策略：输出-渲染-固定
+ * - 活跃块（正在生成）：即时渲染，高度随内容增长
+ * - 稳定块（已完成）：通过 key 锁定，Compose 不再重组，绝对固定
+ * - 不使用 animateContentSize，避免高度动画导致的弹跳
  *
- * 1. 增量解析状态机（Incremental Parser）
- *    - 维护解析状态，新 Token 到来时只更新"活跃块"
- *    - 遇到 \n\n 或 ``` 等块边界时，才在列表末尾添加新节点
- *    - 历史块只解析一次，不参与后续计算
- *
- * 2. 自动补全悬挂语法（Syntax Remending）
- *    - 流式输出中语法往往不完整（如代码块只有开头 ``` 还没出结尾）
- *    - 渲染最后一项时自动补全闭合标签
- *    - 用户看到正在生成的代码块背景，而不是原始三个反引号
- *
- * 3. 局部状态流（StateFlow Buffering + 局部重组）
- *    - 通过 key 机制，只有活跃块触发 Compose 重组
- *    - 历史块在 GPU 中是静态缓存，完全不参与计算
- *    - ViewModel 层 sample(50ms) 帧节流，避免每字符更新
- *
- * 4. 高度塌陷防护
- *    - 活跃块设置 minHeight，避免内容从0高度撑开导致的跳动
- *    - 代码块活跃时预留更大的 minHeight，提前渲染背景框轮廓
- *
- * 5. 渲染防抖
- *    - 流式输出时 80ms 防抖间隔，合并高频 token 更新
- *    - 非流式输出时跳过防抖，直接渲染
- *
- * 6. 条件化动画
- *    - isStreaming=true 时启用 animateContentSize 平滑高度变化
- *    - isStreaming=false 时禁用动画，避免历史消息滚动进入视口时跳动
+ * 核心优化：
+ * 1. 增量解析状态机：只有活跃块参与重组，稳定块 GPU 缓存
+ * 2. 悬挂语法补全：代码块/加粗等未闭合时自动补全，避免原始标记外泄
+ * 3. 高度塌陷防护：活跃块预设 minHeight，避免结构切换时从0突变
+ * 4. 渲染防抖：流式时 80ms 合并高频 token，非流式时直接渲染
  *
  * @param content 当前完整的 Markdown 文本
- * @param isStreaming 是否正在流式输出，影响防抖策略和动画
+ * @param isStreaming 是否正在流式输出，影响防抖策略
  * @param modifier Compose 修饰符
  */
 @Composable
@@ -81,20 +60,7 @@ fun StreamingMarkdownRenderer(
         onDispose { parser.reset() }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (isStreaming) {
-                    Modifier.animateContentSize(
-                        animationSpec = spring(
-                            stiffness = Spring.StiffnessMediumLow,
-                            dampingRatio = Spring.DampingRatioMediumBouncy
-                        )
-                    )
-                } else Modifier
-            )
-    ) {
+    Column(modifier = modifier.fillMaxWidth()) {
         blocks.forEach { block ->
             key(block.id) {
                 val blockModifier = if (!block.isStable) {

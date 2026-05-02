@@ -1,7 +1,5 @@
 package com.example.claw_code_application.ui.chat.components
 
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -70,18 +68,7 @@ fun EnhancedMessageBubble(
     ) {
         Column(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
-            modifier = Modifier
-                .fillMaxWidth(if (isUser) 0.85f else 0.95f)
-                .then(
-                    if (!isUser && message.isStreaming) {
-                        Modifier.animateContentSize(
-                            animationSpec = spring(
-                                stiffness = Spring.StiffnessMediumLow,
-                                dampingRatio = Spring.DampingRatioMediumBouncy
-                            )
-                        )
-                    } else Modifier
-                )
+            modifier = Modifier.fillMaxWidth(if (isUser) 0.85f else 0.95f)
         ) {
             // 用户消息显示气泡，AI消息不显示气泡（只显示工具调用）
             if (isUser) {
