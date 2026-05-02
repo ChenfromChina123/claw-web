@@ -103,21 +103,11 @@ fun EnhancedMessageBubble(
                     }
                 }
             } else {
-                // AI消息：不显示气泡，直接渲染内容（如果有非工具内容）
-                val hasNonToolContent = remember(message.content) {
-                    val trimmed = message.content.trim()
-                    // 检查内容是否只包含工具调用，不包含普通文本
-                    !(trimmed.startsWith("[") &&
-                      (trimmed.contains("\"type\":\"tool_use\"") ||
-                       trimmed.contains("\"type\":\"tool_result\"")))
-                }
-
-                if (hasNonToolContent) {
-                    DynamicMessageContent(
-                        content = message.content,
-                        isStreaming = message.isStreaming
-                    )
-                }
+                // AI消息：不显示气泡，直接渲染内容
+                DynamicMessageContent(
+                    content = message.content,
+                    isStreaming = message.isStreaming
+                )
             }
 
             // 工具调用显示 - 统一使用 ToolCallCard 显示（紧凑模式）
@@ -156,32 +146,15 @@ fun EnhancedMessageBubble(
 /**
  * 动态消息内容渲染 - Manus 1.6 Lite 风格
  * 
- * 渲染策略：
- * - 纯文本/Markdown 内容：始终使用 StreamingMarkdownRenderer，不切换渲染路径
- *   流式输出时增量解析+动画，输出完毕后同一渲染器关闭动画，避免布局跳变
- * - 结构化 JSON 内容（tool_result 等）：非流式时使用 MessageContentParser 解析
- *   这类内容在流式阶段以原始 JSON 呈现，输出完毕后切换为结构化组件
+ * 渲染策略：统一使用 StreamingMarkdownRenderer 渲染 Markdown 文本
+ * 不切换渲染路径，避免流式/非流式切换时的布局跳变
  */
 @Composable
 private fun DynamicMessageContent(
     content: String,
     isStreaming: Boolean
 ) {
-    val isStructuredContent = remember(content) {
-        val trimmed = content.trim()
-        (trimmed.startsWith("[") || trimmed.startsWith("{")) &&
-        trimmed.contains("\"type\"") &&
-        (trimmed.contains("tool_result") || trimmed.contains("tool_use"))
-    }
-
-    if (isStructuredContent && !isStreaming) {
-        val components = remember(content) {
-            MessageContentParser.parse(content)
-        }
-        RenderParsedComponents(components = components)
-    } else {
-        StreamingMarkdownRenderer(content = content, isStreaming = isStreaming)
-    }
+    StreamingMarkdownRenderer(content = content, isStreaming = isStreaming)
 }
 
 /**
