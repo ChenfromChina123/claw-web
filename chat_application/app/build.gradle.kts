@@ -20,7 +20,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
         // 后端服务基础URL（开发环境）
-        buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:13000\"")
+        buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:3000\"")
     }
 
     buildTypes {
