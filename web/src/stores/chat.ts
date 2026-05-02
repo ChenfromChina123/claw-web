@@ -504,126 +504,80 @@ export const useChatStore = defineStore('chat', () => {
    * @returns Promise，在会话创建成功后 resolve
    */
   function createSession(title?: string, model?: string, force?: boolean): Promise<void> {
-    const callStack = new Error().stack
-    console.log('[ChatStore] createSession called:', { force, pendingEmptySessionId: pendingEmptySessionId.value, messagesLength: messages.value.length, sessionsCount: sessions.value.length, callStack: callStack?.split('\n').slice(1, 5) })
-
-    // 0. 防抖检查：短时间内（3秒内）不允许重复创建
+    // 防抖检查：短时间内（3秒内）不允许重复创建
     const now = Date.now()
     if (!force && now - lastSessionCreateTimestamp < SESSION_CREATE_DEBOUNCE_MS) {
-      const timeLeft = Math.ceil((SESSION_CREATE_DEBOUNCE_MS - (now - lastSessionCreateTimestamp)) / 1000)
-      console.log(`[ChatStore] createSession: 防抖检查，跳过重复创建（${timeLeft}秒内已创建过）`)
-      
-      // 如果存在空会话，直接导航到该会话
       if (pendingEmptySessionId.value) {
         return loadSession(pendingEmptySessionId.value)
       }
-      // 如果没有空会话但有会话列表，拒绝创建
       if (sessions.value.length > 0) {
-        return Promise.reject(new Error(`操作过于频繁，请${timeLeft}秒后再试`))
+        return Promise.resolve()
       }
-      // 如果真的没有任何会话（异常情况），允许创建
     }
 
-    // 如果已有正在进行的创建请求，直接返回该 Promise（实现并发控制）
+    // 并发控制：已有进行中的创建请求，复用 Promise
     if (createSessionPromise) {
-      console.log('[ChatStore] createSession: 已有进行中的创建请求，复用现有 Promise')
       return createSessionPromise
     }
 
-    // 记录创建时间戳
     lastSessionCreateTimestamp = now
 
-    // 1. 首先检查是否存在未发送消息的空会话（最高优先级，force 参数对此无效）
+    // 检查是否存在未发送消息的空会话
     if (pendingEmptySessionId.value) {
-      console.log('[ChatStore] createSession: 存在未发送消息的空会话，导航到该会话:', pendingEmptySessionId.value)
       return loadSession(pendingEmptySessionId.value)
     }
 
-    // 2. 检查当前会话是否没有消息（避免创建多个空会话）
-    // 注意：这个检查只在非强制模式下生效
+    // 检查当前会话是否没有消息（避免创建多个空会话）
     if (!force && messages.value.length === 0 && sessions.value.length > 0) {
-      console.log('[ChatStore] createSession: 当前会话没有消息，拒绝创建 (force=false)')
-      return Promise.reject(new Error('当前会话没有消息，无法创建新会话'))
+      return Promise.resolve()
     }
 
-    // 3. 直接调用后端创建会话，后端会处理空会话检查
-    // 后端逻辑：如果用户已有空会话，返回该空会话；否则创建新会话
-    console.log('[ChatStore] createSession: 调用后端创建会话，后端会检查空会话...')
-
-    // 创建新的 Promise 并保存到模块级变量
     createSessionPromise = new Promise<void>((resolve, reject) => {
-      const timeout = 15000 // 15秒超时
+      const timeout = 15000
       let timeoutId: ReturnType<typeof setTimeout> | null = null
       let settled = false
-      let sessionId: string | null = null
 
-      /**
-       * 清理函数：确保资源释放和状态重置
-       */
       const cleanup = (shouldReject?: boolean, error?: Error) => {
         if (settled) return
         settled = true
-
-        // 清空全局 Promise（允许下次创建）
         createSessionPromise = null
-
         if (timeoutId) {
           clearTimeout(timeoutId)
           timeoutId = null
         }
-
         unsubscribeCreated()
         unsubscribeReturned()
-
         if (shouldReject && error) {
           reject(error)
-        } else if (!shouldReject) {
+        } else {
           resolve()
         }
       }
 
-      /**
-       * 处理会话创建成功（新建或返回已有空会话）
-       */
       const handleSessionReady = (msg: { session?: { id?: string }; isNew?: boolean }) => {
         if (msg?.session?.id) {
-          sessionId = msg.session.id
-          // 关键修复：在 promise resolve 之前设置 pendingEmptySessionId
-          // 这样在并发场景下，pendingEmptySessionId 会在下一个 createSession 检查之前就被设置
           pendingEmptySessionId.value = msg.session.id
-          console.log('[ChatStore] createSession: 标记空会话 pendingEmptySessionId =', msg.session.id, 'isNew =', msg.isNew)
-        } else {
-          console.warn('[ChatStore] createSession: session 事件没有 session.id!')
         }
         cleanup(false)
       }
 
-      // 监听会话创建成功事件（新建会话）
       const unsubscribeCreated = wsClient.on('session_created', (data: unknown) => {
-        console.log('[ChatStore] createSession: 收到 session_created 事件:', JSON.stringify(data))
         handleSessionReady(data as { session?: { id?: string }; isNew?: boolean })
       })
 
-      // 监听会话返回事件（返回已有空会话）
       const unsubscribeReturned = wsClient.on('session_returned', (data: unknown) => {
-        console.log('[ChatStore] createSession: 收到 session_returned 事件:', JSON.stringify(data))
         handleSessionReady(data as { session?: { id?: string }; isNew?: boolean })
       })
 
-      // 设置超时
       timeoutId = setTimeout(() => {
-        console.warn('[ChatStore] createSession: 创建超时（15秒）')
-        // 超时时也要清除 pendingEmptySessionId，防止状态不一致
         if (pendingEmptySessionId.value === 'pending-creation') {
           pendingEmptySessionId.value = null
         }
         cleanup(true, new Error('创建会话超时'))
       }, timeout)
 
-      // 发送创建请求
       wsClient.createSession(title, model, force)
     }).finally(() => {
-      // 确保 finally 中也清理（防止异常情况导致内存泄漏）
       if (createSessionPromise) {
         createSessionPromise = null
       }

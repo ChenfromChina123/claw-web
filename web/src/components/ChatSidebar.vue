@@ -249,19 +249,12 @@ const isAllSelected = computed(() => {
 /**
  * 创建新会话或导航到最新的空会话
  */
-function handleNewChat() {
-  console.log('[ChatSidebar] handleNewChat clicked:', {
-    sessionsCount: chatStore.sessions.length,
-    currentSessionId: chatStore.currentSessionId,
-    messagesCount: chatStore.messages.length,
-    pendingEmptySessionId: chatStore.pendingEmptySessionId,
-    latestSession: chatStore.sessions[0] ? {
-      id: chatStore.sessions[0].id,
-      messageCount: chatStore.sessions[0].messageCount,
-      title: chatStore.sessions[0].title
-    } : null
-  })
-  chatStore.createSession(undefined, undefined, false)
+async function handleNewChat() {
+  try {
+    await chatStore.createSession(undefined, undefined, false)
+  } catch (err: any) {
+    console.warn('[ChatSidebar] 创建会话:', err?.message || err)
+  }
 }
 
 function handleSelectSession(session: Session) {
