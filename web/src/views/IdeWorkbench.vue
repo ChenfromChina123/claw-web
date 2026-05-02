@@ -36,6 +36,7 @@ import ChatInput from '@/components/ChatInput.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import IdeTerminalTabs from '@/components/terminal/IdeTerminalTabs.vue'
 import IdeComponentLayoutPanel from '@/components/layout/IdeComponentLayoutPanel.vue'
+import TaskStatusIndicator from '@/components/TaskStatusIndicator.vue'
 import type { ComponentPublicInstance } from 'vue'
 
 import { useChatStore } from '@/stores/chat'
@@ -617,6 +618,8 @@ async function handleRetry(): Promise<void> {
                   </div>
                 </Transition>
               </div>
+
+              <TaskStatusIndicator />
 
               <button
                 type="button"

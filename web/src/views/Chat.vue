@@ -14,6 +14,7 @@ import UserProfileSidebar from '@/components/UserProfileSidebar.vue'
 import IdeSessionsPanel from '@/views/IdeSessionsPanel.vue'
 import SessionSwitcher from '@/components/SessionSwitcher.vue'
 import MessageSearch from '@/components/MessageSearch.vue'
+import TaskStatusIndicator from '@/components/TaskStatusIndicator.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAuthStore } from '@/stores/auth'
 import { useAgentStore } from '@/stores/agent'
@@ -752,6 +753,9 @@ function handleOpenSettings() {
               </NIcon>
             </template>
           </NButton>
+
+          <!-- 任务状态指示器 -->
+          <TaskStatusIndicator />
 
           <!-- Agent 活动侧边栏切换按钮 -->
           <div class="agent-activity-toggle" :class="{ active: showAgentActivitySidebar }" @click="showAgentActivitySidebar = !showAgentActivitySidebar">
