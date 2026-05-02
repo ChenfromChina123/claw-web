@@ -22,6 +22,8 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -133,26 +135,25 @@ fun ChatScreen(
         }
     }
 
+    val density = LocalDensity.current
+    var bottomBarHeight by remember { mutableStateOf(0) }
+
     /**
-     * 使用 Column + weight(1f) 布局
-     * - 消息列表占据剩余空间，自动伸缩
-     * - 底部输入区域使用 imePadding() 随键盘自动上移
-     * - 避免使用 onSizeChanged 手动计算 padding，消除布局位移
+     * 使用 Box 布局避免键盘动画导致列表高度变化
+     * - 消息列表填满整个屏幕（含键盘区域）
+     * - 底部输入框悬浮在列表上方，使用 imePadding() 随键盘上移
+     * - 列表使用 contentPadding 为底部输入框留空间
+     * - 键盘收起时列表高度不变，避免闪烁
      */
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(colors.Background)
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        // 顶部导航栏
-        ChatTopBar(
-            onBack = onBack
-        )
-
-        // 消息列表区域 - weight(1f) 占据剩余空间
+        // 消息列表 - 填满整个区域，用 contentPadding 避让顶部和底部
         Box(
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.fillMaxSize()
         ) {
             if (displayMessages.isEmpty() && uiState !is ChatViewModel.UiState.Loading) {
                 ChatEmptyState()
@@ -161,16 +162,27 @@ fun ChatScreen(
                     displayMessages = displayMessages,
                     viewModel = viewModel,
                     uiState = uiState,
-                    listState = listState
+                    listState = listState,
+                    topPadding = 64,
+                    bottomPadding = with(density) { bottomBarHeight.toDp().value.toInt() }
                 )
             }
         }
 
-        // 底部区域：任务状态 + 输入框
+        // 顶部导航栏 - 悬浮在列表上方
+        ChatTopBar(
+            onBack = onBack
+        )
+
+        // 底部区域：悬浮在列表上方
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .align(Alignment.BottomCenter)
                 .background(colors.Background)
+                .onSizeChanged { size ->
+                    bottomBarHeight = size.height
+                }
                 .imePadding()
                 .navigationBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -355,7 +367,9 @@ private fun ChatMessageList(
     displayMessages: List<com.example.claw_code_application.data.api.models.Message>,
     viewModel: ChatViewModel,
     uiState: ChatViewModel.UiState,
-    listState: androidx.compose.foundation.lazy.LazyListState
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    topPadding: Int = 64,
+    bottomPadding: Int = 0
 ) {
     val colors = AppColor.current
     val tasks = viewModel.tasks
@@ -367,8 +381,12 @@ private fun ChatMessageList(
         state = listState,
         reverseLayout = true,
         verticalArrangement = Arrangement.Top,
-        contentPadding = PaddingValues(vertical = 16.dp),
+        contentPadding = PaddingValues(
+            top = 16.dp,
+            bottom = with(LocalDensity.current) { bottomPadding.toDp() } + 16.dp
+        ),
         modifier = Modifier.fillMaxSize()
+            .padding(top = with(LocalDensity.current) { topPadding.toDp() })
     ) {
         items(
             items = displayMessages,
