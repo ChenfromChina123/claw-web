@@ -148,10 +148,38 @@ export class SessionManager {
       return normalized
     })
 
+    // 验证并修复 toolCalls 的 messageId 关联
+    // 如果 toolCall 的 messageId 不存在于当前会话的消息中，
+    // 尝试将其关联到最近的助手消息（通常是产生该工具调用的消息）
+    const messageIdSet = new Set(messages.map(m => m.id))
+    const fixedToolCalls = dbToolCalls.map(tc => {
+      if (!tc.messageId || !messageIdSet.has(tc.messageId)) {
+        // 找到该 toolCall 创建时间之前的最近一条助手消息
+        const tcTime = new Date(tc.createdAt || 0).getTime()
+        const candidateMessages = messages.filter(m => {
+          if (m.role !== 'assistant') return false
+          const msgTime = new Date(m.createdAt || 0).getTime()
+          return msgTime <= tcTime || Math.abs(msgTime - tcTime) < 60000 // 1分钟容差
+        })
+        // 选择时间最接近的助手消息
+        let closestMessage = candidateMessages[candidateMessages.length - 1]
+        if (!closestMessage && messages.length > 0) {
+          // 如果没有找到，使用最后一条助手消息
+          const assistantMessages = messages.filter(m => m.role === 'assistant')
+          closestMessage = assistantMessages[assistantMessages.length - 1]
+        }
+        if (closestMessage) {
+          console.log(`[SessionManager] Fixed toolCall ${tc.id} messageId: ${tc.messageId} -> ${closestMessage.id}`)
+          return { ...tc, messageId: closestMessage.id }
+        }
+      }
+      return tc
+    })
+
     const sessionData: InMemorySession = {
       session,
       messages,
-      toolCalls: dbToolCalls,
+      toolCalls: fixedToolCalls,
       dirty: false,
       needsHydration: false,
     }
@@ -201,7 +229,28 @@ export class SessionManager {
     }
     const dbToolCalls = await this.toolCallRepo.findBySessionId(sessionId)
     if (dbToolCalls.length > 0) {
-      cached.toolCalls = dbToolCalls
+      // 验证并修复 toolCalls 的 messageId 关联
+      const messageIdSet = new Set(cached.messages.map(m => m.id))
+      cached.toolCalls = dbToolCalls.map(tc => {
+        if (!tc.messageId || !messageIdSet.has(tc.messageId)) {
+          const tcTime = new Date(tc.createdAt || 0).getTime()
+          const candidateMessages = cached.messages.filter(m => {
+            if (m.role !== 'assistant') return false
+            const msgTime = new Date(m.createdAt || 0).getTime()
+            return msgTime <= tcTime || Math.abs(msgTime - tcTime) < 60000
+          })
+          let closestMessage = candidateMessages[candidateMessages.length - 1]
+          if (!closestMessage && cached.messages.length > 0) {
+            const assistantMessages = cached.messages.filter(m => m.role === 'assistant')
+            closestMessage = assistantMessages[assistantMessages.length - 1]
+          }
+          if (closestMessage) {
+            console.log(`[SessionManager] Fixed toolCall ${tc.id} messageId: ${tc.messageId} -> ${closestMessage.id}`)
+            return { ...tc, messageId: closestMessage.id }
+          }
+        }
+        return tc
+      })
       console.log(`[SessionManager] Hydrated ${dbToolCalls.length} toolCalls for session ${sessionId}`)
     }
     // 清除 hydration 标记
@@ -595,32 +644,30 @@ export class SessionManager {
     const sessionData = this.sessions.get(sessionId)
     if (!sessionData || !sessionData.dirty) return
 
-    console.log(`Saving session ${sessionId}, messages count: ${sessionData.messages.length}, toolCalls count: ${sessionData.toolCalls.length}`)
+    const startTime = Date.now()
+    let newMessagesCount = 0
+    let updatedMessagesCount = 0
+    let newToolCallsCount = 0
+    let updatedToolCallsCount = 0
 
     await this.sessionRepo.touch(sessionId)
-
-    // 策略：保存新增消息 + 更新已存在消息的内容
-    console.log(`[SessionManager] Saving/updating data for session ${sessionId}...`)
 
     // 1. 获取数据库中已有的消息
     const existingMessages = await this.messageRepo.findBySessionId(sessionId)
     const existingMessageMap = new Map(existingMessages.map(m => [m.id, m]))
-    console.log(`[SessionManager] Existing messages in DB: ${Array.from(existingMessageMap.keys()).join(', ')}`)
 
     // 2. 处理所有消息
     for (const msg of sessionData.messages) {
       if (!existingMessageMap.has(msg.id)) {
         // 新增消息
-        console.log(`[SessionManager] Saving new message: ${msg.id}, role=${msg.role}`)
         await this.messageRepo.createWithId(msg.id, sessionId, msg.role, msg.content)
+        newMessagesCount++
       } else {
         // 检查内容是否有变化
         const existingMsg = existingMessageMap.get(msg.id)!
         if (!this.isContentEqual(existingMsg.content, msg.content)) {
-          console.log(`[SessionManager] Updating message content: ${msg.id}, role=${msg.role}`)
           await this.messageRepo.updateContent(msg.id, msg.content)
-        } else {
-          console.log(`[SessionManager] Message content unchanged: ${msg.id}, skipping`)
+          updatedMessagesCount++
         }
       }
     }
@@ -628,7 +675,6 @@ export class SessionManager {
     // 3. 获取数据库中已有的工具调用
     const existingToolCalls = await this.toolCallRepo.findBySessionId(sessionId)
     const existingToolCallMap = new Map(existingToolCalls.map(t => [t.id, t]))
-    console.log(`[SessionManager] Existing tool calls in DB: ${Array.from(existingToolCallMap.keys()).join(', ')}`)
 
     // 4. 处理所有工具调用
     for (const toolCall of sessionData.toolCalls) {
@@ -644,7 +690,6 @@ export class SessionManager {
       }
 
       if (!existingToolCallMap.has(toolCall.id)) {
-        console.log(`[SessionManager] Saving new tool call: ${toolCall.id}, toolName=${toolCall.toolName}`)
         await this.toolCallRepo.createWithId(
           toolCall.id,
           toolCall.messageId,
@@ -654,22 +699,26 @@ export class SessionManager {
           effectiveStatus,
           toolCall.toolOutput
         )
+        newToolCallsCount++
       } else {
         const existingTc = existingToolCallMap.get(toolCall.id)!
         const statusChanged = existingTc.status !== effectiveStatus
         const outputChanged = JSON.stringify(existingTc.toolOutput) !== JSON.stringify(toolCall.toolOutput)
         
         if (statusChanged || outputChanged) {
-          console.log(`[SessionManager] Updating tool call: ${toolCall.id}, status=${effectiveStatus}`)
           await this.toolCallRepo.updateOutput(toolCall.id, toolCall.toolOutput || {}, effectiveStatus)
-        } else {
-          console.log(`[SessionManager] Tool call unchanged: ${toolCall.id}, skipping`)
+          updatedToolCallsCount++
         }
       }
     }
 
     sessionData.dirty = false
-    console.log(`[SessionManager] Session ${sessionId} saved successfully!`)
+    const duration = Date.now() - startTime
+    console.log(
+      `[SessionManager] Session ${sessionId} saved in ${duration}ms: ` +
+      `messages +${newMessagesCount}/~${updatedMessagesCount}, ` +
+      `toolCalls +${newToolCallsCount}/~${updatedToolCallsCount}`
+    )
   }
 
   async clearSession(sessionId: string): Promise<void> {
@@ -743,14 +792,25 @@ export class SessionManager {
   }
 
   /**
-   * 立即保存会话到数据库
-   * 新消息会立即同步，不使用防抖延迟
+   * 保存会话到数据库（带防抖）
+   * 避免频繁保存导致重复日志和数据库压力
    */
   private scheduleSave(sessionId: string): void {
-    // 立即保存，不使用防抖
-    this.saveSession(sessionId).catch(error => {
-      console.error(`[SessionManager] Failed to save session ${sessionId}:`, error)
-    })
+    // 清除已有的定时器
+    const existingTimer = this.saveDebounceTimers.get(sessionId)
+    if (existingTimer) {
+      clearTimeout(existingTimer)
+    }
+
+    // 设置新的防抖定时器（500ms）
+    const timer = setTimeout(() => {
+      this.saveDebounceTimers.delete(sessionId)
+      this.saveSession(sessionId).catch(error => {
+        console.error(`[SessionManager] Failed to save session ${sessionId}:`, error)
+      })
+    }, 500)
+
+    this.saveDebounceTimers.set(sessionId, timer)
   }
 
   /**
