@@ -1,5 +1,6 @@
 package com.example.claw_code_application.ui.chat.components
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -66,7 +67,7 @@ fun StreamingMarkdownRenderer(
         onDispose { parser.reset() }
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(modifier = modifier.fillMaxWidth().animateContentSize()) {
         blocks.forEach { block ->
             key(block.id) {
                 val blockModifier = if (!block.isStable) {

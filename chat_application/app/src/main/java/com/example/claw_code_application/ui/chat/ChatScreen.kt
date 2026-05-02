@@ -22,8 +22,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -37,11 +35,11 @@ import com.example.claw_code_application.ui.chat.components.*
 import com.example.claw_code_application.ui.theme.AppColor
 import com.example.claw_code_application.ui.theme.AppColors
 import com.example.claw_code_application.viewmodel.ChatViewModel
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.platform.LocalDensity
 
 /**
  * 聊天详情界面 - Manus 1.6 Lite 风格
@@ -82,6 +80,17 @@ fun ChatScreen(
     }
 
     val displayMessages = viewModel.displayMessages
+
+    /**
+     * 监听键盘高度变化
+     * 用作 LazyColumn 的 contentPadding，让列表内容被"顶"上去
+     * 而不是容器被压缩，避免布局位移导致的跳动
+     */
+    val density = LocalDensity.current
+    val imeHeight by remember {
+        derivedStateOf { WindowInsets.ime.getBottom(density) }
+    }
+    val imeHeightDp = with(density) { imeHeight.toDp() }
 
     /**
      * 阈值吸附逻辑：判断用户是否在底部附近
@@ -135,25 +144,26 @@ fun ChatScreen(
         }
     }
 
-    val density = LocalDensity.current
-    var bottomBarHeight by remember { mutableStateOf(0) }
-
     /**
-     * 使用 Box 布局避免键盘动画导致列表高度变化
-     * - 消息列表填满整个屏幕（含键盘区域）
-     * - 底部输入框悬浮在列表上方，使用 imePadding() 随键盘上移
-     * - 列表使用 contentPadding 为底部输入框留空间
-     * - 键盘收起时列表高度不变，避免闪烁
+     * 使用 Column + weight(1f) 布局
+     * - 消息列表占据剩余空间，自动伸缩
+     * - 底部输入区域使用 imePadding() 随键盘自动上移
+     * - 避免使用 onSizeChanged 手动计算 padding，消除布局位移
      */
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
             .background(colors.Background)
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        // 消息列表 - 填满整个区域，用 contentPadding 避让顶部和底部
+        // 顶部导航栏
+        ChatTopBar(
+            onBack = onBack
+        )
+
+        // 消息列表区域 - weight(1f) 占据剩余空间
         Box(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.weight(1f)
         ) {
             if (displayMessages.isEmpty() && uiState !is ChatViewModel.UiState.Loading) {
                 ChatEmptyState()
@@ -163,28 +173,17 @@ fun ChatScreen(
                     viewModel = viewModel,
                     uiState = uiState,
                     listState = listState,
-                    topPadding = 64,
-                    bottomPadding = with(density) { bottomBarHeight.toDp().value.toInt() }
+                    imeHeightDp = imeHeightDp
                 )
             }
         }
 
-        // 顶部导航栏 - 悬浮在列表上方
-        ChatTopBar(
-            onBack = onBack
-        )
-
-        // 底部区域：悬浮在列表上方
+        // 底部区域：任务状态 + 输入框
+        // 不使用 imePadding()，键盘避让由 LazyColumn 的 contentPadding 处理
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .background(colors.Background)
-                .onSizeChanged { size ->
-                    bottomBarHeight = size.height
-                }
-                .imePadding()
-                .navigationBarsPadding(),
+                .background(colors.Background),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // 任务状态区域（输入框上方）
@@ -368,8 +367,7 @@ private fun ChatMessageList(
     viewModel: ChatViewModel,
     uiState: ChatViewModel.UiState,
     listState: androidx.compose.foundation.lazy.LazyListState,
-    topPadding: Int = 64,
-    bottomPadding: Int = 0
+    imeHeightDp: androidx.compose.ui.unit.Dp
 ) {
     val colors = AppColor.current
     val tasks = viewModel.tasks
@@ -383,10 +381,9 @@ private fun ChatMessageList(
         verticalArrangement = Arrangement.Top,
         contentPadding = PaddingValues(
             top = 16.dp,
-            bottom = with(LocalDensity.current) { bottomPadding.toDp() } + 16.dp
+            bottom = 16.dp + imeHeightDp
         ),
         modifier = Modifier.fillMaxSize()
-            .padding(top = with(LocalDensity.current) { topPadding.toDp() })
     ) {
         items(
             items = displayMessages,
