@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.delay
 
 /**
  * 聊天详情界面 - Manus 1.6 Lite 风格
@@ -87,8 +88,9 @@ fun ChatScreen(
      * 而不是容器被压缩，避免布局位移导致的跳动
      */
     val density = LocalDensity.current
+    val imeInsets = WindowInsets.ime
     val imeHeight by remember {
-        derivedStateOf { WindowInsets.ime.getBottom(density) }
+        derivedStateOf { imeInsets.getBottom(density) }
     }
     val imeHeightDp = with(density) { imeHeight.toDp() }
 
@@ -109,6 +111,23 @@ fun ChatScreen(
     LaunchedEffect(displayMessages.firstOrNull()?.id) {
         if (displayMessages.isNotEmpty() && isNearBottom) {
             listState.scrollToItem(0)
+        }
+    }
+
+    /**
+     * 流式输出时节流自动滚动
+     * 当首条消息正在流式输出时，每200ms检查一次是否需要滚动到底部
+     * 避免每个token都触发滚动导致动画叠加抖动
+     */
+    LaunchedEffect(displayMessages.firstOrNull()?.isStreaming) {
+        val isStreaming = displayMessages.firstOrNull()?.isStreaming == true
+        if (isStreaming) {
+            while (true) {
+                delay(200)
+                if (isNearBottom) {
+                    listState.scrollToItem(0)
+                }
+            }
         }
     }
 

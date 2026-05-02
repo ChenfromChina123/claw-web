@@ -1,6 +1,8 @@
 package com.example.claw_code_application.ui.chat.components
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -12,6 +14,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
@@ -67,12 +70,20 @@ fun StreamingMarkdownRenderer(
         onDispose { parser.reset() }
     }
 
-    Column(modifier = modifier.fillMaxWidth().animateContentSize()) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .animateContentSize(
+                animationSpec = spring(
+                    stiffness = Spring.StiffnessMediumLow,
+                    dampingRatio = Spring.DampingRatioMediumBouncy
+                )
+            )
+    ) {
         blocks.forEach { block ->
             key(block.id) {
                 val blockModifier = if (!block.isStable) {
-                    val hasCodeFence = block.content.trimStart().startsWith("```")
-                    val minHeight = if (hasCodeFence) 80.dp else 24.dp
+                    val minHeight = predictMinHeight(block.content)
                     Modifier
                         .padding(vertical = 2.dp)
                         .heightIn(min = minHeight)
@@ -87,5 +98,22 @@ fun StreamingMarkdownRenderer(
                 )
             }
         }
+    }
+}
+
+/**
+ * 根据内容类型预测活跃块的最小高度
+ * 防止 Markdown 结构切换时（如文本→列表→表格）高度从0突变
+ */
+private fun predictMinHeight(content: String): Dp {
+    val trimmed = content.trimStart()
+    return when {
+        trimmed.startsWith("```") || trimmed.startsWith("~~~") -> 80.dp
+        trimmed.contains("|") && trimmed.contains("---") -> 60.dp
+        trimmed.lines().any { it.trimStart().let { l -> l.startsWith("- ") || l.startsWith("* ") || l.startsWith("+ ") } } -> 48.dp
+        trimmed.lines().any { it.trimStart().let { l -> l.startsWith(">") } } -> 40.dp
+        trimmed.lines().any { it.trimStart().let { l -> l.startsWith("#") } } -> 36.dp
+        trimmed.lines().any { it.trimStart().let { l -> Regex("^\\d+\\.").containsMatchIn(l) } } -> 48.dp
+        else -> 24.dp
     }
 }
