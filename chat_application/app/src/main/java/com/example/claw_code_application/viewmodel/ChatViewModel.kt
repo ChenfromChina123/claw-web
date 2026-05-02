@@ -387,7 +387,14 @@ class ChatViewModel(
         _uiState.value = UiState.Success(messages = emptyList(), toolCalls = emptyList(), executionStatus = null)
     }
 
+    internal var isLoadingSession = false
+
     fun loadSession(sessionId: String, forceRefresh: Boolean = false) {
+        if (isLoadingSession) {
+            android.util.Log.w(TAG, "loadSession: already loading, skipping duplicate call for sessionId=$sessionId")
+            return
+        }
+        isLoadingSession = true
         android.util.Log.i(TAG, "loadSession START: sessionId=$sessionId, forceRefresh=$forceRefresh")
         viewModelScope.launch {
             try {
@@ -407,42 +414,47 @@ class ChatViewModel(
                         updateDisplayMessages()
                         totalMessageCount = cachedChatRepository.getMessageCount(sessionId)
                         hasMoreHistory = _messages.size < totalMessageCount
-                        android.util.Log.d(TAG, "loadSession: local cache loaded, totalCount=$totalMessageCount, hasMoreHistory=$hasMoreHistory")
 
                         _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = null)
 
-                        // 后台从网络刷新
+                        // 后台从网络刷新 - 仅当本地缓存与远端不同时才更新UI
                         android.util.Log.d(TAG, "loadSession: starting background network refresh...")
                         launch {
                             cachedChatRepository.getSessionDetail(sessionId, forceRefresh).collect { result ->
                                 when (result) {
-                                    is CachedChatRepository.Result.Loading -> {
-                                        android.util.Log.v(TAG, "loadSession: network refresh LOADING")
-                                    }
+                                    is CachedChatRepository.Result.Loading -> {}
                                     is CachedChatRepository.Result.Success -> {
                                         val remoteMessages = result.data.messages.map { it.copy(isStreaming = false) }
                                         val remoteToolCalls = result.data.toolCalls
-                                        android.util.Log.i(TAG, "loadSession: network refresh SUCCESS, ${remoteMessages.size} messages, ${remoteToolCalls.size} toolCalls")
 
-                                        _messages.clear()
-                                        _messages.addAll(remoteMessages)
+                                        // 增量更新：只有消息数量或最后一条消息ID变化时才重建
+                                        val localLastId = _messages.lastOrNull()?.id
+                                        val remoteLastId = remoteMessages.lastOrNull()?.id
+                                        val needsUpdate = _messages.size != remoteMessages.size || localLastId != remoteLastId
 
-                                        _toolCalls.clear()
-                                        _toolCalls.addAll(remoteToolCalls)
-                                        rebuildMessageToolCallMapping()
-                                        updateMessageToolCallMap()
-                                        rebuildTaskToolCallCache()
-                                        updateDisplayMessages()
+                                        if (needsUpdate) {
+                                            android.util.Log.i(TAG, "loadSession: remote data changed, updating UI. local=${_messages.size}, remote=${remoteMessages.size}")
+                                            _messages.clear()
+                                            _messages.addAll(remoteMessages)
 
-                                        totalMessageCount = remoteMessages.size
-                                        hasMoreHistory = _messages.size < totalMessageCount
+                                            _toolCalls.clear()
+                                            _toolCalls.addAll(remoteToolCalls)
+                                            rebuildMessageToolCallMapping()
+                                            updateMessageToolCallMap()
+                                            rebuildTaskToolCallCache()
+                                            updateDisplayMessages()
 
-                                        _uiState.value = UiState.Success(
-                                            messages = _messages.toList(),
-                                            toolCalls = _toolCalls.toList(),
-                                            executionStatus = null
-                                        )
-                                        android.util.Log.i(TAG, "loadSession: UI updated with remote data")
+                                            totalMessageCount = remoteMessages.size
+                                            hasMoreHistory = _messages.size < totalMessageCount
+
+                                            _uiState.value = UiState.Success(
+                                                messages = _messages.toList(),
+                                                toolCalls = _toolCalls.toList(),
+                                                executionStatus = null
+                                            )
+                                        } else {
+                                            android.util.Log.d(TAG, "loadSession: remote data unchanged, skip UI rebuild")
+                                        }
                                     }
                                     is CachedChatRepository.Result.Error -> {
                                         android.util.Log.e(TAG, "loadSession: network refresh ERROR: ${result.message}")
@@ -456,13 +468,13 @@ class ChatViewModel(
                         android.util.Log.w(TAG, "loadSession: local cache failed, falling back to network: ${latestResult.message}")
                         loadSessionFallback(sessionId, forceRefresh)
                     }
-                    is CachedChatRepository.Result.Loading -> {
-                        android.util.Log.v(TAG, "loadSession: local cache LOADING")
-                    }
+                    is CachedChatRepository.Result.Loading -> {}
                 }
             } catch (e: Exception) {
                 android.util.Log.e(TAG, "loadSession: EXCEPTION", e)
                 _uiState.value = UiState.Error(e.message ?: "加载失败")
+            } finally {
+                isLoadingSession = false
             }
         }
     }
@@ -571,6 +583,7 @@ class ChatViewModel(
         messageToToolCalls.clear(); unassociatedToolCallIds.clear(); pendingToolInput.clear()
         messageContentBuffers.clear(); _taskToolCallCache.clear()
         hasMoreHistory = false; isLoadingHistory = false; totalMessageCount = 0
+        isLoadingSession = false
     }
 
     override fun onCleared() { super.onCleared(); webSocketManager.disconnect() }
