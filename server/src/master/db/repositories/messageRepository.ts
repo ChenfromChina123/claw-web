@@ -48,7 +48,7 @@ export class MessageRepository {
 
     let contentForDb: string
     if (typeof content === 'string') {
-      contentForDb = truncateMessageContent(content)
+      contentForDb = JSON.stringify(truncateMessageContent(content))
     } else {
       contentForDb = truncateMessageContent(JSON.stringify(content))
     }
@@ -135,7 +135,7 @@ export class MessageRepository {
 
     let contentForDb: string
     if (typeof content === 'string') {
-      contentForDb = truncateMessageContent(content)
+      contentForDb = JSON.stringify(truncateMessageContent(content))
     } else {
       contentForDb = truncateMessageContent(JSON.stringify(content))
     }
