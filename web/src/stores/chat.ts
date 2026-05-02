@@ -249,21 +249,10 @@ export const useChatStore = defineStore('chat', () => {
      * 处理消息开始事件 - 后端会发送完整的消息ID
      */
     wsClient.on('message_start', (data: unknown) => {
-      console.log('[Chat] message_start event received:', data)
       isLoading.value = true
       const payload = data as { messageId?: string; iteration?: number }
       const messageId = payload?.messageId || ''
       currentStreamingAssistantId.value = messageId
-      console.log('[Chat] Before push - messages count:', messages.value.length)
-
-      // 确保助手消息总是在最后一条用户消息之后
-      // 如果最后一条消息不是用户消息，可能是编辑重发场景，需要找到正确的插入位置
-      const lastMsg = messages.value[messages.value.length - 1]
-      let insertIndex = messages.value.length
-
-      // 如果最后一条是助手消息，说明可能是新轮次，直接追加
-      // 如果最后一条是用户消息，也直接追加（助手消息应该在用户消息之后）
-      // 其他情况（如系统消息）也直接追加
 
       messages.value.push({
         id: messageId,
@@ -273,17 +262,32 @@ export const useChatStore = defineStore('chat', () => {
         content: '',
         createdAt: new Date().toISOString(),
       })
-      console.log('[Chat] After push - messages count:', messages.value.length)
-      console.log('[Chat] Last message:', messages.value[messages.value.length - 1])
     })
     
     /**
-     * 处理内容增量更新事件
-     * 使用响应式更新确保界面实时刷新
+     * 处理内容增量更新事件（message_delta - Qwen/OpenAI 兼容格式）
+     */
+    wsClient.on('message_delta', (data: unknown) => {
+      const payload = data as { delta?: string; text?: string }
+      const chunk = typeof payload?.delta === 'string'
+        ? payload.delta
+        : typeof payload?.text === 'string'
+          ? payload.text
+          : ''
+      if (!chunk) return
+
+      const lastIndex = messages.value.length - 1
+      const lastMsg = messages.value[lastIndex]
+
+      if (lastMsg && lastMsg.role === 'assistant' && lastMsg.type === 'text') {
+        lastMsg.content += chunk
+      }
+    })
+
+    /**
+     * 处理内容增量更新事件（content_block_delta - Anthropic 格式）
      */
     wsClient.on('content_block_delta', (data: unknown) => {
-      console.log('[Chat] content_block_delta event received:', data)
-      // WS 已解包为 payload：{ text }（见服务端 createEventSender）
       const payload = data as { text?: string; delta?: string }
       const chunk =
         typeof payload?.text === 'string'
@@ -291,30 +295,13 @@ export const useChatStore = defineStore('chat', () => {
           : typeof payload?.delta === 'string'
             ? payload.delta
             : ''
-      console.log('[Chat] Extracted chunk:', chunk)
-      if (!chunk) {
-        console.log('[Chat] Empty chunk, skipping')
-        return
-      }
+      if (!chunk) return
 
-      // 直接使用 messages ref，避免在事件处理中重新获取 store
       const lastIndex = messages.value.length - 1
       const lastMsg = messages.value[lastIndex]
 
-      console.log('[Chat] Last message before update:', lastMsg)
-      console.log('[Chat] lastIndex:', lastIndex)
-      console.log('[Chat] messages.value exists:', !!messages.value)
-
       if (lastMsg && lastMsg.role === 'assistant' && lastMsg.type === 'text') {
-        const updatedMessages = [...messages.value]
-        updatedMessages[lastIndex] = {
-          ...lastMsg,
-          content: lastMsg.content + chunk,
-        }
-        messages.value = updatedMessages
-        console.log('[Chat] Updated message content:', messages.value[lastIndex].content)
-      } else {
-        console.log('[Chat] Cannot update: last message is not assistant text message')
+        lastMsg.content += chunk
       }
     })
     
