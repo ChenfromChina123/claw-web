@@ -21,7 +21,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { mkdir } from 'fs/promises'
 import { resolve, relative, dirname } from 'path'
 import type { EventSender, ToolCall } from './webStore'
-import { BackgroundTaskManager, TaskPriority } from '../services/backgroundTaskManager'
+import { getBackgroundTaskManager, TaskPriority } from '../services/backgroundTaskManager'
 import {
   type ToolDefinition,
   type ToolExecutionContext,
@@ -36,15 +36,7 @@ import { shouldExecuteOnWorker } from '../integrations/workerToolExecutor'
 
 // ==================== 全局实例 ====================
 
-/**
- * 全局后台任务管理器实例（供 enhancedToolExecutor 使用）
- */
-const backgroundTaskManager = new BackgroundTaskManager({
-  maxConcurrentTasks: 5,
-  defaultPriority: TaskPriority.NORMAL,
-  taskTimeout: 300000,
-  enablePersistence: false,
-})
+const backgroundTaskManager = getBackgroundTaskManager()
 
 // ==================== EnhancedToolExecutor 类 ====================
 

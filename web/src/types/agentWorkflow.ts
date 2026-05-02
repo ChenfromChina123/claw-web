@@ -156,9 +156,11 @@ export interface TaskStatusChangePayload {
   taskName: string
   previousStatus: string
   newStatus: string
+  progress?: number
   result?: unknown
   error?: string
   traceId?: string
+  sessionId?: string
 }
 
 /** Thinking event payload */

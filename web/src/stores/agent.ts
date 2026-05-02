@@ -912,19 +912,37 @@ export const useAgentStore = defineStore('agent', () => {
       }
       backgroundTasks.value.set(data.taskId, task)
     }
+
+    const statusMap: Record<string, string> = {
+      created: 'PENDING',
+      queued: 'PENDING',
+      running: 'RUNNING',
+      completed: 'COMPLETED',
+      failed: 'FAILED',
+      cancelled: 'CANCELLED',
+      blocked: 'PENDING',
+    }
+    task.status = (statusMap[data.newStatus] || data.newStatus) as BackgroundTask['status']
+
+    if (data.progress !== undefined && data.progress !== null) {
+      task.progress = data.progress
+    }
+    if (task.status === 'COMPLETED') {
+      task.progress = 100
+    }
     
-    task.status = data.newStatus as BackgroundTask['status']
-    task.progress = data.result ? 100 : undefined
-    
-    if (task.status === 'COMPLETED' || task.status === 'FAILED') {
+    if (task.status === 'COMPLETED' || task.status === 'FAILED' || task.status === 'CANCELLED') {
       task.completedAt = Date.now()
     }
-    if (task.status === 'RUNNING') {
+    if (task.status === 'RUNNING' && !task.startedAt) {
       task.startedAt = Date.now()
     }
     
     if (data.traceId) {
       task.traceId = data.traceId
+    }
+    if (data.error) {
+      task.error = data.error
     }
   }
   

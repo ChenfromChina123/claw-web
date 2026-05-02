@@ -407,7 +407,6 @@ export function createTaskTools(sessionId: string = 'default'): ToolDefinition[]
 
           let tasks: BackgroundTask[] = []
 
-          // 根据状态筛选任务
           switch (statusFilter) {
             case 'running':
               tasks = taskManager.getRunningTasks()
@@ -428,6 +427,13 @@ export function createTaskTools(sessionId: string = 'default'): ToolDefinition[]
             default:
               tasks = taskManager.getAllTasks()
               break
+          }
+
+          if (context.userId) {
+            tasks = tasks.filter(task => {
+              const meta = task.metadata as Record<string, unknown> | undefined
+              return meta?.userId === context.userId
+            })
           }
 
           // 限制返回数量

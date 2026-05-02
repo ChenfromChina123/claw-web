@@ -370,7 +370,7 @@ export class WebToolExecutor {
           result = { message: 'Question sent to user', questionId: toolId }
           break
         case 'TaskCreate':
-          result = await this.taskCreate(input)
+          result = await this.taskCreate(input, sessionId)
           break
         case 'TaskList':
           result = await this.taskList(input)
@@ -909,17 +909,19 @@ export class WebToolExecutor {
   /**
    * 创建任务
    */
-  private async taskCreate(input: Record<string, unknown>): Promise<{ id: string; title: string; taskId: string }> {
+  private async taskCreate(input: Record<string, unknown>, sessionId: string = 'default'): Promise<{ id: string; title: string; taskId: string }> {
     const title = input.title as string
     const description = input.description as string
+    const userId = input.userId as string | undefined
     
-    // 创建后台任务（使用共享的 backgroundTaskManager 实例）
     const task = backgroundTaskManager.createTask({
       name: title,
       description: description as string,
       priority: TaskPriority.NORMAL,
       metadata: {
         source: 'tool',
+        sessionId,
+        userId: userId || 'unknown',
         createdAt: new Date().toISOString(),
       },
     })

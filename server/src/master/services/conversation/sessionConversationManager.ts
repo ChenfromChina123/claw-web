@@ -323,6 +323,7 @@ export class SessionConversationManager {
         taskName: task.name,
         previousStatus: previousStatusMap[eventType] || 'unknown',
         newStatus: task.status,
+        progress: task.progress,
         result: task.result ? JSON.stringify(task.result) : undefined,
         error: task.error,
         traceId: (task.metadata as Record<string, unknown>)?.traceId as string | undefined,
@@ -331,14 +332,26 @@ export class SessionConversationManager {
     }
     const taskListeners: Record<string, (task: BackgroundTask) => void> = {
       task_created: (task) => taskEventHandler('task_created', task),
+      task_queued: (task) => taskEventHandler('task_queued', task),
       task_started: (task) => taskEventHandler('task_started', task),
       task_completed: (task) => taskEventHandler('task_completed', task),
       task_failed: (task) => taskEventHandler('task_failed', task),
       task_cancelled: (task) => taskEventHandler('task_cancelled', task),
     }
+    const taskProgressListener = (task: BackgroundTask, progress: number) => {
+      sendEvent('task_status_changed', {
+        taskId: task.id,
+        taskName: task.name,
+        previousStatus: 'running',
+        newStatus: task.status,
+        progress,
+        sessionId: sessionId,
+      })
+    }
     for (const [event, listener] of Object.entries(taskListeners)) {
       taskManager.on(event, listener)
     }
+    taskManager.on('task_progress', taskProgressListener)
 
     try {
       // 4. 进入 Agent Loop (使用配置的最大迭代次数，默认30次)
@@ -501,6 +514,7 @@ export class SessionConversationManager {
       for (const [event, listener] of Object.entries(taskListeners)) {
         taskManager.off(event, listener)
       }
+      taskManager.off('task_progress', taskProgressListener)
     }
   }
 
