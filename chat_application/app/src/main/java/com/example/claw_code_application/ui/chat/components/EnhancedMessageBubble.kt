@@ -168,26 +168,32 @@ fun EnhancedMessageBubble(
 
 /**
  * 动态消息内容渲染 - Manus 1.6 Lite 风格
- * 根据内容类型渲染不同组件
  * 
- * Manus 风格特点：
- * - 标题：H1 20sp加粗，H2 18sp加粗，H3 16sp加粗
- * - 文本：行高1.55倍，段落间距18sp
- * - 代码/关键词：浅灰背景(#E8E8ED)，圆角6dp
- * - 链接：iOS系统蓝(#007AFF)，无下划线
+ * 渲染策略：
+ * - 纯文本/Markdown 内容：始终使用 StreamingMarkdownRenderer，不切换渲染路径
+ *   流式输出时增量解析+动画，输出完毕后同一渲染器关闭动画，避免布局跳变
+ * - 结构化 JSON 内容（tool_result 等）：非流式时使用 MessageContentParser 解析
+ *   这类内容在流式阶段以原始 JSON 呈现，输出完毕后切换为结构化组件
  */
 @Composable
 private fun DynamicMessageContent(
     content: String,
     isStreaming: Boolean
 ) {
-    if (isStreaming) {
-        StreamingMarkdownRenderer(content = content)
-    } else {
+    val isStructuredContent = remember(content) {
+        val trimmed = content.trim()
+        (trimmed.startsWith("[") || trimmed.startsWith("{")) &&
+        trimmed.contains("\"type\"") &&
+        (trimmed.contains("tool_result") || trimmed.contains("tool_use"))
+    }
+
+    if (isStructuredContent && !isStreaming) {
         val components = remember(content) {
             MessageContentParser.parse(content)
         }
         RenderParsedComponents(components = components)
+    } else {
+        StreamingMarkdownRenderer(content = content, isStreaming = isStreaming)
     }
 }
 

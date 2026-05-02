@@ -43,25 +43,36 @@ import kotlinx.coroutines.delay
  *    - 代码块活跃时预留更大的 minHeight，提前渲染背景框轮廓
  *
  * 5. 渲染防抖
- *    - 80ms 防抖间隔，合并高频 token 更新
- *    - 避免每个 token 都触发 BeautifulMarkdown 重组
+ *    - 流式输出时 80ms 防抖间隔，合并高频 token 更新
+ *    - 非流式输出时跳过防抖，直接渲染
+ *
+ * 6. 条件化动画
+ *    - isStreaming=true 时启用 animateContentSize 平滑高度变化
+ *    - isStreaming=false 时禁用动画，避免历史消息滚动进入视口时跳动
  *
  * @param content 当前完整的 Markdown 文本
+ * @param isStreaming 是否正在流式输出，影响防抖策略和动画
  * @param modifier Compose 修饰符
  */
 @Composable
 fun StreamingMarkdownRenderer(
     content: String,
+    isStreaming: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val parser = remember { IncrementalMarkdownParser() }
 
-    // 防抖：80ms 合并高频更新，减少 BeautifulMarkdown 重组次数
     val debouncedContent = remember { mutableStateOf(content) }
 
-    LaunchedEffect(content) {
-        delay(80)
-        debouncedContent.value = content
+    if (isStreaming) {
+        LaunchedEffect(content) {
+            delay(80)
+            debouncedContent.value = content
+        }
+    } else {
+        LaunchedEffect(content) {
+            debouncedContent.value = content
+        }
     }
 
     val blocks = remember(debouncedContent.value) { parser.update(debouncedContent.value) }
@@ -73,11 +84,15 @@ fun StreamingMarkdownRenderer(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .animateContentSize(
-                animationSpec = spring(
-                    stiffness = Spring.StiffnessMediumLow,
-                    dampingRatio = Spring.DampingRatioMediumBouncy
-                )
+            .then(
+                if (isStreaming) {
+                    Modifier.animateContentSize(
+                        animationSpec = spring(
+                            stiffness = Spring.StiffnessMediumLow,
+                            dampingRatio = Spring.DampingRatioMediumBouncy
+                        )
+                    )
+                } else Modifier
             )
     ) {
         blocks.forEach { block ->
