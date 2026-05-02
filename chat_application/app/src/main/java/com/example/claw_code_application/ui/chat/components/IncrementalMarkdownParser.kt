@@ -1,5 +1,7 @@
 package com.example.claw_code_application.ui.chat.components
 
+import android.util.Log
+
 /**
  * 增量 Markdown 解析器
  *
@@ -12,7 +14,6 @@ package com.example.claw_code_application.ui.chat.components
  * - 历史块（stable blocks）只解析一次，不参与后续重组
  * - 只有活跃块（active block）在每次更新时重新解析
  * - 通过 key 机制确保 Compose 只重组最后一个块
- * - 语法补全不污染原始文本，避免内容"缩回"闪烁
  *
  * 对比：
  * - 旧方案：每次更新全量重解析 → O(n) 每帧
@@ -20,18 +21,20 @@ package com.example.claw_code_application.ui.chat.components
  */
 class IncrementalMarkdownParser {
 
+    companion object {
+        private const val TAG = "IncrementalMarkdownParser"
+    }
+
     /**
      * Markdown 块
      *
      * @property id 唯一标识，用于 Compose key，保证稳定重组
-     * @property rawContent 原始内容（不含语法补全，用于增量更新）
-     * @property displayContent 渲染内容（活跃块已应用语法补全）
+     * @property content 渲染内容（活跃块已应用语法补全）
      * @property isStable 是否为已完成块（不再变化，不参与重组）
      */
     data class MarkdownBlock(
         val id: String,
-        val rawContent: String,
-        val displayContent: String,
+        val content: String,
         val isStable: Boolean
     )
 
@@ -49,18 +52,19 @@ class IncrementalMarkdownParser {
      */
     fun update(fullText: String): List<MarkdownBlock> {
         if (fullText.isEmpty()) {
+            Log.d(TAG, "update: fullText is empty, resetting")
             reset()
             return emptyList()
         }
 
-        // 检查是否是增量更新（新文本以旧文本开头）
-        // 如果不是，可能是内容被修改了，需要重置
+        // 检查是否需要重置 - 如果新文本不以旧文本开头，说明内容被修改了
         if (previousFullText.isNotEmpty() && !fullText.startsWith(previousFullText)) {
-            // 如果不是增量更新，但内容变化不大，尝试继续
-            // 只有当内容完全不一致时才重置
-            if (!fullText.contains(previousFullText.take(100))) {
-                reset()
-            }
+            Log.w(TAG, "update: CONTENT RESET triggered! " +
+                    "previousLength=${previousFullText.length}, " +
+                    "newLength=${fullText.length}, " +
+                    "previousPrefix='${previousFullText.take(50)}...', " +
+                    "newPrefix='${fullText.take(50)}...'")
+            reset()
         }
 
         val newContent = if (previousFullText.isNotEmpty()) {
@@ -69,45 +73,53 @@ class IncrementalMarkdownParser {
             fullText
         }
 
-        // 只有当新内容有意义时才更新（避免空字符或仅空白字符触发更新）
-        if (newContent.isNotEmpty() && newContent.isNotBlank()) {
-            activeBlockRawText += newContent
-        }
+        Log.v(TAG, "update: newContent length=${newContent.length}, " +
+                "content='${newContent.take(100)}${if (newContent.length > 100) "..." else ""}'")
+
+        activeBlockRawText += newContent
 
         val newBlocks = splitIntoBlocks(activeBlockRawText)
+        Log.d(TAG, "update: splitIntoBlocks returned ${newBlocks.size} blocks")
 
         when {
             newBlocks.size > 1 -> {
+                // 有块完成，添加到稳定块列表
                 for (i in 0 until newBlocks.size - 1) {
-                    val blockContent = newBlocks[i]
                     stableBlocks.add(
                         MarkdownBlock(
                             id = "block_${blockCounter++}",
-                            rawContent = blockContent,
-                            displayContent = blockContent,
+                            content = newBlocks[i],
                             isStable = true
                         )
                     )
+                    Log.d(TAG, "update: added stable block #${blockCounter - 1}, " +
+                            "length=${newBlocks[i].length}")
                 }
                 activeBlockRawText = newBlocks.last()
+                Log.d(TAG, "update: active block updated, length=${activeBlockRawText.length}")
             }
             newBlocks.size == 1 -> {
                 activeBlockRawText = newBlocks[0]
+                Log.v(TAG, "update: single active block, length=${activeBlockRawText.length}")
             }
             else -> {
                 activeBlockRawText = ""
+                Log.w(TAG, "update: no blocks returned!")
             }
         }
 
         previousFullText = fullText
 
-        return buildResult()
+        val result = buildResult()
+        Log.d(TAG, "update: returning ${result.size} blocks total (${stableBlocks.size} stable + ${if (activeBlockRawText.isNotEmpty()) 1 else 0} active)")
+        return result
     }
 
     /**
      * 重置解析器状态
      */
     fun reset() {
+        Log.i(TAG, "reset: clearing ${stableBlocks.size} stable blocks")
         stableBlocks.clear()
         activeBlockRawText = ""
         blockCounter = 0
@@ -117,19 +129,17 @@ class IncrementalMarkdownParser {
     /**
      * 构建最终结果列表
      * 稳定块保持原样，活跃块应用语法补全
-     * 关键：原始文本(rawContent)和显示文本(displayContent)分离
-     * 避免语法补全标记污染原始文本导致"缩回"闪烁
      */
     private fun buildResult(): List<MarkdownBlock> {
         val result = mutableListOf<MarkdownBlock>()
         result.addAll(stableBlocks)
 
         if (activeBlockRawText.isNotEmpty()) {
+            val remendedContent = remendSyntax(activeBlockRawText)
             result.add(
                 MarkdownBlock(
                     id = "active",
-                    rawContent = activeBlockRawText,
-                    displayContent = remendSyntax(activeBlockRawText),
+                    content = remendedContent,
                     isStable = false
                 )
             )

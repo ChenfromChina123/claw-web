@@ -388,6 +388,7 @@ class ChatViewModel(
     }
 
     fun loadSession(sessionId: String, forceRefresh: Boolean = false) {
+        android.util.Log.i(TAG, "loadSession START: sessionId=$sessionId, forceRefresh=$forceRefresh")
         viewModelScope.launch {
             try {
                 currentSessionId = sessionId; saveSessionToLocalStore(sessionId)
@@ -395,23 +396,33 @@ class ChatViewModel(
 
                 loadTasksFromDatabase(sessionId)
 
+                android.util.Log.d(TAG, "loadSession: loading from local cache first...")
                 val latestResult = cachedChatRepository.getLatestMessages(sessionId)
+                android.util.Log.d(TAG, "loadSession: getLatestMessages returned ${latestResult::class.simpleName}")
+
                 when (latestResult) {
                     is CachedChatRepository.Result.Success -> {
+                        android.util.Log.i(TAG, "loadSession: loaded ${latestResult.data.size} messages from local cache")
                         _messages.addAll(latestResult.data.map { it.copy(isStreaming = false) })
                         updateDisplayMessages()
                         totalMessageCount = cachedChatRepository.getMessageCount(sessionId)
                         hasMoreHistory = _messages.size < totalMessageCount
+                        android.util.Log.d(TAG, "loadSession: local cache loaded, totalCount=$totalMessageCount, hasMoreHistory=$hasMoreHistory")
 
                         _uiState.value = UiState.Success(messages = _messages.toList(), toolCalls = _toolCalls.toList(), executionStatus = null)
 
+                        // 后台从网络刷新
+                        android.util.Log.d(TAG, "loadSession: starting background network refresh...")
                         launch {
                             cachedChatRepository.getSessionDetail(sessionId, forceRefresh).collect { result ->
                                 when (result) {
-                                    is CachedChatRepository.Result.Loading -> {}
+                                    is CachedChatRepository.Result.Loading -> {
+                                        android.util.Log.v(TAG, "loadSession: network refresh LOADING")
+                                    }
                                     is CachedChatRepository.Result.Success -> {
                                         val remoteMessages = result.data.messages.map { it.copy(isStreaming = false) }
                                         val remoteToolCalls = result.data.toolCalls
+                                        android.util.Log.i(TAG, "loadSession: network refresh SUCCESS, ${remoteMessages.size} messages, ${remoteToolCalls.size} toolCalls")
 
                                         _messages.clear()
                                         _messages.addAll(remoteMessages)
@@ -431,18 +442,28 @@ class ChatViewModel(
                                             toolCalls = _toolCalls.toList(),
                                             executionStatus = null
                                         )
+                                        android.util.Log.i(TAG, "loadSession: UI updated with remote data")
                                     }
                                     is CachedChatRepository.Result.Error -> {
+                                        android.util.Log.e(TAG, "loadSession: network refresh ERROR: ${result.message}")
                                         if (_messages.isEmpty()) _uiState.value = UiState.Error(result.message)
                                     }
                                 }
                             }
                         }
                     }
-                    is CachedChatRepository.Result.Error -> loadSessionFallback(sessionId, forceRefresh)
-                    is CachedChatRepository.Result.Loading -> {}
+                    is CachedChatRepository.Result.Error -> {
+                        android.util.Log.w(TAG, "loadSession: local cache failed, falling back to network: ${latestResult.message}")
+                        loadSessionFallback(sessionId, forceRefresh)
+                    }
+                    is CachedChatRepository.Result.Loading -> {
+                        android.util.Log.v(TAG, "loadSession: local cache LOADING")
+                    }
                 }
-            } catch (e: Exception) { _uiState.value = UiState.Error(e.message ?: "加载失败") }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "loadSession: EXCEPTION", e)
+                _uiState.value = UiState.Error(e.message ?: "加载失败")
+            }
         }
     }
 
