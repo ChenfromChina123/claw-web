@@ -22,11 +22,25 @@ object MessageContentParser {
         }
     }
 
+    /**
+     * 解析消息内容
+     * 优化：如果内容较长（>1000字符）或非JSON格式，直接返回Text组件，避免复杂解析
+     */
     fun parse(content: String): List<MessageComponent> {
         if (content.isBlank()) return emptyList()
 
+        // 快速路径：检查缓存
         parseCache[content]?.let {
             return it
+        }
+
+        // 快速路径：如果内容较长且不以[或{开头，直接作为文本处理
+        // 避免对普通长文本进行复杂的JSON解析尝试
+        val trimmedContent = content.trim()
+        if (content.length > 1000 && !trimmedContent.startsWith("[") && !trimmedContent.startsWith("{")) {
+            val components = listOf(MessageComponent.Text(content))
+            parseCache[content] = components
+            return components
         }
 
         val components = parseInternal(content)
@@ -38,32 +52,28 @@ object MessageContentParser {
     private fun parseInternal(content: String): List<MessageComponent> {
         val trimmedContent = content.trim()
 
-        android.util.Log.d("MessageParser", "=== parse() 开始 ===")
-        android.util.Log.d("MessageParser", "内容长度: ${content.length}")
-        android.util.Log.d("MessageParser", "内容前100字符: ${content.take(100)}")
+        // 调试日志只在需要时启用，避免I/O开销
+        // android.util.Log.d("MessageParser", "=== parse() 开始 ===")
+        // android.util.Log.d("MessageParser", "内容长度: ${content.length}")
 
         val components = mutableListOf<MessageComponent>()
 
         if (trimmedContent.startsWith("[") && trimmedContent.endsWith("]")) {
-            android.util.Log.d("MessageParser", "检测到JSON数组格式")
             try {
                 val jsonArray = json.parseToJsonElement(content).jsonArray
-                android.util.Log.d("MessageParser", "数组元素数量: ${jsonArray.size}")
                 for ((index, element) in jsonArray.withIndex()) {
                     if (element is JsonObject) {
                         val component = parseContentBlock(element)
                         if (component != null) {
                             components.add(component)
-                            android.util.Log.d("MessageParser", "[$index] → ${component.javaClass.simpleName}")
                         }
                     }
                 }
                 if (components.isNotEmpty()) {
-                    android.util.Log.d("MessageParser", "解析完成: ${components.size} 个组件")
                     return components
                 }
             } catch (e: Exception) {
-                android.util.Log.e("MessageParser", "JSON数组解析失败: ${e.message}", e)
+                // JSON解析失败，降级为文本处理
             }
         }
 
@@ -76,7 +86,7 @@ object MessageContentParser {
                     return components
                 }
             } catch (e: Exception) {
-                android.util.Log.e("MessageParser", "JSON对象解析失败: ${e.message}", e)
+                // JSON解析失败，降级为文本处理
             }
         }
 
