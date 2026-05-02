@@ -36,7 +36,7 @@ object NetworkEnvironment {
     }
     
     /** 默认端口（Docker 对外暴露的端口） */
-    private const val DEFAULT_PORT = 3000
+    private const val DEFAULT_PORT = 13000
     
     /**
      * 可能的后端地址列表（按优先级排序）
