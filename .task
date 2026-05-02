@@ -1,0 +1,11 @@
+# 任务计划 - 优化安卓端 AI 流式输出渲染
+
+## 已完成
+- [x] 探索安卓端 AI 响应渲染逻辑，定位流式输出闪烁问题
+- [x] 分析 Markdown 渲染库的使用方式及导致跳动的原因
+
+## 计划中
+- [ ] 优化 `IncrementalMarkdownParser` 以提供稳定的 Block ID，避免 Block 状态切换时的重组
+- [ ] 优化 `StreamingMarkdownRenderer` 的防抖策略，平衡实时性与稳定性
+- [ ] 考虑对 `BeautifulMarkdown` 进行性能优化，减少 Markdown 解析开销
+- [ ] 验证修复效果，并同步 README.md 和 .experience 文件

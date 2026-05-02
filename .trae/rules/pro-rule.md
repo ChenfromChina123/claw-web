@@ -1,14 +1,11 @@
-Claw-Web AI Context & Rules
 
 项目概览
-- 定位：类似 Manus 的 AI 智能体执行沙箱（TS + Bun + Docker + vue）
+- 定位：类似 Manus 的 AI 智能体执行沙箱（TS + Bun + Docker + vue + 安卓app）
 - 架构：严格的 Master-Worker 分布式隔离架构
-
 架构铁律（绝对禁忌）
 1. Master 禁区：禁止在 Master 执行任何用户命令、创建 PTY、或直接读写沙盒文件
 2. Worker 禁区：禁止 Worker 连接数据库、处理用户鉴权。Worker 必须是无状态的
 3. 安全隔离：Master 与 Worker 通信必须携带 X-Master-Token，Worker 必须网络隔离（无法访问 MySQL）
-
 工作空间隔离架构原则
 - 隔离粒度：工作空间按用户隔离，不按会话隔离
 - 路径格式：/data/claws/workspaces/users/{userId}/
@@ -27,12 +24,10 @@ Claw-Web AI Context & Rules
 - /worker：执行层（端口 4000）。沙箱、PTY 伪终端、文件操作
 - /shared：共享模块。定义通信 Type、Constants 和 Utils（必须保持两端同步）
 - /orchestrator：容器编排。管理 Worker 的热池和用户绑定
-
 核心交互数据流
 - 普通命令：前端 -> Master(3000) -> Worker(4000 /internal/exec) -> 返回
 - PTY 终端：前端 -[WS]-> Master -[转发器 workerForwarder]-> Worker PTY
 - Agent 执行：所有 Agent 命令必须转发到 Worker 容器执行，禁止在 Master 本地执行
-
 AI 编码规范
 - 文件路径：所有 Worker 的文件操作，必须经过 isPathSafe() 限制在 /workspace
 - 添加功能：先判断属于控制层（放 Master）还是执行层（放 Worker）
@@ -74,3 +69,7 @@ docker-compose build --no-cache master
 测试账号：3301767269@qq.com
 测试密码：123456
 单文件不得超过500行
+安卓app端或者其他移动端是不需要进行pty连接的。
+统一端口：web前端80:5173，后端3000，数据库3306，安卓app也要监听3000端口
+
+如果git中发现又不是修改范围的更改，不要怀疑，那是另一个agent并行改的，所以不要丢弃。

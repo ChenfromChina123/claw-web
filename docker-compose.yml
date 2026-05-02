@@ -293,3 +293,8 @@ volumes:
   nginx_configs:
     driver: local
     name: claw-web-nginx-configs
+
+  # Master 开发模式使用的 node_modules 卷
+  master_node_modules:
+    driver: local
+    name: claw-web-master-node-modules

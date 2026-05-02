@@ -12,6 +12,7 @@ import { useChatStore } from '@/stores/chat'
 import { promptTemplateApi, type PromptTemplate } from '@/api/promptTemplateApi'
 import { useOpenPromptLibrary } from '@/composables/usePromptTemplateLibrary'
 import { skillApi, type SkillDefinition } from '@/api/skillApi'
+import TaskStatusBar from '@/components/TaskStatusBar.vue'
 
 const props = defineProps<{
   disabled?: boolean
@@ -866,6 +867,9 @@ defineExpose({
         <span>claw-code</span>
       </div>
 
+      <!-- 任务状态条 -->
+      <TaskStatusBar />
+
       <!-- 中间：输入框 + 代码引用 -->
       <div class="input-main-wrapper">
         <!-- 终端输出引用显示 -->
@@ -1056,6 +1060,9 @@ defineExpose({
 
     <!-- 默认变体：模拟 IDE 风格的输入框 -->
     <div v-if="variant !== 'ide'" class="chat-input-body">
+      <!-- 任务状态条 -->
+      <TaskStatusBar />
+
       <!-- 左侧：文件上传区域 -->
       <div class="upload-section">
         <input

@@ -94,7 +94,7 @@ class IncrementalMarkdownParser {
         if (activeBlockRawText.isNotEmpty()) {
             result.add(
                 MarkdownBlock(
-                    id = "active",
+                    id = "block_${blockCounter}",
                     content = remendSyntax(activeBlockRawText),
                     isStable = false
                 )
