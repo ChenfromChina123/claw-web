@@ -58,6 +58,9 @@ export { default as remoteWorkerRoutes, handleRemoteWorkerRoutes } from './remot
 // 推送消息路由
 export { default as pushRoutes, handlePushRoutes } from './push.routes'
 
+// 后台任务路由
+export { default as tasksRoutes, handleTasksRoutes } from './tasks.routes'
+
 import type { Request, Response } from 'express'
 
 // 所有路由处理器列表（按优先级排序）
@@ -109,6 +112,9 @@ const routeHandlers = [
 
   // 推送消息相关
   (req: Request) => import('./push.routes').then(m => m.handlePushRoutes(req)),
+
+  // 后台任务相关
+  (req: Request) => import('./tasks.routes').then(m => m.handleTasksRoutes(req)),
 
   // 管理员容器管理相关（放在最后，因为它会检查管理员权限）
   (req: Request) => import('./adminContainer.routes').then(m => m.handleAdminContainerRoutes(req)),
