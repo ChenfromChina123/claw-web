@@ -12,6 +12,7 @@ package com.example.claw_code_application.ui.chat.components
  * - 历史块（stable blocks）只解析一次，不参与后续重组
  * - 只有活跃块（active block）在每次更新时重新解析
  * - 通过 key 机制确保 Compose 只重组最后一个块
+ * - 语法补全不污染原始文本，避免内容"缩回"闪烁
  *
  * 对比：
  * - 旧方案：每次更新全量重解析 → O(n) 每帧
@@ -23,12 +24,14 @@ class IncrementalMarkdownParser {
      * Markdown 块
      *
      * @property id 唯一标识，用于 Compose key，保证稳定重组
-     * @property content 渲染内容（活跃块已应用语法补全）
+     * @property rawContent 原始内容（不含语法补全，用于增量更新）
+     * @property displayContent 渲染内容（活跃块已应用语法补全）
      * @property isStable 是否为已完成块（不再变化，不参与重组）
      */
     data class MarkdownBlock(
         val id: String,
-        val content: String,
+        val rawContent: String,
+        val displayContent: String,
         val isStable: Boolean
     )
 
@@ -50,8 +53,14 @@ class IncrementalMarkdownParser {
             return emptyList()
         }
 
+        // 检查是否是增量更新（新文本以旧文本开头）
+        // 如果不是，可能是内容被修改了，需要重置
         if (previousFullText.isNotEmpty() && !fullText.startsWith(previousFullText)) {
-            reset()
+            // 如果不是增量更新，但内容变化不大，尝试继续
+            // 只有当内容完全不一致时才重置
+            if (!fullText.contains(previousFullText.take(100))) {
+                reset()
+            }
         }
 
         val newContent = if (previousFullText.isNotEmpty()) {
@@ -60,17 +69,22 @@ class IncrementalMarkdownParser {
             fullText
         }
 
-        activeBlockRawText += newContent
+        // 只有当新内容有意义时才更新（避免空字符或仅空白字符触发更新）
+        if (newContent.isNotEmpty() && newContent.isNotBlank()) {
+            activeBlockRawText += newContent
+        }
 
         val newBlocks = splitIntoBlocks(activeBlockRawText)
 
         when {
             newBlocks.size > 1 -> {
                 for (i in 0 until newBlocks.size - 1) {
+                    val blockContent = newBlocks[i]
                     stableBlocks.add(
                         MarkdownBlock(
                             id = "block_${blockCounter++}",
-                            content = newBlocks[i],
+                            rawContent = blockContent,
+                            displayContent = blockContent,
                             isStable = true
                         )
                     )
@@ -103,6 +117,8 @@ class IncrementalMarkdownParser {
     /**
      * 构建最终结果列表
      * 稳定块保持原样，活跃块应用语法补全
+     * 关键：原始文本(rawContent)和显示文本(displayContent)分离
+     * 避免语法补全标记污染原始文本导致"缩回"闪烁
      */
     private fun buildResult(): List<MarkdownBlock> {
         val result = mutableListOf<MarkdownBlock>()
@@ -112,7 +128,8 @@ class IncrementalMarkdownParser {
             result.add(
                 MarkdownBlock(
                     id = "active",
-                    content = remendSyntax(activeBlockRawText),
+                    rawContent = activeBlockRawText,
+                    displayContent = remendSyntax(activeBlockRawText),
                     isStable = false
                 )
             )

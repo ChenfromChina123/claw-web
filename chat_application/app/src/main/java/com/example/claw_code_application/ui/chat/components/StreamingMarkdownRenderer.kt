@@ -53,9 +53,13 @@ fun StreamingMarkdownRenderer(
 
     Column(modifier = modifier.fillMaxWidth()) {
         blocks.forEach { block ->
-            key(block.id) {
+            // 使用稳定的 key：稳定块用 id，活跃块用固定 "active" 避免频繁重组
+            // 活跃块内部使用 displayContent 渲染，但 key 保持稳定
+            val stableKey = if (block.isStable) block.id else "active"
+            key(stableKey) {
                 val blockModifier = if (!block.isStable) {
-                    val hasCodeFence = block.content.trimStart().startsWith("```")
+                    // 预判机制：如果原始内容以 ``` 开头，提前预留代码块高度
+                    val hasCodeFence = block.rawContent.trimStart().startsWith("```")
                     val minHeight = if (hasCodeFence) 80.dp else 24.dp
                     Modifier
                         .padding(vertical = 2.dp)
@@ -64,8 +68,10 @@ fun StreamingMarkdownRenderer(
                     Modifier.padding(vertical = 2.dp)
                 }
 
+                // 使用 displayContent 渲染（包含语法补全）
+                // 但 key 基于稳定的 id，避免内容变化导致重组
                 BeautifulMarkdown(
-                    markdown = block.content,
+                    markdown = block.displayContent,
                     isStreaming = !block.isStable,
                     modifier = blockModifier
                 )
