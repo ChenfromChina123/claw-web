@@ -454,7 +454,7 @@ private fun ServerConfigSection() {
             Button(
                 onClick = {
                     val ip = ipAddress.trim()
-                    val portInt = port.toIntOrNull() ?: 13000
+                    val portInt = port.toIntOrNull() ?: 3000
                     if (ip.isNotEmpty()) {
                         NetworkConfig.setCustomIpAddress(ip, portInt)
                         showSuccess = true
