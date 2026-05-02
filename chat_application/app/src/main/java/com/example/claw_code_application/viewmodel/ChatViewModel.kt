@@ -143,7 +143,7 @@ class ChatViewModel(
     val messageUpdates: SharedFlow<String> = _messageUpdates.asSharedFlow()
     
     internal var debounceJob: Job? = null
-    internal val debounceIntervalMs = 16L
+    internal val debounceIntervalMs = 50L
     internal val pendingToolUpdates = mutableMapOf<String, ToolCall>()
     internal var toolUpdateDebounceJob: Job? = null
     // 优化：增加工具调用更新防抖间隔从100ms到300ms，减少UI刷新频率，避免与流式输出冲突
@@ -255,12 +255,12 @@ class ChatViewModel(
                 } 
             }
             
-            // 帧节流收集消息更新 - 16ms 约等于 60fps
-            // 避免高频 token 更新导致 UI 频繁重组
+            // 帧节流收集消息更新 - 50ms 配合增量解析器
+            // 增量解析器只重组活跃块，50ms 节流足够流畅且减少计算量
             @OptIn(kotlinx.coroutines.FlowPreview::class)
             launch {
                 _messageUpdates
-                    .sample(16L)
+                    .sample(50L)
                     .collect { messageId ->
                         flushMessageContentBuffer(messageId)
                     }

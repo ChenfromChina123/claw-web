@@ -28,6 +28,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -35,6 +36,7 @@ import com.example.claw_code_application.data.api.models.ToolCall
 import com.example.claw_code_application.data.api.models.BackgroundTask
 import com.example.claw_code_application.ui.chat.components.*
 import com.example.claw_code_application.ui.theme.AppColor
+import com.example.claw_code_application.ui.theme.AppColors
 import com.example.claw_code_application.viewmodel.ChatViewModel
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.imePadding
@@ -216,8 +218,7 @@ fun ChatScreen(
         ) {
             // 任务状态区域（输入框上方）
             TaskStatusBar(
-                viewModel = viewModel,
-                onPreviewWebsite = handlePreviewWebsite
+                viewModel = viewModel
             )
 
             // 新对话快捷操作（仅在消息为空时显示）
@@ -398,6 +399,11 @@ private fun ChatMessageList(
     listState: androidx.compose.foundation.lazy.LazyListState
 ) {
     val colors = AppColor.current
+    val tasks = viewModel.tasks
+    val activeTasks = remember(tasks) {
+        tasks.filter { it.status == "running" || it.status == "failed" }
+    }
+
     LazyColumn(
         state = listState,
         reverseLayout = true,
@@ -421,6 +427,15 @@ private fun ChatMessageList(
                 toolCalls = viewModel.getToolCallsForMessage(message.id),
                 modifier = Modifier.padding(vertical = 4.dp)
             )
+        }
+
+        if (activeTasks.isNotEmpty()) {
+            item(key = "active_tasks_detail") {
+                TaskDetailSection(
+                    tasks = activeTasks,
+                    viewModel = viewModel
+                )
+            }
         }
 
         // 加载历史消息指示器（reverseLayout中显示在底部=视觉上的顶部）
@@ -531,6 +546,48 @@ private fun ChatMessageList(
 }
 
 /**
+ * 任务详情区域 - 在聊天上下文中展示任务操作流程
+ *
+ * 展示活跃任务的完整信息：状态图标 + 任务名 + 关联的工具调用列表
+ * 使用 TaskContainerCard 提供可展开/收起的详细视图
+ */
+@Composable
+private fun TaskDetailSection(
+    tasks: List<BackgroundTask>,
+    viewModel: ChatViewModel
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        tasks.forEach { task ->
+            val isCollapsed = viewModel.collapsedTasks[task.taskId] ?: (task.status != "running")
+            TaskContainerCard(
+                task = task,
+                isCollapsed = isCollapsed,
+                onCollapsedChange = { viewModel._collapsedTasks[task.taskId] = it },
+                content = {
+                    val taskToolCalls = viewModel.getToolCallsForTask(task.taskId)
+                    if (taskToolCalls.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            taskToolCalls.forEach { toolCall ->
+                                CompactToolCallCard(
+                                    toolCall = toolCall,
+                                    expanded = false,
+                                    onExpandedChange = {}
+                                )
+                            }
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+/**
  * 技能附件数据类，用于在输入框上方以芯片形式展示已选技能
  */
 data class SkillAttachment(
@@ -552,28 +609,26 @@ private fun buildMessageWithSkills(content: String, skills: List<SkillAttachment
 }
 
 /**
- * 任务状态栏 - 显示在输入框上方
+ * 轻量任务状态条 - 显示在输入框上方
  *
- * 展示当前活跃任务的实时状态，支持展开/折叠
- * 任务完成时自动折叠，失败时保持展开
- * 
- * 优化：使用预构建的 taskId -> toolCalls 映射缓存，避免每次重组都进行全表扫描
+ * 仅展示任务状态摘要：状态点 + 任务名 + 状态标签 + 进度
+ * 详细操作流程在聊天上下文中通过 TaskContainerCard 展示
  */
 @Composable
 private fun TaskStatusBar(
-    viewModel: ChatViewModel,
-    onPreviewWebsite: (String) -> Unit = {}
+    viewModel: ChatViewModel
 ) {
     val tasks = viewModel.tasks
     val colors = AppColor.current
 
-    if (tasks.isEmpty()) return
-    
-    val activeTasks = tasks.filter { it.status != "completed" && it.status != "cancelled" }
-    val completedTasks = tasks.filter { it.status == "completed" || it.status == "cancelled" }
+    val activeTasks = remember(tasks) {
+        tasks.filter { it.status != "completed" && it.status != "cancelled" }
+    }
+
+    if (activeTasks.isEmpty()) return
 
     AnimatedVisibility(
-        visible = tasks.isNotEmpty(),
+        visible = activeTasks.isNotEmpty(),
         enter = expandVertically(
             animationSpec = tween(250, easing = FastOutSlowInEasing)
         ) + fadeIn(animationSpec = tween(200)),
@@ -584,60 +639,125 @@ private fun TaskStatusBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 200.dp)
                 .background(colors.SurfaceVariant)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(horizontal = 16.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             activeTasks.forEach { task ->
-                val isCollapsed = viewModel.collapsedTasks[task.taskId] ?: false
-                TaskContainerCard(
-                    task = task,
-                    isCollapsed = isCollapsed,
-                    onCollapsedChange = { viewModel._collapsedTasks[task.taskId] = it },
-                    content = {
-                        // 使用缓存的工具调用列表，避免每次重组都 filter
-                        val taskToolCalls = viewModel.getToolCallsForTask(task.taskId)
-                        if (taskToolCalls.isNotEmpty()) {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                taskToolCalls.forEach { toolCall ->
-                                    CompactToolCallCard(
-                                        toolCall = toolCall,
-                                        expanded = false,
-                                        onExpandedChange = {},
-                                        onPreviewWebsite = onPreviewWebsite
-                                    )
-                                }
-                            }
-                        }
-                    }
-                )
-            }
-
-            completedTasks.forEach { task ->
-                val isCollapsed = viewModel.collapsedTasks[task.taskId] ?: true
-                TaskContainerCard(
-                    task = task,
-                    isCollapsed = isCollapsed,
-                    onCollapsedChange = { viewModel._collapsedTasks[task.taskId] = it },
-                    content = {
-                        // 使用缓存的工具调用列表，避免每次重组都 filter
-                        val taskToolCalls = viewModel.getToolCallsForTask(task.taskId)
-                        if (taskToolCalls.isNotEmpty()) {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                taskToolCalls.forEach { toolCall ->
-                                    CompactToolCallCard(
-                                        toolCall = toolCall,
-                                        expanded = false,
-                                        onExpandedChange = {},
-                                        onPreviewWebsite = onPreviewWebsite
-                                    )
-                                }
-                            }
-                        }
-                    }
-                )
+                LightweightTaskRow(task = task, colors = colors)
             }
         }
+    }
+}
+
+/**
+ * 轻量任务行 - 状态点 + 任务名 + 状态标签 + 进度
+ */
+@Composable
+private fun LightweightTaskRow(
+    task: BackgroundTask,
+    colors: AppColors
+) {
+    val statusConfig = getLightweightStatusConfig(task.status, colors)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (task.status == "running") {
+            val infiniteTransition = rememberInfiniteTransition(label = "task_pulse")
+            val alpha by infiniteTransition.animateFloat(
+                initialValue = 1f,
+                targetValue = 0.3f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(800, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "task_pulse_alpha"
+            )
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(
+                        color = statusConfig.dotColor.copy(alpha = alpha),
+                        shape = CircleShape
+                    )
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(
+                        color = statusConfig.dotColor,
+                        shape = CircleShape
+                    )
+            )
+        }
+
+        Text(
+            text = task.taskName,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = colors.TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+
+        if (task.status == "running" && task.progress > 0) {
+            Text(
+                text = "${task.progress}%",
+                fontSize = 11.sp,
+                color = statusConfig.dotColor,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        Text(
+            text = statusConfig.label,
+            fontSize = 11.sp,
+            color = statusConfig.dotColor,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+/**
+ * 轻量状态配置
+ */
+private data class LightweightStatusConfig(
+    val dotColor: Color,
+    val label: String
+)
+
+private fun getLightweightStatusConfig(status: String, colors: AppColors): LightweightStatusConfig {
+    return when (status) {
+        "created", "queued" -> LightweightStatusConfig(
+            dotColor = colors.TextSecondary,
+            label = "等待中"
+        )
+        "running" -> LightweightStatusConfig(
+            dotColor = colors.PrimaryLight,
+            label = "执行中"
+        )
+        "completed" -> LightweightStatusConfig(
+            dotColor = colors.Success,
+            label = "已完成"
+        )
+        "failed" -> LightweightStatusConfig(
+            dotColor = colors.Error,
+            label = "失败"
+        )
+        "cancelled" -> LightweightStatusConfig(
+            dotColor = colors.TextSecondary,
+            label = "已取消"
+        )
+        else -> LightweightStatusConfig(
+            dotColor = colors.TextSecondary,
+            label = status
+        )
     }
 }
