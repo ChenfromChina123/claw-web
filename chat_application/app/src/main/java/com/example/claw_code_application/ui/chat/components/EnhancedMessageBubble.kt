@@ -73,7 +73,7 @@ fun EnhancedMessageBubble(
             modifier = Modifier
                 .fillMaxWidth(if (isUser) 0.85f else 0.95f)
                 .then(
-                    if (!isUser) {
+                    if (!isUser && message.isStreaming) {
                         Modifier.animateContentSize(
                             animationSpec = spring(
                                 stiffness = Spring.StiffnessMediumLow,
