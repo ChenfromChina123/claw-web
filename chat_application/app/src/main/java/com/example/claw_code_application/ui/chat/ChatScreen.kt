@@ -22,10 +22,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -84,9 +81,6 @@ fun ChatScreen(
 
     val displayMessages = viewModel.displayMessages
 
-    val density = LocalDensity.current
-    var bottomBarHeight by remember { mutableStateOf(76) }
-
     /**
      * 阈值吸附逻辑：判断用户是否在底部附近
      * reverseLayout 中 item 0 = 最新消息在底部
@@ -98,8 +92,10 @@ fun ChatScreen(
         }
     }
 
-    // 新消息添加时：直接跳到底部（无动画，避免抖动）
-    LaunchedEffect(displayMessages.size) {
+    // 新消息 ID 变化时：直接跳到底部（无动画，避免抖动）
+    // 只监听消息ID变化，不监听内容长度变化
+    // reverseLayout 下内容增长会自动向上推，不需要手动 scrollToItem
+    LaunchedEffect(displayMessages.firstOrNull()?.id) {
         if (displayMessages.isNotEmpty() && isNearBottom) {
             listState.scrollToItem(0)
         }
@@ -109,16 +105,6 @@ fun ChatScreen(
     val currentSessionId = viewModel.currentSessionId
     LaunchedEffect(currentSessionId) {
         if (displayMessages.isNotEmpty()) {
-            listState.scrollToItem(0)
-        }
-    }
-
-    // 流式内容增长时：阈值吸附跟随
-    // 核心优化：只在用户处于底部附近时跟随，否则保持静止
-    // 使用 scrollToItem（无动画），避免动画与内容更新冲突
-    val streamingMessage = displayMessages.firstOrNull { it.isStreaming }
-    LaunchedEffect(streamingMessage?.content?.length) {
-        if (streamingMessage != null && isNearBottom) {
             listState.scrollToItem(0)
         }
     }
@@ -148,29 +134,25 @@ fun ChatScreen(
     }
 
     /**
-     * 使用Box布局实现悬浮输入框
-     * - 输入框悬浮在底部，使用imePadding()随键盘自动上移
-     * - 避免使用Scaffold的bottomBar，防止键盘弹出时的黑屏闪烁
+     * 使用 Column + weight(1f) 布局
+     * - 消息列表占据剩余空间，自动伸缩
+     * - 底部输入区域使用 imePadding() 随键盘自动上移
+     * - 避免使用 onSizeChanged 手动计算 padding，消除布局位移
      */
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
             .background(colors.Background)
+            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        // 顶部导航栏 - 添加状态栏内边距适配动态岛/刘海屏
+        // 顶部导航栏
         ChatTopBar(
-            onBack = onBack,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .windowInsetsPadding(WindowInsets.statusBars)
+            onBack = onBack
         )
 
-        // 消息列表区域 - 使用 WindowInsets 动态计算顶部空间
+        // 消息列表区域 - weight(1f) 占据剩余空间
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(top = 64.dp, bottom = with(density) { bottomBarHeight.toDp() })
+            modifier = Modifier.weight(1f)
         ) {
             if (displayMessages.isEmpty() && uiState !is ChatViewModel.UiState.Loading) {
                 ChatEmptyState()
@@ -188,11 +170,7 @@ fun ChatScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.BottomCenter)
                 .background(colors.Background)
-                .onSizeChanged { size ->
-                    bottomBarHeight = size.height
-                }
                 .imePadding()
                 .navigationBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally
