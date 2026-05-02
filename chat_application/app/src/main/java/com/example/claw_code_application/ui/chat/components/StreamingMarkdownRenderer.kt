@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 
 /**
  * 流式 Markdown 渲染器
@@ -35,6 +38,10 @@ import androidx.compose.ui.unit.dp
  *    - 活跃块设置 minHeight，避免内容从0高度撑开导致的跳动
  *    - 代码块活跃时预留更大的 minHeight，提前渲染背景框轮廓
  *
+ * 5. 渲染防抖
+ *    - 80ms 防抖间隔，合并高频 token 更新
+ *    - 避免每个 token 都触发 BeautifulMarkdown 重组
+ *
  * @param content 当前完整的 Markdown 文本
  * @param modifier Compose 修饰符
  */
@@ -45,7 +52,15 @@ fun StreamingMarkdownRenderer(
 ) {
     val parser = remember { IncrementalMarkdownParser() }
 
-    val blocks = remember(content) { parser.update(content) }
+    // 防抖：80ms 合并高频更新，减少 BeautifulMarkdown 重组次数
+    val debouncedContent = remember { mutableStateOf(content) }
+
+    LaunchedEffect(content) {
+        delay(80)
+        debouncedContent.value = content
+    }
+
+    val blocks = remember(debouncedContent.value) { parser.update(debouncedContent.value) }
 
     DisposableEffect(Unit) {
         onDispose { parser.reset() }
@@ -53,13 +68,9 @@ fun StreamingMarkdownRenderer(
 
     Column(modifier = modifier.fillMaxWidth()) {
         blocks.forEach { block ->
-            // 使用稳定的 key：稳定块用 id，活跃块用固定 "active" 避免频繁重组
-            // 活跃块内部使用 displayContent 渲染，但 key 保持稳定
-            val stableKey = if (block.isStable) block.id else "active"
-            key(stableKey) {
+            key(block.id) {
                 val blockModifier = if (!block.isStable) {
-                    // 预判机制：如果原始内容以 ``` 开头，提前预留代码块高度
-                    val hasCodeFence = block.rawContent.trimStart().startsWith("```")
+                    val hasCodeFence = block.content.trimStart().startsWith("```")
                     val minHeight = if (hasCodeFence) 80.dp else 24.dp
                     Modifier
                         .padding(vertical = 2.dp)
@@ -68,10 +79,8 @@ fun StreamingMarkdownRenderer(
                     Modifier.padding(vertical = 2.dp)
                 }
 
-                // 使用 displayContent 渲染（包含语法补全）
-                // 但 key 基于稳定的 id，避免内容变化导致重组
                 BeautifulMarkdown(
-                    markdown = block.displayContent,
+                    markdown = block.content,
                     isStreaming = !block.isStable,
                     modifier = blockModifier
                 )
