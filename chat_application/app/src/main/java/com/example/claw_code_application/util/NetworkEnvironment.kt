@@ -44,8 +44,8 @@ object NetworkEnvironment {
     private val POSSIBLE_URLS = listOf(
         // 模拟器专用（localhost 映射）
         "http://10.0.2.2:$DEFAULT_PORT",
-        // 当前开发环境 WLAN IP
-        "http://192.168.75.123:$DEFAULT_PORT",
+        // 当前开发环境 WLAN IP（稳定）
+        "http://172.22.56.135:$DEFAULT_PORT",
         // 常见局域网地址段
         "http://192.168.1.100:$DEFAULT_PORT",
         "http://192.168.0.100:$DEFAULT_PORT",
@@ -98,7 +98,7 @@ object NetworkEnvironment {
     fun getRecommendedBaseUrl(environmentType: EnvironmentType): String {
         return when (environmentType) {
             EnvironmentType.EMULATOR -> "http://10.0.2.2:$DEFAULT_PORT"
-            EnvironmentType.REAL_DEVICE_LAN -> "http://192.168.75.123:$DEFAULT_PORT"
+            EnvironmentType.REAL_DEVICE_LAN -> "http://172.22.56.135:$DEFAULT_PORT"
             EnvironmentType.REAL_DEVICE_WAN -> "https://your-domain.com"
             EnvironmentType.UNKNOWN -> "http://10.0.2.2:$DEFAULT_PORT"
         }

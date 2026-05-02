@@ -26,7 +26,7 @@ object NetworkConfig {
     
     /** 默认配置 */
     private const val DEFAULT_EMULATOR_IP = "10.0.2.2"
-    private const val DEFAULT_REAL_DEVICE_IP = "192.168.75.123"
+    private const val DEFAULT_REAL_DEVICE_IP = "172.22.56.135"
     private const val DEFAULT_PORT = 3000
     
     private lateinit var sharedPreferences: SharedPreferences
