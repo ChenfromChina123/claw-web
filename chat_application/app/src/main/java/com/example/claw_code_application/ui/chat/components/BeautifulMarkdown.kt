@@ -163,21 +163,25 @@ fun BeautifulMarkdown(
         }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-    ) {
-        Markdown(
-            content = markdown,
-            modifier = Modifier
+    // 优化：使用 key 包装 Markdown 渲染，只有内容或配置变化时才重绘
+    // 减少流式输出时的重绘压力
+    key(markdown, markdownColors, markdownTypography) {
+        Box(
+            modifier = modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            colors = markdownColors,
-            typography = markdownTypography,
-            components = components,
-            extendedSpans = extendedSpans
-        )
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Markdown(
+                content = markdown,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                colors = markdownColors,
+                typography = markdownTypography,
+                components = components,
+                extendedSpans = extendedSpans
+            )
+        }
     }
 }
 

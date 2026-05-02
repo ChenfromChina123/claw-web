@@ -89,8 +89,9 @@ fun StreamingMarkdownRenderer(
                 var maxMinHeight by remember { mutableStateOf(0.dp) }
                 val currentPredictHeight = remember(block.content) { predictMinHeight(block.content) }
                 
+                // 优化：只有当预测高度显著增加时才更新，减少重组频率
                 LaunchedEffect(currentPredictHeight) {
-                    if (currentPredictHeight > maxMinHeight) {
+                    if (currentPredictHeight > maxMinHeight + 4.dp) {
                         maxMinHeight = currentPredictHeight
                     }
                 }

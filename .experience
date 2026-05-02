@@ -6,5 +6,6 @@
 6、流式 Markdown 渲染必须使用稳定的 Block ID，避免 Block 在“活跃”与“稳定”状态切换时因 ID 变更导致 UI 组件销毁重建（闪烁）。
 7、流式输出渲染应避免过度使用 animateContentSize 等弹性动画，优先使用自然增长并配合 predictMinHeight 防止高度塌陷。
 8、流式组件内部的防抖逻辑应避免使用会因输入频繁而不断重启的 delay，以免在高频 token 场景下 UI 停止更新。
-9、在安卓端处理键盘避让时，应优先使用 `imePadding()` 配合 `weight(1f)` 容器，而不是手动计算 IME 高度并应用为 `contentPadding`，后者在某些设备上会导致布局跳动或覆盖。
-10、`reverseLayout = true` 的 `LazyColumn` 在处理聊天消息流时非常高效，通常不需要额外的 `scrollToItem(0)` 循环，手动滚动反而可能与系统的布局调整产生冲突导致抖动。
+9、在安卓端处理键盘避让时，必须优先使用 `contentPadding` 动态调整列表底部间距，配合 `weight(1f)` 容器，严禁直接在根容器或输入框容器上使用 `imePadding()`，否则会导致根布局高度剧烈抖动（全屏闪烁）。
+10、`reverseLayout = true` 的 `LazyColumn` 在处理聊天消息流时，应通过 `contentPadding` 吸收 IME 高度，确保顶部导航栏和布局骨架保持静止。
+11、流式渲染组件（如 Markdown）内部的 Composable 配置对象（Colors, Typography）应尽可能稳定，必要时使用 `key` 包装渲染核心以减少高频 Token 下的重绘压力。
