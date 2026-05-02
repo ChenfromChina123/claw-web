@@ -329,11 +329,16 @@ export class SessionConversationManager {
         sessionId: sessionId,
       })
     }
-    taskManager.on('task_created', (task: BackgroundTask) => taskEventHandler('task_created', task))
-    taskManager.on('task_started', (task: BackgroundTask) => taskEventHandler('task_started', task))
-    taskManager.on('task_completed', (task: BackgroundTask) => taskEventHandler('task_completed', task))
-    taskManager.on('task_failed', (task: BackgroundTask) => taskEventHandler('task_failed', task))
-    taskManager.on('task_cancelled', (task: BackgroundTask) => taskEventHandler('task_cancelled', task))
+    const taskListeners: Record<string, (task: BackgroundTask) => void> = {
+      task_created: (task) => taskEventHandler('task_created', task),
+      task_started: (task) => taskEventHandler('task_started', task),
+      task_completed: (task) => taskEventHandler('task_completed', task),
+      task_failed: (task) => taskEventHandler('task_failed', task),
+      task_cancelled: (task) => taskEventHandler('task_cancelled', task),
+    }
+    for (const [event, listener] of Object.entries(taskListeners)) {
+      taskManager.on(event, listener)
+    }
 
     try {
       // 4. 进入 Agent Loop (使用配置的最大迭代次数，默认30次)
@@ -493,11 +498,9 @@ export class SessionConversationManager {
       sendEvent('error', { message: errorMessage })
     } finally {
       this.clearStreamAbort(sessionId)
-      taskManager.off('task_created')
-      taskManager.off('task_started')
-      taskManager.off('task_completed')
-      taskManager.off('task_failed')
-      taskManager.off('task_cancelled')
+      for (const [event, listener] of Object.entries(taskListeners)) {
+        taskManager.off(event, listener)
+      }
     }
   }
 
