@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -163,14 +164,14 @@ fun BeautifulMarkdown(
         }
     }
 
-    // 优化：使用 key 包装 Markdown 渲染，只有内容或配置变化时才重绘
-    // 减少流式输出时的重绘压力
-    key(markdown, markdownColors, markdownTypography) {
-        Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-        ) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+    ) {
+        // 优化：使用 key 包装 Markdown 渲染，只有内容或配置变化时才重绘
+        // 减少流式输出时的重绘压力
+        key(markdown, markdownColors, markdownTypography) {
             Markdown(
                 content = markdown,
                 modifier = Modifier
